@@ -27,6 +27,12 @@ const condKey = (c: string): string =>
  * (with precioOferta/importeInventario filled in) for rows that needed the
  * fallback; rows that already have a price are returned unchanged.
  *
+ * A material can exist under several condiciones (e.g. distinct expiry
+ * bands), each with its own "Precio Oferta" in InvConsolidado, so the
+ * fallback is keyed by material+condición first; only when a row's exact
+ * condición isn't priced in the catalog do we fall back to any price known
+ * for that material.
+ *
  * Shared by the Dashboard KPI (computeKpis) and any view that renders
  * InvConsolidadoRow rows directly (e.g. Inventario por Condición), so both
  * surfaces resolve price identically.
@@ -36,6 +42,7 @@ export function applyCatalogPriceFallback(
   catalog: CatalogSnapshot | null,
 ): InvConsolidadoRow[] {
   if (!catalog) return rows;
+
   // Precio oferta comes from the catalog's InvConsolidado (synced from AppScript).
   // Match first by material+condición so a material with several conditions gets
   // each condición's own price; fall back to a material-level price (first
@@ -43,6 +50,7 @@ export function applyCatalogPriceFallback(
   // (matches buildEnrich().matPrecioOferta: leading zeros / trailing ".0" collapse).
   const priceByMatCond = new Map<string, number>();
   const priceByMat = new Map<string, number>();
+
   for (const r of catalog.invConsolidado) {
     if (r.precioOferta <= 0) continue;
     const mk = normCode(r.material);
@@ -50,12 +58,22 @@ export function applyCatalogPriceFallback(
     if (!priceByMatCond.has(ck)) priceByMatCond.set(ck, r.precioOferta);
     if (!priceByMat.has(mk)) priceByMat.set(mk, r.precioOferta);
   }
+
   return rows.map((r) => {
     if (r.precioOferta > 0) return r;
     const mk = normCode(r.material);
-    const price = priceByMatCond.get(`${mk}|${condKey(r.condicion)}`) ?? priceByMat.get(mk) ?? 0;
+    const price =
+      priceByMatCond.get(`${mk}|${condKey(r.condicion)}`) ??
+      priceByMat.get(mk) ??
+      0;
+
     if (price <= 0) return r;
-    return { ...r, precioOferta: price, importeInventario: price * r.invSuma };
+
+    return {
+      ...r,
+      precioOferta: price,
+      importeInventario: price * r.invSuma,
+    };
   });
 }
 

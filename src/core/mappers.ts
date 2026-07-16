@@ -20,7 +20,12 @@ const str = (v: unknown): string => (v === undefined || v === null ? '' : String
 const num = (v: unknown): number => {
   if (typeof v === 'number') return v;
   if (v === undefined || v === null || v === '') return 0;
-  const n = Number(String(v).replace(/,/g, ''));
+  // Google Sheets exports currency cells as strings like "$ 60.87" or
+  // "$82.00" — strip everything but digits/dot/minus (and thousands commas)
+  // before parsing.
+  const s = String(v).replace(/[^0-9.,-]/g, '').replace(/,/g, '');
+  if (s === '' || s === '-') return 0;
+  const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 };
 
