@@ -480,27 +480,6 @@ function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: P
     const cons = consFor(result?.consumo ?? [], mat);
     const serie = serieMaterial(rf, mat);
 
-    // When the material appears in "Inventario por Condición", show a box with
-    // each condición and its Precio oferta. The condición comes from that sheet;
-    // the price is the catalog's InvConsolidado precioOferta (synced from
-    // AppScript), back-filled per (material, condición) by applyCatalogPriceFallback.
-    const invCondRows = a.invCondicion.filter((r) => norm(r.material) === norm(mat));
-    const precioMap = new Map<string, { condicion: string; precio: number; inv: number }>();
-
-    for (const r of invCondRows) {
-      const key = `${r.condicion}|${r.precioOferta}`;
-      const cur =
-        precioMap.get(key) || {
-          condicion: r.condicion || '(sin condición)',
-          precio: r.precioOferta,
-          inv: 0,
-        };
-      cur.inv += r.invSuma;
-      precioMap.set(key, cur);
-    }
-
-    const precios = [...precioMap.values()].sort((x, y) => y.precio - x.precio);
-
     return (
       <div>
         <h2 className="font-display text-lg font-semibold">{mat}</h2>
