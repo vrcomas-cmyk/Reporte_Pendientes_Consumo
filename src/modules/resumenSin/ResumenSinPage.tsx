@@ -38,20 +38,6 @@ export function ResumenSinPage() {
     return { inv, pend, trans };
   }, [list]);
 
-  if (!rss) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <Inbox className="size-8 text-text-faint" />
-        <p className="text-sm text-text-muted">No se cargó la hoja "Resumen Sin Sugerencias".</p>
-        <Button asChild><Link to="/carga">Ir a Carga</Link></Button>
-      </div>
-    );
-  }
-
-  const centrosAll = rss.centros;
-  // Always-visible: 1031 stays regardless of the toggle; toggle picks which other centro(s) show.
-  const centros = centroFiltro ? centrosAll.filter((c) => c === '1031' || c === centroFiltro) : centrosAll;
-  const colCount = 6 + centros.length;
   const statusMat = (mo: (typeof list)[number]) => {
     const s = new Set<string>();
     mo.centros.forEach((co) => co.status.forEach((v) => s.add(v)));
@@ -67,6 +53,23 @@ export function ResumenSinPage() {
   }), [list, a.enrich]);
   const { sorted, sortKey, dir, toggleSort } = useSort(list, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
+
+  // Empty state — rendered after all hooks so hook order stays stable across
+  // renders (Rules of Hooks).
+  if (!rss) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+        <Inbox className="size-8 text-text-faint" />
+        <p className="text-sm text-text-muted">No se cargó la hoja "Resumen Sin Sugerencias".</p>
+        <Button asChild><Link to="/carga">Ir a Carga</Link></Button>
+      </div>
+    );
+  }
+
+  const centrosAll = rss.centros;
+  // Always-visible: 1031 stays regardless of the toggle; toggle picks which other centro(s) show.
+  const centros = centroFiltro ? centrosAll.filter((c) => c === '1031' || c === centroFiltro) : centrosAll;
+  const colCount = 6 + centros.length;
 
   const exportar = () => {
     const out: Record<string, unknown>[] = [];

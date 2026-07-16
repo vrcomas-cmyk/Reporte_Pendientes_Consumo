@@ -14,12 +14,10 @@ export interface Analytics {
   boByKey: Map<string, BOItem>;
   rss: RSSIndex | null;
   enrich: EnrichIndex;
+  /** Inventory-by-condition rows for the current view: the daily "Inventario por
+   * condición" sheet when present (else the catalog's InvConsolidado), with each
+   * row's `precioOferta` back-filled per (material, condición) from the catalog. */
   invCondicion: InvConsolidadoRow[];
-  /** Raw catalog inventory-by-condition (InvConsolidado). Unlike `invCondicion`
-   * (which prefers the daily "Inventario por condición" sheet and back-fills a
-   * single price per material), these rows keep the real per-condición
-   * `precioOferta`, so a material with several conditions shows several prices. */
-  invConsolidadoCatalog: InvConsolidadoRow[];
   lotes: InvDetalleRow[];
   curmes: string;
 }
@@ -33,7 +31,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Analytics>(() => {
     const enrich = buildEnrich(catalog);
     if (!result) {
-      return { result: null, rf: null, bo: [], boByKey: new Map(), rss: null, enrich, invCondicion: [], invConsolidadoCatalog: catalog?.invConsolidado ?? [], lotes: [], curmes: '' };
+      return { result: null, rf: null, bo: [], boByKey: new Map(), rss: null, enrich, invCondicion: [], lotes: [], curmes: '' };
     }
     const rf = result.resumenFac.length ? buildRF(result.resumenFac) : null;
     const bo = result.sugerencias.length ? buildBO(result.sugerencias, rf) : [];
@@ -44,7 +42,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     const invCondicionRaw = result.inventarioCondicion.length ? result.inventarioCondicion : catalog?.invConsolidado ?? [];
     const invCondicion = applyCatalogPriceFallback(invCondicionRaw, catalog);
     const lotes = [...(catalog?.invDetalle ?? []), ...result.lotesCortaCaducidad];
-    return { result, rf, bo, boByKey, rss, enrich, invCondicion, invConsolidadoCatalog: catalog?.invConsolidado ?? [], lotes, curmes: rf?.curmes ?? '' };
+    return { result, rf, bo, boByKey, rss, enrich, invCondicion, lotes, curmes: rf?.curmes ?? '' };
   }, [result, catalog]);
 
   return <AnalyticsCtx.Provider value={value}>{children}</AnalyticsCtx.Provider>;

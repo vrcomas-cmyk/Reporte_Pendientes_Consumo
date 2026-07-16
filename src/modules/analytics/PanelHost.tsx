@@ -429,18 +429,13 @@ function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: P
     const sug = sugFor(bo, mat);
     const cons = consFor(result?.consumo ?? [], mat);
     const serie = serieMaterial(rf, mat);
-    // A material can exist under several conditions (e.g. distinct expiry
-    // bands), each with its own offer price. Collect every distinct
-    // (condición, precio oferta) pair from InvConsolidado/Inventario por
-    // condición so all of them are shown, not just one.
-    // Prefer the catalog's InvConsolidado (real per-condición precioOferta);
-    // fall back to invCondicion only if the material isn't in the catalog.
-    const precioSource = a.invConsolidadoCatalog.some((r) => norm(r.material) === norm(mat))
-      ? a.invConsolidadoCatalog
-      : a.invCondicion;
+    // When the material appears in "Inventario por Condición", show a box with
+    // each condición and its Precio oferta. The condición comes from that sheet;
+    // the price is the catalog's InvConsolidado precioOferta (synced from
+    // AppScript), back-filled per (material, condición) by applyCatalogPriceFallback.
+    const invCondRows = a.invCondicion.filter((r) => norm(r.material) === norm(mat));
     const precioMap = new Map<string, { condicion: string; precio: number; inv: number }>();
-    for (const r of precioSource) {
-      if (norm(r.material) !== norm(mat)) continue;
+    for (const r of invCondRows) {
       const key = `${r.condicion}|${r.precioOferta}`;
       const cur = precioMap.get(key) || { condicion: r.condicion || '(sin condición)', precio: r.precioOferta, inv: 0 };
       cur.inv += r.invSuma;

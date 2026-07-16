@@ -1,4 +1,4 @@
-import type { SheetRole, DetectedSheet } from './types';
+import type { SheetRole } from './types';
 
 /** Normalizes a header string for signature matching: trims, collapses
  *  whitespace, drops accents/case. Adapted from the legacy `norm()` helper
@@ -47,10 +47,3 @@ export const ROLE_LABEL: Record<SheetRole, string> = {
   inventarioCondicion: 'Inventario por Condición',
   lotesCortaCaducidad: 'Detalle Lotes Corta Caducidad',
 };
-
-export function detectSheets(sheets: Record<string, Record<string, unknown>[]>): DetectedSheet[] {
-  return Object.entries(sheets).map(([name, rows]) => {
-    const headers = rows.length ? Object.keys(rows[0]) : [];
-    return { name, role: roleOf(headers), rowCount: rows.length, headers };
-  });
-}

@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { ErrorBoundary } from './ErrorBoundary';
 import { useUiStore } from '@/store/uiStore';
 import { useDataStore } from '@/store/dataStore';
 import { getCachedCatalog, syncCatalogFromAppScript } from '@/services/catalogService';
@@ -53,7 +54,9 @@ export function AppShell() {
               transition={{ duration: 0.16, ease: 'easeOut' }}
               className="h-full"
             >
-              <Outlet />
+              <ErrorBoundary resetKey={location.pathname}>
+                <Outlet />
+              </ErrorBoundary>
             </motion.div>
           </AnimatePresence>
         </main>

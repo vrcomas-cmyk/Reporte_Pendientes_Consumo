@@ -34,7 +34,7 @@ export function matchesQueryNormalized(query: string, normalizedHaystack: string
 }
 export const num = (v: unknown): number => {
   if (v == null || v === '') return 0;
-  const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+  const n = parseFloat(String(v).replace(/[^0-9.-]/g, ''));
   return isNaN(n) ? 0 : n;
 };
 export const pickField = (r: Record<string, unknown>, names: string[]): string => {

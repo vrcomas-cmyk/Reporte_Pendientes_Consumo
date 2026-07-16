@@ -22,7 +22,7 @@ import {
 const norm = (v: unknown): string => (v == null ? '' : String(v)).trim();
 const num = (v: unknown): number => {
   if (v == null || v === '') return 0;
-  const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+  const n = parseFloat(String(v).replace(/[^0-9.-]/g, ''));
   return isNaN(n) ? 0 : n;
 };
 

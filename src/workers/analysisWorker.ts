@@ -1,6 +1,5 @@
 /// <reference lib="webworker" />
 import * as XLSX from 'xlsx';
-import { normHeader } from '@/core/roleDetection';
 import {
   mapEjecutivo,
   mapMaterial,
@@ -170,19 +169,23 @@ async function handleProcessReport(req: Extract<WorkerRequest, { type: 'process-
     if (cancelled.has(id)) return post({ id, type: 'cancelled' });
 
     progress(id, 'kpis', 75, 'Calculando KPIs...');
+    // The daily "Inventario por condición" sheet, when present, is the source of
+    // truth; otherwise fall back to the catalog's consolidated inventory. All
+    // inventory-derived surfaces (KPIs, heatmap, inconsistencies) use the same set.
+    const invForAnalysis = inventarioCondicion.length ? inventarioCondicion : catalog?.invConsolidado ?? [];
     const kpis = computeKpis({
       catalog,
       sugerencias,
       consumo,
-      invConsolidado: inventarioCondicion.length ? inventarioCondicion : catalog?.invConsolidado ?? [],
+      invConsolidado: invForAnalysis,
       lotesCortaCaducidad: lotesCortaCaducidad.length ? lotesCortaCaducidad : catalog?.invDetalle ?? [],
       settings,
     });
     const top5Materiales = topMateriales(sugerencias, 5);
     const top5Ejecutivos = topEjecutivos(sugerencias, catalog, 5);
     const monthly = monthlyInvoicing(resumenFac);
-    const heatmap = buildHeatmap(inventarioCondicion.length ? inventarioCondicion : catalog?.invConsolidado ?? []);
-    const inconsistencies = detectInconsistencies({ catalog, sugerencias, invConsolidado: inventarioCondicion });
+    const heatmap = buildHeatmap(invForAnalysis);
+    const inconsistencies = detectInconsistencies({ catalog, sugerencias, invConsolidado: invForAnalysis });
 
     if (cancelled.has(id)) return post({ id, type: 'cancelled' });
 
@@ -223,7 +226,3 @@ self.addEventListener('message', (ev: MessageEvent<WorkerRequest | { id: string;
   if (data.type === 'parse-catalog') void handleParseCatalog(data);
   else if (data.type === 'process-report') void handleProcessReport(data);
 });
-
-// keep normHeader import used (re-exported nowhere else) to avoid tree-shake
-// lint complaints if this module is ever imported directly in tests.
-export { normHeader };

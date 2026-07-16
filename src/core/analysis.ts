@@ -13,6 +13,12 @@ import type {
   Inconsistency,
   AppSettings,
 } from './types';
+import { normCode } from './enrich';
+
+/** Normalizes a "Condición" value for matching between the daily report and
+ *  the catalog (trim, deaccent, uppercase). */
+const condKey = (c: string): string =>
+  (c ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase();
 
 /**
  * The daily report's "Inventario por condicion" sheet carries no price
@@ -30,13 +36,24 @@ export function applyCatalogPriceFallback(
   catalog: CatalogSnapshot | null,
 ): InvConsolidadoRow[] {
   if (!catalog) return rows;
-  const catalogPriceByMaterial = new Map<string, number>();
+  // Precio oferta comes from the catalog's InvConsolidado (synced from AppScript).
+  // Match first by material+condición so a material with several conditions gets
+  // each condición's own price; fall back to a material-level price (first
+  // positive) when the exact condición isn't in the catalog. Keys use normCode
+  // (matches buildEnrich().matPrecioOferta: leading zeros / trailing ".0" collapse).
+  const priceByMatCond = new Map<string, number>();
+  const priceByMat = new Map<string, number>();
   for (const r of catalog.invConsolidado) {
-    if (r.precioOferta > 0) catalogPriceByMaterial.set(r.material, r.precioOferta);
+    if (r.precioOferta <= 0) continue;
+    const mk = normCode(r.material);
+    const ck = `${mk}|${condKey(r.condicion)}`;
+    if (!priceByMatCond.has(ck)) priceByMatCond.set(ck, r.precioOferta);
+    if (!priceByMat.has(mk)) priceByMat.set(mk, r.precioOferta);
   }
   return rows.map((r) => {
     if (r.precioOferta > 0) return r;
-    const price = catalogPriceByMaterial.get(r.material) ?? 0;
+    const mk = normCode(r.material);
+    const price = priceByMatCond.get(`${mk}|${condKey(r.condicion)}`) ?? priceByMat.get(mk) ?? 0;
     if (price <= 0) return r;
     return { ...r, precioOferta: price, importeInventario: price * r.invSuma };
   });

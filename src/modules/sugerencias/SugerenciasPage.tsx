@@ -109,16 +109,6 @@ export function SugerenciasPage() {
     return co.alm.get(alm)?.transito || 0;
   };
 
-  if (!a.result || !a.bo.length) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <Inbox className="size-8 text-text-faint" />
-        <p className="text-sm text-text-muted">No hay sugerencias. Carga catálogo y procesa un reporte.</p>
-        <Button asChild><Link to="/carga">Ir a Carga</Link></Button>
-      </div>
-    );
-  }
-
   const addQuick = (field: string, value: string) => {
     if (!value || quick.some((f) => f.col === field && f.value === value)) return;
     setQuick([...quick, { col: field, value }]);
@@ -149,6 +139,18 @@ export function SugerenciasPage() {
   }), [e, grupoCli, ejec]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
+
+  // Empty state — rendered after all hooks so hook order stays stable across
+  // the "sin datos" → "con datos" transition (Rules of Hooks).
+  if (!a.result || !a.bo.length) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+        <Inbox className="size-8 text-text-faint" />
+        <p className="text-sm text-text-muted">No hay sugerencias. Carga catálogo y procesa un reporte.</p>
+        <Button asChild><Link to="/carga">Ir a Carga</Link></Button>
+      </div>
+    );
+  }
 
   const exportar = () => {
     const rowsX = filtered.map((it) => {
