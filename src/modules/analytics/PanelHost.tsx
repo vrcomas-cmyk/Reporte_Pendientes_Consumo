@@ -3,7 +3,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
 import { usePanelStore, type Panel } from '@/store/panelStore';
 import { useAnalytics, type Analytics } from './AnalyticsContext';
 import { StatePill, TrendBadge, Chip, EvolChart, ComparativaDual, InvGrid, StatTile } from './ui';
@@ -205,7 +205,7 @@ function LotesTable({ lotes }: { lotes: Analytics['lotes'] }) {
               return (
                 <TableRow key={i}>
                   <TableCell>{l.centro}</TableCell><TableCell>{l.almacen}</TableCell><TableCell>{l.lote}</TableCell>
-                  <TableCell>{l.fechaCaducidad || '—'}{vg && <div className="text-[11px]"><StatePill label={vg.txt} cls={vg.cls} /></div>}</TableCell>
+                  <TableCell>{formatFechaCaducidad(l.fechaCaducidad)}{vg && <div className="text-[11px]"><StatePill label={vg.txt} cls={vg.cls} /></div>}</TableCell>
                   <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
                   <TableCell className="text-right">{l.precioOferta ? formatCurrency(l.precioOferta) : '—'}</TableCell>
                 </TableRow>
@@ -224,6 +224,55 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h3 className="mb-2 text-sm font-semibold text-text">{title}</h3>
       {children}
     </div>
+  );
+}
+
+/** A material can exist under several condiciones (e.g. distinct expiry
+ * bands), each with its own "Precio Oferta". Collects every distinct
+ * (condición, precio oferta) pair for `material` from InvConsolidado/
+ * Inventario por condición — preferring the catalog's InvConsolidado (real
+ * per-condición precioOferta) and falling back to invCondicion only if the
+ * material isn't in the catalog — so callers never collapse several prices
+ * into one. */
+function precioPorCondicion(a: Analytics, material: string) {
+  const precioSource = a.invConsolidadoCatalog.some((r) => norm(r.material) === norm(material))
+    ? a.invConsolidadoCatalog
+    : a.invCondicion;
+  const precioMap = new Map<string, { condicion: string; precio: number; inv: number }>();
+  for (const r of precioSource) {
+    if (norm(r.material) !== norm(material)) continue;
+    const key = `${r.condicion}|${r.precioOferta}`;
+    const cur = precioMap.get(key) || { condicion: r.condicion || '(sin condición)', precio: r.precioOferta, inv: 0 };
+    cur.inv += r.invSuma;
+    precioMap.set(key, cur);
+  }
+  return [...precioMap.values()].sort((x, y) => y.precio - x.precio);
+}
+
+/** Renders one recuadro per condición for `material`, each showing Material,
+ * Descripción, Condición and Precio Oferta together — the same box used
+ * wherever a report opens a material's detail, so a material with several
+ * condiciones always shows all of its prices, not just one. */
+function PrecioCondicionBox({ a, material }: { a: Analytics; material: string }) {
+  const precios = useMemo(() => precioPorCondicion(a, material), [a, material]);
+  if (!precios.length) return null;
+  const descripcion = a.enrich.matTexto(material);
+  return (
+    <Section title="Precio oferta por condición">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {precios.map((p, i) => (
+          <div key={i} className="rounded-lg border border-border bg-bg-elevated p-2.5">
+            <div className="font-mono text-xs font-medium">{material}</div>
+            <div className="truncate text-[11px] text-text-faint">{descripcion || '—'}</div>
+            <div className="mt-1.5 flex items-center justify-between gap-2">
+              <StatePill label={p.condicion} cls={/corta/i.test(p.condicion) ? 'rojo' : 'gris'} />
+              <div className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">{p.precio ? formatCurrency(p.precio) : '—'}</div>
+            </div>
+            {p.inv > 0 && <div className="mt-1 text-[11px] text-text-faint">inv {formatNumber(p.inv)}</div>}
+          </div>
+        ))}
+      </div>
+    </Section>
   );
 }
 
@@ -383,6 +432,7 @@ function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: P
           <StatTile label="Prom. mensual" value={formatNumber(r.consumoPromedioMensual)} />
           <StatTile label="Estado" value={st.label} />
         </div>
+        <PrecioCondicionBox a={a} material={r.material} />
         <Section title="Comparativo anual"><ComparativaDual serie={serie} /></Section>
         <Section title="Evolución mensual — material + destinatario"><EvolChart serie={serie} onMonth={(mes) => push({ type: 'clientesMes', material: r.material, mes })} /></Section>
       </div>
@@ -429,36 +479,33 @@ function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: P
     const sug = sugFor(bo, mat);
     const cons = consFor(result?.consumo ?? [], mat);
     const serie = serieMaterial(rf, mat);
+
     // When the material appears in "Inventario por Condición", show a box with
     // each condición and its Precio oferta. The condición comes from that sheet;
     // the price is the catalog's InvConsolidado precioOferta (synced from
     // AppScript), back-filled per (material, condición) by applyCatalogPriceFallback.
     const invCondRows = a.invCondicion.filter((r) => norm(r.material) === norm(mat));
     const precioMap = new Map<string, { condicion: string; precio: number; inv: number }>();
+
     for (const r of invCondRows) {
       const key = `${r.condicion}|${r.precioOferta}`;
-      const cur = precioMap.get(key) || { condicion: r.condicion || '(sin condición)', precio: r.precioOferta, inv: 0 };
+      const cur =
+        precioMap.get(key) || {
+          condicion: r.condicion || '(sin condición)',
+          precio: r.precioOferta,
+          inv: 0,
+        };
       cur.inv += r.invSuma;
       precioMap.set(key, cur);
     }
+
     const precios = [...precioMap.values()].sort((x, y) => y.precio - x.precio);
+
     return (
       <div>
         <h2 className="font-display text-lg font-semibold">{mat}</h2>
-        <p className="mt-1 text-sm text-text-muted">{lotes.length} lote(s) · {formatNumber(totalUni)} unidades</p>
-        {precios.length > 0 && (
-          <Section title="Precio oferta por condición">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {precios.map((p, i) => (
-                <div key={i} className="rounded-lg border border-border bg-bg-elevated p-2.5">
-                  <div className="text-[11px] uppercase tracking-wide text-text-faint">{p.condicion}</div>
-                  <div className="font-mono text-sm font-medium">{p.precio ? formatCurrency(p.precio) : '—'}</div>
-                  {p.inv > 0 && <div className="text-[11px] text-text-faint">inv {formatNumber(p.inv)}</div>}
-                </div>
-              ))}
-            </div>
-          </Section>
-        )}
+        <p className="mt-1 text-sm text-text-muted">{a.enrich.matTexto(mat) ? `${a.enrich.matTexto(mat)} · ` : ''}{lotes.length} lote(s) · {formatNumber(totalUni)} unidades</p>
+        <PrecioCondicionBox a={a} material={mat} />
         <Section title="Tendencia del material">
           <div className="mb-2"><TrendBadge t={tendenciaTexto(serie)} /></div>
           <EvolChart serie={serie} onMonth={(mes) => push({ type: 'clientesMes', material: mat, mes })} />
@@ -496,8 +543,8 @@ function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: P
           <StatTile label="Pendiente" value={formatNumber(co.pend)} tone="text-danger" />
           <StatTile label="En tránsito" value={formatNumber(co.transito)} tone="text-warning" />
           <StatTile label="Importe pend." value={formatCurrency(co.impPend)} />
-          {a.enrich.matPrecioOferta(panel.material) > 0 && <StatTile label="Precio oferta" value={formatCurrency(a.enrich.matPrecioOferta(panel.material))} tone="text-emerald-500" />}
         </div>
+        <PrecioCondicionBox a={a} material={panel.material} />
         <Section title="Desglose por almacén">
           <div>
             <Table wrapperClassName="max-h-64 rounded-lg border border-border">
@@ -547,8 +594,8 @@ function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: P
           <StatTile label="Pendiente global" value={formatNumber(mo.sumaPend)} tone="text-danger" />
           <StatTile label="Sugerencias" value={String(sug.length)} />
           <StatTile label="Clientes consumo" value={String(cons.length)} />
-          {a.enrich.matPrecioOferta(panel.material) > 0 && <StatTile label="Precio oferta" value={formatCurrency(a.enrich.matPrecioOferta(panel.material))} tone="text-emerald-500" />}
         </div>
+        <PrecioCondicionBox a={a} material={panel.material} />
         <Section title="Sugerencias / Consumo del material">
           <Tabs defaultValue="sug">
             <TabsList><TabsTrigger value="sug">Sugerencias ({sug.length})</TabsTrigger><TabsTrigger value="cons">Consumo ({cons.length})</TabsTrigger></TabsList>

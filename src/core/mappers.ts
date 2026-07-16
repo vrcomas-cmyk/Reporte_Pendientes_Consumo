@@ -8,6 +8,7 @@ import type {
   ConsumoRow,
   ResumenFacRow,
 } from './types';
+import { normHeader } from './roleDetection';
 
 // Raw xlsx rows come back as Record<string, unknown> with header keys.
 // These mappers translate the Spanish column headers (documented in the
@@ -28,6 +29,21 @@ const num = (v: unknown): number => {
   const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 };
+
+/** Looks up a row value by header name, tolerant of case/accent/whitespace
+ * differences between the expected column name and what the sheet actually
+ * has (Google Sheets exports of the same report are inconsistent about
+ * this — "Precio Oferta" vs " precio oferta " vs "PRECIO OFERTA"). Tries an
+ * exact key match first (cheap, the common case), then falls back to a
+ * normalized header scan. */
+function pick(r: Row, name: string): unknown {
+  if (name in r) return r[name];
+  const target = normHeader(name);
+  for (const k of Object.keys(r)) {
+    if (normHeader(k) === target) return r[k];
+  }
+  return undefined;
+}
 
 const CENTERS = ['1001', '1003', '1004', '1017', '1018', '1022', '1036'];
 
@@ -98,8 +114,8 @@ export function mapInvConsolidado(r: Row): InvConsolidadoRow {
     invByCenter,
     transitoByCenter,
     invSuma,
-    precioOferta: num(r[' Precio Oferta'] ?? r['Precio Oferta']),
-    importeInventario: num(r[' Importe Inventario $'] ?? r['Importe Inventario $']),
+    precioOferta: num(pick(r, 'Precio Oferta')),
+    importeInventario: num(pick(r, 'Importe Inventario $')),
   };
 }
 
@@ -113,7 +129,7 @@ export function mapInvDetalle(r: Row): InvDetalleRow {
     lote: str(r['Lote']),
     fechaCaducidad: fecha ? excelDateToIso(fecha) : null,
     cantidadDisp: num(r['CantidadDisp']),
-    precioOferta: num(r['Precio oferta']),
+    precioOferta: num(pick(r, 'Precio oferta')),
   };
 }
 
@@ -130,6 +146,29 @@ export function excelDateToIso(v: unknown): string | null {
     return d.toISOString().slice(0, 10);
   }
   const s = String(v).trim();
+  if (!s) return null;
+  // The AppScript/Google Sheets export writes "Fecha de Caducidad" as
+  // dd/mm/aaaa (day-first) text. JS's native Date(string) parser assumes
+  // mm/dd/yyyy for slash-separated strings, so e.g. "16/07/2026" (day 16)
+  // parsed as a month comes back Invalid Date (the row silently loses its
+  // caducidad), and "05/07/2026" parses as May 7 instead of July 5. Parse
+  // day-first explicitly instead of relying on the ambiguous native parser.
+  let m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/.exec(s);
+  if (m) {
+    const day = Number(m[1]);
+    const month = Number(m[2]);
+    const year = Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3]);
+    const d = new Date(Date.UTC(year, month - 1, day));
+    if (Number.isNaN(d.getTime()) || d.getUTCDate() !== day || d.getUTCMonth() !== month - 1) return null;
+    return d.toISOString().slice(0, 10);
+  }
+  // Already ISO (yyyy-mm-dd[...]) — parse the date part explicitly too, so
+  // it isn't affected by the local timezone offset.
+  m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
+  if (m) {
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  }
   const d = new Date(s);
   if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
   return null;
