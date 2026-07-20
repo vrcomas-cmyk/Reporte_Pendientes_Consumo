@@ -24,6 +24,66 @@ export async function getDb(): Promise<duckdb.AsyncDuckDB> {
 
 let tableSeq = 0;
 
+/** Marker column carrying the list of fields that were flattened to JSON
+ * strings on write, so the read side knows which ones to parse back. Its
+ * value is identical in every row (Parquet dictionary-encodes it to ~nothing).
+ * Blobs written before this existed simply lack the column and decode as-is. */
+const NESTED_KEYS_COL = '__nested_keys';
+
+/** Nested objects (`raw`, `invByCenter`) hold whatever the source sheet had,
+ * so the same field can be a number in one row and a string in another
+ * (e.g. `raw.Pedidos`: numeric order numbers, but '' for blank cells because
+ * sheet_to_json uses defval: ''). DuckDB's JSON reader infers the struct
+ * schema from a sample of the first rows and then hard-fails on the first
+ * value that doesn't fit ("Expected number or null, got string").
+ * Encoding those subobjects as JSON strings sidesteps the inference entirely
+ * and round-trips the values unchanged. */
+function flattenNested(rows: unknown[]): unknown[] {
+  const nested = new Set<string>();
+  for (const row of rows) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+    for (const [k, v] of Object.entries(row)) {
+      if (v !== null && typeof v === 'object') nested.add(k);
+    }
+  }
+  if (!nested.size) return rows;
+  const keys = [...nested];
+  const marker = JSON.stringify(keys);
+  return rows.map((row) => {
+    const out = { ...(row as Record<string, unknown>) };
+    for (const k of keys) {
+      if (k in out && out[k] !== null && out[k] !== undefined) out[k] = JSON.stringify(out[k]);
+    }
+    out[NESTED_KEYS_COL] = marker;
+    return out;
+  });
+}
+
+/** Inverse of {@link flattenNested}. Mutates and returns `rows`. */
+function restoreNested(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  const marker = rows[0]?.[NESTED_KEYS_COL];
+  if (typeof marker !== 'string') return rows;
+  let keys: string[];
+  try {
+    keys = JSON.parse(marker) as string[];
+  } catch {
+    return rows;
+  }
+  for (const row of rows) {
+    delete row[NESTED_KEYS_COL];
+    for (const k of keys) {
+      const v = row[k];
+      if (typeof v !== 'string') continue;
+      try {
+        row[k] = JSON.parse(v);
+      } catch {
+        /* not ours after all — leave the string in place */
+      }
+    }
+  }
+  return rows;
+}
+
 /** Serializes an array of flat rows to Parquet bytes. */
 export async function rowsToParquet(rows: unknown[]): Promise<Uint8Array> {
   if (!rows.length) return new Uint8Array();
@@ -32,7 +92,7 @@ export async function rowsToParquet(rows: unknown[]): Promise<Uint8Array> {
   const table = `t${tableSeq++}`;
   const file = `${table}.json`;
   try {
-    await db.registerFileText(file, JSON.stringify(rows));
+    await db.registerFileText(file, JSON.stringify(flattenNested(rows)));
     await conn.insertJSONFromPath(file, { name: table });
     await conn.query(`COPY ${table} TO '${table}.parquet' (FORMAT PARQUET)`);
     return await db.copyFileToBuffer(`${table}.parquet`);
@@ -80,7 +140,8 @@ export async function parquetToRows<T = Record<string, unknown>>(buf: Uint8Array
   try {
     await db.registerFileBuffer(file, buf);
     const res = await conn.query(`SELECT * FROM parquet_scan('${file}')`);
-    return res.toArray().map((r) => r.toJSON() as T);
+    const rows = res.toArray().map((r) => r.toJSON() as Record<string, unknown>);
+    return restoreNested(rows) as T[];
   } finally {
     await conn.close();
     await db.dropFile(file).catch(() => {});
