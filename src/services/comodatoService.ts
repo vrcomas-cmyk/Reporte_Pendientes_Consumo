@@ -6,7 +6,7 @@
 // factura ni fecha real por línea), c_materiales ← catálogo materiales,
 // ejecutivos_zona ← catálogo ejecutivos.
 import * as XLSX from 'xlsx';
-import { getDb, loadRowsAsTable, runScript } from './duckdbService';
+import { getDb, loadRowsAsTable, runScript, arrowRowsToPlain } from './duckdbService';
 import { descargarFacturacionParquet } from './facturacionService';
 import type { Material, Ejecutivo } from '@/core/types';
 import sqlComodato from '@/core/sql/SQL_Comodato.sql?raw';
@@ -86,9 +86,9 @@ export async function runComodatoAnalysis(
       conn.query('SELECT * FROM v_bolsas_resumen'),
     ]);
     return {
-      seguimiento360: seg.toArray().map((r) => r.toJSON() as SeguimientoRow),
-      direccionTendencia: tend.toArray().map((r) => r.toJSON()),
-      bolsasResumen: bolsas.toArray().map((r) => r.toJSON()),
+      seguimiento360: arrowRowsToPlain<SeguimientoRow>(seg),
+      direccionTendencia: arrowRowsToPlain(tend),
+      bolsasResumen: arrowRowsToPlain(bolsas),
     };
   } finally {
     await conn.close();

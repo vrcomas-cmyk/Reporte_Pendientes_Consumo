@@ -130,6 +130,50 @@ export async function runScript(conn: duckdb.AsyncDuckDBConnection, script: stri
   }
 }
 
+/** Arrow's `StructRow.toJSON()` is shallow: it returns a plain object, but
+ * each value is still whatever the type visitor produced — a nested
+ * `StructRow` proxy for structs, a `Vector` for lists, a `bigint` for
+ * BIGINT (which every COUNT/SUM in SQL_Comodato.sql yields). Those proxies
+ * are not structured-cloneable, so a result that reaches `postMessage`
+ * (the catalog handed to the analysis worker) or IndexedDB dies with
+ * "[object Row] could not be cloned"; the bigints break arithmetic and
+ * JSON.stringify. Convert the whole tree to plain JS once, at the boundary.
+ *
+ * Detection is duck-typed on purpose — apache-arrow is only a transitive
+ * dependency of duckdb-wasm, so we don't import its classes to instanceof
+ * against. `toJSON()` is the one method Vector, StructRow and MapRow all
+ * expose, and each returns a plain array/object we can then recurse into. */
+function toPlain(v: unknown): unknown {
+  if (v === null || v === undefined) return null;
+  const t = typeof v;
+  if (t === 'string' || t === 'number' || t === 'boolean') return v;
+  // BIGINT -> number, which is what every consumer of these rows expects.
+  // Beyond 2^53 that would silently corrupt the value, so keep those as text.
+  if (t === 'bigint') {
+    const n = Number(v);
+    return Number.isSafeInteger(n) ? n : String(v);
+  }
+  // Date and binary clone natively — and Date must be checked before the
+  // toJSON branch below, which would otherwise flatten it to a string.
+  if (v instanceof Date || v instanceof ArrayBuffer || ArrayBuffer.isView(v)) return v;
+  if (Array.isArray(v)) return v.map(toPlain);
+  const maybeArrow = v as { toJSON?: () => unknown };
+  if (typeof maybeArrow.toJSON === 'function') return toPlain(maybeArrow.toJSON());
+  if (v instanceof Map) return Object.fromEntries([...v].map(([k, val]) => [String(k), toPlain(val)]));
+  if (v instanceof Set) return [...v].map(toPlain);
+  const out: Record<string, unknown> = {};
+  for (const [k, val] of Object.entries(v as object)) out[k] = toPlain(val);
+  return out;
+}
+
+/** Converts an Arrow query result into plain, structured-cloneable rows.
+ * Every read out of DuckDB must go through this. */
+export function arrowRowsToPlain<T = Record<string, unknown>>(res: {
+  toArray: () => unknown[];
+}): T[] {
+  return res.toArray().map((r) => toPlain(r) as T);
+}
+
 /** Reads Parquet bytes back into an array of plain row objects. */
 export async function parquetToRows<T = Record<string, unknown>>(buf: Uint8Array): Promise<T[]> {
   if (!buf.length) return [];
@@ -140,8 +184,7 @@ export async function parquetToRows<T = Record<string, unknown>>(buf: Uint8Array
   try {
     await db.registerFileBuffer(file, buf);
     const res = await conn.query(`SELECT * FROM parquet_scan('${file}')`);
-    const rows = res.toArray().map((r) => r.toJSON() as Record<string, unknown>);
-    return restoreNested(rows) as T[];
+    return restoreNested(arrowRowsToPlain(res)) as T[];
   } finally {
     await conn.close();
     await db.dropFile(file).catch(() => {});
