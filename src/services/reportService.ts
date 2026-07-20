@@ -1,5 +1,6 @@
 import { reportRepository } from '@/repositories';
 import { processReport } from './analysisService';
+import { uploadFileToR2 } from './r2Service';
 import type { AnalysisResult, CatalogSnapshot, ProcessingProgress, AppSettings, SheetRole } from '@/core/types';
 
 /** Starts a report analysis job. Returns immediately with a promise (that
@@ -19,9 +20,23 @@ export function runAnalysis(
     const job = processReport(buffer, file.name, catalog, settings, { onProgress }, selectedRoles);
     cancelFn = job.cancel;
 
+    // Sube el xlsx original a R2 en paralelo al análisis. Es un respaldo, no
+    // una dependencia del flujo: si falla (sin R2 configurado, red caída),
+    // el análisis sigue normal y solo queda sin r2Key en el historial.
+    const r2KeyPromise = uploadFileToR2(file).catch((e) => {
+      reportRepository.addLog({
+        at: new Date().toISOString(),
+        level: 'warn',
+        event: 'r2-upload-failed',
+        detail: e instanceof Error ? e.message : String(e),
+      });
+      return undefined;
+    });
+
     await reportRepository.addLog({ at: new Date().toISOString(), level: 'info', event: 'analysis-start', detail: file.name });
     try {
       const result = await job.promise;
+      const r2Key = await r2KeyPromise;
       await reportRepository.saveAnalysis(result);
       await reportRepository.addHistory({
         fileName: result.fileName,
@@ -29,6 +44,7 @@ export function runAnalysis(
         durationMs: result.durationMs,
         rowCount: result.rowCount,
         kpis: result.kpis,
+        r2Key,
       });
       await reportRepository.addLog({
         at: new Date().toISOString(),

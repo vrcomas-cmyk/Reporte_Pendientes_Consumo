@@ -17,6 +17,8 @@ import {
   Activity,
   Grid3x3,
   LineChart,
+  Wand2,
+  HandCoins,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/store/uiStore';
@@ -24,6 +26,7 @@ import { useUiStore } from '@/store/uiStore';
 const NAV = [
   { to: '/', label: 'Panel', icon: LayoutDashboard, end: true },
   { to: '/carga', label: 'Carga', icon: UploadCloud },
+  { to: '/generar', label: 'Generar reporte', icon: Wand2 },
   { to: '/procesamiento', label: 'Procesamiento', icon: Loader2 },
   { to: '/resultados', label: 'Resultados', icon: Table2 },
   { to: '/sugerencias', label: 'Sugerencias', icon: ClipboardList },
@@ -31,6 +34,7 @@ const NAV = [
   { to: '/resumen-sin', label: 'Resumen Sin Sug.', icon: Grid3x3 },
   { to: '/inventario', label: 'Inventario', icon: Boxes },
   { to: '/analisis', label: 'Análisis', icon: LineChart },
+  { to: '/comodato', label: 'Comodato vs. Fac.', icon: HandCoins },
   { to: '/historial', label: 'Historial', icon: History },
   { to: '/registros', label: 'Registros', icon: ScrollText },
   { to: '/ajustes', label: 'Ajustes', icon: Settings },

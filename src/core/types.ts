@@ -273,6 +273,8 @@ export interface HistoryEntry {
   durationMs: number;
   rowCount: number;
   kpis: DashboardKpis;
+  /** Object key in R2 for the original xlsx, if the upload (fase 2) succeeded. */
+  r2Key?: string;
 }
 
 export type LogLevel = 'info' | 'warn' | 'error';

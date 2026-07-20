@@ -1,25 +1,27 @@
 import Dexie, { type Table } from 'dexie';
-import type { CatalogSnapshot, AnalysisResult, HistoryEntry, LogEntry, AppSettings } from '@/core/types';
 
-/** Single Dexie database for the whole app. Object stores map 1:1 to the
- * domain concepts persisted on-device: the catalog snapshot (loaded once,
- * refreshed only on demand), analysis results (one per processed report),
- * a lightweight history index, an event log, and user settings. */
+/** Row shape for catalog/analysis snapshots: array-valued fields (the bulk
+ * of the data — resumenFac, sugerencias, invDetalle, ...) are stored
+ * Parquet-encoded via blobCodec, not as raw JSON — that's what actually
+ * blows up IndexedDB storage. `meta` carries everything else (scalars,
+ * small computed fields) as plain JSON. See DuckDBCatalogRepository /
+ * DuckDBAnalysisStore. history/logs/settings moved to Supabase (fase 1). */
+export interface SnapshotRow {
+  id?: number | string;
+  processedAt?: string;
+  meta: Record<string, unknown>;
+  blobs: Record<string, Uint8Array>;
+}
+
 export class DegasaDb extends Dexie {
-  catalog!: Table<CatalogSnapshot, string>;
-  analyses!: Table<AnalysisResult, number>;
-  history!: Table<HistoryEntry, number>;
-  logs!: Table<LogEntry, number>;
-  settings!: Table<AppSettings, string>;
+  catalog!: Table<SnapshotRow, string>;
+  analyses!: Table<SnapshotRow, number>;
 
   constructor() {
     super('degasa-portal');
-    this.version(1).stores({
+    this.version(2).stores({
       catalog: 'id',
       analyses: '++id, processedAt',
-      history: '++id, processedAt',
-      logs: '++id, at, level',
-      settings: 'id',
     });
   }
 }

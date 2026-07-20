@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
 import { usePanelStore, type Panel } from '@/store/panelStore';
 import { useAnalytics, type Analytics } from './AnalyticsContext';
-import { StatePill, TrendBadge, Chip, EvolChart, ComparativaDual, InvGrid, StatTile } from './ui';
+import { StatePill, TrendBadge, Chip, EvolChart, ComparativaDual, InvGrid, StatTile, DetailChevron } from './ui';
 import { useMemo, useState } from 'react';
 import {
   materialesDe, serieSolic, serieDest, serieMaterial, mesLabel, clasificarEstado, tendenciaTexto,
@@ -60,14 +60,14 @@ function SugTable({ list, push }: { list: BOItem[]; push: (p: Panel) => void }) 
               <TableHead>Pedido</TableHead><TableHead>Cliente</TableHead><TableHead>Centro</TableHead>
               <TableHead>Material</TableHead>
               <TableHead className="text-right">Pendiente</TableHead><TableHead className="text-right">Precio</TableHead>
-              <TableHead>Estado</TableHead><TableHead className="text-right">Fuentes</TableHead>
+              <TableHead>Estado</TableHead><TableHead className="text-right">Fuentes</TableHead><TableHead className="w-8" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {shown.map((it) => {
               const isBloqueado = !!it.bo.bloqueado;
               return (
-                <TableRow key={it.k} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => push({ type: 'sugDetalle', boKey: it.k })}>
+                <TableRow key={it.k} className={`group ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`}>
                   <TableCell>{it.bo.pedido}</TableCell>
                   <TableCell className="max-w-64 truncate">{it.bo.razonSocial}</TableCell>
                   <TableCell>{it.bo.centroPedido}</TableCell>
@@ -76,6 +76,7 @@ function SugTable({ list, push }: { list: BOItem[]; push: (p: Panel) => void }) 
                   <TableCell className="text-right">{formatCurrency(it.bo.precio)}</TableCell>
                   <TableCell><StatePill label={it.status.label} cls={it.status.cls} /></TableCell>
                   <TableCell className="text-right">{it.fuentes.length || '—'}</TableCell>
+                  <TableCell><DetailChevron onOpen={() => push({ type: 'sugDetalle', boKey: it.k })} /></TableCell>
                 </TableRow>
               );
             })}
@@ -100,18 +101,19 @@ function ConsumoTable({ list, a, push }: { list: ConsumoRow[]; a: Analytics; pus
             <TableRow>
               <TableHead>Cliente</TableHead><TableHead>Centro</TableHead>
               <TableHead className="text-right">Consumo/prom</TableHead><TableHead className="text-right">Imp. última</TableHead>
-              <TableHead>Estado</TableHead><TableHead>Tendencia</TableHead>
+              <TableHead>Estado</TableHead><TableHead>Tendencia</TableHead><TableHead className="w-8" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {shown.map((r, i) => (
-              <TableRow key={i} className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => push({ type: 'consumoMaterial', dest: r.destinatario, material: r.material })}>
+              <TableRow key={i} className="group">
                 <TableCell className="max-w-64 truncate">{r.razonSocial}<div className="text-[11px] text-text-faint">D {r.destinatario}</div></TableCell>
                 <TableCell>{r.centro || ce.grupoCli(r) || '—'}</TableCell>
                 <TableCell className="text-right">{formatNumber(r.consumoActual)}/{formatNumber(r.consumoPromedioMensual)}</TableCell>
                 <TableCell className="text-right">{formatCurrency(r.importeUltima)}</TableCell>
                 <TableCell><StatePill label={consumoStatus(a.rf, r).label} cls={consumoStatus(a.rf, r).cls} /></TableCell>
                 <TableCell><TrendBadge t={consumoTend(a.rf, r)} /></TableCell>
+                <TableCell><DetailChevron onOpen={() => push({ type: 'consumoMaterial', dest: r.destinatario, material: r.material })} /></TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -140,17 +142,18 @@ function ClienteConsumoTable({ rows, rf, push }: {
             <TableRow>
               <TableHead>Material</TableHead><TableHead className="text-right">Última</TableHead>
               <TableHead className="text-right">Penúltima</TableHead><TableHead className="text-right">Últ. precio</TableHead>
-              <TableHead>Tendencia</TableHead>
+              <TableHead>Tendencia</TableHead><TableHead className="w-8" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {shown.map((r, i) => (
-              <TableRow key={i} className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => push({ type: 'material', material: r.material })}>
+              <TableRow key={i} className="group">
                 <TableCell><span className="text-accent">{r.material}</span><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div></TableCell>
                 <TableCell className="text-right">{formatNumber(r.cantidadUltima)}<div className="text-[11px] text-text-faint">{r.ultimoMesFacturacion || '—'}</div></TableCell>
                 <TableCell className="text-right">{formatNumber(num(r.raw[RC.cantPen]))}<div className="text-[11px] text-text-faint">{pickField(r.raw, [RC.penFecha]) || '—'}</div></TableCell>
                 <TableCell className="text-right">{formatCurrency(r.precioProm)}</TableCell>
                 <TableCell><TrendBadge t={consumoTend(rf, r)} /></TableCell>
+                <TableCell><DetailChevron onOpen={() => push({ type: 'material', material: r.material })} /></TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -190,24 +193,45 @@ function FuentesTable({ fuentes, push }: { fuentes: BOItem['fuentes']; push: (p:
   );
 }
 
-function LotesTable({ lotes }: { lotes: Analytics['lotes'] }) {
+function LotesTable({ lotes, a, material }: { lotes: Analytics['lotes']; a: Analytics; material: string }) {
   const [f, setF] = useState('');
   const shown = f ? lotes.filter((l) => matchesQuery(f, `${l.centro} ${l.almacen} ${l.lote}`)) : lotes;
+  // "Detalle Lotes Corta Caducidad" (daily report) carries no "Precio oferta"
+  // column; "InvDetalle" (catalog) only covers short-expiry lots, not the rest
+  // of a material's condiciones. Resolve prices per (condición) from the
+  // AppScript's InvConsolidado (fall back to invCondicion if no catalog) so a
+  // lot shows every condition's price, not just one.
+  const precios = useMemo(() => precioPorCondicion(a, material), [a, material]);
   return (
     <div>
       <SubFilter value={f} onChange={setF} placeholder="Filtrar centro, almacén, lote…" />
       <div>
         <Table wrapperClassName="max-h-64 rounded-lg border border-border">
-          <TableHeader><TableRow><TableHead>Centro</TableHead><TableHead>Almacén</TableHead><TableHead>Lote</TableHead><TableHead>Caducidad</TableHead><TableHead className="text-right">Cantidad</TableHead><TableHead className="text-right">Precio oferta</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Centro</TableHead><TableHead>Almacén</TableHead><TableHead>Lote</TableHead><TableHead>Caducidad</TableHead><TableHead className="text-right">Cantidad</TableHead><TableHead className="text-right">Precio(s) por condición</TableHead></TableRow></TableHeader>
           <TableBody>
             {shown.map((l, i) => {
               const vg = vigenciaTxt(l.fechaCaducidad || '');
+              const lotePrecio = l.precioOferta && l.precioOferta > 0 ? l.precioOferta : 0;
               return (
                 <TableRow key={i}>
                   <TableCell>{l.centro}</TableCell><TableCell>{l.almacen}</TableCell><TableCell>{l.lote}</TableCell>
                   <TableCell>{formatFechaCaducidad(l.fechaCaducidad)}{vg && <div className="text-[11px]"><StatePill label={vg.txt} cls={vg.cls} /></div>}</TableCell>
                   <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
-                  <TableCell className="text-right">{l.precioOferta ? formatCurrency(l.precioOferta) : '—'}</TableCell>
+                  <TableCell className="text-right align-top">
+                    {lotePrecio > 0 && (
+                      <div className="mb-1 font-mono text-emerald-600 dark:text-emerald-400">{formatCurrency(lotePrecio)}<div className="text-[10px] text-text-faint">del lote</div></div>
+                    )}
+                    {precios.length > 0 ? (
+                      <div className="inline-flex flex-col gap-0.5">
+                        {precios.map((p, j) => (
+                          <div key={j} className="flex items-center justify-end gap-1.5">
+                            <StatePill label={p.condicion} cls={/corta/i.test(p.condicion) ? 'rojo' : 'gris'} />
+                            <span className="font-mono">{p.precio ? formatCurrency(p.precio) : '—'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : !lotePrecio ? '—' : null}
+                  </TableCell>
                 </TableRow>
               );
             })}
@@ -352,15 +376,16 @@ function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: P
         <Section title="Códigos facturados y su tendencia">
           <div>
             <Table wrapperClassName="max-h-80 rounded-lg border border-border">
-              <TableHeader><TableRow><TableHead>Material</TableHead><TableHead>Sector/Grupo</TableHead><TableHead>Último mes</TableHead><TableHead className="text-right">Importe</TableHead><TableHead>Tendencia</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Material</TableHead><TableHead>Sector/Grupo</TableHead><TableHead>Último mes</TableHead><TableHead className="text-right">Importe</TableHead><TableHead>Tendencia</TableHead><TableHead className="w-8" /></TableRow></TableHeader>
               <TableBody>
                 {mats.map((m) => (
-                  <TableRow key={m.material} className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => push({ type: 'codigoEvol', kind: panel.kind, key: panel.key, material: m.material })}>
+                  <TableRow key={m.material} className="group">
                     <TableCell><span className="text-accent">{m.material}</span><div className="text-[11px] text-text-faint max-w-72 truncate">{m.texto}</div></TableCell>
                     <TableCell>{m.sector || '—'}<div className="text-[11px] text-text-faint">{m.grupo}</div></TableCell>
                     <TableCell>{m.ultimo ? mesLabel(m.ultimo.mes) : '—'}</TableCell>
                     <TableCell className="text-right">{m.ultimo ? formatCurrency(m.ultimo.imp) : '—'}</TableCell>
                     <TableCell><TrendBadge t={m.tend} /></TableCell>
+                    <TableCell><DetailChevron onOpen={() => push({ type: 'codigoEvol', kind: panel.kind, key: panel.key, material: m.material })} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -491,7 +516,7 @@ function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: P
         </Section>
         {lotes.length > 0 && (
           <Section title="Lotes">
-            <LotesTable lotes={lotes} />
+            <LotesTable lotes={lotes} a={a} material={mat} />
           </Section>
         )}
         <Section title="Sugerencias / Consumo">
@@ -745,15 +770,16 @@ function GrupoPanelBody({ g, rows, serie, push }: {
         <SubFilter value={f} onChange={setF} placeholder="Filtrar cliente…" />
         <div>
           <Table wrapperClassName="max-h-80 rounded-lg border border-border">
-            <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Estado actual</TableHead><TableHead>Estado trim. anterior</TableHead><TableHead className="text-right">Importe</TableHead><TableHead>Última</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Estado actual</TableHead><TableHead>Estado trim. anterior</TableHead><TableHead className="text-right">Importe</TableHead><TableHead>Última</TableHead><TableHead className="w-8" /></TableRow></TableHeader>
             <TableBody>
               {shown.map((x) => (
-                <TableRow key={x.solic} className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => push({ type: 'evol', kind: 'solic', key: x.solic })}>
+                <TableRow key={x.solic} className="group">
                   <TableCell className="max-w-72 truncate">{x.razon || '—'}<div className="text-[11px] text-text-faint">Solic {x.solic}</div></TableCell>
                   <TableCell><StatePill label={x.st.label} cls={x.st.cls} /></TableCell>
                   <TableCell><StatePill label={x.stPrev.label} cls={x.stPrev.cls} /></TableCell>
                   <TableCell className="text-right">{formatCurrency(x.imp)}</TableCell>
                   <TableCell>{x.ult ? mesLabel(x.ult) : '—'}</TableCell>
+                  <TableCell><DetailChevron onOpen={() => push({ type: 'evol', kind: 'solic', key: x.solic })} /></TableCell>
                 </TableRow>
               ))}
             </TableBody>

@@ -1,0 +1,30 @@
+import type { ReactNode } from 'react';
+import { useAuth } from '@/services/authService';
+import { Button } from '@/components/ui/button';
+
+/** Blocks the whole app behind Google login + invite list until signed in. */
+export function AuthGate({ children }: { children: ReactNode }) {
+  const { status, signInWithGoogle } = useAuth();
+
+  if (status === 'loading') {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="size-6 animate-spin rounded-full border-2 border-border border-t-accent" />
+      </div>
+    );
+  }
+
+  if (status === 'signed-in') return <>{children}</>;
+
+  return (
+    <div className="flex h-screen flex-col items-center justify-center gap-4 p-8 text-center">
+      <h1 className="font-display text-xl font-semibold">Degasa Portal</h1>
+      {status === 'not-allowed' && (
+        <p className="max-w-sm text-sm text-danger">
+          Tu cuenta de Google no está autorizada para este portal. Pide acceso a un administrador.
+        </p>
+      )}
+      <Button onClick={signInWithGoogle}>Entrar con Google</Button>
+    </div>
+  );
+}

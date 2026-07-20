@@ -10,7 +10,9 @@ import { peekReportSheets, type ReportSheetInfo } from '@/services/reportPeek';
 import type { SheetRole } from '@/core/types';
 import { formatDateTime } from '@/lib/utils';
 
-function DropZone({
+// Exported so GenerarReportePage.tsx (fase B de la migración a API) reusa el
+// mismo control en vez de duplicarlo.
+export function DropZone({
   onFile,
   accept,
   label,

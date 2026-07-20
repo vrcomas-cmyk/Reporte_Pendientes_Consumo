@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Minus, ZoomIn, ZoomOut, Plus, X, Search } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, ZoomIn, ZoomOut, Plus, X, Search, ChevronRight } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -52,6 +52,25 @@ export function ZoomControl({ level, setLevel }: { level: number; setLevel: (n: 
         <ZoomIn className="size-3.5" />
       </button>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Un solo clic, siempre visible (no requiere recordar doble-clic ni hover para
+// descubrirlo), y con un hit-target propio para que un clic accidental en el
+// resto de la fila no dispare la apertura del detalle.
+// ---------------------------------------------------------------------------
+export function DetailChevron({ onOpen, label = 'Ver detalle' }: { onOpen: () => void; label?: string }) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={(e) => { e.stopPropagation(); onOpen(); }}
+      className="inline-flex size-6 items-center justify-center rounded-md text-text-faint opacity-60 transition-opacity hover:bg-bg-inset hover:text-accent hover:opacity-100 group-hover:opacity-100"
+    >
+      <ChevronRight className="size-4" />
+    </button>
   );
 }
 

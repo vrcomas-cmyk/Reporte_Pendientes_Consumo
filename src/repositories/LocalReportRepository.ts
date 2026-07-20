@@ -1,51 +1,55 @@
 import { db } from './db';
+import { encodeSnapshot, decodeSnapshot } from './blobCodec';
 import type { ReportRepository } from './ReportRepository';
 import type { AnalysisResult, HistoryEntry, LogEntry, AppSettings } from '@/core/types';
 
 const DEFAULT_SETTINGS: AppSettings = { id: 'current', shortExpiryDays: 90, lowStockThreshold: 5 };
 
-/** IndexedDB-backed implementation of ReportRepository (analyses, history,
- * logs, settings) via dexie. */
+/** IndexedDB-backed ReportRepository. Only `saveAnalysis`/`getLatestAnalysis`/
+ * `getAnalysis` are actually used today — history/logs/settings moved to
+ * Supabase (fase 1); SupabaseReportRepository composes this class purely for
+ * the analysis methods. Array fields of AnalysisResult are Parquet-encoded
+ * (blobCodec/duckdbService) instead of raw JSON — see db.ts. */
 export class LocalReportRepository implements ReportRepository {
   async saveAnalysis(result: AnalysisResult): Promise<number> {
-    const id = await db.analyses.add(result);
+    const { meta, blobs } = await encodeSnapshot(result);
+    const id = await db.analyses.put({ id: result.id, processedAt: result.processedAt, meta, blobs });
     return id as number;
   }
 
   async getLatestAnalysis(): Promise<AnalysisResult | null> {
     const rec = await db.analyses.orderBy('processedAt').last();
-    return rec ?? null;
+    if (!rec) return null;
+    return decodeSnapshot<AnalysisResult>(rec.meta, rec.blobs);
   }
 
   async getAnalysis(id: number): Promise<AnalysisResult | null> {
     const rec = await db.analyses.get(id);
-    return rec ?? null;
+    if (!rec) return null;
+    return decodeSnapshot<AnalysisResult>(rec.meta, rec.blobs);
   }
 
   async listHistory(): Promise<HistoryEntry[]> {
-    return db.history.orderBy('processedAt').reverse().toArray();
+    throw new Error('listHistory: usa SupabaseReportRepository (fase 1) — LocalReportRepository ya no persiste history.');
   }
 
-  async addHistory(entry: HistoryEntry): Promise<number> {
-    const id = await db.history.add(entry);
-    return id as number;
+  async addHistory(): Promise<number> {
+    throw new Error('addHistory: usa SupabaseReportRepository (fase 1) — LocalReportRepository ya no persiste history.');
   }
 
-  async listLogs(limit = 500): Promise<LogEntry[]> {
-    return db.logs.orderBy('at').reverse().limit(limit).toArray();
+  async listLogs(): Promise<LogEntry[]> {
+    throw new Error('listLogs: usa SupabaseReportRepository (fase 1) — LocalReportRepository ya no persiste logs.');
   }
 
-  async addLog(entry: LogEntry): Promise<number> {
-    const id = await db.logs.add(entry);
-    return id as number;
+  async addLog(): Promise<number> {
+    throw new Error('addLog: usa SupabaseReportRepository (fase 1) — LocalReportRepository ya no persiste logs.');
   }
 
   async getSettings(): Promise<AppSettings> {
-    const rec = await db.settings.get('current');
-    return rec ?? DEFAULT_SETTINGS;
+    return DEFAULT_SETTINGS;
   }
 
-  async saveSettings(settings: AppSettings): Promise<void> {
-    await db.settings.put({ ...settings, id: 'current' });
+  async saveSettings(): Promise<void> {
+    throw new Error('saveSettings: usa SupabaseReportRepository (fase 1) — LocalReportRepository ya no persiste settings.');
   }
 }

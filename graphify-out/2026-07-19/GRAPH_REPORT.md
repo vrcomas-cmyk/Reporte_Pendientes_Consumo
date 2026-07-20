@@ -1,7 +1,7 @@
 # Graph Report - Reporte_Pendientes_Consumo  (2026-07-19)
 
 ## Corpus Check
-- 91 files · ~47,119 words
+- 91 files · ~46,945 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
