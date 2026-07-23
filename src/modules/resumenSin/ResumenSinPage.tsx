@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead } from '@/components/ui/table';
 import { formatNumber, formatCurrency } from '@/lib/utils';
-import { exportXlsx, stamp } from '@/lib/exportXlsx';
+import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
+import { buildLotesSheet, loteKey } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
 import { TrendBadge, Chip, StatTile, ZoomControl, useZoom } from '@/modules/analytics/ui';
@@ -73,8 +74,12 @@ export function ResumenSinPage() {
 
   const exportar = () => {
     const out: Record<string, unknown>[] = [];
+    // La tabla es material × centro, así que los lotes se acotan a los pares
+    // (material, centro) realmente exportados.
+    const pares = new Set<string>();
     list.forEach((mo) => {
       mo.centros.forEach((co, centro) => {
+        pares.add(loteKey(mo.material, centro));
         const ig = invGen(co);
         out.push({
           Material: mo.material, Descripción: mo.desc, Centro: centro,
@@ -84,7 +89,11 @@ export function ResumenSinPage() {
         });
       });
     });
-    exportXlsx(`resumen_sin_sugerencias_${stamp()}.xlsx`, out, 'ResumenSinSug');
+    const lotesX = buildLotesSheet(a.lotes, (l) => pares.has(loteKey(l.material, l.centro)));
+    exportXlsxMultiSheet(`resumen_sin_sugerencias_${stamp()}.xlsx`, [
+      { name: 'ResumenSinSug', rows: out },
+      { name: 'Detalle Lotes', rows: lotesX },
+    ]);
   };
 
   return (

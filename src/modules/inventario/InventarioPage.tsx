@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead } from '@/components/ui/table';
 import { cn, formatCurrency, formatNumber } from '@/lib/utils';
-import { exportXlsx, stamp } from '@/lib/exportXlsx';
+import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
+import { buildLotesSheet } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
 import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom } from '@/modules/analytics/ui';
@@ -112,7 +113,14 @@ export function InventarioPage() {
       o['Inv Suma'] = r.invSuma; o['Importe $'] = r.importeInventario;
       return o;
     });
-    exportXlsx(`inventario_${stamp()}.xlsx`, rowsX, 'Inventario');
+    // Los renglones son material × condición (el inventario se reparte entre
+    // centros), así que los lotes se anexan a nivel material.
+    const mats = new Set(filtered.map((r) => norm(r.material)));
+    const lotesX = buildLotesSheet(a.lotes, (l) => mats.has(norm(l.material)));
+    exportXlsxMultiSheet(`inventario_${stamp()}.xlsx`, [
+      { name: 'Inventario', rows: rowsX },
+      { name: 'Detalle Lotes', rows: lotesX },
+    ]);
   };
 
   return (
