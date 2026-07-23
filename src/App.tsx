@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { AuthGate } from '@/components/auth/AuthGate';
+import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 import { DashboardPage } from '@/modules/dashboard/DashboardPage';
 import { AnalyticsProvider } from '@/modules/analytics/AnalyticsContext';
 import { PanelHost } from '@/modules/analytics/PanelHost';
@@ -40,31 +41,33 @@ function RouteFallback() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthGate>
-        <BrowserRouter>
-          <AnalyticsProvider>
-            <Routes>
-              <Route element={<AppShell />}>
-                <Route path="/" element={<DashboardPage />} />
-                <Route path="/carga" element={<Suspense fallback={<RouteFallback />}><UploadPage /></Suspense>} />
-                <Route path="/generar" element={<Suspense fallback={<RouteFallback />}><GenerarReportePage /></Suspense>} />
-                <Route path="/procesamiento" element={<Suspense fallback={<RouteFallback />}><ProcessingPage /></Suspense>} />
-                <Route path="/resultados" element={<Suspense fallback={<RouteFallback />}><ResultsPage /></Suspense>} />
-                <Route path="/inventario" element={<Suspense fallback={<RouteFallback />}><InventarioPage /></Suspense>} />
-                <Route path="/sugerencias" element={<Suspense fallback={<RouteFallback />}><SugerenciasPage /></Suspense>} />
-                <Route path="/consumo" element={<Suspense fallback={<RouteFallback />}><ConsumoPage /></Suspense>} />
-                <Route path="/resumen-sin" element={<Suspense fallback={<RouteFallback />}><ResumenSinPage /></Suspense>} />
-                <Route path="/analisis" element={<Suspense fallback={<RouteFallback />}><AnalisisPage /></Suspense>} />
-                <Route path="/comodato" element={<Suspense fallback={<RouteFallback />}><ComodatoPage /></Suspense>} />
-                <Route path="/historial" element={<Suspense fallback={<RouteFallback />}><HistoryPage /></Suspense>} />
-                <Route path="/registros" element={<Suspense fallback={<RouteFallback />}><LogsPage /></Suspense>} />
-                <Route path="/ajustes" element={<Suspense fallback={<RouteFallback />}><SettingsPage /></Suspense>} />
-              </Route>
-            </Routes>
-            <PanelHost />
-          </AnalyticsProvider>
-        </BrowserRouter>
-      </AuthGate>
+      <ErrorBoundary>
+        <AuthGate>
+          <BrowserRouter>
+            <AnalyticsProvider>
+              <Routes>
+                <Route element={<AppShell />}>
+                  <Route path="/" element={<DashboardPage />} />
+                  <Route path="/carga" element={<Suspense fallback={<RouteFallback />}><UploadPage /></Suspense>} />
+                  <Route path="/generar" element={<Suspense fallback={<RouteFallback />}><GenerarReportePage /></Suspense>} />
+                  <Route path="/procesamiento" element={<Suspense fallback={<RouteFallback />}><ProcessingPage /></Suspense>} />
+                  <Route path="/resultados" element={<Suspense fallback={<RouteFallback />}><ResultsPage /></Suspense>} />
+                  <Route path="/inventario" element={<Suspense fallback={<RouteFallback />}><InventarioPage /></Suspense>} />
+                  <Route path="/sugerencias" element={<Suspense fallback={<RouteFallback />}><SugerenciasPage /></Suspense>} />
+                  <Route path="/consumo" element={<Suspense fallback={<RouteFallback />}><ConsumoPage /></Suspense>} />
+                  <Route path="/resumen-sin" element={<Suspense fallback={<RouteFallback />}><ResumenSinPage /></Suspense>} />
+                  <Route path="/analisis" element={<Suspense fallback={<RouteFallback />}><AnalisisPage /></Suspense>} />
+                  <Route path="/comodato" element={<Suspense fallback={<RouteFallback />}><ComodatoPage /></Suspense>} />
+                  <Route path="/historial" element={<Suspense fallback={<RouteFallback />}><HistoryPage /></Suspense>} />
+                  <Route path="/registros" element={<Suspense fallback={<RouteFallback />}><LogsPage /></Suspense>} />
+                  <Route path="/ajustes" element={<Suspense fallback={<RouteFallback />}><SettingsPage /></Suspense>} />
+                </Route>
+              </Routes>
+              <PanelHost />
+            </AnalyticsProvider>
+          </BrowserRouter>
+        </AuthGate>
+      </ErrorBoundary>
     </QueryClientProvider>
   );
 }
