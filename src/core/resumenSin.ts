@@ -4,14 +4,8 @@
 // Each cell = general inventory of a center (warehouses 1030+1031+1060).
 // ---------------------------------------------------------------------------
 import type { ResumenSinSugerenciaRow } from './types';
+import { norm, num } from '@/lib/text';
 import { mesKey } from './resumenFac';
-
-const norm = (v: unknown): string => (v == null ? '' : String(v)).trim();
-const num = (v: unknown): number => {
-  if (v == null || v === '') return 0;
-  const n = parseFloat(String(v).replace(/[^0-9.-]/g, ''));
-  return isNaN(n) ? 0 : n;
-};
 
 const RSS = {
   centro: 'Centro', alm: 'Almacen', pedidos: 'Pedidos', material: 'Material', desc: 'Descripcion',

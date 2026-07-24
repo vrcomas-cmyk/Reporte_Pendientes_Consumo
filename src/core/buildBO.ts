@@ -18,13 +18,7 @@ import {
   type Tendencia,
   type ConsumoInfo,
 } from './resumenFac';
-
-const norm = (v: unknown): string => (v == null ? '' : String(v)).trim();
-const num = (v: unknown): number => {
-  if (v == null || v === '') return 0;
-  const n = parseFloat(String(v).replace(/[^0-9.-]/g, ''));
-  return isNaN(n) ? 0 : n;
-};
+import { norm, num } from '@/lib/text';
 
 export interface BOItem {
   bo: Sugerencia;

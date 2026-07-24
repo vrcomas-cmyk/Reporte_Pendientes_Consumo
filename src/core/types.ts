@@ -293,10 +293,58 @@ export interface AppSettings {
   lowStockThreshold: number;
 }
 
+/** Single source of truth for the default app settings — previously redefined
+ *  verbatim in dataStore.ts, LocalReportRepository.ts and
+ *  SupabaseReportRepository.ts. Keep the shape here, next to the type. */
+export const DEFAULT_SETTINGS: AppSettings = { id: 'current', shortExpiryDays: 90, lowStockThreshold: 5 };
+
+/** Canonical SAP centro codes used as the row axis of the pivot tables
+ *  (Resumen_Sin and Inventario). Previously duplicated (and divergently) in
+ *  mappers.ts and InventarioPage.tsx — consolidate here. */
+export const CENTERS = ['1001', '1003', '1004', '1017', '1018', '1022', '1036'] as const;
+export type CentroCode = (typeof CENTERS)[number];
+
 export type ProcessingPhase = 'idle' | 'parsing' | 'detecting' | 'crossing' | 'kpis' | 'done' | 'error' | 'cancelled';
 
 export interface ProcessingProgress {
   phase: ProcessingPhase;
   percent: number;
   message: string;
+}
+
+/** Which report page originated a DRP request — drives dedupe/badges and how
+ * the request-building form is prefilled. */
+export type SolicitudOrigen = 'sugerencias' | 'inventario' | 'resumenSin' | 'consumo';
+
+/** Local sync state of a request against the Google Sheet "DRP" tab. The
+ * Sheet itself (via its own formulas) fills Estatus/No. UD/Delivery — the
+ * portal never writes those three columns. */
+export type SolicitudSync = 'pendiente' | 'enviada' | 'error';
+
+/** One row of the "DRP" Google Sheet the portal is allowed to write:
+ * the 13 data columns, always sent, plus local tracking metadata.
+ * Estatus, No. UD and Delivery are intentionally absent — they are filled
+ * by formulas the other user maintains in the Sheet. */
+export interface SolicitudDRP {
+  id?: number;
+  fechaSolicitud: string;
+  centroOrigen: string;
+  almacenOrigen: string;
+  centroDestino: string;
+  almacenDestino: string;
+  codigo: string;
+  descripcion: string;
+  cantidad: number;
+  um: string;
+  lote: string;
+  fechaCaducidad: string;
+  comentarios: string;
+  pedidos: string;
+  /** Where in the app this request was created, and a dedupe key so the
+   * originating row can show an "ya solicitada" badge. */
+  origen: SolicitudOrigen;
+  sourceKey: string;
+  sync: SolicitudSync;
+  sentAt?: string;
+  error?: string;
 }

@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Secrets — `.env` may carry live Supabase/Apps Script credentials and
+# must NEVER be committed. Use `.env.local` (or proper secret management)
+# for real values; `.env.example` is the only env file that should be
+# tracked, and it must hold only placeholders.
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

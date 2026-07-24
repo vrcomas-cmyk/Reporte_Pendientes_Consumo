@@ -1,12 +1,14 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { AuthGate } from '@/components/auth/AuthGate';
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
+import { Toaster } from '@/components/feedback/Toaster';
 import { DashboardPage } from '@/modules/dashboard/DashboardPage';
 import { AnalyticsProvider } from '@/modules/analytics/AnalyticsContext';
 import { PanelHost } from '@/modules/analytics/PanelHost';
+import { useSolicitudStore } from '@/store/solicitudStore';
 
 // Dashboard + shell stay eager for instant first paint. Every other route is
 // code-split so its JS (and heavy deps like recharts/xlsx pulled in transitively)
@@ -25,6 +27,7 @@ const SugerenciasPage = lazy(() => import('@/modules/sugerencias/SugerenciasPage
 const ConsumoPage = lazy(() => import('@/modules/consumo/ConsumoPage').then((m) => ({ default: m.ConsumoPage })));
 const ResumenSinPage = lazy(() => import('@/modules/resumenSin/ResumenSinPage').then((m) => ({ default: m.ResumenSinPage })));
 const AnalisisPage = lazy(() => import('@/modules/analisis/AnalisisPage').then((m) => ({ default: m.AnalisisPage })));
+const SolicitudesPage = lazy(() => import('@/modules/solicitudes/SolicitudesPage').then((m) => ({ default: m.SolicitudesPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, refetchOnWindowFocus: false } },
@@ -39,6 +42,11 @@ function RouteFallback() {
 }
 
 function App() {
+  const hydrateSolicitudes = useSolicitudStore((s) => s.hydrate);
+  useEffect(() => {
+    void hydrateSolicitudes();
+  }, [hydrateSolicitudes]);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
@@ -57,6 +65,7 @@ function App() {
                   <Route path="/consumo" element={<Suspense fallback={<RouteFallback />}><ConsumoPage /></Suspense>} />
                   <Route path="/resumen-sin" element={<Suspense fallback={<RouteFallback />}><ResumenSinPage /></Suspense>} />
                   <Route path="/analisis" element={<Suspense fallback={<RouteFallback />}><AnalisisPage /></Suspense>} />
+                  <Route path="/solicitudes" element={<Suspense fallback={<RouteFallback />}><SolicitudesPage /></Suspense>} />
                   <Route path="/comodato" element={<Suspense fallback={<RouteFallback />}><ComodatoPage /></Suspense>} />
                   <Route path="/historial" element={<Suspense fallback={<RouteFallback />}><HistoryPage /></Suspense>} />
                   <Route path="/registros" element={<Suspense fallback={<RouteFallback />}><LogsPage /></Suspense>} />
@@ -68,6 +77,7 @@ function App() {
           </BrowserRouter>
         </AuthGate>
       </ErrorBoundary>
+      <Toaster />
     </QueryClientProvider>
   );
 }

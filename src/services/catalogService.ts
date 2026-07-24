@@ -1,6 +1,7 @@
-import { catalogRepository, reportRepository } from '@/repositories';
+import { catalogRepository } from '@/repositories';
 import { parseCatalog } from './analysisService';
 import { mapEjecutivo, mapMaterial, mapInvConsolidado, mapInvDetalle } from '@/core/mappers';
+import { logInfo } from '@/lib/logError';
 import type { CatalogSnapshot, ProcessingProgress } from '@/core/types';
 
 /** Google Apps Script endpoint (one Sync workbook, four tabs, no auth) — same
@@ -48,12 +49,7 @@ export async function syncCatalogFromAppScript(): Promise<CatalogSnapshot> {
     invDetalle: invDetalleRows.map(mapInvDetalle),
   };
   await catalogRepository.save(catalog);
-  await reportRepository.addLog({
-    at: new Date().toISOString(),
-    level: 'info',
-    event: 'catalog-load',
-    detail: `AppScript sync: ${catalog.materiales.length} materiales, ${catalog.ejecutivos.length} ejecutivos`,
-  });
+  void logInfo('catalog-load', `AppScript sync: ${catalog.materiales.length} materiales, ${catalog.ejecutivos.length} ejecutivos`);
   return catalog;
 }
 
@@ -75,11 +71,6 @@ export async function loadCatalogFromFile(
   const { promise } = parseCatalog(buffer, file.name, { onProgress });
   const catalog = await promise;
   await catalogRepository.save(catalog);
-  await reportRepository.addLog({
-    at: new Date().toISOString(),
-    level: 'info',
-    event: 'catalog-load',
-    detail: `${file.name}: ${catalog.materiales.length} materiales, ${catalog.ejecutivos.length} ejecutivos`,
-  });
+  void logInfo('catalog-load', `${file.name}: ${catalog.materiales.length} materiales, ${catalog.ejecutivos.length} ejecutivos`);
   return catalog;
 }

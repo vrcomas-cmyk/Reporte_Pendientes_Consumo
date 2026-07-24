@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Inbox, Lock, LockOpen, Download } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, Lock, LockOpen, Download } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,7 +11,15 @@ import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
 import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom } from '@/modules/analytics/ui';
 import { norm, matchesQuery } from '@/modules/analytics/helpers';
+import { EmptyState } from '@/components/feedback/EmptyState';
 import { useSort } from '@/hooks/useSort';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
+import { buildFromInvDetalle } from '@/services/solicitudService';
+import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSolicitarDialog';
+import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
+import { SolicitadoBadge } from '@/modules/solicitudes/SolicitadoBadge';
+import { useSolicitudStore } from '@/store/solicitudStore';
 
 const CENTERS = ['1001', '1003', '1004', '1017', '1018', '1022', '1036'];
 
@@ -45,6 +52,18 @@ export function InventarioPage() {
   const [isAdmin, setIsAdmin] = useState(readAdmin);
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
   const zoom = useZoom();
+  const qd = useDebouncedValue(q, 200);
+  const solicitar = useSolicitarDialog();
+  const solicitudesList = useSolicitudStore((s) => s.list);
+  // A row here is material×condición (inventory split by centro), so "ya
+  // solicitada" is a per-material match against any of its lotes.
+  const invSolicitadas = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of solicitudesList) {
+      if (s.origen === 'inventario') set.add(s.sourceKey.split('|')[1]);
+    }
+    return set;
+  }, [solicitudesList]);
 
   useEffect(() => { writeAdmin(isAdmin); }, [isAdmin]);
 
@@ -65,11 +84,11 @@ export function InventarioPage() {
     return rows.filter((r) => {
       if (cond && norm(r.condicion) !== cond) return false;
       if (sector && (a.enrich.matSector(r.material) || r.sector) !== sector) return false;
-      if (q && !matchesQuery(q, `${r.material} ${r.textoBreve}`)) return false;
+      if (qd && !matchesQuery(qd, `${r.material} ${r.textoBreve}`)) return false;
       if (!isAdmin && hidden.has(rowKey(r.material, r.condicion))) return false;
       return true;
     });
-  }, [rows, q, cond, sector, a.enrich, isAdmin, hidden]);
+  }, [rows, qd, cond, sector, a.enrich, isAdmin, hidden]);
 
   const kpis = useMemo(() => {
     const mats = new Set(filtered.map((r) => norm(r.material)));
@@ -91,15 +110,11 @@ export function InventarioPage() {
     importe: (r: (typeof filtered)[number]) => r.importeInventario,
   }), [a.enrich]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
+  const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
+  const colCount = (isAdmin ? 1 : 0) + 5 + 2 + CENTERS.length + 1 + 1 + 1;
 
   if (!rows.length) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <Inbox className="size-8 text-text-faint" />
-        <p className="text-sm text-text-muted">No hay datos de "Inventario por condición".</p>
-        <Button asChild><Link to="/carga">Ir a Carga</Link></Button>
-      </div>
-    );
+    return <EmptyState title={'No hay datos de "Inventario por condición".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 
   const exportar = () => {
@@ -117,7 +132,7 @@ export function InventarioPage() {
     // centros), así que los lotes se anexan a nivel material.
     const mats = new Set(filtered.map((r) => norm(r.material)));
     const lotesX = buildLotesSheet(a.lotes, (l) => mats.has(norm(l.material)));
-    exportXlsxMultiSheet(`inventario_${stamp()}.xlsx`, [
+    void exportXlsxMultiSheet(`inventario_${stamp()}.xlsx`, [
       { name: 'Inventario', rows: rowsX },
       { name: 'Detalle Lotes', rows: lotesX },
     ]);
@@ -161,61 +176,91 @@ export function InventarioPage() {
         <div className="ml-auto"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
       </div>
 
-      <Card className="min-h-0 flex-1 overflow-auto">
-        <Table className={zoom.className} wrapperClassName="overflow-visible">
-          <TableHeader>
-            <TableRow>
-              {isAdmin && <TableHead></TableHead>}
-              <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky left-0 z-20 bg-bg-elevated">Material</SortableTableHead>
-              <SortableTableHead sortKey="condicion" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky left-[140px] z-20 bg-bg-elevated">Condición</SortableTableHead>
-              <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky left-[260px] z-20 bg-bg-elevated">Sector/Grupo</SortableTableHead>
-              <SortableTableHead sortKey="precio" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky left-[400px] z-20 bg-bg-elevated text-right">Precio</SortableTableHead>
-              <SortableTableHead sortKey="disp3130" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Disp 31·30</SortableTableHead>
-              <SortableTableHead sortKey="disp3132" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Disp 31·32</SortableTableHead>
-              {CENTERS.map((c) => <TableHead key={c} className="text-right">Inv {c}</TableHead>)}
-              <SortableTableHead sortKey="invsuma" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Inv Suma</SortableTableHead>
-              <SortableTableHead sortKey="importe" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Importe $</SortableTableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sorted.slice(0, 1000).map((r, i) => {
-              const corta = /corta/i.test(r.condicion);
-              const key = rowKey(r.material, r.condicion);
-              const isHidden = hidden.has(key);
-              return (
-                <TableRow key={i} className={cn(isAdmin && isHidden && 'opacity-40')}>
-                  {isAdmin && (
+      <Card className="min-h-0 flex-1 overflow-hidden">
+        <div ref={scrollRef} className="h-full overflow-auto">
+          <Table className={zoom.className} wrapperClassName="overflow-visible">
+            <TableHeader>
+              <TableRow>
+                {isAdmin && <TableHead></TableHead>}
+                <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky left-0 z-20 bg-bg-elevated">Material</SortableTableHead>
+                <SortableTableHead sortKey="condicion" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky left-[140px] z-20 bg-bg-elevated">Condición</SortableTableHead>
+                <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky left-[260px] z-20 bg-bg-elevated">Sector/Grupo</SortableTableHead>
+                <SortableTableHead sortKey="precio" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky left-[400px] z-20 bg-bg-elevated text-right">Precio</SortableTableHead>
+                <SortableTableHead sortKey="disp3130" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Disp 31·30</SortableTableHead>
+                <SortableTableHead sortKey="disp3132" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Disp 31·32</SortableTableHead>
+                {CENTERS.map((c) => <TableHead key={c} className="text-right">Inv {c}</TableHead>)}
+                <SortableTableHead sortKey="invsuma" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Inv Suma</SortableTableHead>
+                <SortableTableHead sortKey="importe" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Importe $</SortableTableHead>
+                <TableHead>Acción</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paddingTop > 0 && <tr><td style={{ height: paddingTop }} colSpan={colCount} /></tr>}
+              {items.map((vi) => {
+                const r = sorted[vi.index];
+                const corta = /corta/i.test(r.condicion);
+                const key = rowKey(r.material, r.condicion);
+                const isHidden = hidden.has(key);
+                return (
+                  <TableRow key={key} className={cn(isAdmin && isHidden && 'opacity-40')}>
+                    {isAdmin && (
+                      <TableCell>
+                        <button
+                          type="button"
+                          title={isHidden ? 'Mostrar' : 'Ocultar'}
+                          onClick={() => toggleHidden(key)}
+                          className="text-sm"
+                        >
+                          {isHidden ? '↩' : '🚫'}
+                        </button>
+                      </TableCell>
+                    )}
+                    <TableCell className="sticky left-0 z-10 bg-bg-elevated"><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoBreve}</div></TableCell>
+                    <TableCell className="sticky left-[140px] z-10 bg-bg-elevated"><StatePill label={r.condicion || '—'} cls={corta ? 'rojo' : 'gris'} /></TableCell>
+                    <TableCell className="sticky left-[260px] z-10 bg-bg-elevated">{a.enrich.matSector(r.material) || r.sector || '—'}<div className="text-[11px] text-text-faint">{a.enrich.matGrupo(r.material) || r.grupo}</div></TableCell>
+                    <TableCell className="sticky left-[400px] z-10 bg-bg-elevated text-right">{r.precioOferta ? formatCurrency(r.precioOferta) : '—'}</TableCell>
+                    <TableCell className="text-right">{formatNumber(r.disponible31_30)}</TableCell>
+                    <TableCell className="text-right">{formatNumber(r.disponible31_32)}</TableCell>
+                    {CENTERS.map((c) => (
+                      <TableCell key={c} className="text-right">
+                        <Chip onClick={() => open({ type: 'material', material: r.material })}>{formatNumber(r.invByCenter[c] || 0)}</Chip>
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right font-medium">{formatNumber(r.invSuma)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(r.importeInventario)}</TableCell>
                     <TableCell>
-                      <button
-                        type="button"
-                        title={isHidden ? 'Mostrar' : 'Ocultar'}
-                        onClick={() => toggleHidden(key)}
-                        className="text-sm"
-                      >
-                        {isHidden ? '↩' : '🚫'}
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const lotesMaterial = a.lotes.filter((l) => norm(l.material) === norm(r.material));
+                            const loteOptions: LoteOption[] = lotesMaterial.map((l, idx) => ({
+                              key: `${idx}|${l.centro}|${l.lote}`,
+                              label: `Lote ${l.lote || '—'} · Centro ${l.centro} · ${formatNumber(l.cantidadDisp)}`,
+                              draft: buildFromInvDetalle(l, a.enrich),
+                            }));
+                            const initial = lotesMaterial.length
+                              ? buildFromInvDetalle(lotesMaterial[0], a.enrich)
+                              : buildFromInvDetalle({ material: r.material, textoBreve: r.textoBreve, centro: '', almacen: '', lote: '', fechaCaducidad: null, cantidadDisp: 0 }, a.enrich);
+                            solicitar.abrir(initial, loteOptions.length ? loteOptions : undefined);
+                          }}
+                        >
+                          Solicitar
+                        </Button>
+                        <SolicitadoBadge solicitado={invSolicitadas.has(norm(r.material))} />
+                      </div>
                     </TableCell>
-                  )}
-                  <TableCell className="sticky left-0 z-10 bg-bg-elevated"><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoBreve}</div></TableCell>
-                  <TableCell className="sticky left-[140px] z-10 bg-bg-elevated"><StatePill label={r.condicion || '—'} cls={corta ? 'rojo' : 'gris'} /></TableCell>
-                  <TableCell className="sticky left-[260px] z-10 bg-bg-elevated">{a.enrich.matSector(r.material) || r.sector || '—'}<div className="text-[11px] text-text-faint">{a.enrich.matGrupo(r.material) || r.grupo}</div></TableCell>
-                  <TableCell className="sticky left-[400px] z-10 bg-bg-elevated text-right">{r.precioOferta ? formatCurrency(r.precioOferta) : '—'}</TableCell>
-                  <TableCell className="text-right">{formatNumber(r.disponible31_30)}</TableCell>
-                  <TableCell className="text-right">{formatNumber(r.disponible31_32)}</TableCell>
-                  {CENTERS.map((c) => (
-                    <TableCell key={c} className="text-right">
-                      <Chip onClick={() => open({ type: 'material', material: r.material })}>{formatNumber(r.invByCenter[c] || 0)}</Chip>
-                    </TableCell>
-                  ))}
-                  <TableCell className="text-right font-medium">{formatNumber(r.invSuma)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(r.importeInventario)}</TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-        {sorted.length > 1000 && <p className="p-3 text-center text-xs text-text-faint">Mostrando 1000 de {formatNumber(sorted.length)}.</p>}
+                  </TableRow>
+                );
+              })}
+              {paddingBottom > 0 && <tr><td style={{ height: paddingBottom }} colSpan={colCount} /></tr>}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
+
+      <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
     </div>
   );
 }

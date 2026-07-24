@@ -2,12 +2,15 @@ import type { ConsumoRow } from '@/core/types';
 import type { EnrichIndex } from '@/core/enrich';
 import type { RFIndex } from '@/core/resumenFac';
 import {
-  serieMatDest, serieDeConsumo, clasificarEstado, tendenciaTexto, aMesAnio, mesKey,
+  serieMatDest, serieDeConsumo, clasificarEstado, tendenciaTexto, mesKey,
   type Serie, type Estado, type Tendencia,
 } from '@/core/resumenFac';
 import type { BOItem } from '@/core/buildBO';
+import { norm, num } from '@/lib/text';
 
-export const norm = (v: unknown): string => (v == null ? '' : String(v)).trim();
+// `norm` and `num` are re-exported from the single source of truth in
+// `@/lib/text` for historical callers that imported them from here.
+export { norm, num };
 
 /** Order-independent, multi-token, substring-both-ways match: every whitespace-separated
  * token in `query` must appear as a substring somewhere in `haystack` (case/accent-insensitive).
@@ -32,11 +35,6 @@ export function matchesQueryNormalized(query: string, normalizedHaystack: string
   const tokens = q.split(/\s+/).filter(Boolean);
   return tokens.every((t) => normalizedHaystack.includes(t));
 }
-export const num = (v: unknown): number => {
-  if (v == null || v === '') return 0;
-  const n = parseFloat(String(v).replace(/[^0-9.-]/g, ''));
-  return isNaN(n) ? 0 : n;
-};
 export const pickField = (r: Record<string, unknown>, names: string[]): string => {
   for (const n of names) {
     const v = norm(r[n]);
@@ -83,13 +81,6 @@ export function consumoTend(rf: RFIndex | null, r: ConsumoRow): Tendencia {
   return tendenciaTexto(consumoSerie(rf, r));
 }
 
-export const mKeyOf = (v: unknown): number => {
-  const m = aMesAnio(v);
-  if (!m) return 0;
-  const [mm, yy] = m.split('/').map(Number);
-  return yy * 12 + mm;
-};
-
 // Sugerencias (BO) and Consumo rows filtered by material [+ centro].
 export function sugFor(bo: BOItem[], material: string, centro?: string | null): BOItem[] {
   const m = norm(material);
@@ -102,7 +93,4 @@ export function consFor(rows: ConsumoRow[], material: string, centro?: string | 
   return rows.filter((r) => norm(r.material) === m && (!c || norm(r.centro) === c));
 }
 
-export function serieDeConsumoFallback(rf: RFIndex | null, r: ConsumoRow): Serie {
-  return consumoSerie(rf, r);
-}
 export { mesKey };

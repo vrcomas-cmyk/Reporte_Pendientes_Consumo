@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Inbox, Download, ChevronDown } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Download, ChevronDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, TableHeader, TableBody, TableRow, TableCell, SortableTableHead } from '@/components/ui/table';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead } from '@/components/ui/table';
+import { EmptyState } from '@/components/feedback/EmptyState';
 import { useSort } from '@/hooks/useSort';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
@@ -13,6 +13,11 @@ import { StatePill, TrendBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, C
 import { ESTADOS } from '@/core/resumenFac';
 import { norm, num, matchesQuery } from '@/modules/analytics/helpers';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
+import { buildFromSugerencia } from '@/services/solicitudService';
+import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSolicitarDialog';
+import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
+import { SolicitadoBadge } from '@/modules/solicitudes/SolicitadoBadge';
+import { useSolicitudStore } from '@/store/solicitudStore';
 
 const INV_COLS = ['1030', '1031', '1032'] as const;
 
@@ -21,6 +26,20 @@ type BORow = (ReturnType<typeof useAnalytics>['bo'])[number];
 export function SugerenciasPage() {
   const a = useAnalytics();
   const open = usePanelStore((s) => s.open);
+  const solicitar = useSolicitarDialog();
+  const solicitudesList = useSolicitudStore((s) => s.list);
+  // Sugerencias picks its lote inside the dialog (BOItem.fuentes may hold
+  // several), so the sourceKey isn't known ahead of time — match by BO key
+  // prefix instead of the full `sug|${boKey}|${lote}` string.
+  const sugSolicitadas = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of solicitudesList) {
+      if (s.origen !== 'sugerencias') continue;
+      const parts = s.sourceKey.split('|');
+      set.add(parts.slice(1, -1).join('|'));
+    }
+    return set;
+  }, [solicitudesList]);
   const [q, setQ] = useState('');
   const [estado, setEstado] = useState('');
   const [fuente, setFuente] = useState('');
@@ -114,7 +133,7 @@ export function SugerenciasPage() {
     setQuick([...quick, { col: field, value }]);
   };
 
-  const COL_COUNT = 19;
+  const COL_COUNT = 20;
   const sortAcc = useMemo(() => ({
     grupocli: (it: (typeof filtered)[number]) => grupoCli(it.bo),
     pedido: (it: (typeof filtered)[number]) => it.bo.pedido,
@@ -140,16 +159,8 @@ export function SugerenciasPage() {
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
 
-  // Empty state — rendered after all hooks so hook order stays stable across
-  // the "sin datos" → "con datos" transition (Rules of Hooks).
   if (!a.result || !a.bo.length) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <Inbox className="size-8 text-text-faint" />
-        <p className="text-sm text-text-muted">No hay sugerencias. Carga catálogo y procesa un reporte.</p>
-        <Button asChild><Link to="/carga">Ir a Carga</Link></Button>
-      </div>
-    );
+    return <EmptyState title="No hay sugerencias. Carga catálogo y procesa un reporte." action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 
   const exportar = () => {
@@ -166,7 +177,7 @@ export function SugerenciasPage() {
         Bloqueado: b.bloqueado, Estado: it.status.label, Tendencia: it.tend.txt, Fuentes: it.fuentes.length,
       };
     });
-    exportXlsx(`sugerencias_${stamp()}.xlsx`, rowsX, 'Sugerencias');
+    void exportXlsx(`sugerencias_${stamp()}.xlsx`, rowsX, 'Sugerencias');
   };
 
   return (
@@ -255,6 +266,7 @@ export function SugerenciasPage() {
                   ['bloq', 'Bloq.'], ['estado', 'Estado'], ['tendencia', 'Tendencia'],
                 ] as const).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKey} dir={dir} onSort={toggleSort}>{l}</SortableTableHead>)}
                 <SortableTableHead sortKey="fuentes" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Fuentes</SortableTableHead>
+                <TableHead>Acción</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -293,6 +305,25 @@ export function SugerenciasPage() {
                     <TableCell><StatePill label={it.status.label} cls={it.status.cls} /></TableCell>
                     <TableCell><TrendBadge t={it.tend} /></TableCell>
                     <TableCell className="text-right">{it.fuentes.length || '—'}</TableCell>
+                    <TableCell onClick={(ev) => ev.stopPropagation()}>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const loteOptions: LoteOption[] = it.fuentes.map((f, idx) => ({
+                              key: `${idx}|${f.lote}`,
+                              label: `Lote ${f.lote || '—'} · Centro ${f.centroSugerido || '—'} · ${formatNumber(num(f.cantidadOfertar))} ${e.matUm(f.materialSugerido) || ''}`.trim(),
+                              draft: buildFromSugerencia(b, it.k, f, e),
+                            }));
+                            solicitar.abrir(buildFromSugerencia(b, it.k, it.fuentes[0] ?? null, e), loteOptions.length ? loteOptions : undefined);
+                          }}
+                        >
+                          Solicitar
+                        </Button>
+                        <SolicitadoBadge solicitado={sugSolicitadas.has(it.k)} />
+                      </div>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -303,6 +334,8 @@ export function SugerenciasPage() {
           </Table>
         </div>
       </Card>
+
+      <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
     </div>
   );
 }

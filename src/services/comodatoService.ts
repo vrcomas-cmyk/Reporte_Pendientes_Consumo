@@ -46,16 +46,29 @@ function materialesRowsFromCatalog(rows: Material[]): Record<string, unknown>[] 
   }));
 }
 
-export interface SeguimientoRow extends Record<string, unknown> {
+/** Row de `v_seguimiento_360` (y vistas similares del script SQL_Comodato).
+ * Los campos tipados son los que ComodatoPage consume; el index signature
+ * preserva back-compat con cualquier columna extra que devuelva DuckDB. */
+export interface SeguimientoRow {
+  fecha: string;
+  codigo_comodato: string;
   cliente: string;
-  razon_social: string;
-  material_comodato: string;
+  direccion?: string;
+  cantidad_comodato: number;
+  cantidad_facturado: number;
+  razon_social?: string;
+  material_comodato?: string;
+  descripcion_comodato?: string;
+  facturacion_total?: number;
+  margen_total?: number;
+  status_actividad?: string;
+  [key: string]: unknown;
 }
 
 export interface ComodatoResult {
   seguimiento360: SeguimientoRow[];
-  direccionTendencia: Record<string, unknown>[];
-  bolsasResumen: Record<string, unknown>[];
+  direccionTendencia: SeguimientoRow[];
+  bolsasResumen: SeguimientoRow[];
 }
 
 export async function runComodatoAnalysis(
@@ -87,8 +100,8 @@ export async function runComodatoAnalysis(
     ]);
     return {
       seguimiento360: arrowRowsToPlain<SeguimientoRow>(seg),
-      direccionTendencia: arrowRowsToPlain(tend),
-      bolsasResumen: arrowRowsToPlain(bolsas),
+      direccionTendencia: arrowRowsToPlain<SeguimientoRow>(tend),
+      bolsasResumen: arrowRowsToPlain<SeguimientoRow>(bolsas),
     };
   } finally {
     await conn.close();

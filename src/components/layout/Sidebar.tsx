@@ -19,6 +19,7 @@ import {
   LineChart,
   Wand2,
   HandCoins,
+  Truck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/store/uiStore';
@@ -35,6 +36,7 @@ const NAV = [
   { to: '/inventario', label: 'Inventario', icon: Boxes },
   { to: '/analisis', label: 'Análisis', icon: LineChart },
   { to: '/comodato', label: 'Comodato vs. Fac.', icon: HandCoins },
+  { to: '/solicitudes', label: 'Solicitudes DRP', icon: Truck },
   { to: '/historial', label: 'Historial', icon: History },
   { to: '/registros', label: 'Registros', icon: ScrollText },
   { to: '/ajustes', label: 'Ajustes', icon: Settings },

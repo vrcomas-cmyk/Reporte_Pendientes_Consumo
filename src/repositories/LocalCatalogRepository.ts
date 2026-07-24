@@ -1,5 +1,5 @@
 import { db } from './db';
-import { encodeSnapshot, decodeSnapshot } from './blobCodec';
+import { encodeSnapshot, decodeSnapshot, putSnapshot } from './blobCodec';
 import type { CatalogRepository } from './CatalogRepository';
 import type { CatalogSnapshot } from '@/core/types';
 
@@ -18,7 +18,7 @@ export class LocalCatalogRepository implements CatalogRepository {
 
   async save(snapshot: CatalogSnapshot): Promise<void> {
     const { meta, blobs } = await encodeSnapshot({ ...snapshot, id: 'current' });
-    await db.catalog.put({ id: 'current', meta, blobs });
+    await putSnapshot(db.catalog, { id: 'current', meta, blobs });
   }
 
   async clear(): Promise<void> {

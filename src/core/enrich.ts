@@ -6,7 +6,28 @@
 //   - Ejecutivo:      Gpo.Vdor. / Cod Of Vtas -> Ejecutivo (name)
 //   - Sector/Grupo art.: Material (code)    -> Descr. Sector / Descr. Grupo Art.
 // ---------------------------------------------------------------------------
-import type { CatalogSnapshot } from './types';
+import type { CatalogSnapshot, InvConsolidadoRow } from './types';
+import { norm } from '@/lib/text';
+
+/** Recolecta cada par distinto (condicion, precio oferta) para `material` desde InvConsolidado/Inventario por condicion. */
+export function preciosPorCondicion(
+  material: string,
+  invConsolidadoCatalog: InvConsolidadoRow[],
+  invCondicion: InvConsolidadoRow[],
+): { condicion: string; precio: number; inv: number }[] {
+  const precioSource = invConsolidadoCatalog.some((r) => norm(r.material) === norm(material))
+    ? invConsolidadoCatalog
+    : invCondicion;
+  const precioMap = new Map<string, { condicion: string; precio: number; inv: number }>();
+  for (const r of precioSource) {
+    if (norm(r.material) !== norm(material)) continue;
+    const key = `${r.condicion}|${r.precioOferta}`;
+    const cur = precioMap.get(key) || { condicion: r.condicion || '(sin condicion)', precio: r.precioOferta, inv: 0 };
+    cur.inv += r.invSuma;
+    precioMap.set(key, cur);
+  }
+  return [...precioMap.values()].sort((x, y) => y.precio - x.precio);
+}
 
 /** Normalizes codes: strips a trailing ".0" and leading zeros so that
  *  "000"->"0", "001"->"1", "017"->"17", "20.0"->"20", "602.0"->"602".
@@ -33,6 +54,10 @@ export interface EnrichIndex {
    * per material from InvConsolidado — the same rule applyCatalogPriceFallback
    * uses, exposed here for O(1) reuse anywhere a material is shown. */
   matPrecioOferta: (mat: unknown) => number;
+  /** Unit of measure from the "Materiales" catalog. Sugerencia/InvDetalleRow/
+   * ResumenSinSugerenciaRow don't carry their own `um`, so DRP requests built
+   * from those rows look it up here. */
+  matUm: (mat: unknown) => string;
 }
 
 const EMPTY: EnrichIndex = {
@@ -42,6 +67,7 @@ const EMPTY: EnrichIndex = {
   matGrupo: () => '',
   matTexto: () => '',
   matPrecioOferta: () => 0,
+  matUm: () => '',
 };
 
 /** Builds all lookup Maps once from the cached catalog snapshot. */
@@ -53,6 +79,7 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
   const mapSector = new Map<string, string>();
   const mapGrupoArt = new Map<string, string>();
   const mapTexto = new Map<string, string>();
+  const mapUm = new Map<string, string>();
 
   for (const e of catalog.ejecutivos) {
     // legacy joined ejecutivos by Zona; we also index by codOfVtas so both the
@@ -71,6 +98,7 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
     if (!mapSector.has(k)) mapSector.set(k, m.descrSector || m.sector || '');
     if (!mapGrupoArt.has(k)) mapGrupoArt.set(k, m.descrGrupoArt || m.grupoArticulos || '');
     if (!mapTexto.has(k)) mapTexto.set(k, m.textoBreve || '');
+    if (!mapUm.has(k)) mapUm.set(k, m.um || '');
   }
 
   // Offer price per material: first positive price found in InvConsolidado
@@ -90,5 +118,6 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
     matGrupo: (mat) => mapGrupoArt.get(normCode(mat)) || '',
     matTexto: (mat) => mapTexto.get(normCode(mat)) || '',
     matPrecioOferta: (mat) => mapPrecio.get(normCode(mat)) || 0,
+    matUm: (mat) => mapUm.get(normCode(mat)) || '',
   };
 }

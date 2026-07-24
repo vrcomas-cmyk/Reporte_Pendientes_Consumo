@@ -3,12 +3,25 @@ import { Check, Copy, Download, RefreshCcw, ServerCog } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { checkApiHealth } from '@/services/reportApiHealth';
 
-const COMANDO = 'cd "C:\\Users\\Admin\\Documents\\Sugerencias_SQL"\nuvicorn api:app --port 8000';
+// Default command for running the Python API locally. The legacy Windows
+// path ("C:\Users\Admin\...") is intentionally NOT baked into the bundle so
+// the card doesn't advertise someone's specific home folder — env override
+// available for shops that want to ship a tailored command.
+const COMANDO = import.meta.env.VITE_SUGERIDOR_LAUNCH_CMD
+  ?? [
+      '# Requiere Python 3.11+ y `pip install -r requirements.txt` una sola vez.',
+      '# Después, cada vez que lo necesites:',
+      'cd Sugerencias_SQL',
+      'uvicorn api:app --port 8000',
+    ].join('\n');
 
-// URL fija al último Release de GitHub — no hay que tocar esta página cada
-// vez que se sube una versión nueva del .exe.
-const EXE_URL = 'https://github.com/vrcomas-cmyk/Sugerencias_SQL/releases/latest/download/SugeridorAPI.exe';
-const ENV_EXAMPLE_URL = 'https://raw.githubusercontent.com/vrcomas-cmyk/Sugerencias_SQL/main/.env.example';
+// URL fija al último Release de GitHub — puede sobreescribirse con env.
+// Está separada del repo del front para no acoplar este card a una ruta
+// que puede moverse; los releases pueden ser propios o un fork.
+const EXE_URL = import.meta.env.VITE_SUGERIDOR_EXE_URL
+  ?? 'https://github.com/vrcomas-cmyk/Sugerencias_SQL/releases/latest/download/SugeridorAPI.exe';
+const ENV_EXAMPLE_URL = import.meta.env.VITE_SUGERIDOR_ENV_URL
+  ?? 'https://raw.githubusercontent.com/vrcomas-cmyk/Sugerencias_SQL/main/.env.example';
 
 /** Un navegador no puede arrancar procesos en la máquina del usuario (es una
  * restricción de seguridad de todos los navegadores, no algo que se pueda

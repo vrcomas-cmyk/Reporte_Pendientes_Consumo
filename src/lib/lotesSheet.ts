@@ -1,7 +1,6 @@
 import type { InvDetalleRow } from '@/core/types';
 import { formatFechaCaducidad } from '@/lib/utils';
-
-const norm = (v: unknown): string => (v == null ? '' : String(v)).trim();
+import { norm } from '@/lib/text';
 
 /** Key for matching a lote against a (material, centro) pair of an exported table. */
 export const loteKey = (material: string, centro: string) => `${norm(material)}||${norm(centro)}`;

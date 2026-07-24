@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Search, Inbox, AlertTriangle, Download } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, AlertTriangle, Download } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,8 +13,15 @@ import { TrendBadge, Chip, StatTile, ZoomControl, useZoom } from '@/modules/anal
 import { invGen, esLento } from '@/core/resumenSin';
 import { serieMaterial, tendenciaTexto } from '@/core/resumenFac';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
-import { matchesQuery } from '@/modules/analytics/helpers';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { matchesQuery, norm } from '@/modules/analytics/helpers';
+import { EmptyState } from '@/components/feedback/EmptyState';
 import { useSort } from '@/hooks/useSort';
+import { buildFromResumenSin } from '@/services/solicitudService';
+import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSolicitarDialog';
+import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
+import { SolicitadoBadge } from '@/modules/solicitudes/SolicitadoBadge';
+import { useSolicitudStore } from '@/store/solicitudStore';
 
 export function ResumenSinPage() {
   const a = useAnalytics();
@@ -24,14 +30,28 @@ export function ResumenSinPage() {
   const [centroFiltro, setCentroFiltro] = useState<string>('');
   const zoom = useZoom();
   const rss = a.rss;
+  const qd = useDebouncedValue(q, 200);
+  const solicitar = useSolicitarDialog();
+  const solicitudesList = useSolicitudStore((s) => s.list);
+  // Cell-level (material, centro) match — almacén/pedidos aren't reliably
+  // known from the pivot, so the sourceKey suffix is left variable/blank.
+  const rssSolicitadas = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of solicitudesList) {
+      if (s.origen !== 'resumenSin') continue;
+      const [, material, centro] = s.sourceKey.split('|');
+      set.add(`${material}|${centro}`);
+    }
+    return set;
+  }, [solicitudesList]);
 
   const list = useMemo(() => {
     if (!rss) return [];
     return [...rss.mats.values()].filter((mo) => {
-      if (!q) return true;
-      return matchesQuery(q, `${mo.material} ${mo.desc} ${a.enrich.matSector(mo.material)} ${a.enrich.matGrupo(mo.material)}`);
+      if (!qd) return true;
+      return matchesQuery(qd, `${mo.material} ${mo.desc} ${a.enrich.matSector(mo.material)} ${a.enrich.matGrupo(mo.material)}`);
     });
-  }, [rss, q, a.enrich]);
+  }, [rss, qd, a.enrich]);
 
   const totals = useMemo(() => {
     let inv = 0, pend = 0, trans = 0;
@@ -55,16 +75,8 @@ export function ResumenSinPage() {
   const { sorted, sortKey, dir, toggleSort } = useSort(list, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
 
-  // Empty state — rendered after all hooks so hook order stays stable across
-  // renders (Rules of Hooks).
   if (!rss) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <Inbox className="size-8 text-text-faint" />
-        <p className="text-sm text-text-muted">No se cargó la hoja "Resumen Sin Sugerencias".</p>
-        <Button asChild><Link to="/carga">Ir a Carga</Link></Button>
-      </div>
-    );
+    return <EmptyState title={'No se cargó la hoja "Resumen Sin Sugerencias".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 
   const centrosAll = rss.centros;
@@ -90,7 +102,7 @@ export function ResumenSinPage() {
       });
     });
     const lotesX = buildLotesSheet(a.lotes, (l) => pares.has(loteKey(l.material, l.centro)));
-    exportXlsxMultiSheet(`resumen_sin_sugerencias_${stamp()}.xlsx`, [
+    void exportXlsxMultiSheet(`resumen_sin_sugerencias_${stamp()}.xlsx`, [
       { name: 'ResumenSinSug', rows: out },
       { name: 'Detalle Lotes', rows: lotesX },
     ]);
@@ -154,12 +166,33 @@ export function ResumenSinPage() {
                       const co = mo.centros.get(c);
                       if (!co) return <TableCell key={c} className="text-right text-text-faint">—</TableCell>;
                       const ig = invGen(co);
+                      const cellSolicitada = rssSolicitadas.has(`${norm(mo.material)}|${c}`);
                       return (
                         <TableCell key={c} className="text-right">
                           <Chip onClick={() => open({ type: 'celda', material: mo.material, centro: c })}>{formatNumber(ig)}</Chip>
                           {co.transito > 0 && <span className="text-emerald-500"> +{formatNumber(co.transito)}</span>}
                           {esLento(co, rss.curMes) && <AlertTriangle className="ml-1 inline size-3 text-warning" />}
                           {co.pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(co.pend)}</div>}
+                          <div className="mt-1 flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              title="Solicitar lote para este material/centro"
+                              onClick={() => {
+                                const lotesPar = a.lotes.filter((l) => loteKey(l.material, l.centro) === loteKey(mo.material, c));
+                                const loteOptions: LoteOption[] = lotesPar.map((l, idx) => ({
+                                  key: `${idx}|${l.almacen}|${l.lote}`,
+                                  label: `Lote ${l.lote || '—'} · Alm ${l.almacen || '—'} · ${formatNumber(l.cantidadDisp)}`,
+                                  draft: buildFromResumenSin({ material: mo.material, descripcion: mo.desc, centro: c, cantidadPendiente: co.pend }, l, a.enrich),
+                                }));
+                                const initial = buildFromResumenSin({ material: mo.material, descripcion: mo.desc, centro: c, cantidadPendiente: co.pend }, lotesPar[0] ?? null, a.enrich);
+                                solicitar.abrir(initial, loteOptions.length ? loteOptions : undefined);
+                              }}
+                              className="text-[10px] text-accent hover:underline"
+                            >
+                              Solicitar
+                            </button>
+                            <SolicitadoBadge solicitado={cellSolicitada} />
+                          </div>
                         </TableCell>
                       );
                     })}
@@ -175,6 +208,8 @@ export function ResumenSinPage() {
           </Table>
         </div>
       </Card>
+
+      <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { ArrowRight, CheckCircle2, Download, FileSpreadsheet, Loader2, AlertTriangle, Sheet } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { DropZone } from '@/modules/upload/UploadPage';
+import { DropZone } from '@/components/upload/DropZone';
 import { FacturacionEstadoCard } from '@/modules/shared/FacturacionEstadoCard';
 import { ApiLauncherCard } from '@/modules/shared/ApiLauncherCard';
 import { iniciarGeneracionReporte, esperarJob, descargarReporteComoArchivo, type JobStatus } from '@/services/reportGeneratorService';

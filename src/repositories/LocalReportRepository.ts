@@ -1,9 +1,8 @@
 import { db } from './db';
-import { encodeSnapshot, decodeSnapshot } from './blobCodec';
+import { encodeSnapshot, decodeSnapshot, putSnapshot } from './blobCodec';
 import type { ReportRepository } from './ReportRepository';
 import type { AnalysisResult, HistoryEntry, LogEntry, AppSettings } from '@/core/types';
-
-const DEFAULT_SETTINGS: AppSettings = { id: 'current', shortExpiryDays: 90, lowStockThreshold: 5 };
+import { DEFAULT_SETTINGS } from '@/core/types';
 
 /** IndexedDB-backed ReportRepository. Only `saveAnalysis`/`getLatestAnalysis`/
  * `getAnalysis` are actually used today — history/logs/settings moved to
@@ -13,7 +12,12 @@ const DEFAULT_SETTINGS: AppSettings = { id: 'current', shortExpiryDays: 90, lowS
 export class LocalReportRepository implements ReportRepository {
   async saveAnalysis(result: AnalysisResult): Promise<number> {
     const { meta, blobs } = await encodeSnapshot(result);
-    const id = await db.analyses.put({ id: result.id, processedAt: result.processedAt, meta, blobs });
+    const id = await putSnapshot(db.analyses, {
+      id: result.id,
+      processedAt: result.processedAt,
+      meta,
+      blobs,
+    });
     return id as number;
   }
 

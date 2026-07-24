@@ -3,7 +3,7 @@ import { AlertTriangle, Loader2, PlayCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { DropZone } from '@/modules/upload/UploadPage';
+import { DropZone } from '@/components/upload/DropZone';
 import { FacturacionEstadoCard } from '@/modules/shared/FacturacionEstadoCard';
 import { ApiLauncherCard } from '@/modules/shared/ApiLauncherCard';
 import { runComodatoAnalysis, type ComodatoResult } from '@/services/comodatoService';

@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Inbox, ChevronDown, Download } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ChevronDown, Download } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead } from '@/components/ui/table';
+import { EmptyState } from '@/components/feedback/EmptyState';
 import { useSort } from '@/hooks/useSort';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
 import { formatCurrency, formatNumber } from '@/lib/utils';
@@ -14,6 +14,11 @@ import { StatePill, TrendBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl,
 import { ESTADOS, mesKey, mesLabel, clasificarEstado, tendenciaTexto, mesRefQAnterior, mesAnterior, hoyMes, type Serie, type Estado, type Tendencia } from '@/core/resumenFac';
 import { norm, num, searchNorm, consumoEnrich, consumoSerie, matchesQueryNormalized, RC, pickField } from '@/modules/analytics/helpers';
 import type { ConsumoRow } from '@/core/types';
+import { buildFromConsumo } from '@/services/solicitudService';
+import { useSolicitarDialog } from '@/modules/solicitudes/useSolicitarDialog';
+import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
+import { SolicitadoBadge } from '@/modules/solicitudes/SolicitadoBadge';
+import { useSolicitudStore } from '@/store/solicitudStore';
 
 // #2: combined date+qty cell, same pattern as the existing "Última" column.
 function fechaCantCell(fecha: string, cant: number) {
@@ -36,6 +41,8 @@ export function ConsumoPage() {
   const [gruposOpen, setGruposOpen] = useState(false);
   const [periodo, setPeriodo] = useState<'corriente' | 'anterior'>('corriente');
   const zoom = useZoom();
+  const solicitar = useSolicitarDialog();
+  const solicitudSourceKeys = useSolicitudStore((s) => s.sourceKeys);
 
   // Perf: Estado/Tendencia previously recomputed consumoSerie() TWICE per row
   // (once each in consumoStatus/consumoTend) every time it was needed — inline,
@@ -250,13 +257,7 @@ export function ConsumoPage() {
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length, 56);
 
   if (!rows.length) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <Inbox className="size-8 text-text-faint" />
-        <p className="text-sm text-text-muted">No se cargó la hoja "Reporte de Consumo".</p>
-        <Button asChild><Link to="/carga">Ir a Carga</Link></Button>
-      </div>
-    );
+    return <EmptyState title={'No se cargó la hoja "Reporte de Consumo".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 
   const addQuick = (field: string, value: string) => { if (value && !quick.some((f) => f.col === field && f.value === value)) setQuick([...quick, { col: field, value }]); };
@@ -278,7 +279,7 @@ export function ConsumoPage() {
         Estado: st.label, Tendencia: tn.txt,
       };
     });
-    exportXlsx(`consumo_${stamp()}.xlsx`, rowsX, 'Consumo');
+    void exportXlsx(`consumo_${stamp()}.xlsx`, rowsX, 'Consumo');
   };
 
   return (
@@ -386,9 +387,10 @@ export function ConsumoPage() {
             <SortableTableHead sortKey="impultima" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Imp. últ.</SortableTableHead>
             <SortableTableHead sortKey="estado" activeKey={sortKey} dir={dir} onSort={toggleSort}>Estado</SortableTableHead>
             <SortableTableHead sortKey="tendencia" activeKey={sortKey} dir={dir} onSort={toggleSort}>Tendencia</SortableTableHead>
+            <TableHead>Acción</TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {paddingTop > 0 && (<tr><td style={{ height: paddingTop }} colSpan={11} /></tr>)}
+            {paddingTop > 0 && (<tr><td style={{ height: paddingTop }} colSpan={12} /></tr>)}
             {items.map((vi) => {
               const r = sorted[vi.index];
               return (
@@ -407,14 +409,22 @@ export function ConsumoPage() {
                 <TableCell className="text-right">{formatCurrency(r.importeUltima)}</TableCell>
                 <TableCell><StatePill label={statusOf(r).status.label} cls={statusOf(r).status.cls} /></TableCell>
                 <TableCell><TrendBadge t={statusOf(r).tend} /></TableCell>
+                <TableCell onClick={(ev) => ev.stopPropagation()}>
+                  <div className="flex items-center gap-1.5">
+                    <Button size="sm" variant="outline" onClick={() => solicitar.abrir(buildFromConsumo(r))}>Solicitar</Button>
+                    <SolicitadoBadge solicitado={solicitudSourceKeys.has(`con|${norm(r.material)}|${norm(r.centro)}`)} />
+                  </div>
+                </TableCell>
               </TableRow>
               );
             })}
-            {paddingBottom > 0 && (<tr><td style={{ height: paddingBottom }} colSpan={11} /></tr>)}
+            {paddingBottom > 0 && (<tr><td style={{ height: paddingBottom }} colSpan={12} /></tr>)}
           </TableBody>
         </Table>
         </div>
       </Card>
+
+      <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
     </div>
   );
 }

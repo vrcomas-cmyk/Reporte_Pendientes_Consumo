@@ -1,17 +1,8 @@
 /// <reference lib="webworker" />
 import * as XLSX from 'xlsx';
-import {
-  mapEjecutivo,
-  mapMaterial,
-  mapInvConsolidado,
-  mapInvDetalle,
-  mapSugerencia,
-  mapResumenSinSugerencia,
-  mapConsumo,
-  mapResumenFac,
-} from '@/core/mappers';
-import { computeKpis, topMateriales, topEjecutivos, monthlyInvoicing, buildHeatmap, detectInconsistencies } from '@/core/analysis';
+import { mapEjecutivo, mapMaterial, mapInvConsolidado, mapInvDetalle } from '@/core/mappers';
 import { roleOf } from '@/core/roleDetection';
+import { buildAnalysisResult, findSheetByRole } from '@/core/buildAnalysisResult';
 import type { CatalogSnapshot, AnalysisResult, AppSettings, SheetRole, DetectedSheet } from '@/core/types';
 
 // This worker never blocks the UI thread: all xlsx parsing and aggregation
@@ -64,14 +55,6 @@ function readWorkbookSheets(buf: ArrayBuffer): Record<string, Record<string, unk
     out[name] = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true }) as Record<string, unknown>[];
   }
   return out;
-}
-
-function findSheetByRole(sheets: Record<string, Record<string, unknown>[]>, role: string) {
-  for (const rows of Object.values(sheets)) {
-    const headers = rows.length ? Object.keys(rows[0]) : [];
-    if (roleOf(headers) === role) return rows;
-  }
-  return [] as Record<string, unknown>[];
 }
 
 /** Reads only the header row of a worksheet (cheap; used against a
@@ -152,63 +135,12 @@ async function handleProcessReport(req: Extract<WorkerRequest, { type: 'process-
       loaded: !!sheets[name],
     }));
 
-    const sugerenciasRows = findSheetByRole(sheets, 'sugerencias');
-    const resumenSinRows = findSheetByRole(sheets, 'resumenSinSugerencias');
-    const consumoRows = findSheetByRole(sheets, 'reporteConsumo');
-    const resumenFacRows = findSheetByRole(sheets, 'resumenFac');
-    const invCondicionRows = findSheetByRole(sheets, 'inventarioCondicion');
-    const lotesRows = findSheetByRole(sheets, 'lotesCortaCaducidad');
-
-    progress(id, 'crossing', 45, `Cruzando ${sugerenciasRows.length.toLocaleString('es-MX')} sugerencias contra catálogo...`);
-    const sugerencias = sugerenciasRows.map(mapSugerencia);
-    const resumenSinSugerencias = resumenSinRows.map(mapResumenSinSugerencia);
-    const consumo = consumoRows.map(mapConsumo);
-    const resumenFac = resumenFacRows.map(mapResumenFac);
-    const inventarioCondicion = invCondicionRows.map(mapInvConsolidado);
-    const lotesCortaCaducidad = lotesRows.map(mapInvDetalle);
-    if (cancelled.has(id)) return post({ id, type: 'cancelled' });
-
+    progress(id, 'crossing', 45, 'Cruzando reporte contra catálogo...');
     progress(id, 'kpis', 75, 'Calculando KPIs...');
-    // The daily "Inventario por condición" sheet, when present, is the source of
-    // truth; otherwise fall back to the catalog's consolidated inventory. All
-    // inventory-derived surfaces (KPIs, heatmap, inconsistencies) use the same set.
-    const invForAnalysis = inventarioCondicion.length ? inventarioCondicion : catalog?.invConsolidado ?? [];
-    const kpis = computeKpis({
-      catalog,
-      sugerencias,
-      consumo,
-      invConsolidado: invForAnalysis,
-      lotesCortaCaducidad: lotesCortaCaducidad.length ? lotesCortaCaducidad : catalog?.invDetalle ?? [],
-      settings,
-    });
-    const top5Materiales = topMateriales(sugerencias, 5);
-    const top5Ejecutivos = topEjecutivos(sugerencias, catalog, 5);
-    const monthly = monthlyInvoicing(resumenFac);
-    const heatmap = buildHeatmap(invForAnalysis);
-    const inconsistencies = detectInconsistencies({ catalog, sugerencias, invConsolidado: invForAnalysis });
-
+    const result = buildAnalysisResult({ sheets, sheetsDetected, catalog, settings, fileName, startedAt: start, selectedRoles });
     if (cancelled.has(id)) return post({ id, type: 'cancelled' });
 
     progress(id, 'done', 100, 'Análisis completado.');
-    const result: AnalysisResult = {
-      fileName,
-      processedAt: new Date().toISOString(),
-      durationMs: Date.now() - start,
-      rowCount: sugerencias.length,
-      sheetsDetected,
-      sugerencias,
-      resumenSinSugerencias,
-      consumo,
-      resumenFac,
-      inventarioCondicion,
-      lotesCortaCaducidad,
-      kpis,
-      topMateriales: top5Materiales,
-      topEjecutivos: top5Ejecutivos,
-      monthlyInvoicing: monthly,
-      heatmap,
-      inconsistencies,
-    };
     post({ id, type: 'report-result', result });
   } catch (e) {
     post({ id, type: 'error', message: e instanceof Error ? e.message : String(e) });

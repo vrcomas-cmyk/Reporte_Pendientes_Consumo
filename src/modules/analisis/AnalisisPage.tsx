@@ -1,15 +1,15 @@
 import { useMemo } from 'react';
-import { Inbox, Download } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Download } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
+import { EmptyState } from '@/components/feedback/EmptyState';
 import { usePanelStore } from '@/store/panelStore';
 import { StatTile, EvolChart, ComparativaDual, Chip } from '@/modules/analytics/ui';
-import { analisisVentas, type ClienteAna, type MatAna } from '@/core/analisis';
+import { analisisVentas, type ClienteAna, type MatAna } from '@/core/comercial';
 
 function pct(a: number, b: number) {
   const p = b ? (a / b - 1) * 100 : a ? 100 : 0;
@@ -22,13 +22,7 @@ export function AnalisisPage() {
   const A = useMemo(() => analisisVentas(a.rf, a.bo, a.enrich), [a.rf, a.bo, a.enrich]);
 
   if (!A) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <Inbox className="size-8 text-text-faint" />
-        <p className="text-sm text-text-muted">Para el análisis se necesita la hoja Resumen_Fac.</p>
-        <Button asChild><Link to="/carga">Ir a Carga</Link></Button>
-      </div>
-    );
+    return <EmptyState title="Para el análisis se necesita la hoja Resumen_Fac." action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
   const k = A.kpi;
 
@@ -75,7 +69,7 @@ export function AnalisisPage() {
   );
 
   const exportar = () => {
-    exportXlsxMultiSheet(`analisis_${stamp()}.xlsx`, [
+    void exportXlsxMultiSheet(`analisis_${stamp()}.xlsx`, [
       {
         name: 'Oportunidades',
         rows: A.ops.top.map((o) => ({ Pedido: o.pedido, Cliente: o.razon, Material: o.mat, 'Imp. pendiente': o.imp })),

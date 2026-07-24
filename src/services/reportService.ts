@@ -1,6 +1,7 @@
 import { reportRepository } from '@/repositories';
 import { processReport } from './analysisService';
 import { uploadFileToR2 } from './r2Service';
+import { logInfo, logWarn, logRejection } from '@/lib/logError';
 import type { AnalysisResult, CatalogSnapshot, ProcessingProgress, AppSettings, SheetRole } from '@/core/types';
 
 /** Starts a report analysis job. Returns immediately with a promise (that
@@ -24,42 +25,31 @@ export function runAnalysis(
     // una dependencia del flujo: si falla (sin R2 configurado, red caída),
     // el análisis sigue normal y solo queda sin r2Key en el historial.
     const r2KeyPromise = uploadFileToR2(file).catch((e) => {
-      reportRepository.addLog({
-        at: new Date().toISOString(),
-        level: 'warn',
-        event: 'r2-upload-failed',
-        detail: e instanceof Error ? e.message : String(e),
-      });
+      void logWarn('r2-upload-failed', e instanceof Error ? e.message : String(e));
       return undefined;
     });
 
-    await reportRepository.addLog({ at: new Date().toISOString(), level: 'info', event: 'analysis-start', detail: file.name });
+    void logInfo('analysis-start', file.name);
     try {
       const result = await job.promise;
       const r2Key = await r2KeyPromise;
       await reportRepository.saveAnalysis(result);
-      await reportRepository.addHistory({
+      reportRepository.addHistory({
         fileName: result.fileName,
         processedAt: result.processedAt,
         durationMs: result.durationMs,
         rowCount: result.rowCount,
         kpis: result.kpis,
         r2Key,
-      });
-      await reportRepository.addLog({
-        at: new Date().toISOString(),
-        level: 'info',
-        event: 'analysis-end',
-        detail: `${result.fileName}: ${result.rowCount} filas en ${result.durationMs}ms`,
-      });
+      }).catch(() => {});
+      void logInfo('analysis-end', `${result.fileName}: ${result.rowCount} filas en ${result.durationMs}ms`);
       return result;
     } catch (e) {
-      await reportRepository.addLog({
-        at: new Date().toISOString(),
-        level: e instanceof Error && e.message === 'cancelled' ? 'warn' : 'error',
-        event: 'analysis-error',
-        detail: e instanceof Error ? e.message : String(e),
-      });
+      if (e instanceof Error && e.message === 'cancelled') {
+        void logWarn('analysis-cancelled', file.name);
+      } else {
+        void logRejection('error', 'analysis-error', e);
+      }
       throw e;
     }
   })();

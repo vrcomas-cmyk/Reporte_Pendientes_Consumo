@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { reportRepository } from '@/repositories';
 import { useDataStore } from '@/store/dataStore';
+import { toast } from '@/store/toastStore';
 import type { AppSettings } from '@/core/types';
 
 export function SettingsPage() {
@@ -16,10 +17,27 @@ export function SettingsPage() {
   useEffect(() => setDraft(settings), [settings]);
 
   async function handleSave() {
-    await reportRepository.saveSettings(draft);
+    // Lo que realmente hace efecto (computeKpis) lee de useDataStore en
+    // memoria, no de Supabase — si guardar remoto falla (sin sesión activa,
+    // red caída), el ajuste igual debe aplicar en esta sesión.
+    const { shortExpiryDays, lowStockThreshold } = draft;
+    if (shortExpiryDays <= 0 || shortExpiryDays > 365) {
+      toast.warning('Días de caducidad corta: 1–365');
+      return;
+    }
+    if (lowStockThreshold < 0 || lowStockThreshold > 10000) {
+      toast.warning('Umbral stock bajo: 0–10000');
+      return;
+    }
     setSettings(draft);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+    try {
+      await reportRepository.saveSettings(draft);
+      toast.success('Ajustes guardados');
+    } catch (e) {
+      toast.error('No se pudo guardar', e instanceof Error ? e.message : String(e));
+    }
   }
 
   return (
@@ -39,6 +57,7 @@ export function SettingsPage() {
             <Input
               type="number"
               min={1}
+              max={365}
               value={draft.shortExpiryDays}
               onChange={(e) => setDraft((d) => ({ ...d, shortExpiryDays: Number(e.target.value) || 0 }))}
             />
@@ -48,6 +67,7 @@ export function SettingsPage() {
             <Input
               type="number"
               min={0}
+              max={10000}
               value={draft.lowStockThreshold}
               onChange={(e) => setDraft((d) => ({ ...d, lowStockThreshold: Number(e.target.value) || 0 }))}
             />

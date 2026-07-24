@@ -1,71 +1,21 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, FileSpreadsheet, RefreshCcw, ArrowRight, Cloud, AlertTriangle } from 'lucide-react';
+import { FileSpreadsheet, RefreshCcw, ArrowRight, Cloud, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { useDataStore } from '@/store/dataStore';
 import { syncCatalogFromAppScript } from '@/services/catalogService';
 import { peekReportSheets, type ReportSheetInfo } from '@/services/reportPeek';
+import { syncReportSheets, REPORT_SHEET_ROLES } from '@/services/reportSheetsService';
+import { useReportSheetsSyncStore } from '@/store/reportSheetsSyncStore';
+import { ROLE_LABEL } from '@/core/roleDetection';
 import type { SheetRole } from '@/core/types';
 import { formatDateTime } from '@/lib/utils';
+import { DropZone } from '@/components/upload/DropZone';
 
-// Exported so GenerarReportePage.tsx (fase B de la migración a API) reusa el
-// mismo control en vez de duplicarlo.
-export function DropZone({
-  onFile,
-  accept,
-  label,
-  sub,
-}: {
-  onFile: (f: File) => void;
-  accept: string;
-  label: string;
-  sub: string;
-}) {
-  const [dragOver, setDragOver] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setDragOver(false);
-      const f = e.dataTransfer.files?.[0];
-      if (f) onFile(f);
-    },
-    [onFile],
-  );
-
-  return (
-    <div
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDragOver(true);
-      }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={handleDrop}
-      onClick={() => inputRef.current?.click()}
-      className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors ${
-        dragOver ? 'border-accent bg-accent-soft/40' : 'border-border hover:border-border-strong hover:bg-bg-inset/50'
-      }`}
-    >
-      <UploadCloud className="size-7 text-text-faint" />
-      <p className="text-sm font-medium text-text">{label}</p>
-      <p className="text-xs text-text-faint">{sub}</p>
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onFile(f);
-          e.target.value = '';
-        }}
-      />
-    </div>
-  );
-}
+export { DropZone } from '@/components/upload/DropZone';
 
 export function UploadPage() {
   const navigate = useNavigate();
@@ -78,7 +28,16 @@ export function UploadPage() {
   const [selectedRoles, setSelectedRoles] = useState<Set<SheetRole>>(new Set());
   const [peeking, setPeeking] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const activeAnalysis = useDataStore((s) => s.activeAnalysis);
   const setActiveAnalysis = useDataStore((s) => s.setActiveAnalysis);
+  const settings = useDataStore((s) => s.settings);
+  const [sheetsRoles, setSheetsRoles] = useState<Set<SheetRole>>(new Set(REPORT_SHEET_ROLES));
+  // Global (not local) state: survives navigating away from Carga and back
+  // while a sync is still running, so it can't be forgotten and re-triggered
+  // by accident — see reportSheetsSyncStore.ts.
+  const sheetsSyncing = useReportSheetsSyncStore((s) => s.syncing);
+  const sheetsProgress = useReportSheetsSyncStore((s) => s.progress);
+  const sheetsError = useReportSheetsSyncStore((s) => s.error);
 
   const handleSyncCatalog = useCallback(async () => {
     setCatalogLoading(true);
@@ -119,6 +78,29 @@ export function UploadPage() {
       return next;
     });
   }, []);
+
+  const toggleSheetsRole = useCallback((role: SheetRole) => {
+    setSheetsRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(role)) next.delete(role); else next.add(role);
+      return next;
+    });
+  }, []);
+
+  const handleSyncReportSheets = useCallback(async () => {
+    try {
+      const result = await syncReportSheets({
+        catalog,
+        settings,
+        previous: activeAnalysis,
+        selectedRoles: [...sheetsRoles],
+      });
+      setActiveAnalysis(result);
+    } catch {
+      // useReportSheetsSyncStore already carries the error message for the
+      // banner below — nothing else to do here.
+    }
+  }, [catalog, settings, activeAnalysis, sheetsRoles, setActiveAnalysis]);
 
   // Recognized (role !== null) sheets are selectable; a role can appear on more
   // than one physical sheet, so dedupe by role for the checklist.
@@ -237,6 +219,77 @@ export function UploadPage() {
               className="self-end"
             >
               Procesar <ArrowRight className="size-4" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2">
+          <CardHeader className="flex-row items-center justify-between">
+            <div>
+              <CardTitle>Reporte diario · Google Sheets</CardTitle>
+              <CardDescription>Todas las Sugerencias, Resumen Sin Sug., Reporte de Consumo y Resumen_Fac — sincronizado en vivo</CardDescription>
+            </div>
+            {activeAnalysis ? <Badge variant="success">Sincronizado</Badge> : <Badge variant="warning">Pendiente</Badge>}
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {activeAnalysis ? (
+              <div className="rounded-md border border-border bg-bg-inset p-3 text-xs text-text-muted">
+                <div className="flex items-center gap-2 font-medium text-text">
+                  <Cloud className="size-3.5" /> Último análisis
+                </div>
+                <div className="mt-1">Última actualización: {formatDateTime(activeAnalysis.processedAt)}</div>
+                <div className="mt-1">
+                  {activeAnalysis.sugerencias.length.toLocaleString('es-MX')} sugerencias · {activeAnalysis.consumo.length.toLocaleString('es-MX')} filas de consumo
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-text-faint">
+                Aún no se ha sincronizado el reporte diario desde Google Sheets. Se lee en vivo del AppScript configurado — también puedes usar la carga manual de arriba.
+              </p>
+            )}
+
+            {sheetsError && (
+              <div className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> {sheetsError}
+              </div>
+            )}
+
+            <div className="rounded-md border border-border p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-text">Pestañas a sincronizar</span>
+                <span className="text-[11px] text-text-faint">{sheetsRoles.size} de {REPORT_SHEET_ROLES.length}</span>
+              </div>
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:gap-x-4">
+                {REPORT_SHEET_ROLES.map((role) => {
+                  const checked = sheetsRoles.has(role);
+                  return (
+                    <label key={role} className="flex cursor-pointer items-center gap-2 text-sm">
+                      <input type="checkbox" checked={checked} onChange={() => toggleSheetsRole(role)} className="size-4 accent-[var(--color-accent)]" />
+                      <span className={checked ? 'text-text' : 'text-text-faint line-through'}>{ROLE_LABEL[role]}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {sheetsProgress && (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between text-xs text-text-muted">
+                  <span>{sheetsProgress.message}</span>
+                  <span className="font-mono">{sheetsProgress.percent}%</span>
+                </div>
+                <Progress value={sheetsProgress.percent} />
+              </div>
+            )}
+
+            <Button
+              variant={activeAnalysis ? 'outline' : 'default'}
+              onClick={handleSyncReportSheets}
+              disabled={sheetsSyncing || sheetsRoles.size === 0}
+              className="self-start"
+            >
+              <RefreshCcw className={`size-4 ${sheetsSyncing ? 'animate-spin' : ''}`} />
+              {sheetsSyncing ? 'Sincronizando…' : 'Sincronizar ahora'}
             </Button>
           </CardContent>
         </Card>

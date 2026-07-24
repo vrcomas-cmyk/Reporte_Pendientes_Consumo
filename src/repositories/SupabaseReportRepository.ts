@@ -2,8 +2,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { LocalReportRepository } from './LocalReportRepository';
 import type { ReportRepository } from './ReportRepository';
 import type { AnalysisResult, HistoryEntry, LogEntry, AppSettings } from '@/core/types';
-
-const DEFAULT_SETTINGS: AppSettings = { id: 'current', shortExpiryDays: 90, lowStockThreshold: 5 };
+import { DEFAULT_SETTINGS } from '@/core/types';
 
 async function requireUserId(): Promise<string> {
   const { data } = await supabase.auth.getUser();

@@ -1,4 +1,39 @@
 import { rowsToParquet, parquetToRows } from '@/services/duckdbService';
+import type { Table } from 'dexie';
+
+/** Detects IndexedDB's persistent-storage quota exceeded condition — either the
+ *  modern DOMException name 'QuotaExceededError' or its legacy code 22 — and
+ *  re-throws a friendlier Error so the UI can offer a clear "clear cache /
+ *  export & delete analyses" recovery path instead of a bare IndexedDB error. */
+function isQuotaExceeded(e: unknown): boolean {
+  return (
+    e instanceof DOMException &&
+    (e.name === 'QuotaExceededError' || e.code === 22)
+  );
+}
+
+export function quotaExceededMessage(): string {
+  return (
+    'No hay espacio suficiente en el almacenamiento del navegador. ' +
+    'Exporta y elimina análisis antiguos o limpia la caché del catálogo, ' +
+    'luego vuelve a intentarlo.'
+  );
+}
+
+/** IndexedDB write of a Parquet-encoded snapshot. Wraps `table.put` so the
+ *  QuotaExceededError detection lives next to the codec that produced the
+ *  blobs; callers stay one-liners and get the friendly message for free. */
+export async function putSnapshot<T, K>(
+  table: Table<T, K>,
+  row: T,
+): Promise<K> {
+  try {
+    return (await table.put(row)) as K;
+  } catch (e) {
+    if (isQuotaExceeded(e)) throw new Error(quotaExceededMessage());
+    throw e;
+  }
+}
 
 /** Splits an object into its array-valued fields (each Parquet-encoded, the
  * actual bulk of the data) and everything else (kept as plain JSON). Used to

@@ -20,7 +20,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useDataStore } from '@/store/dataStore';
 import type { Sugerencia } from '@/core/types';
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
 import { ZoomControl, useZoom } from '@/modules/analytics/ui';
 
 const columns: ColumnDef<Sugerencia>[] = [
@@ -235,7 +235,7 @@ export function ResultsPage() {
                   'Centro sugerido': selected.centroSugerido,
                   Disponible: formatNumber(selected.disponible),
                   Lote: selected.lote,
-                  'Fecha caducidad': selected.fechaCaducidad,
+                  'Fecha caducidad': formatFechaCaducidad(selected.fechaCaducidad),
                   'Meses inventario': formatNumber(selected.mesesInventario, 1),
                   'En tránsito': formatNumber(selected.cantTransito),
                   Bloqueado: selected.bloqueado || 'No',

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { CatalogSnapshot, AnalysisResult, ProcessingProgress, AppSettings } from '@/core/types';
+import { DEFAULT_SETTINGS } from '@/core/types';
 
 interface DataState {
   catalog: CatalogSnapshot | null;
@@ -15,7 +16,7 @@ interface DataState {
   setSettings: (s: AppSettings) => void;
 }
 
-export const DEFAULT_SETTINGS: AppSettings = { id: 'current', shortExpiryDays: 90, lowStockThreshold: 5 };
+export { DEFAULT_SETTINGS };
 
 export const useDataStore = create<DataState>((set) => ({
   catalog: null,

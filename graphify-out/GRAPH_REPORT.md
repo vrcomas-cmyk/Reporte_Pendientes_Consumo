@@ -1,16 +1,16 @@
-# Graph Report - Reporte_Pendientes_Consumo  (2026-07-19)
+# Graph Report - Reporte_Pendientes_Consumo  (2026-07-24)
 
 ## Corpus Check
-- 91 files · ~47,119 words
+- 154 files · ~64,204 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 683 nodes · 994 edges · 74 communities (39 shown, 35 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 17 edges (avg confidence: 0.75)
+- 890 nodes · 1418 edges · 91 communities (45 shown, 46 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 20 edges (avg confidence: 0.74)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `1231a81f`
+- Built from commit: `dd587a7d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -41,6 +41,7 @@
 - App.tsx
 - badge.tsx
 - button.tsx
+- UploadPage.tsx
 - ProcessingPage.tsx
 - SugerenciasPage.tsx
 - dataStore.ts
@@ -52,18 +53,18 @@
 - tsconfig.json
 - dependencies
 - dexie
-- lucide-react
+- reportSheetsSyncStore.ts
 - analysisWorker.ts
 - xlsx
 - roleDetection.ts
 - supabaseClient.ts
 - dexie
-- authService.ts
+- ui/index.ts
 - class-variance-authority
 - mappers.ts
-- analysisWorker.ts
+- mappers.ts
 - framer-motion
-- lucide-react
+- resumenSin.ts
 - @radix-ui/react-dialog
 - @radix-ui/react-progress
 - @radix-ui/react-scroll-area
@@ -75,46 +76,60 @@
 - react-dom
 - react-router-dom
 - recharts
-- tailwind-merge
+- solicitudService.ts
 - tailwindcss
 - @tailwindcss/vite
 - @tanstack/react-query
 - @tanstack/react-table
 - @tanstack/react-virtual
 - zustand
-- GenerarReportePage.tsx
+- toastStore.ts
 - useSort.ts
-- GenerarReportePage.tsx
-- roleDetection.ts
+- repositories/index.ts
+- SolicitudRepository
+- SupabaseReportRepository
+- Toaster.tsx
+- LocalReportRepository.ts
+- LocalReportRepository
+- Apps Script — escribir solicitudes en la pestaña "DRP"
+- SolicitarDialog.tsx
+- SolicitudesPage.tsx
+- UploadPage.tsx
+- solicitudStore.ts
+- EmptyState.tsx
+- text.ts
+- dexie
+- tailwind-merge
+- commandPaletteStore.ts
 
 ## God Nodes (most connected - your core abstractions)
-1. `react` - 39 edges
+1. `react` - 61 edges
 2. `compilerOptions` - 19 edges
-3. `mesKey()` - 17 edges
-4. `ReportRepository` - 15 edges
-5. `compilerOptions` - 15 edges
-6. `LocalReportRepository` - 13 edges
-7. `handleProcessReport()` - 13 edges
-8. `analisisVentas()` - 12 edges
-9. `SupabaseReportRepository` - 12 edges
-10. `norm()` - 10 edges
+3. `buildAnalysisResult()` - 16 edges
+4. `mesKey()` - 16 edges
+5. `Analytics` - 15 edges
+6. `ReportRepository` - 15 edges
+7. `compilerOptions` - 15 edges
+8. `Section()` - 13 edges
+9. `LocalReportRepository` - 13 edges
+10. `matchesQuery()` - 12 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `exportXlsx()` --references--> `xlsx`  [EXTRACTED]
   src/lib/exportXlsx.ts → package.json
 - `exportXlsxMultiSheet()` --references--> `xlsx`  [EXTRACTED]
   src/lib/exportXlsx.ts → package.json
-- `extraerHojas()` --references--> `xlsx`  [EXTRACTED]
-  src/modules/generar/GenerarReportePage.tsx → package.json
 - `parseFirstSheet()` --references--> `xlsx`  [EXTRACTED]
   src/services/comodatoService.ts → package.json
 - `peekReportSheets()` --references--> `xlsx`  [EXTRACTED]
   src/services/reportPeek.ts → package.json
+- `extraerHojas()` --references--> `xlsx`  [EXTRACTED]
+  src/modules/generar/GenerarReportePage.tsx → package.json
 
 ## Import Cycles
 - None detected.
 
-## Communities (74 total, 35 thin omitted)
+## Communities (91 total, 46 thin omitted)
 
 ### Community 0 - "mappers.ts"
 Cohesion: 0.50
@@ -122,39 +137,35 @@ Nodes (3): TabsContent, TabsList, TabsTrigger
 
 ### Community 1 - "PanelHost.tsx"
 Cohesion: 0.07
-Nodes (48): Analytics, AnalyticsCtx, useAnalytics(), consFor(), consumoEnrich(), consumoSerie(), consumoStatus(), consumoTend() (+40 more)
+Nodes (65): Analytics, AnalyticsCtx, useAnalytics(), consFor(), consumoEnrich(), consumoSerie(), consumoStatus(), consumoTend() (+57 more)
 
 ### Community 2 - "resumenFac.ts"
-Cohesion: 0.09
-Nodes (51): AnalisisResult, analisisVentas(), ClienteAna, kToLbl(), lastBuyK(), MatAna, norm(), num() (+43 more)
-
-### Community 3 - "index.ts"
-Cohesion: 0.05
-Nodes (16): decodeSnapshot(), encodeSnapshot(), CatalogRepository, db, DegasaDb, SnapshotRow, catalogRepository, reportRepository (+8 more)
+Cohesion: 0.07
+Nodes (50): BOItem, buildBO(), hasFuente(), keyOf(), AnalisisResult, analisisVentas(), ClienteAna, kToLbl() (+42 more)
 
 ### Community 4 - "compilerOptions"
 Cohesion: 0.08
-Nodes (25): DOM, ./src/*, vite/client, compilerOptions, allowArbitraryExtensions, allowImportingTsExtensions, erasableSyntaxOnly, jsx (+17 more)
+Nodes (25): DOM, DOM.Iterable, src, vite/client, compilerOptions, allowArbitraryExtensions, allowImportingTsExtensions, erasableSyntaxOnly (+17 more)
 
 ### Community 5 - "devDependencies"
-Cohesion: 0.08
-Nodes (24): oxlint, devDependencies, oxlint, @types/node, @types/react, @types/react-dom, typescript, vite (+16 more)
+Cohesion: 0.06
+Nodes (30): happy-dom, oxlint, devDependencies, happy-dom, oxlint, @types/node, @types/react, @types/react-dom (+22 more)
 
 ### Community 6 - "compilerOptions"
-Cohesion: 0.10
-Nodes (19): node, vite.config.ts, compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, lib, module, moduleDetection (+11 more)
+Cohesion: 0.09
+Nodes (20): node, vite.config.ts, vitest/config, compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, lib, module (+12 more)
 
 ### Community 7 - "react"
-Cohesion: 0.08
-Nodes (3): react, Input, Progress
+Cohesion: 0.06
+Nodes (4): react, Input, Progress, SortAccessors
 
 ### Community 8 - "analysisService.ts"
-Cohesion: 0.17
-Nodes (13): getWorker(), makeWorker(), nextId(), parseCatalog(), processReport(), runJob(), RunOptions, APPSCRIPT_TABS (+5 more)
+Cohesion: 0.18
+Nodes (12): getWorker(), makeWorker(), nextId(), parseCatalog(), processReport(), runJob(), RunOptions, APPSCRIPT_TABS (+4 more)
 
 ### Community 9 - "resumenSin.ts"
 Cohesion: 0.19
-Nodes (12): ALM_INV, buildRSS(), esLento(), invGen(), norm(), num(), RSS, RSSAlmacen (+4 more)
+Nodes (15): checkForReportSheetsUpdate(), fetchReportSheetsMeta(), fetchReportSheetTab(), progressListeners, readSyncMeta(), REPORT_SHEET_ROLES, REPORT_SHEETS_URL, REPORT_TABS (+7 more)
 
 ### Community 10 - "table.tsx"
 Cohesion: 0.18
@@ -165,8 +176,8 @@ Cohesion: 0.14
 Nodes (7): ErrorBoundary, Props, State, NAV, Sidebar(), TITLES, Topbar()
 
 ### Community 12 - "plugins"
-Cohesion: 0.22
-Nodes (8): plugins, rules, react/only-export-components, react/rules-of-hooks, $schema, oxc, typescript, warn
+Cohesion: 0.12
+Nodes (15): plugins, rules, no-floating-promises, react/exhaustive-deps, react/jsx-key, react/no-array-index-key, react/only-export-components, react/rules-of-hooks (+7 more)
 
 ### Community 13 - "AppShell.tsx"
 Cohesion: 0.06
@@ -185,8 +196,8 @@ Cohesion: 0.29
 Nodes (6): Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle
 
 ### Community 17 - "types.ts"
-Cohesion: 0.10
-Nodes (22): applyCatalogPriceFallback(), computeKpis(), condKey(), buildEnrich(), EMPTY, normCode(), AnalysisResult, AppSettings (+14 more)
+Cohesion: 0.06
+Nodes (62): applyCatalogPriceFallback(), buildHeatmap(), computeKpis(), condKey(), detectInconsistencies(), monthlyInvoicing(), topEjecutivos(), topMateriales() (+54 more)
 
 ### Community 20 - "dialog.tsx"
 Cohesion: 0.33
@@ -201,8 +212,8 @@ Cohesion: 0.40
 Nodes (3): Theme, UiState, useUiStore
 
 ### Community 24 - "App.tsx"
-Cohesion: 0.12
-Nodes (14): AnalisisPage, ComodatoPage, ConsumoPage, GenerarReportePage, HistoryPage, InventarioPage, LogsPage, ProcessingPage (+6 more)
+Cohesion: 0.11
+Nodes (15): AnalisisPage, ComodatoPage, ConsumoPage, GenerarReportePage, HistoryPage, InventarioPage, LogsPage, ProcessingPage (+7 more)
 
 ### Community 25 - "badge.tsx"
 Cohesion: 0.67
@@ -216,13 +227,13 @@ Nodes (3): Button, ButtonProps, buttonVariants
 Cohesion: 0.67
 Nodes (3): PHASE_LABEL, PHASES, ProcessingPage()
 
-### Community 30 - "dataStore.ts"
-Cohesion: 0.50
-Nodes (3): DataState, DEFAULT_SETTINGS, useDataStore
-
 ### Community 31 - "panelStore.ts"
-Cohesion: 0.50
-Nodes (3): Panel, PanelState, usePanelStore
+Cohesion: 0.38
+Nodes (4): Panel, PanelState, sample, usePanelStore
+
+### Community 34 - "ResultsPage.tsx"
+Cohesion: 0.33
+Nodes (5): 1. Crear el script, 2. Desplegar, 3. Configurar el portal, 4. Probar, Apps Script — leer el reporte diario desde Google Sheets
 
 ### Community 35 - "React + TypeScript + Vite"
 Cohesion: 0.50
@@ -230,55 +241,75 @@ Nodes (3): Expanding the Oxlint configuration, React Compiler, React + TypeScrip
 
 ### Community 37 - "dependencies"
 Cohesion: 0.29
-Nodes (7): class-variance-authority, claude, dependencies, class-variance-authority, claude, @supabase/supabase-js, @supabase/supabase-js
+Nodes (7): clsx, dependencies, clsx, react, react-dom, react, react-dom
 
 ### Community 41 - "xlsx"
-Cohesion: 0.14
-Nodes (27): ComodatoResult, ejecutivosZonaRowsFromCatalog(), materialesRowsFromCatalog(), parseFirstSheet(), runComodatoAnalysis(), SeguimientoRow, getDb(), loadRowsAsTable() (+19 more)
+Cohesion: 0.12
+Nodes (31): ComodatoResult, ejecutivosZonaRowsFromCatalog(), materialesRowsFromCatalog(), parseFirstSheet(), runComodatoAnalysis(), SeguimientoRow, arrowRowsToPlain(), flattenNested() (+23 more)
 
 ### Community 43 - "supabaseClient.ts"
 Cohesion: 0.50
 Nodes (3): key, supabase, url
 
-### Community 47 - "mappers.ts"
-Cohesion: 0.18
-Nodes (19): CENTERS, excelDateToIso(), mapConsumo(), mapEjecutivo(), mapInvConsolidado(), mapInvDetalle(), mapMaterial(), mapResumenFac() (+11 more)
+### Community 46 - "class-variance-authority"
+Cohesion: 0.14
+Nodes (16): CheatsheetDialog(), CheatsheetDialogProps, SHORTCUTS, Cmd, CommandPalette(), PAGES, strip(), useCommands() (+8 more)
 
-### Community 48 - "analysisWorker.ts"
-Cohesion: 0.29
-Nodes (10): cancelled, findSheetByRole(), firstRowHeaders(), fixRange(), handleParseCatalog(), post(), progress(), readWorkbookSheets() (+2 more)
+### Community 48 - "mappers.ts"
+Cohesion: 0.11
+Nodes (21): xlsx, exportXlsx(), exportXlsxMultiSheet(), extraerHojas(), FileKey, FUENTES_DISPONIBLES, GenerarReportePage(), SHEETS_PARA_GOOGLE (+13 more)
 
-### Community 70 - "GenerarReportePage.tsx"
-Cohesion: 0.25
-Nodes (6): xlsx, exportXlsx(), exportXlsxMultiSheet(), peekReportSheets(), ReportSheetInfo, xlsx
+### Community 60 - "react-dom"
+Cohesion: 0.48
+Nodes (6): logError(), logEvent(), logInfo(), LogLevel, logRejection(), logWarn()
 
-### Community 72 - "GenerarReportePage.tsx"
+### Community 63 - "solicitudService.ts"
+Cohesion: 0.17
+Nodes (11): EnrichIndex, DRP_SHEET_ID, DRP_TOKEN, DRP_WEBHOOK_URL, enviarSolicitudDRP(), buildFromInvDetalle(), buildFromResumenSin(), buildFromSugerencia() (+3 more)
+
+### Community 70 - "toastStore.ts"
+Cohesion: 0.32
+Nodes (4): Toast, ToastLevel, ToastState, useToastStore
+
+### Community 72 - "repositories/index.ts"
+Cohesion: 0.15
+Nodes (6): CatalogRepository, catalogRepository, reportRepository, RepositoryBackend, solicitudRepository, LocalCatalogRepository
+
+### Community 73 - "SolicitudRepository"
+Cohesion: 0.14
+Nodes (5): db, DegasaDb, SnapshotRow, LocalSolicitudRepository, SolicitudRepository
+
+### Community 76 - "LocalReportRepository.ts"
+Cohesion: 0.48
+Nodes (4): encodeSnapshot(), isQuotaExceeded(), putSnapshot(), quotaExceededMessage()
+
+### Community 79 - "Apps Script — escribir solicitudes en la pestaña "DRP""
 Cohesion: 0.33
-Nodes (5): extraerHojas(), FileKey, FUENTES_DISPONIBLES, GenerarReportePage(), SHEETS_PARA_GOOGLE
+Nodes (5): 1. Crear el script, 2. Desplegar, 3. Configurar el portal, 4. Probar, Apps Script — escribir solicitudes en la pestaña "DRP"
 
-### Community 73 - "roleDetection.ts"
-Cohesion: 0.50
-Nodes (4): normHeader(), ROLE_LABEL, roleOf(), SheetRole
+### Community 89 - "text.ts"
+Cohesion: 0.80
+Nodes (3): norm(), num(), numLoose()
 
 ## Knowledge Gaps
-- **248 isolated node(s):** `$schema`, `typescript`, `oxc`, `react/rules-of-hooks`, `warn` (+243 more)
+- **304 isolated node(s):** `$schema`, `typescript`, `oxc`, `react/rules-of-hooks`, `warn` (+299 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **35 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **46 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `react` to `mappers.ts`, `PanelHost.tsx`, `table.tsx`, `clsx`, `plugins`, `sheet.tsx`, `InventarioPage.tsx`, `card.tsx`, `dialog.tsx`, `DashboardPage.tsx`, `App.tsx`, `badge.tsx`, `button.tsx`, `UploadPage.tsx`, `ProcessingPage.tsx`, `SugerenciasPage.tsx`, `AnalisisPage.tsx`, `ConsumoPage.tsx`, `ResultsPage.tsx`, `authService.ts`, `useSort.ts`, `GenerarReportePage.tsx`?**
-  _High betweenness centrality (0.308) - this node is a cross-community bridge._
-- **Why does `xlsx` connect `GenerarReportePage.tsx` to `dependencies`, `GenerarReportePage.tsx`, `xlsx`, `mappers.ts`, `analysisWorker.ts`?**
-  _High betweenness centrality (0.246) - this node is a cross-community bridge._
-- **Why does `extraerHojas()` connect `GenerarReportePage.tsx` to `GenerarReportePage.tsx`?**
-  _High betweenness centrality (0.152) - this node is a cross-community bridge._
+- **Why does `react` connect `react` to `mappers.ts`, `PanelHost.tsx`, `table.tsx`, `clsx`, `plugins`, `sheet.tsx`, `InventarioPage.tsx`, `card.tsx`, `dialog.tsx`, `DashboardPage.tsx`, `App.tsx`, `badge.tsx`, `button.tsx`, `ProcessingPage.tsx`, `SugerenciasPage.tsx`, `AnalisisPage.tsx`, `ConsumoPage.tsx`, `ui/index.ts`, `class-variance-authority`, `mappers.ts`, `Toaster.tsx`, `SolicitarDialog.tsx`, `SolicitudesPage.tsx`, `UploadPage.tsx`, `EmptyState.tsx`, `useSearchIndex.ts`?**
+  _High betweenness centrality (0.306) - this node is a cross-community bridge._
+- **Why does `xlsx` connect `mappers.ts` to `xlsx`, `dependencies`?**
+  _High betweenness centrality (0.189) - this node is a cross-community bridge._
+- **Are the 6 inferred relationships involving `buildAnalysisResult()` (e.g. with `mapConsumo()` and `mapInvConsolidado()`) actually correct?**
+  _`buildAnalysisResult()` has 6 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `$schema`, `typescript`, `oxc` to the rest of the system?**
-  _248 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _304 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `PanelHost.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.06557377049180328 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06535087719298245 - nodes in this community are weakly interconnected._
 - **Should `resumenFac.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.08956228956228957 - nodes in this community are weakly interconnected._
-- **Should `index.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.05141242937853107 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07130333138515488 - nodes in this community are weakly interconnected._
+- **Should `compilerOptions` be split into smaller, more focused modules?**
+  _Cohesion score 0.07692307692307693 - nodes in this community are weakly interconnected._

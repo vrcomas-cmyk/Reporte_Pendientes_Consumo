@@ -8,6 +8,8 @@ import type {
   ConsumoRow,
   ResumenFacRow,
 } from './types';
+import { CENTERS } from './types';
+import { norm, numLoose } from '@/lib/text';
 import { normHeader } from './roleDetection';
 
 // Raw xlsx rows come back as Record<string, unknown> with header keys.
@@ -17,18 +19,11 @@ import { normHeader } from './roleDetection';
 
 type Row = Record<string, unknown>;
 
-const str = (v: unknown): string => (v === undefined || v === null ? '' : String(v).trim());
-const num = (v: unknown): number => {
-  if (typeof v === 'number') return v;
-  if (v === undefined || v === null || v === '') return 0;
-  // Google Sheets exports currency cells as strings like "$ 60.87" or
-  // "$82.00" — strip everything but digits/dot/minus (and thousands commas)
-  // before parsing.
-  const s = String(v).replace(/[^0-9.,-]/g, '').replace(/,/g, '');
-  if (s === '' || s === '-') return 0;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : 0;
-};
+/** str + num for spreadsheet cells. The `loose` variant of `num` matches the
+ *  legacy mappers behaviour: accepts "$ 60.87" / "1,234.5" — both the dollar
+ *  sign and thousands/decimal commas are stripped before parseFloat. */
+const str = norm;
+const num = numLoose;
 
 /** Looks up a row value by header name, tolerant of case/accent/whitespace
  * differences between the expected column name and what the sheet actually
@@ -44,8 +39,6 @@ function pick(r: Row, name: string): unknown {
   }
   return undefined;
 }
-
-const CENTERS = ['1001', '1003', '1004', '1017', '1018', '1022', '1036'];
 
 export function mapEjecutivo(r: Row): Ejecutivo {
   return {
@@ -139,14 +132,23 @@ export function excelDateToIso(v: unknown): string | null {
   if (v === undefined || v === null || v === '') return null;
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   if (typeof v === 'number') {
-    // Excel serial date (1900 date system)
-    const ms = Math.round((v - 25569) * 86400 * 1000);
+    // Excel serial date (1900 date system) tops out around 2,958,465 (year
+    // 9999) — some upstream sources (a pandas datetime column serialized to
+    // epoch milliseconds instead of a proper Excel date, e.g. the
+    // Sugerencias_SQL report-generation API) hand back a plain number in the
+    // trillions instead. Anything past a sane serial range is already
+    // epoch-ms, not a serial to convert.
+    const ms = Math.abs(v) > 1e7 ? v : Math.round((v - 25569) * 86400 * 1000);
     const d = new Date(ms);
     if (Number.isNaN(d.getTime())) return null;
     return d.toISOString().slice(0, 10);
   }
   const s = String(v).trim();
   if (!s) return null;
+  // Same epoch-ms case as above, but arriving as a digit string instead of
+  // a number (e.g. already stringified upstream) — 9+ digits is well past
+  // any plausible Excel serial (7 digits tops).
+  if (/^\d{9,}$/.test(s)) return excelDateToIso(Number(s));
   // The AppScript/Google Sheets export writes "Fecha de Caducidad" as
   // dd/mm/aaaa (day-first) text. JS's native Date(string) parser assumes
   // mm/dd/yyyy for slash-separated strings, so e.g. "16/07/2026" (day 16)
@@ -214,7 +216,7 @@ export function mapSugerencia(r: Row): Sugerencia {
     almacenSugerido: str(r['Almacén sugerido']),
     disponible: num(r['Disponible']),
     lote: str(r['Lote']),
-    fechaCaducidad: str(r['Fecha de Caducidad']),
+    fechaCaducidad: excelDateToIso(r['Fecha de Caducidad']) || '',
     mesesVigenciaLote: num(r['Meses vigencia lote']),
     centroInv: str(r['Centro (Inv)']),
     mesesInventario: num(r['Meses_Inventario']),
