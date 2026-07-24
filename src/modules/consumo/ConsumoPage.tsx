@@ -17,7 +17,7 @@ import type { ConsumoRow } from '@/core/types';
 import { buildFromConsumo } from '@/services/solicitudService';
 import { useSolicitarDialog } from '@/modules/solicitudes/useSolicitarDialog';
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
-import { SolicitadoBadge } from '@/modules/solicitudes/SolicitadoBadge';
+import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
 
 // #2: combined date+qty cell, same pattern as the existing "Última" column.
@@ -387,14 +387,28 @@ export function ConsumoPage() {
             <SortableTableHead sortKey="impultima" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Imp. últ.</SortableTableHead>
             <SortableTableHead sortKey="estado" activeKey={sortKey} dir={dir} onSort={toggleSort}>Estado</SortableTableHead>
             <SortableTableHead sortKey="tendencia" activeKey={sortKey} dir={dir} onSort={toggleSort}>Tendencia</SortableTableHead>
-            <TableHead>Acción</TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {paddingTop > 0 && (<tr><td style={{ height: paddingTop }} colSpan={12} /></tr>)}
+            {paddingTop > 0 && (<tr><td style={{ height: paddingTop }} colSpan={11} /></tr>)}
             {items.map((vi) => {
               const r = sorted[vi.index];
+              const onSolicitar = () => solicitar.abrir(buildFromConsumo(r));
+              const solicitado = solicitudSourceKeys.has(`con|${norm(r.material)}|${norm(r.centro)}`);
+              const copyItems = [
+                { label: 'Material', value: r.material },
+                { label: 'Cliente', value: r.razonSocial },
+                { label: 'Centro', value: r.centro },
+              ];
               return (
-              <TableRow key={vi.index} className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'clienteDetalle', dest: r.destinatario })}>
+              <SolicitarContextMenu
+                key={vi.index}
+                onSolicitar={onSolicitar}
+                solicitado={solicitado}
+                label={r.material}
+                onVerDetalle={() => open({ type: 'clienteDetalle', dest: r.destinatario })}
+                copyItems={copyItems}
+              >
+              <TableRow className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'clienteDetalle', dest: r.destinatario })}>
                 <TableCell className="max-w-64 truncate">{r.razonSocial}<div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: r.solicitante })}>S {r.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: r.destinatario })}>D {r.destinatario}</Chip></div></TableCell>
                 <TableCell>
                   <Chip onClick={() => addQuick('ejecutivo', ce.ejec(r))}>{ce.ejec(r) || '—'}</Chip>
@@ -409,16 +423,11 @@ export function ConsumoPage() {
                 <TableCell className="text-right">{formatCurrency(r.importeUltima)}</TableCell>
                 <TableCell><StatePill label={statusOf(r).status.label} cls={statusOf(r).status.cls} /></TableCell>
                 <TableCell><TrendBadge t={statusOf(r).tend} /></TableCell>
-                <TableCell onClick={(ev) => ev.stopPropagation()}>
-                  <div className="flex items-center gap-1.5">
-                    <Button size="sm" variant="outline" onClick={() => solicitar.abrir(buildFromConsumo(r))}>Solicitar</Button>
-                    <SolicitadoBadge solicitado={solicitudSourceKeys.has(`con|${norm(r.material)}|${norm(r.centro)}`)} />
-                  </div>
-                </TableCell>
               </TableRow>
+              </SolicitarContextMenu>
               );
             })}
-            {paddingBottom > 0 && (<tr><td style={{ height: paddingBottom }} colSpan={12} /></tr>)}
+            {paddingBottom > 0 && (<tr><td style={{ height: paddingBottom }} colSpan={11} /></tr>)}
           </TableBody>
         </Table>
         </div>

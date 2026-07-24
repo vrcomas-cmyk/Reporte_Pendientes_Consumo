@@ -61,27 +61,31 @@ export function GlobalKeybindings() {
 
   const handlers = useMemo<KeyHandler[]>(() => {
     const h: KeyHandler[] = [
-      { combo: 'cmd+k', handler: () => togglePalette() },
-      { combo: 'cmd+b', handler: () => toggleSidebar() },
+      // Modifier chords always fire, even with a form focused — they need to
+      // preempt the browser's own Ctrl+K/Ctrl+B behavior either way.
+      { combo: 'cmd+k', handler: (ev) => { ev.preventDefault(); togglePalette(); } },
+      { combo: 'cmd+b', handler: (ev) => { ev.preventDefault(); toggleSidebar(); } },
       {
         combo: '?',
-        handler: () => {
-          if (isEditableTarget(window.event as KeyboardEvent)) return;
+        handler: (ev) => {
+          if (isEditableTarget(ev)) return;
+          ev.preventDefault();
           setCheatsheet(true);
         },
       },
       {
         combo: 'Escape',
-        handler: () => {
-          if (paletteOpen) { closePalette(); return; }
-          if (cheatsheet) { setCheatsheet(false); return; }
-          if (panelOpen) { closePanel(); return; }
+        handler: (ev) => {
+          if (paletteOpen) { ev.preventDefault(); closePalette(); return; }
+          if (cheatsheet) { ev.preventDefault(); setCheatsheet(false); return; }
+          if (panelOpen) { ev.preventDefault(); closePanel(); return; }
         },
       },
       {
         combo: 't',
         handler: (ev) => {
           if (isEditableTarget(ev)) return;
+          ev.preventDefault();
           toggleTheme();
         },
       },
@@ -89,6 +93,7 @@ export function GlobalKeybindings() {
         combo: 'b',
         handler: (ev) => {
           if (isEditableTarget(ev)) return;
+          ev.preventDefault();
           toggleSidebar();
         },
       },
@@ -96,6 +101,7 @@ export function GlobalKeybindings() {
         combo: '/',
         handler: (ev) => {
           if (isEditableTarget(ev)) return;
+          ev.preventDefault();
           const el = document.querySelector<HTMLInputElement>(
             'input[type="text"], input[type="search"], input[placeholder*="Buscar"], input[placeholder*="Filtrar"]',
           );
@@ -107,17 +113,22 @@ export function GlobalKeybindings() {
         combo: 'g',
         handler: (ev) => {
           if (isEditableTarget(ev)) return;
+          ev.preventDefault();
           prime();
         },
       },
     ];
-    // One-entry-per-`g-<x>` chord. Triggered only when primed.
+    // One-entry-per-`g-<x>` chord. Triggered only when primed — bare letters
+    // like `o`/`n`/`m` are ordinary printable keys everywhere else (typing
+    // into a search box, a dialog field, etc.), so nothing here may
+    // preventDefault unless BOTH primed is true AND the target isn't editable.
     for (const [k, to] of Object.entries(CHORD_NAV)) {
       h.push({
         combo: k,
         handler: (ev) => {
           if (!primed) return;
           if (isEditableTarget(ev)) return;
+          ev.preventDefault();
           setPrimed(false);
           navigate(to);
         },

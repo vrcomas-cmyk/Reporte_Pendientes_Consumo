@@ -17,7 +17,11 @@ import { useEffect } from 'react';
 //
 // Pass `enabled=false` to disable the whole map (e.g. when a modal is open
 // that owns its own key handling). Handlers run in a stable order; the first
-// matching combo wins and `preventDefault` is called on it.
+// matching combo wins. `preventDefault` is each handler's own responsibility
+// (call it only once you've decided to actually act) — the hook itself never
+// calls it, since a combo matching is not the same as a handler deciding to
+// handle it (e.g. a bare-letter combo that bails out early when a text input
+// is focused must NOT block the browser from typing that letter).
 // ---------------------------------------------------------------------------
 
 export interface KeyHandler { combo: string; handler: (e: KeyboardEvent) => void; }
@@ -66,7 +70,6 @@ export function useKeybindings(handlers: KeyHandler[], enabled = true) {
     const onKey = (ev: KeyboardEvent) => {
       for (const h of handlers) {
         if (matchCombo(h.combo, ev)) {
-          ev.preventDefault();
           h.handler(ev);
           return;
         }

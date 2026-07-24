@@ -1,16 +1,16 @@
 # Graph Report - Reporte_Pendientes_Consumo  (2026-07-24)
 
 ## Corpus Check
-- 154 files · ~64,204 words
+- 156 files · ~67,514 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 890 nodes · 1418 edges · 91 communities (45 shown, 46 thin omitted)
+- 906 nodes · 1441 edges · 94 communities (46 shown, 48 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 20 edges (avg confidence: 0.74)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `dd587a7d`
+- Built from commit: `9d056053`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -91,19 +91,22 @@
 - Toaster.tsx
 - LocalReportRepository.ts
 - LocalReportRepository
+- enrich.ts
 - Apps Script — escribir solicitudes en la pestaña "DRP"
 - SolicitarDialog.tsx
+- buildAnalysisResult.test.ts
+- SolicitarContextMenu.tsx
 - SolicitudesPage.tsx
-- UploadPage.tsx
+- @radix-ui/react-dialog
 - solicitudStore.ts
 - EmptyState.tsx
 - text.ts
-- dexie
-- tailwind-merge
+- @duckdb/duckdb-wasm
 - commandPaletteStore.ts
+- react
 
 ## God Nodes (most connected - your core abstractions)
-1. `react` - 61 edges
+1. `react` - 63 edges
 2. `compilerOptions` - 19 edges
 3. `buildAnalysisResult()` - 16 edges
 4. `mesKey()` - 16 edges
@@ -129,15 +132,15 @@
 ## Import Cycles
 - None detected.
 
-## Communities (91 total, 46 thin omitted)
+## Communities (94 total, 48 thin omitted)
 
 ### Community 0 - "mappers.ts"
 Cohesion: 0.50
 Nodes (3): TabsContent, TabsList, TabsTrigger
 
 ### Community 1 - "PanelHost.tsx"
-Cohesion: 0.07
-Nodes (65): Analytics, AnalyticsCtx, useAnalytics(), consFor(), consumoEnrich(), consumoSerie(), consumoStatus(), consumoTend() (+57 more)
+Cohesion: 0.06
+Nodes (66): Analytics, AnalyticsCtx, useAnalytics(), consFor(), consumoEnrich(), consumoSerie(), consumoStatus(), consumoTend() (+58 more)
 
 ### Community 2 - "resumenFac.ts"
 Cohesion: 0.07
@@ -160,8 +163,8 @@ Cohesion: 0.06
 Nodes (4): react, Input, Progress, SortAccessors
 
 ### Community 8 - "analysisService.ts"
-Cohesion: 0.18
-Nodes (12): getWorker(), makeWorker(), nextId(), parseCatalog(), processReport(), runJob(), RunOptions, APPSCRIPT_TABS (+4 more)
+Cohesion: 0.17
+Nodes (14): buildFromSheetsInWorker(), BuildFromSheetsParams, getWorker(), makeWorker(), nextId(), parseCatalog(), processReport(), runJob() (+6 more)
 
 ### Community 9 - "resumenSin.ts"
 Cohesion: 0.19
@@ -241,7 +244,7 @@ Nodes (3): Expanding the Oxlint configuration, React Compiler, React + TypeScrip
 
 ### Community 37 - "dependencies"
 Cohesion: 0.29
-Nodes (7): clsx, dependencies, clsx, react, react-dom, react, react-dom
+Nodes (7): class-variance-authority, clsx, dependencies, class-variance-authority, clsx, tailwind-merge, tailwind-merge
 
 ### Community 41 - "xlsx"
 Cohesion: 0.12
@@ -257,15 +260,19 @@ Nodes (16): CheatsheetDialog(), CheatsheetDialogProps, SHORTCUTS, Cmd, CommandPa
 
 ### Community 48 - "mappers.ts"
 Cohesion: 0.11
-Nodes (21): xlsx, exportXlsx(), exportXlsxMultiSheet(), extraerHojas(), FileKey, FUENTES_DISPONIBLES, GenerarReportePage(), SHEETS_PARA_GOOGLE (+13 more)
+Nodes (22): xlsx, exportXlsx(), exportXlsxMultiSheet(), extraerHojas(), FileKey, FUENTES_DISPONIBLES, GenerarReportePage(), SHEETS_PARA_GOOGLE (+14 more)
+
+### Community 59 - "react"
+Cohesion: 0.48
+Nodes (4): encodeSnapshot(), isQuotaExceeded(), putSnapshot(), quotaExceededMessage()
 
 ### Community 60 - "react-dom"
 Cohesion: 0.48
 Nodes (6): logError(), logEvent(), logInfo(), LogLevel, logRejection(), logWarn()
 
 ### Community 63 - "solicitudService.ts"
-Cohesion: 0.17
-Nodes (11): EnrichIndex, DRP_SHEET_ID, DRP_TOKEN, DRP_WEBHOOK_URL, enviarSolicitudDRP(), buildFromInvDetalle(), buildFromResumenSin(), buildFromSugerencia() (+3 more)
+Cohesion: 0.16
+Nodes (12): EnrichIndex, DRP_SHEET_ID, DRP_TOKEN, DRP_WEBHOOK_URL, enviarSolicitudDRP(), buildFromInvDetalle(), buildFromInventarioCentro(), buildFromResumenSin() (+4 more)
 
 ### Community 70 - "toastStore.ts"
 Cohesion: 0.32
@@ -279,9 +286,9 @@ Nodes (6): CatalogRepository, catalogRepository, reportRepository, RepositoryBac
 Cohesion: 0.14
 Nodes (5): db, DegasaDb, SnapshotRow, LocalSolicitudRepository, SolicitudRepository
 
-### Community 76 - "LocalReportRepository.ts"
-Cohesion: 0.48
-Nodes (4): encodeSnapshot(), isQuotaExceeded(), putSnapshot(), quotaExceededMessage()
+### Community 74 - "SupabaseReportRepository"
+Cohesion: 0.40
+Nodes (4): ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator
 
 ### Community 79 - "Apps Script — escribir solicitudes en la pestaña "DRP""
 Cohesion: 0.33
@@ -292,23 +299,23 @@ Cohesion: 0.80
 Nodes (3): norm(), num(), numLoose()
 
 ## Knowledge Gaps
-- **304 isolated node(s):** `$schema`, `typescript`, `oxc`, `react/rules-of-hooks`, `warn` (+299 more)
+- **312 isolated node(s):** `$schema`, `typescript`, `oxc`, `react/rules-of-hooks`, `warn` (+307 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **46 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **48 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `react` to `mappers.ts`, `PanelHost.tsx`, `table.tsx`, `clsx`, `plugins`, `sheet.tsx`, `InventarioPage.tsx`, `card.tsx`, `dialog.tsx`, `DashboardPage.tsx`, `App.tsx`, `badge.tsx`, `button.tsx`, `ProcessingPage.tsx`, `SugerenciasPage.tsx`, `AnalisisPage.tsx`, `ConsumoPage.tsx`, `ui/index.ts`, `class-variance-authority`, `mappers.ts`, `Toaster.tsx`, `SolicitarDialog.tsx`, `SolicitudesPage.tsx`, `UploadPage.tsx`, `EmptyState.tsx`, `useSearchIndex.ts`?**
-  _High betweenness centrality (0.306) - this node is a cross-community bridge._
+- **Why does `react` connect `react` to `mappers.ts`, `PanelHost.tsx`, `table.tsx`, `clsx`, `plugins`, `sheet.tsx`, `InventarioPage.tsx`, `card.tsx`, `dialog.tsx`, `DashboardPage.tsx`, `App.tsx`, `badge.tsx`, `button.tsx`, `ProcessingPage.tsx`, `SugerenciasPage.tsx`, `AnalisisPage.tsx`, `ConsumoPage.tsx`, `class-variance-authority`, `mappers.ts`, `SupabaseReportRepository`, `Toaster.tsx`, `LocalReportRepository.ts`, `LocalReportRepository`, `SolicitarDialog.tsx`, `SolicitarContextMenu.tsx`, `SolicitudesPage.tsx`, `EmptyState.tsx`, `useSearchIndex.ts`?**
+  _High betweenness centrality (0.314) - this node is a cross-community bridge._
 - **Why does `xlsx` connect `mappers.ts` to `xlsx`, `dependencies`?**
-  _High betweenness centrality (0.189) - this node is a cross-community bridge._
+  _High betweenness centrality (0.192) - this node is a cross-community bridge._
 - **Are the 6 inferred relationships involving `buildAnalysisResult()` (e.g. with `mapConsumo()` and `mapInvConsolidado()`) actually correct?**
   _`buildAnalysisResult()` has 6 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `$schema`, `typescript`, `oxc` to the rest of the system?**
-  _304 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _312 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `PanelHost.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.06535087719298245 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06464776632302406 - nodes in this community are weakly interconnected._
 - **Should `resumenFac.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.07130333138515488 - nodes in this community are weakly interconnected._
 - **Should `compilerOptions` be split into smaller, more focused modules?**

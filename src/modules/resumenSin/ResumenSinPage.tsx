@@ -9,8 +9,8 @@ import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { buildLotesSheet, loteKey } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { TrendBadge, Chip, StatTile, ZoomControl, useZoom } from '@/modules/analytics/ui';
-import { invGen, esLento } from '@/core/resumenSin';
+import { TrendBadge, Chip, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { invGen, esLento, type RSSMaterial, type RSSCentro } from '@/core/resumenSin';
 import { serieMaterial, tendenciaTexto } from '@/core/resumenFac';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -20,7 +20,7 @@ import { useSort } from '@/hooks/useSort';
 import { buildFromResumenSin } from '@/services/solicitudService';
 import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSolicitarDialog';
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
-import { SolicitadoBadge } from '@/modules/solicitudes/SolicitadoBadge';
+import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
 
 export function ResumenSinPage() {
@@ -28,6 +28,10 @@ export function ResumenSinPage() {
   const open = usePanelStore((s) => s.open);
   const [q, setQ] = useState('');
   const [centroFiltro, setCentroFiltro] = useState<string>('');
+  const [quick, setQuick] = useState<ActiveFilter[]>([]);
+  const [pendFiltro, setPendFiltro] = useState<'' | 'con' | 'sin'>('');
+  const [lentoFiltro, setLentoFiltro] = useState<'' | 'con' | 'sin'>('');
+  const [transitoFiltro, setTransitoFiltro] = useState<'' | 'con' | 'sin'>('');
   const zoom = useZoom();
   const rss = a.rss;
   const qd = useDebouncedValue(q, 200);
@@ -45,13 +49,43 @@ export function ResumenSinPage() {
     return set;
   }, [solicitudesList]);
 
+  // Distinct statuses across a material's centros — shared by the display
+  // string (`statusMat`, comma-joined) and the "Status Revisión" filter
+  // column (`getMany`, one value per centro so it matches "has this status
+  // in some centro" instead of the exact joined combo).
+  const statusSetOf = (mo: RSSMaterial) => {
+    const s = new Set<string>();
+    mo.centros.forEach((co) => co.status.forEach((v) => s.add(v)));
+    return s;
+  };
+  const anyCentro = (mo: RSSMaterial, pred: (co: RSSCentro) => boolean) => {
+    for (const co of mo.centros.values()) if (pred(co)) return true;
+    return false;
+  };
+
+  const filterCols: FilterColumn<RSSMaterial>[] = useMemo(() => [
+    { key: 'material', label: 'Material', get: (mo) => mo.material },
+    { key: 'sector', label: 'Sector', get: (mo) => a.enrich.matSector(mo.material) },
+    { key: 'grupo', label: 'Grupo de artículo', get: (mo) => a.enrich.matGrupo(mo.material) },
+    { key: 'status', label: 'Status Revisión', getMany: (mo) => [...statusSetOf(mo)] },
+    { key: 'centro', label: 'Centro', getMany: (mo) => [...mo.centros.keys()] },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [a.enrich]);
+
   const list = useMemo(() => {
     if (!rss) return [];
     return [...rss.mats.values()].filter((mo) => {
-      if (!qd) return true;
-      return matchesQuery(qd, `${mo.material} ${mo.desc} ${a.enrich.matSector(mo.material)} ${a.enrich.matGrupo(mo.material)}`);
+      if (qd && !matchesQuery(qd, `${mo.material} ${mo.desc} ${a.enrich.matSector(mo.material)} ${a.enrich.matGrupo(mo.material)}`)) return false;
+      if (!passesFilters(mo, filterCols, quick)) return false;
+      if (pendFiltro === 'con' && !anyCentro(mo, (co) => co.pend > 0)) return false;
+      if (pendFiltro === 'sin' && anyCentro(mo, (co) => co.pend > 0)) return false;
+      if (lentoFiltro === 'con' && !anyCentro(mo, (co) => esLento(co, rss.curMes))) return false;
+      if (lentoFiltro === 'sin' && anyCentro(mo, (co) => esLento(co, rss.curMes))) return false;
+      if (transitoFiltro === 'con' && !anyCentro(mo, (co) => co.transito > 0)) return false;
+      if (transitoFiltro === 'sin' && anyCentro(mo, (co) => co.transito > 0)) return false;
+      return true;
     });
-  }, [rss, qd, a.enrich]);
+  }, [rss, qd, a.enrich, filterCols, quick, pendFiltro, lentoFiltro, transitoFiltro]);
 
   const totals = useMemo(() => {
     let inv = 0, pend = 0, trans = 0;
@@ -59,11 +93,7 @@ export function ResumenSinPage() {
     return { inv, pend, trans };
   }, [list]);
 
-  const statusMat = (mo: (typeof list)[number]) => {
-    const s = new Set<string>();
-    mo.centros.forEach((co) => co.status.forEach((v) => s.add(v)));
-    return [...s].join(', ');
-  };
+  const statusMat = (mo: RSSMaterial) => [...statusSetOf(mo)].join(', ');
   const sortAcc = useMemo(() => ({
     material: (mo: (typeof list)[number]) => mo.material,
     sector: (mo: (typeof list)[number]) => a.enrich.matSector(mo.material),
@@ -134,6 +164,25 @@ export function ResumenSinPage() {
         <div className="ml-auto"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <ColumnFilterBar columns={filterCols} rows={list} active={quick} onChange={setQuick} />
+        <select value={pendFiltro} onChange={(e) => setPendFiltro(e.target.value as typeof pendFiltro)} className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs">
+          <option value="">Pendiente: todos</option>
+          <option value="con">Con pendiente</option>
+          <option value="sin">Sin pendiente</option>
+        </select>
+        <select value={lentoFiltro} onChange={(e) => setLentoFiltro(e.target.value as typeof lentoFiltro)} className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs">
+          <option value="">Lento: todos</option>
+          <option value="con">Solo lento</option>
+          <option value="sin">Sin lento</option>
+        </select>
+        <select value={transitoFiltro} onChange={(e) => setTransitoFiltro(e.target.value as typeof transitoFiltro)} className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs">
+          <option value="">En tránsito: todos</option>
+          <option value="con">Con tránsito</option>
+          <option value="sin">Sin tránsito</option>
+        </select>
+      </div>
+
       <Card className="min-h-0 flex-1 overflow-hidden">
         <div ref={scrollRef} className="h-full overflow-auto">
           <Table className={zoom.className} wrapperClassName="overflow-visible">
@@ -167,33 +216,38 @@ export function ResumenSinPage() {
                       if (!co) return <TableCell key={c} className="text-right text-text-faint">—</TableCell>;
                       const ig = invGen(co);
                       const cellSolicitada = rssSolicitadas.has(`${norm(mo.material)}|${c}`);
+                      const condicionesMat = a.enrich.matCondiciones(mo.material).join(', ');
+                      const onSolicitar = () => {
+                        const lotesPar = a.lotes.filter((l) => loteKey(l.material, l.centro) === loteKey(mo.material, c));
+                        const loteOptions: LoteOption[] = lotesPar.map((l, idx) => ({
+                          key: `${idx}|${l.almacen}|${l.lote}`,
+                          label: `Lote ${l.lote || '—'} · Alm ${l.almacen || '—'} · ${formatNumber(l.cantidadDisp)}`,
+                          draft: buildFromResumenSin({ material: mo.material, descripcion: mo.desc, centro: c, cantidadPendiente: co.pend }, l, a.enrich),
+                          condicion: condicionesMat,
+                        }));
+                        const initial = buildFromResumenSin({ material: mo.material, descripcion: mo.desc, centro: c, cantidadPendiente: co.pend }, lotesPar[0] ?? null, a.enrich);
+                        solicitar.abrir(initial, loteOptions.length ? loteOptions : undefined);
+                      };
+                      const copyItems = [
+                        { label: 'Material', value: mo.material },
+                        { label: 'Centro', value: c },
+                      ];
                       return (
-                        <TableCell key={c} className="text-right">
+                        <SolicitarContextMenu
+                          key={c}
+                          onSolicitar={onSolicitar}
+                          solicitado={cellSolicitada}
+                          label={`${mo.material} · Centro ${c}`}
+                          onVerDetalle={() => open({ type: 'celda', material: mo.material, centro: c })}
+                          copyItems={copyItems}
+                        >
+                        <TableCell className="text-right">
                           <Chip onClick={() => open({ type: 'celda', material: mo.material, centro: c })}>{formatNumber(ig)}</Chip>
                           {co.transito > 0 && <span className="text-emerald-500"> +{formatNumber(co.transito)}</span>}
                           {esLento(co, rss.curMes) && <AlertTriangle className="ml-1 inline size-3 text-warning" />}
                           {co.pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(co.pend)}</div>}
-                          <div className="mt-1 flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              title="Solicitar lote para este material/centro"
-                              onClick={() => {
-                                const lotesPar = a.lotes.filter((l) => loteKey(l.material, l.centro) === loteKey(mo.material, c));
-                                const loteOptions: LoteOption[] = lotesPar.map((l, idx) => ({
-                                  key: `${idx}|${l.almacen}|${l.lote}`,
-                                  label: `Lote ${l.lote || '—'} · Alm ${l.almacen || '—'} · ${formatNumber(l.cantidadDisp)}`,
-                                  draft: buildFromResumenSin({ material: mo.material, descripcion: mo.desc, centro: c, cantidadPendiente: co.pend }, l, a.enrich),
-                                }));
-                                const initial = buildFromResumenSin({ material: mo.material, descripcion: mo.desc, centro: c, cantidadPendiente: co.pend }, lotesPar[0] ?? null, a.enrich);
-                                solicitar.abrir(initial, loteOptions.length ? loteOptions : undefined);
-                              }}
-                              className="text-[10px] text-accent hover:underline"
-                            >
-                              Solicitar
-                            </button>
-                            <SolicitadoBadge solicitado={cellSolicitada} />
-                          </div>
                         </TableCell>
+                        </SolicitarContextMenu>
                       );
                     })}
                     <TableCell className="text-right font-medium"><Chip onClick={() => open({ type: 'materialTotales', material: mo.material })}>{formatNumber(invTot)}</Chip></TableCell>

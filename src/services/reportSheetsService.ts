@@ -1,5 +1,5 @@
 import { reportRepository } from '@/repositories';
-import { buildAnalysisResult } from '@/core/buildAnalysisResult';
+import { buildFromSheetsInWorker } from '@/services/analysisService';
 import { logInfo } from '@/lib/logError';
 import { ROLE_LABEL } from '@/core/roleDetection';
 import { useReportSheetsSyncStore } from '@/store/reportSheetsSyncStore';
@@ -89,6 +89,12 @@ export interface SyncReportSheetsParams {
    * manual xlsx flow reports, so the UI can reuse the same `Progress` bar.
    * The auto-check path (AppShell) omits this since it runs silently. */
   onProgress?: (p: ProcessingProgress) => void;
+  /** True for the automatic background check (AppShell, on mount/focus) —
+   * still saves to IndexedDB (that's what avoids re-syncing constantly) but
+   * skips the Supabase history/log rows a user-initiated sync gets, so
+   * silent background checks don't pile up `degasa_history`/`degasa_logs`
+   * entries no one asked for. */
+  silent?: boolean;
 }
 
 // Module-level guard: at most one Sheets sync in flight at a time, shared
@@ -166,7 +172,10 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
 
     emit({ phase: 'crossing', percent: 85, message: 'Cruzando reporte contra catálogo…' });
     emit({ phase: 'kpis', percent: 92, message: 'Calculando KPIs…' });
-    const result = buildAnalysisResult({
+    // Runs the cross-reference + KPI computation in the Web Worker (same one
+    // the xlsx-upload path uses) instead of the main thread, so a large
+    // "Reporte de Consumo" tab doesn't stall the UI while it's crunched.
+    const result = await buildFromSheetsInWorker({
       sheets,
       sheetsDetected,
       catalog: params.catalog,
@@ -175,17 +184,19 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
       startedAt: start,
       previous: params.previous,
       selectedRoles: roles,
-    });
+    }).promise;
 
     await reportRepository.saveAnalysis(result);
-    reportRepository.addHistory({
-      fileName: result.fileName,
-      processedAt: result.processedAt,
-      durationMs: result.durationMs,
-      rowCount: result.rowCount,
-      kpis: result.kpis,
-    }).catch(() => {});
-    void logInfo('report-sheets-sync', `${roles.join(', ')}: ${result.rowCount} sugerencias`);
+    if (!params.silent) {
+      reportRepository.addHistory({
+        fileName: result.fileName,
+        processedAt: result.processedAt,
+        durationMs: result.durationMs,
+        rowCount: result.rowCount,
+        kpis: result.kpis,
+      }).catch(() => {});
+      void logInfo('report-sheets-sync', `${roles.join(', ')}: ${result.rowCount} sugerencias`);
+    }
 
     emit({ phase: 'done', percent: 100, message: 'Sincronización completada.' });
     sync.finish();

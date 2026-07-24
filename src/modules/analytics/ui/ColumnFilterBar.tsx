@@ -1,8 +1,19 @@
 import { Plus, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-export interface FilterColumn<T> { key: string; label: string; get: (row: T) => string }
+/** `get` is for columns with one clean value per row (equality match).
+ * `getMany` is for rows that can belong to several values at once (e.g. a
+ * material present in more than one centro) — matching becomes "row has
+ * this value among its own" instead of exact equality, and distinct-value
+ * enumeration flattens every row's values instead of taking one per row.
+ * A column defines exactly one of the two. */
+export interface FilterColumn<T> { key: string; label: string; get?: (row: T) => string; getMany?: (row: T) => string[] }
 export interface ActiveFilter { col: string; value: string }
+
+function valuesOf<T>(col: FilterColumn<T>, row: T): string[] {
+  if (col.getMany) return col.getMany(row);
+  return col.get ? [col.get(row)] : [];
+}
 
 /** Aplica los quick-filters a una fila: valores de la misma columna son OR, entre columnas son AND. Compartido por todas las vistas. */
 export function passesFilters<T>(row: T, columns: FilterColumn<T>[], active: ActiveFilter[]): boolean {
@@ -15,7 +26,8 @@ export function passesFilters<T>(row: T, columns: FilterColumn<T>[], active: Act
   for (const [key, values] of byCol) {
     const col = columns.find((c) => c.key === key);
     if (!col) continue;
-    if (!values.includes(col.get(row))) return false;
+    const rowValues = valuesOf(col, row);
+    if (!values.some((v) => rowValues.includes(v))) return false;
   }
   return true;
 }
@@ -36,7 +48,7 @@ export function ColumnFilterBar<T>({ columns, rows, active, onChange }: {
     const col = columns.find((c) => c.key === pickCol);
     if (!col) return [] as string[];
     const s = new Set<string>();
-    rows.forEach((r) => { const v = col.get(r); if (v) s.add(v); });
+    rows.forEach((r) => { valuesOf(col, r).forEach((v) => { if (v) s.add(v); }); });
     return [...s].sort((a, b) => a.localeCompare(b));
   }, [pickCol, columns, rows]);
 

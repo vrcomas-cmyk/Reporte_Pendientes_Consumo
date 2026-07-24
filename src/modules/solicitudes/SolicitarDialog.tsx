@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { crear, type SolicitudDraft } from '@/services/solicitudService';
 import { useSolicitudStore } from '@/store/solicitudStore';
 import { toast } from '@/store/toastStore';
+import { formatNumber } from '@/lib/utils';
 import type { LoteOption } from './useSolicitarDialog';
 
 interface SolicitarDialogProps {
@@ -90,15 +91,36 @@ export function SolicitarDialog({ draft, loteOptions, onClose }: SolicitarDialog
         <div className="flex flex-col gap-3">
           {loteOptions && loteOptions.length > 0 && (
             <div>
-              <label className={FIELD_LABEL}>Lote / fuente</label>
-              <select
-                value={loteKey}
-                onChange={(e) => onPickLote(e.target.value)}
-                className="h-9 w-full rounded-md border border-border bg-bg-elevated px-2 text-sm"
-              >
-                <option value="">Elegir…</option>
-                {loteOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-              </select>
+              <label className={FIELD_LABEL}>Inventario disponible — elige de dónde solicitar</label>
+              <div className="max-h-48 overflow-auto rounded-md border border-border">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-bg-inset text-text-faint">
+                    <tr>
+                      <th className="px-2 py-1.5 text-left font-medium">Centro</th>
+                      <th className="px-2 py-1.5 text-left font-medium">Almacén</th>
+                      <th className="px-2 py-1.5 text-left font-medium">Lote</th>
+                      <th className="px-2 py-1.5 text-right font-medium">Cantidad</th>
+                      <th className="px-2 py-1.5 text-left font-medium">Condición</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loteOptions.map((o) => (
+                      <tr
+                        key={o.key}
+                        onClick={() => onPickLote(o.key)}
+                        title={o.label}
+                        className={`cursor-pointer border-t border-border/60 ${loteKey === o.key ? 'bg-accent-soft' : 'hover:bg-bg-inset'}`}
+                      >
+                        <td className="px-2 py-1.5">{o.draft.centroOrigen || '—'}</td>
+                        <td className="px-2 py-1.5">{o.draft.almacenOrigen || '—'}</td>
+                        <td className="px-2 py-1.5">{o.draft.lote || '—'}</td>
+                        <td className="px-2 py-1.5 text-right">{formatNumber(o.draft.cantidad)}</td>
+                        <td className="px-2 py-1.5">{o.condicion || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

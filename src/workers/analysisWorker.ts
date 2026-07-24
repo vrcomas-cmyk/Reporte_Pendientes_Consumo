@@ -11,7 +11,19 @@ import type { CatalogSnapshot, AnalysisResult, AppSettings, SheetRole, DetectedS
 
 export type WorkerRequest =
   | { id: string; type: 'parse-catalog'; buffer: ArrayBuffer; fileName: string }
-  | { id: string; type: 'process-report'; buffer: ArrayBuffer; fileName: string; catalog: CatalogSnapshot | null; settings: Pick<AppSettings, 'shortExpiryDays' | 'lowStockThreshold'>; selectedRoles?: SheetRole[] };
+  | { id: string; type: 'process-report'; buffer: ArrayBuffer; fileName: string; catalog: CatalogSnapshot | null; settings: Pick<AppSettings, 'shortExpiryDays' | 'lowStockThreshold'>; selectedRoles?: SheetRole[] }
+  | {
+      id: string;
+      type: 'build-from-sheets';
+      sheets: Record<string, Record<string, unknown>[]>;
+      sheetsDetected: DetectedSheet[];
+      catalog: CatalogSnapshot | null;
+      settings: Pick<AppSettings, 'shortExpiryDays' | 'lowStockThreshold'>;
+      fileName: string;
+      startedAt: number;
+      previous: AnalysisResult | null;
+      selectedRoles?: SheetRole[];
+    };
 
 export type WorkerResponse =
   | { id: string; type: 'progress'; phase: string; percent: number; message: string }
@@ -149,6 +161,19 @@ async function handleProcessReport(req: Extract<WorkerRequest, { type: 'process-
   }
 }
 
+async function handleBuildFromSheets(req: Extract<WorkerRequest, { type: 'build-from-sheets' }>) {
+  const { id, sheets, sheetsDetected, catalog, settings, fileName, startedAt, previous, selectedRoles } = req;
+  try {
+    progress(id, 'crossing', 45, 'Cruzando reporte contra catálogo...');
+    progress(id, 'kpis', 75, 'Calculando KPIs...');
+    const result = buildAnalysisResult({ sheets, sheetsDetected, catalog, settings, fileName, startedAt, previous, selectedRoles });
+    progress(id, 'done', 100, 'Análisis completado.');
+    post({ id, type: 'report-result', result });
+  } catch (e) {
+    post({ id, type: 'error', message: e instanceof Error ? e.message : String(e) });
+  }
+}
+
 self.addEventListener('message', (ev: MessageEvent<WorkerRequest | { id: string; type: 'cancel' }>) => {
   const data = ev.data;
   if (data.type === 'cancel') {
@@ -157,4 +182,5 @@ self.addEventListener('message', (ev: MessageEvent<WorkerRequest | { id: string;
   }
   if (data.type === 'parse-catalog') void handleParseCatalog(data);
   else if (data.type === 'process-report') void handleProcessReport(data);
+  else if (data.type === 'build-from-sheets') void handleBuildFromSheets(data);
 });

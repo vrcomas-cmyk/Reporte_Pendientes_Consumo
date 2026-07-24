@@ -18,7 +18,7 @@ import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
 import { buildFromInvDetalle } from '@/services/solicitudService';
 import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSolicitarDialog';
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
-import { SolicitadoBadge } from '@/modules/solicitudes/SolicitadoBadge';
+import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
 
 const CENTERS = ['1001', '1003', '1004', '1017', '1018', '1022', '1036'];
@@ -49,6 +49,7 @@ export function InventarioPage() {
   const [q, setQ] = useState('');
   const [cond, setCond] = useState('');
   const [sector, setSector] = useState('');
+  const [centro, setCentro] = useState('');
   const [isAdmin, setIsAdmin] = useState(readAdmin);
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
   const zoom = useZoom();
@@ -84,11 +85,12 @@ export function InventarioPage() {
     return rows.filter((r) => {
       if (cond && norm(r.condicion) !== cond) return false;
       if (sector && (a.enrich.matSector(r.material) || r.sector) !== sector) return false;
+      if (centro && !(r.invByCenter[centro] > 0)) return false;
       if (qd && !matchesQuery(qd, `${r.material} ${r.textoBreve}`)) return false;
       if (!isAdmin && hidden.has(rowKey(r.material, r.condicion))) return false;
       return true;
     });
-  }, [rows, qd, cond, sector, a.enrich, isAdmin, hidden]);
+  }, [rows, qd, cond, sector, centro, a.enrich, isAdmin, hidden]);
 
   const kpis = useMemo(() => {
     const mats = new Set(filtered.map((r) => norm(r.material)));
@@ -111,7 +113,7 @@ export function InventarioPage() {
   }), [a.enrich]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
-  const colCount = (isAdmin ? 1 : 0) + 5 + 2 + CENTERS.length + 1 + 1 + 1;
+  const colCount = (isAdmin ? 1 : 0) + 5 + 2 + CENTERS.length + 1 + 1;
 
   if (!rows.length) {
     return <EmptyState title={'No hay datos de "Inventario por condición".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
@@ -129,9 +131,12 @@ export function InventarioPage() {
       return o;
     });
     // Los renglones son material × condición (el inventario se reparte entre
-    // centros), así que los lotes se anexan a nivel material.
+    // centros), así que los lotes se anexan a nivel material — salvo que
+    // haya un filtro de Centro activo, en cuyo caso se acotan también a ese
+    // centro (si el material tiene 5 lotes en 3 centros y filtras por 1001,
+    // solo se exportan los de 1001).
     const mats = new Set(filtered.map((r) => norm(r.material)));
-    const lotesX = buildLotesSheet(a.lotes, (l) => mats.has(norm(l.material)));
+    const lotesX = buildLotesSheet(a.lotes, (l) => mats.has(norm(l.material)) && (!centro || norm(l.centro) === centro));
     void exportXlsxMultiSheet(`inventario_${stamp()}.xlsx`, [
       { name: 'Inventario', rows: rowsX },
       { name: 'Detalle Lotes', rows: lotesX },
@@ -164,6 +169,9 @@ export function InventarioPage() {
         <select value={sector} onChange={(e) => setSector(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
           <option value="">Sector (todos)</option>{sectores.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+        <select value={centro} onChange={(e) => setCentro(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
+          <option value="">Centro (todos)</option>{CENTERS.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
         <Button
           variant={isAdmin ? 'default' : 'outline'}
           size="sm"
@@ -191,7 +199,6 @@ export function InventarioPage() {
                 {CENTERS.map((c) => <TableHead key={c} className="text-right">Inv {c}</TableHead>)}
                 <SortableTableHead sortKey="invsuma" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Inv Suma</SortableTableHead>
                 <SortableTableHead sortKey="importe" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Importe $</SortableTableHead>
-                <TableHead>Acción</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -201,8 +208,35 @@ export function InventarioPage() {
                 const corta = /corta/i.test(r.condicion);
                 const key = rowKey(r.material, r.condicion);
                 const isHidden = hidden.has(key);
+                const onSolicitar = () => {
+                  const lotesMaterial = a.lotes.filter((l) => norm(l.material) === norm(r.material));
+                  const condicionesMat = a.enrich.matCondiciones(r.material).join(', ');
+                  const loteOptions: LoteOption[] = lotesMaterial.map((l, idx) => ({
+                    key: `${idx}|${l.centro}|${l.lote}`,
+                    label: `Lote ${l.lote || '—'} · Centro ${l.centro} · ${formatNumber(l.cantidadDisp)}`,
+                    draft: buildFromInvDetalle(l, a.enrich),
+                    condicion: condicionesMat,
+                  }));
+                  const initial = lotesMaterial.length
+                    ? buildFromInvDetalle(lotesMaterial[0], a.enrich)
+                    : buildFromInvDetalle({ material: r.material, textoBreve: r.textoBreve, centro: '', almacen: '', lote: '', fechaCaducidad: null, cantidadDisp: 0 }, a.enrich);
+                  solicitar.abrir(initial, loteOptions.length ? loteOptions : undefined);
+                };
+                const copyItems = [
+                  { label: 'Material', value: r.material },
+                  { label: 'Descripción', value: r.textoBreve },
+                  { label: 'Condición', value: r.condicion },
+                ];
                 return (
-                  <TableRow key={key} className={cn(isAdmin && isHidden && 'opacity-40')}>
+                  <SolicitarContextMenu
+                    key={key}
+                    onSolicitar={onSolicitar}
+                    solicitado={invSolicitadas.has(norm(r.material))}
+                    label={r.material}
+                    onVerDetalle={() => open({ type: 'material', material: r.material })}
+                    copyItems={copyItems}
+                  >
+                  <TableRow className={cn(isAdmin && isHidden && 'opacity-40')}>
                     {isAdmin && (
                       <TableCell>
                         <button
@@ -228,30 +262,8 @@ export function InventarioPage() {
                     ))}
                     <TableCell className="text-right font-medium">{formatNumber(r.invSuma)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(r.importeInventario)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const lotesMaterial = a.lotes.filter((l) => norm(l.material) === norm(r.material));
-                            const loteOptions: LoteOption[] = lotesMaterial.map((l, idx) => ({
-                              key: `${idx}|${l.centro}|${l.lote}`,
-                              label: `Lote ${l.lote || '—'} · Centro ${l.centro} · ${formatNumber(l.cantidadDisp)}`,
-                              draft: buildFromInvDetalle(l, a.enrich),
-                            }));
-                            const initial = lotesMaterial.length
-                              ? buildFromInvDetalle(lotesMaterial[0], a.enrich)
-                              : buildFromInvDetalle({ material: r.material, textoBreve: r.textoBreve, centro: '', almacen: '', lote: '', fechaCaducidad: null, cantidadDisp: 0 }, a.enrich);
-                            solicitar.abrir(initial, loteOptions.length ? loteOptions : undefined);
-                          }}
-                        >
-                          Solicitar
-                        </Button>
-                        <SolicitadoBadge solicitado={invSolicitadas.has(norm(r.material))} />
-                      </div>
-                    </TableCell>
                   </TableRow>
+                  </SolicitarContextMenu>
                 );
               })}
               {paddingBottom > 0 && <tr><td style={{ height: paddingBottom }} colSpan={colCount} /></tr>}

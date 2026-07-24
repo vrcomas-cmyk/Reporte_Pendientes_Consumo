@@ -9,6 +9,10 @@ export interface LoteOption {
   key: string;
   label: string;
   draft: SolicitudDraft;
+  /** Display-only in the picker — Condición is a material-level attribute
+   * (see `EnrichIndex.matCondiciones`), it's never sent to the DRP Sheet
+   * (not one of its 16 columns), so it isn't part of `SolicitudDraft`. */
+  condicion?: string;
 }
 
 /** Shared open/draft state for the "Solicitar" dialog, used identically from

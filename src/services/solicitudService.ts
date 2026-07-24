@@ -52,6 +52,40 @@ export function buildFromSugerencia(
   };
 }
 
+/** Sugerencias: request straight from the inventory total shown on the row
+ * (`bo.invByCenter[centro]`) instead of from an alternate `fuente` — fills
+ * the gap where the hub's per-almacén inventory (1031/1030, 1031/1032, and
+ * for sector Suturas centro 1018) is already visible on screen but wasn't
+ * previously solicitable, only `fuentes` were. No lote/fechaCaducidad here
+ * — `invByCenter` is a running total, not a specific lote. */
+export function buildFromInventarioCentro(
+  bo: Sugerencia,
+  boKey: string,
+  centro: string,
+  almacen: string,
+  cantidad: number,
+  enrich: EnrichIndex,
+): SolicitudDraft {
+  const codigo = norm(bo.materialBase);
+  return {
+    fechaSolicitud: new Date().toISOString(),
+    centroOrigen: norm(centro),
+    almacenOrigen: norm(almacen),
+    centroDestino: norm(bo.centroPedido),
+    almacenDestino: norm(bo.almacen),
+    codigo,
+    descripcion: enrich.matTexto(codigo) || norm(bo.descripcionSolicitada),
+    cantidad,
+    um: enrich.matUm(codigo),
+    lote: '',
+    fechaCaducidad: '',
+    comentarios: '',
+    pedidos: norm(bo.pedido),
+    origen: 'sugerencias',
+    sourceKey: `sug|${boKey}|inv-${norm(centro)}-${norm(almacen)}`,
+  };
+}
+
 /** Inventario: the lote itself is the origin; destino/pedidos are unknown
  * here and must be filled in the dialog. */
 export function buildFromInvDetalle(lote: InvDetalleRow, enrich: EnrichIndex): SolicitudDraft {

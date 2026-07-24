@@ -58,6 +58,12 @@ export interface EnrichIndex {
    * ResumenSinSugerenciaRow don't carry their own `um`, so DRP requests built
    * from those rows look it up here. */
   matUm: (mat: unknown) => string;
+  /** Distinct "Condición" values (Normal, Corta caducidad, ...) known for a
+   * material, from the catalog's InvConsolidado. Condición lives only at the
+   * material level (never per-lote) in any report, so this is the best
+   * available answer to "qué condición tiene este material" when building a
+   * Solicitar request from a lote/centro that has no condición of its own. */
+  matCondiciones: (mat: unknown) => string[];
 }
 
 const EMPTY: EnrichIndex = {
@@ -68,6 +74,7 @@ const EMPTY: EnrichIndex = {
   matTexto: () => '',
   matPrecioOferta: () => 0,
   matUm: () => '',
+  matCondiciones: () => [],
 };
 
 /** Builds all lookup Maps once from the cached catalog snapshot. */
@@ -105,10 +112,16 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
   // (same first-wins rule as applyCatalogPriceFallback, so behavior is
   // consistent with existing inventory pricing).
   const mapPrecio = new Map<string, number>();
+  const mapCondiciones = new Map<string, string[]>();
   for (const r of catalog.invConsolidado) {
     const k = normCode(r.material);
-    if (!k || mapPrecio.has(k)) continue;
-    if (r.precioOferta > 0) mapPrecio.set(k, r.precioOferta);
+    if (!k) continue;
+    if (!mapPrecio.has(k) && r.precioOferta > 0) mapPrecio.set(k, r.precioOferta);
+    if (r.condicion) {
+      const list = mapCondiciones.get(k) ?? [];
+      if (!list.includes(r.condicion)) list.push(r.condicion);
+      mapCondiciones.set(k, list);
+    }
   }
 
   return {
@@ -119,5 +132,6 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
     matTexto: (mat) => mapTexto.get(normCode(mat)) || '',
     matPrecioOferta: (mat) => mapPrecio.get(normCode(mat)) || 0,
     matUm: (mat) => mapUm.get(normCode(mat)) || '',
+    matCondiciones: (mat) => mapCondiciones.get(normCode(mat)) ?? [],
   };
 }

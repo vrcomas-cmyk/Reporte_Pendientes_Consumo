@@ -10,8 +10,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1784903872.9822645,
-    "ast_hash": "5777dddef57cce7515d4ad47e5e3e468",
+    "mtime": 1784918552.0412269,
+    "ast_hash": "2ff47ee042b4c9f70d697634b6e866ce",
     "semantic_hash": ""
   },
   "src/App.tsx": {
@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "src/components/layout/AppShell.tsx": {
-    "mtime": 1784908683.8844411,
-    "ast_hash": "a42f21a7e9d5fff363f4b123d0275a6a",
+    "mtime": 1784929349.0143816,
+    "ast_hash": "8cb29d7a67bdd3bc03deb1499f745391",
     "semantic_hash": ""
   },
   "src/components/layout/Sidebar.tsx": {
@@ -90,8 +90,8 @@
     "semantic_hash": ""
   },
   "src/core/enrich.ts": {
-    "mtime": 1784903168.333534,
-    "ast_hash": "11fd1dd020d8d99916b38ca6948c4764",
+    "mtime": 1784918634.9953969,
+    "ast_hash": "5a310ad768e581eadc36c4592c165b85",
     "semantic_hash": ""
   },
   "src/core/mappers.ts": {
@@ -170,8 +170,8 @@
     "semantic_hash": ""
   },
   "src/modules/consumo/ConsumoPage.tsx": {
-    "mtime": 1784903168.436556,
-    "ast_hash": "b8a1d815ec0b2851516d0f47dfd395b5",
+    "mtime": 1784926768.138698,
+    "ast_hash": "e139da2cf55c356f82bdac619d37bbd5",
     "semantic_hash": ""
   },
   "src/modules/dashboard/DashboardPage.tsx": {
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "src/modules/inventario/InventarioPage.tsx": {
-    "mtime": 1784903168.4592037,
-    "ast_hash": "2492daefdc7b3ee8fdce0fd27b277f72",
+    "mtime": 1784926707.709731,
+    "ast_hash": "477f9508650b33c8b69fa0dacb99f5ed",
     "semantic_hash": ""
   },
   "src/modules/processing/ProcessingPage.tsx": {
@@ -210,8 +210,8 @@
     "semantic_hash": ""
   },
   "src/modules/resumenSin/ResumenSinPage.tsx": {
-    "mtime": 1784903168.4705083,
-    "ast_hash": "60d4bc5bab55dcefca49a56698853b10",
+    "mtime": 1784929519.3027086,
+    "ast_hash": "4c69d587971b46f88fa4204c777a13d7",
     "semantic_hash": ""
   },
   "src/modules/settings/SettingsPage.tsx": {
@@ -220,8 +220,8 @@
     "semantic_hash": ""
   },
   "src/modules/sugerencias/SugerenciasPage.tsx": {
-    "mtime": 1784903168.502052,
-    "ast_hash": "3c0704808fbbfcace83545358148e582",
+    "mtime": 1784929450.985374,
+    "ast_hash": "0678805afd96174e7cf96683a414ac0c",
     "semantic_hash": ""
   },
   "src/modules/upload/UploadPage.tsx": {
@@ -260,8 +260,8 @@
     "semantic_hash": ""
   },
   "src/services/analysisService.ts": {
-    "mtime": 1784841028.187224,
-    "ast_hash": "1974e8640eeae71a1768c25c9b07eb7c",
+    "mtime": 1784929389.2781842,
+    "ast_hash": "eae283ed777258ce2de2547b962656d3",
     "semantic_hash": ""
   },
   "src/services/catalogService.ts": {
@@ -290,8 +290,8 @@
     "semantic_hash": ""
   },
   "src/workers/analysisWorker.ts": {
-    "mtime": 1784908322.8472035,
-    "ast_hash": "407e4a5f15786487a789eaf9b1695829",
+    "mtime": 1784929372.4912248,
+    "ast_hash": "5e56843c228acc100ca0d345f50ae1ec",
     "semantic_hash": ""
   },
   "tsconfig.app.json": {
@@ -480,8 +480,8 @@
     "semantic_hash": ""
   },
   "src/modules/solicitudes/SolicitarDialog.tsx": {
-    "mtime": 1784879089.5135026,
-    "ast_hash": "94e18fd6576bbe25d33fc62ae3ee6231",
+    "mtime": 1784918720.8483229,
+    "ast_hash": "085689f34bdc90e9654c4f243973da66",
     "semantic_hash": ""
   },
   "src/modules/solicitudes/SolicitudesPage.tsx": {
@@ -490,8 +490,8 @@
     "semantic_hash": ""
   },
   "src/modules/solicitudes/useSolicitarDialog.ts": {
-    "mtime": 1784878915.2378333,
-    "ast_hash": "34d5bf77eef177a8d81935a4118c018b",
+    "mtime": 1784918706.3937478,
+    "ast_hash": "70383a47b720f98649203b58338941d6",
     "semantic_hash": ""
   },
   "src/repositories/LocalSolicitudRepository.ts": {
@@ -510,8 +510,8 @@
     "semantic_hash": ""
   },
   "src/services/solicitudService.ts": {
-    "mtime": 1784878915.2527132,
-    "ast_hash": "7d7f1fe9e42b98dc059912628c1d9064",
+    "mtime": 1784918678.1326308,
+    "ast_hash": "70d41d7d47cd68006148121fa0f67ddd",
     "semantic_hash": ""
   },
   "src/store/solicitudStore.ts": {
@@ -615,8 +615,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/SugDetallePanel.tsx": {
-    "mtime": 1784878915.1635785,
-    "ast_hash": "e66dbbc314a612b92dd2970ab24b8ed6",
+    "mtime": 1784919111.3877702,
+    "ast_hash": "d8cc7991c27ba50c7d5eafc517a484c9",
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/_shared.tsx": {
@@ -630,8 +630,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/ColumnFilterBar.tsx": {
-    "mtime": 1784878915.176239,
-    "ast_hash": "f51dbf1d758d2becdf8c4897fe67e9fc",
+    "mtime": 1784929428.9106815,
+    "ast_hash": "4e468b76d5737bc4efa0448c34da21d8",
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/ComparativaDual.tsx": {
@@ -695,8 +695,8 @@
     "semantic_hash": ""
   },
   "src/components/navigation/GlobalKeybindings.tsx": {
-    "mtime": 1784903260.6962678,
-    "ast_hash": "b75965d2e042585314c2fa5e4e96f0c6",
+    "mtime": 1784930610.366991,
+    "ast_hash": "641a5f66a979a46e751b5ceb6c02bf96",
     "semantic_hash": ""
   },
   "src/components/upload/DropZone.tsx": {
@@ -715,8 +715,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useKeybindings.ts": {
-    "mtime": 1784905058.1676903,
-    "ast_hash": "81be7665e3d7ef4c68b0473b46bbf156",
+    "mtime": 1784930595.629967,
+    "ast_hash": "0235f610e49569c37c009674051a1462",
     "semantic_hash": ""
   },
   "src/store/commandPaletteStore.ts": {
@@ -780,8 +780,8 @@
     "semantic_hash": ""
   },
   "src/services/reportSheetsService.ts": {
-    "mtime": 1784910626.4702988,
-    "ast_hash": "cd7bc768b393f5802e4f80c141a8437b",
+    "mtime": 1784929408.2716882,
+    "ast_hash": "e293dfa4d14312d174837cf029158766",
     "semantic_hash": ""
   },
   "docs/apps-script-report-sheets.md": {
@@ -792,6 +792,16 @@
   "src/store/reportSheetsSyncStore.ts": {
     "mtime": 1784910568.874149,
     "ast_hash": "b09c5673243b59668a19e5dff495f3a9",
+    "semantic_hash": ""
+  },
+  "src/components/ui/context-menu.tsx": {
+    "mtime": 1784918566.9573748,
+    "ast_hash": "938a60b47b42d1ed523fb0be5ce70acd",
+    "semantic_hash": ""
+  },
+  "src/modules/solicitudes/SolicitarContextMenu.tsx": {
+    "mtime": 1784926603.6457825,
+    "ast_hash": "efc4c638a5ac081850a015f55e281163",
     "semantic_hash": ""
   }
 }

@@ -2,22 +2,23 @@ import { useMemo, useState } from 'react';
 import { Download, ChevronDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead } from '@/components/ui/table';
+import { Table, TableHeader, TableBody, TableRow, TableCell, SortableTableHead } from '@/components/ui/table';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useSort } from '@/hooks/useSort';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, DebouncedSearch, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { ESTADOS } from '@/core/resumenFac';
 import { norm, num, matchesQuery } from '@/modules/analytics/helpers';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
-import { buildFromSugerencia } from '@/services/solicitudService';
+import { buildFromSugerencia, buildFromInventarioCentro } from '@/services/solicitudService';
 import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSolicitarDialog';
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
-import { SolicitadoBadge } from '@/modules/solicitudes/SolicitadoBadge';
+import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
+import type { Sugerencia } from '@/core/types';
 
 const INV_COLS = ['1030', '1031', '1032'] as const;
 
@@ -46,6 +47,7 @@ export function SugerenciasPage() {
   const [quick, setQuick] = useState<ActiveFilter[]>([]);
   const [sectorOpen, setSectorOpen] = useState(false);
   const [openSector, setOpenSector] = useState<string | null>(null);
+  const [agrupado, setAgrupado] = useState(true);
   const zoom = useZoom();
 
   const e = a.enrich;
@@ -66,10 +68,7 @@ export function SugerenciasPage() {
       if (estado && it.status.key !== estado) return false;
       if (fuente === 'si' && !it.fuentes.length) return false;
       if (fuente === 'no' && it.fuentes.length) return false;
-      for (const f of quick) {
-        const col = filterCols.find((c) => c.key === f.col);
-        if (col && col.get(it) !== f.value) return false;
-      }
+      if (!passesFilters(it, filterCols, quick)) return false;
       if (q) {
         const hay = `${b.materialBase} ${b.descripcionSolicitada} ${b.pedido} ${b.razonSocial} ${b.solicitante} ${b.destinatario}`;
         if (!matchesQuery(q, hay)) return false;
@@ -133,7 +132,8 @@ export function SugerenciasPage() {
     setQuick([...quick, { col: field, value }]);
   };
 
-  const COL_COUNT = 20;
+  const COL_COUNT = 19;
+  const COL_COUNT_RAW = 14;
   const sortAcc = useMemo(() => ({
     grupocli: (it: (typeof filtered)[number]) => grupoCli(it.bo),
     pedido: (it: (typeof filtered)[number]) => it.bo.pedido,
@@ -159,6 +159,44 @@ export function SugerenciasPage() {
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
 
+  // "Desagrupado": the report as-is, one row per original Sugerencia (every
+  // fuente is its own row too) — always computed (hooks can't be called
+  // conditionally), just not rendered unless `agrupado` is off.
+  const allRaw = a.result?.sugerencias ?? [];
+  const filteredRaw = useMemo(() => {
+    if (!q) return allRaw;
+    return allRaw.filter((r) => matchesQuery(q, `${r.materialBase} ${r.descripcionSolicitada} ${r.pedido} ${r.razonSocial} ${r.solicitante} ${r.destinatario}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRaw, q]);
+  const sortAccRaw = useMemo(() => ({
+    pedido: (r: Sugerencia) => r.pedido,
+    fecha: (r: Sugerencia) => r.fecha,
+    cliente: (r: Sugerencia) => r.razonSocial,
+    ejecutivo: (r: Sugerencia) => ejec(r),
+    centro: (r: Sugerencia) => r.centroPedido,
+    material: (r: Sugerencia) => r.materialBase,
+    fuente: (r: Sugerencia) => r.fuente,
+    matsug: (r: Sugerencia) => r.materialSugerido,
+    centrosug: (r: Sugerencia) => r.centroSugerido,
+    cantped: (r: Sugerencia) => num(r.cantidadPedido),
+    pend: (r: Sugerencia) => num(r.cantidadPendiente),
+    ofertar: (r: Sugerencia) => num(r.cantidadOfertar),
+    precio: (r: Sugerencia) => num(r.precio),
+    lote: (r: Sugerencia) => r.lote,
+    bloq: (r: Sugerencia) => r.bloqueado,
+  }), []);
+  const { sorted: sortedRaw, sortKey: sortKeyRaw, dir: dirRaw, toggleSort: toggleSortRaw } = useSort(filteredRaw, sortAccRaw);
+  const { scrollRef: scrollRefRaw, items: itemsRaw, paddingTop: paddingTopRaw, paddingBottom: paddingBottomRaw } = useRowVirtualizer(sortedRaw.length);
+  const rawKeyOf = (r: Sugerencia) => `${r.pedido}|${r.materialBase}|${r.centroPedido}|${r.almacen}|${r.destinatario}|${r.fuente}|${r.lote}`;
+  const rawSolicitadas = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of solicitudesList) {
+      if (s.origen !== 'sugerencias') continue;
+      set.add(s.sourceKey);
+    }
+    return set;
+  }, [solicitudesList]);
+
   if (!a.result || !a.bo.length) {
     return <EmptyState title="No hay sugerencias. Carga catálogo y procesa un reporte." action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
@@ -180,16 +218,40 @@ export function SugerenciasPage() {
     void exportXlsx(`sugerencias_${stamp()}.xlsx`, rowsX, 'Sugerencias');
   };
 
+  const exportarRaw = () => {
+    const rowsX = filteredRaw.map((r) => ({
+      Pedido: r.pedido, OC: r.oc, Fecha: r.fecha,
+      'Razón social': r.razonSocial, Solicitante: r.solicitante, Destinatario: r.destinatario,
+      Ejecutivo: ejec(r), Centro: r.centroPedido, Almacén: r.almacen,
+      'Material base': r.materialBase, Descripción: r.descripcionSolicitada,
+      Fuente: r.fuente, 'Material sugerido': r.materialSugerido, 'Centro sugerido': r.centroSugerido, 'Almacén sugerido': r.almacenSugerido,
+      'Cant. pedida': num(r.cantidadPedido), Pendiente: num(r.cantidadPendiente), 'Cant. a ofertar': num(r.cantidadOfertar), Precio: num(r.precio),
+      Lote: r.lote, 'Fecha caducidad': r.fechaCaducidad, Bloqueado: r.bloqueado,
+    }));
+    void exportXlsx(`sugerencias_detalle_${stamp()}.xlsx`, rowsX, 'Sugerencias (detalle)');
+  };
+
   return (
     <div className="flex h-full flex-col gap-3 overflow-auto p-5">
       <div className="flex items-start justify-between gap-2">
         <div>
           <h2 className="font-display text-2xl font-semibold">Sugerencias</h2>
-          <p className="text-sm text-text-muted">Órdenes pendientes deduplicadas (BO) · {formatNumber(filtered.length)} renglones</p>
+          <p className="text-sm text-text-muted">
+            {agrupado
+              ? <>Órdenes pendientes deduplicadas (BO) · {formatNumber(filtered.length)} renglones</>
+              : <>Reporte original, sin agrupar · {formatNumber(filteredRaw.length)} renglones</>}
+          </p>
         </div>
-        <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex items-center gap-1 rounded-md border border-border p-0.5 text-xs">
+            <button onClick={() => setAgrupado(true)} className={`rounded px-2 py-1 ${agrupado ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Agrupar</button>
+            <button onClick={() => setAgrupado(false)} className={`rounded px-2 py-1 ${!agrupado ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Desagrupar</button>
+          </div>
+          <Button variant="outline" size="sm" onClick={agrupado ? exportar : exportarRaw}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
+        </div>
       </div>
 
+      {agrupado && (
       <div className="flex flex-wrap items-start gap-3">
         <div className="inline-grid grid-cols-2 content-start gap-2">
           <StatTile compact label="Renglones BO" value={formatNumber(filtered.length)} />
@@ -199,7 +261,9 @@ export function SugerenciasPage() {
         </div>
         <Ranking title="Top 10 material por importe pendiente" items={kpis.rk} money wide onRow={(m) => open({ type: 'material', material: m })} className="min-w-[420px] flex-1" />
       </div>
+      )}
 
+      {agrupado && (
       <div className="rounded-xl border border-border">
         <button onClick={() => setSectorOpen(!sectorOpen)} className="flex w-full items-center justify-between p-3 text-sm font-medium">
           <span>Pendiente por sector · {porSector.length} sectores</span>
@@ -233,22 +297,28 @@ export function SugerenciasPage() {
           </div>
         )}
       </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <DebouncedSearch onChange={setQ} placeholder="Buscar material, pedido, cliente…" />
+        {agrupado && (
         <select value={estado} onChange={(ev) => setEstado(ev.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
           <option value="">Estado (todos)</option>
           {ESTADOS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
+        )}
+        {agrupado && (
         <select value={fuente} onChange={(ev) => setFuente(ev.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
           <option value="">Fuentes</option><option value="si">Con fuentes</option><option value="no">Sin fuentes</option>
         </select>
+        )}
       </div>
 
-      <ColumnFilterBar columns={filterCols} rows={a.bo} active={quick} onChange={setQuick} />
+      {agrupado && <ColumnFilterBar columns={filterCols} rows={a.bo} active={quick} onChange={setQuick} />}
 
       <div className="flex justify-end"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
 
+      {agrupado ? (
       <Card className="min-h-[640px] shrink-0 overflow-hidden">
         <div ref={scrollRef} className="h-[640px] overflow-auto">
           <Table className={zoom.className} wrapperClassName="overflow-visible">
@@ -266,7 +336,6 @@ export function SugerenciasPage() {
                   ['bloq', 'Bloq.'], ['estado', 'Estado'], ['tendencia', 'Tendencia'],
                 ] as const).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKey} dir={dir} onSort={toggleSort}>{l}</SortableTableHead>)}
                 <SortableTableHead sortKey="fuentes" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Fuentes</SortableTableHead>
-                <TableHead>Acción</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -277,8 +346,46 @@ export function SugerenciasPage() {
                 const it = sorted[vi.index];
                 const b = it.bo;
                 const isBloqueado = !!b.bloqueado;
+                const condicionesMat = e.matCondiciones(b.materialBase).join(', ');
+                const invOpciones: { centro: string; almacen: string; cantidad: number }[] = [
+                  { centro: '1031', almacen: '1030', cantidad: num(b.invByCenter['1030'] || 0) },
+                  { centro: '1031', almacen: '1032', cantidad: num(b.invByCenter['1032'] || 0) },
+                  ...(e.matSector(b.materialBase) === 'Suturas' ? [{ centro: '1018', almacen: '', cantidad: num(b.invByCenter['1018'] || 0) }] : []),
+                ].filter((o) => o.cantidad > 0);
+                const loteOptions: LoteOption[] = [
+                  ...invOpciones.map((o) => ({
+                    key: `inv|${o.centro}|${o.almacen}`,
+                    label: `Inventario · Centro ${o.centro}${o.almacen ? ` / Alm ${o.almacen}` : ''} · ${formatNumber(o.cantidad)}`,
+                    draft: buildFromInventarioCentro(b, it.k, o.centro, o.almacen || o.centro, o.cantidad, e),
+                    condicion: condicionesMat,
+                  })),
+                  ...it.fuentes.map((f, idx) => ({
+                    key: `fuente|${idx}|${f.lote}`,
+                    label: `Lote ${f.lote || '—'} · Centro ${f.centroSugerido || '—'} · ${formatNumber(num(f.cantidadOfertar))} ${e.matUm(f.materialSugerido) || ''}`.trim(),
+                    draft: buildFromSugerencia(b, it.k, f, e),
+                    condicion: condicionesMat,
+                  })),
+                ];
+                const onSolicitar = () => solicitar.abrir(
+                  loteOptions[0]?.draft ?? buildFromSugerencia(b, it.k, it.fuentes[0] ?? null, e),
+                  loteOptions.length ? loteOptions : undefined,
+                );
+                const copyItems = [
+                  { label: 'Material', value: b.materialBase },
+                  { label: 'Pedido', value: b.pedido },
+                  { label: 'Cliente', value: b.razonSocial },
+                  { label: 'Centro', value: b.centroPedido },
+                ];
                 return (
-                  <TableRow key={it.k} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
+                  <SolicitarContextMenu
+                    key={it.k}
+                    onSolicitar={onSolicitar}
+                    solicitado={sugSolicitadas.has(it.k)}
+                    label={b.materialBase}
+                    onVerDetalle={() => open({ type: 'sugDetalle', boKey: it.k })}
+                    copyItems={copyItems}
+                  >
+                  <TableRow title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
                     <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>
                     <TableCell className="whitespace-nowrap text-xs">{b.fecha || '—'}</TableCell>
                     <TableCell className="max-w-64 truncate">{b.razonSocial}<div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>
@@ -305,26 +412,8 @@ export function SugerenciasPage() {
                     <TableCell><StatePill label={it.status.label} cls={it.status.cls} /></TableCell>
                     <TableCell><TrendBadge t={it.tend} /></TableCell>
                     <TableCell className="text-right">{it.fuentes.length || '—'}</TableCell>
-                    <TableCell onClick={(ev) => ev.stopPropagation()}>
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const loteOptions: LoteOption[] = it.fuentes.map((f, idx) => ({
-                              key: `${idx}|${f.lote}`,
-                              label: `Lote ${f.lote || '—'} · Centro ${f.centroSugerido || '—'} · ${formatNumber(num(f.cantidadOfertar))} ${e.matUm(f.materialSugerido) || ''}`.trim(),
-                              draft: buildFromSugerencia(b, it.k, f, e),
-                            }));
-                            solicitar.abrir(buildFromSugerencia(b, it.k, it.fuentes[0] ?? null, e), loteOptions.length ? loteOptions : undefined);
-                          }}
-                        >
-                          Solicitar
-                        </Button>
-                        <SolicitadoBadge solicitado={sugSolicitadas.has(it.k)} />
-                      </div>
-                    </TableCell>
                   </TableRow>
+                  </SolicitarContextMenu>
                 );
               })}
               {paddingBottom > 0 && (
@@ -334,6 +423,66 @@ export function SugerenciasPage() {
           </Table>
         </div>
       </Card>
+      ) : (
+      <Card className="min-h-[640px] shrink-0 overflow-hidden">
+        <div ref={scrollRefRaw} className="h-[640px] overflow-auto">
+          <Table className={zoom.className} wrapperClassName="overflow-visible">
+            <TableHeader>
+              <TableRow>
+                {([
+                  ['pedido', 'Pedido/OC'], ['fecha', 'Fecha'], ['cliente', 'Cliente'], ['ejecutivo', 'Ejecutivo'],
+                  ['centro', 'Centro/Alm'], ['material', 'Material base'], ['fuente', 'Fuente'], ['matsug', 'Mat./Centro sugerido'],
+                ] as const).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>{l}</SortableTableHead>)}
+                {([
+                  ['cantped', 'Cant.ped.'], ['pend', 'Pend.'], ['ofertar', 'Ofertar'], ['precio', 'Precio'],
+                ] as const).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw} className="text-right justify-end">{l}</SortableTableHead>)}
+                <SortableTableHead sortKey="lote" activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>Lote/Caducidad</SortableTableHead>
+                <SortableTableHead sortKey="bloq" activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>Bloq.</SortableTableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paddingTopRaw > 0 && (
+                <tr><td style={{ height: paddingTopRaw }} colSpan={COL_COUNT_RAW} /></tr>
+              )}
+              {itemsRaw.map((vi) => {
+                const r = sortedRaw[vi.index];
+                const rKey = rawKeyOf(r);
+                const onSolicitar = () => solicitar.abrir(buildFromSugerencia(r, rKey, r, e));
+                const copyItems = [
+                  { label: 'Material', value: r.materialBase },
+                  { label: 'Pedido', value: r.pedido },
+                  { label: 'Cliente', value: r.razonSocial },
+                  { label: 'Centro', value: r.centroPedido },
+                ];
+                return (
+                  <SolicitarContextMenu key={rKey + vi.index} onSolicitar={onSolicitar} solicitado={rawSolicitadas.has(rKey)} label={r.materialBase} copyItems={copyItems}>
+                  <TableRow className={r.bloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}>
+                    <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: r.pedido })}>{r.pedido}</Chip><div className="text-[11px] text-text-faint">OC {r.oc || '—'}</div></TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">{r.fecha || '—'}</TableCell>
+                    <TableCell className="max-w-64 truncate">{r.razonSocial}<div className="text-[11px] text-text-faint">S {r.solicitante} · D {r.destinatario}</div></TableCell>
+                    <TableCell>{ejec(r) || '—'}<div className="text-[11px] text-text-faint">{grupoCli(r) || '—'}</div></TableCell>
+                    <TableCell>{r.centroPedido}{r.almacen ? ` / ${r.almacen}` : ''}</TableCell>
+                    <TableCell><Chip onClick={() => open({ type: 'material', material: r.materialBase })}>{r.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-56 truncate">{r.descripcionSolicitada}</div></TableCell>
+                    <TableCell>{r.fuente ? <StatePill label={r.fuente} cls={/corta/i.test(r.fuente) ? 'rojo' : 'azul'} /> : '—'}</TableCell>
+                    <TableCell>{r.materialSugerido || '—'}<div className="text-[11px] text-text-faint">{r.centroSugerido}{r.almacenSugerido ? ` / ${r.almacenSugerido}` : ''}</div></TableCell>
+                    <TableCell className="text-right">{formatNumber(r.cantidadPedido)}</TableCell>
+                    <TableCell className="text-right">{formatNumber(r.cantidadPendiente)}</TableCell>
+                    <TableCell className="text-right">{formatNumber(r.cantidadOfertar)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(r.precio)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">{r.lote || '—'}{r.fechaCaducidad ? ` · ${r.fechaCaducidad}` : ''}</TableCell>
+                    <TableCell>{r.bloqueado ? <StatePill label={r.bloqueado} cls="amb" /> : '—'}</TableCell>
+                  </TableRow>
+                  </SolicitarContextMenu>
+                );
+              })}
+              {paddingBottomRaw > 0 && (
+                <tr><td style={{ height: paddingBottomRaw }} colSpan={COL_COUNT_RAW} /></tr>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
+      )}
 
       <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
     </div>

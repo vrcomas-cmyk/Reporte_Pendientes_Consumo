@@ -1,5 +1,5 @@
 import type { WorkerRequest, WorkerResponse } from '@/workers/analysisWorker';
-import type { CatalogSnapshot, AnalysisResult, AppSettings, ProcessingProgress, SheetRole } from '@/core/types';
+import type { CatalogSnapshot, AnalysisResult, AppSettings, DetectedSheet, ProcessingProgress, SheetRole } from '@/core/types';
 
 // Orchestration layer: owns the worker lifecycle, exposes promise-based APIs
 // to the UI/store, and coordinates repositories are handled by callers
@@ -63,7 +63,10 @@ function runJob<TResult>(
 
   const cleanup = () => w.removeEventListener('message', onMessage);
   w.addEventListener('message', onMessage);
-  w.postMessage(req, [req.buffer]);
+  // Only the xlsx-buffer requests have a `.buffer` to transfer; the
+  // Sheets-sync request is plain JSON and has none.
+  const transfer = 'buffer' in req ? [req.buffer] : [];
+  w.postMessage(req, transfer);
 
   const cancel = () => {
     w.postMessage({ id: req.id, type: 'cancel' });
@@ -92,6 +95,30 @@ export function processReport(
   const id = nextId();
   return runJob<AnalysisResult>(
     { id, type: 'process-report', buffer, fileName, catalog, settings, selectedRoles },
+    (msg) => (msg as Extract<WorkerResponse, { type: 'report-result' }>).result,
+    opts,
+  );
+}
+
+export interface BuildFromSheetsParams {
+  sheets: Record<string, Record<string, unknown>[]>;
+  sheetsDetected: DetectedSheet[];
+  catalog: CatalogSnapshot | null;
+  settings: Pick<AppSettings, 'shortExpiryDays' | 'lowStockThreshold'>;
+  fileName: string;
+  startedAt: number;
+  previous: AnalysisResult | null;
+  selectedRoles?: SheetRole[];
+}
+
+/** Runs the same cross-reference/KPI computation `processReport` does for an
+ * uploaded xlsx, but for rows already fetched from the report-sheets Apps
+ * Script — moves that work off the main thread so a large "Reporte de
+ * Consumo" sync doesn't stall the UI. */
+export function buildFromSheetsInWorker(params: BuildFromSheetsParams, opts: RunOptions = {}) {
+  const id = nextId();
+  return runJob<AnalysisResult>(
+    { id, type: 'build-from-sheets', ...params },
     (msg) => (msg as Extract<WorkerResponse, { type: 'report-result' }>).result,
     opts,
   );
