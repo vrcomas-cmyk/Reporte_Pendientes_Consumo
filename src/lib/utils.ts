@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { excelDateToIso } from '@/core/mappers';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -28,7 +29,15 @@ const MESES_ABR = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep'
 export function formatFechaCaducidad(iso: string | null | undefined): string {
   if (!iso) return '—';
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  if (!m) return String(iso);
+  if (!m) {
+    // Self-heals records saved (catalog or analysis, in IndexedDB) before
+    // `excelDateToIso` learned to detect epoch-ms values coming back as a raw
+    // number/digit-string (e.g. "1931040000000") — normalizes on read instead
+    // of silently printing the raw value until the user re-syncs everything.
+    const normalized = excelDateToIso(iso);
+    if (normalized) return formatFechaCaducidad(normalized);
+    return String(iso);
+  }
   const [, y, mo, d] = m;
   const mes = MESES_ABR[Number(mo) - 1] ?? mo;
   return `${d}/${mes}/${y}`;

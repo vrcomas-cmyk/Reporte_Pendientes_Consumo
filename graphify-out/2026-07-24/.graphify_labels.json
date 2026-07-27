@@ -75,7 +75,7 @@
   "73": "SolicitudRepository",
   "74": "SupabaseReportRepository",
   "75": "Toaster.tsx",
-  "76": "LocalReportRepository.ts",
+  "76": "useAuth.ts",
   "77": "LocalReportRepository",
   "78": "enrich.ts",
   "79": "Apps Script — escribir solicitudes en la pestaña \"DRP\"",
@@ -89,8 +89,8 @@
   "87": "SolicitadoBadge.tsx",
   "88": "EmptyState.tsx",
   "89": "text.ts",
-  "90": "useSearchIndex.ts",
+  "90": "ResultsPage.tsx",
   "91": "@duckdb/duckdb-wasm",
-  "93": "commandPaletteStore.ts",
-  "98": "react"
+  "92": "class-variance-authority",
+  "93": "commandPaletteStore.ts"
 }

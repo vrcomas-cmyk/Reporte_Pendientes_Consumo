@@ -77,19 +77,54 @@ export function buildAnalysisResult(params: BuildAnalysisResultParams): Analysis
   // truth; otherwise fall back to the catalog's consolidated inventory. All
   // inventory-derived surfaces (KPIs, heatmap, inconsistencies) use the same set.
   const invForAnalysis = inventarioCondicion.length ? inventarioCondicion : catalog?.invConsolidado ?? [];
-  const kpis = computeKpis({
+  const lotesForAnalysis = lotesCortaCaducidad.length ? lotesCortaCaducidad : catalog?.invDetalle ?? [];
+
+  // Memoize derived surfaces: when `previous` exists and none of the input
+  // roles that feed a given derived value were re-synced this time, reuse
+  // `previous`' already-computed version instead of recomputing. The report-
+  // sheets sync (the only caller that passes `previous` + a partial
+  // `selectedRoles`) never mutates the catalog mid-call, so any surface whose
+  // only inputs are `previous`-sourced roles is safe to keep verbatim. This is
+  // the common path for the auto-check effect, which most often only detects
+  // a change in `sugerencias` and re-fetches just that tab — keeping KPIs/
+  // heatmap/inconsistencies from being recomputed against the same inventory
+  // data they already ran on.
+  const maybePrev = (role: SheetRole | SheetRole[]) => {
+    if (!previous || selectedRoles === undefined) return null;
+    const rs = Array.isArray(role) ? role : [role];
+    const touched = rs.some((r) => selectedRoles.includes(r));
+    return touched ? null : previous;
+  };
+
+  // KPIs depend on sugerencias + consumo + inventarioCondicion + lotesCortaCaducidad
+  const kpisPrev = maybePrev(['sugerencias', 'reporteConsumo', 'inventarioCondicion', 'lotesCortaCaducidad']);
+  const kpis = kpisPrev ? kpisPrev.kpis : computeKpis({
     catalog,
     sugerencias,
     consumo,
     invConsolidado: invForAnalysis,
-    lotesCortaCaducidad: lotesCortaCaducidad.length ? lotesCortaCaducidad : catalog?.invDetalle ?? [],
+    lotesCortaCaducidad: lotesForAnalysis,
     settings,
   });
-  const top5Materiales = topMateriales(sugerencias, 5);
-  const top5Ejecutivos = topEjecutivos(sugerencias, catalog, 5);
-  const monthly = monthlyInvoicing(resumenFac);
-  const heatmap = buildHeatmap(invForAnalysis);
-  const inconsistencies = detectInconsistencies({ catalog, sugerencias, invConsolidado: invForAnalysis });
+
+  // topMateriales / topEjecutivos depend only on sugerencias (+ catalog).
+  const topPrev = maybePrev('sugerencias');
+  const top5Materiales = topPrev ? topPrev.topMateriales : topMateriales(sugerencias, 5);
+  const top5Ejecutivos = topPrev ? topPrev.topEjecutivos : topEjecutivos(sugerencias, catalog, 5);
+
+  // monthlyInvoicing depends only on resumenFac.
+  const monthlyPrev = maybePrev('resumenFac');
+  const monthly = monthlyPrev ? monthlyPrev.monthlyInvoicing : monthlyInvoicing(resumenFac);
+
+  // heatmap depends on invForAnalysis (inventarioCondicion or catalog invConsolidado).
+  const heatmapPrev = maybePrev('inventarioCondicion');
+  const heatmap = heatmapPrev ? heatmapPrev.heatmap : buildHeatmap(invForAnalysis);
+
+  // inconsistencies depend on catalog + sugerencias + invForAnalysis.
+  const incPrev = maybePrev(['sugerencias', 'inventarioCondicion']);
+  const inconsistencies = incPrev
+    ? incPrev.inconsistencies
+    : detectInconsistencies({ catalog, sugerencias, invConsolidado: invForAnalysis });
 
   return {
     fileName,

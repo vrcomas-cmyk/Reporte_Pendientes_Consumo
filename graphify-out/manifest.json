@@ -20,18 +20,18 @@
     "semantic_hash": ""
   },
   "src/components/layout/AppShell.tsx": {
-    "mtime": 1784929349.0143816,
-    "ast_hash": "8cb29d7a67bdd3bc03deb1499f745391",
+    "mtime": 1784965823.8146782,
+    "ast_hash": "fd89f86bac1422bf9c0f1325bb4952da",
     "semantic_hash": ""
   },
   "src/components/layout/Sidebar.tsx": {
-    "mtime": 1784903168.3038476,
-    "ast_hash": "102b4593b73cd8231215ecbe97ed838b",
+    "mtime": 1784933332.8254402,
+    "ast_hash": "3e41006ae69dd235a1bc6e9af7729e4d",
     "semantic_hash": ""
   },
   "src/components/layout/Topbar.tsx": {
-    "mtime": 1784910781.2875528,
-    "ast_hash": "1283041f22aecf88b5c51fdb6c799ff1",
+    "mtime": 1784933373.3342538,
+    "ast_hash": "ba359cd6c0b6b4873957bb19b6d7ed0a",
     "semantic_hash": ""
   },
   "src/components/ui/badge.tsx": {
@@ -50,8 +50,8 @@
     "semantic_hash": ""
   },
   "src/components/ui/dialog.tsx": {
-    "mtime": 1784841027.674616,
-    "ast_hash": "d47e77a706423f8311f404d67b88cd58",
+    "mtime": 1784933410.9432673,
+    "ast_hash": "0d1e0cee5b98a055533192e0219608c6",
     "semantic_hash": ""
   },
   "src/components/ui/input.tsx": {
@@ -140,8 +140,8 @@
     "semantic_hash": ""
   },
   "src/lib/utils.ts": {
-    "mtime": 1784841028.0527778,
-    "ast_hash": "e25fd7c2bd97233390fbef435944b546",
+    "mtime": 1784931343.0376937,
+    "ast_hash": "22e008ced9721b54238bbe0858ab1723",
     "semantic_hash": ""
   },
   "src/main.tsx": {
@@ -220,13 +220,13 @@
     "semantic_hash": ""
   },
   "src/modules/sugerencias/SugerenciasPage.tsx": {
-    "mtime": 1784929450.985374,
-    "ast_hash": "0678805afd96174e7cf96683a414ac0c",
+    "mtime": 1784935237.5039608,
+    "ast_hash": "d87f2672e6ddc27624943b990189bae6",
     "semantic_hash": ""
   },
   "src/modules/upload/UploadPage.tsx": {
-    "mtime": 1784910717.3693926,
-    "ast_hash": "61fcb2d2bc936aae29ceb423d41bb836",
+    "mtime": 1784946889.3870978,
+    "ast_hash": "524a297c72d5ebb9ce919f6f7d0b4ffb",
     "semantic_hash": ""
   },
   "src/repositories/CatalogRepository.ts": {
@@ -240,8 +240,8 @@
     "semantic_hash": ""
   },
   "src/repositories/LocalReportRepository.ts": {
-    "mtime": 1784903168.532547,
-    "ast_hash": "59ec90cd2a969921c648b9b5324e715b",
+    "mtime": 1784964960.8020663,
+    "ast_hash": "fdaeb6ccb8f67c8099b82e4c794706aa",
     "semantic_hash": ""
   },
   "src/repositories/ReportRepository.ts": {
@@ -250,8 +250,8 @@
     "semantic_hash": ""
   },
   "src/repositories/db.ts": {
-    "mtime": 1784903168.5592077,
-    "ast_hash": "4ba8fd997636ae1da3b7a6517efaef78",
+    "mtime": 1784946505.6711593,
+    "ast_hash": "a6e72e0b2c5a633c506322bb4936c535",
     "semantic_hash": ""
   },
   "src/repositories/index.ts": {
@@ -260,8 +260,8 @@
     "semantic_hash": ""
   },
   "src/services/analysisService.ts": {
-    "mtime": 1784929389.2781842,
-    "ast_hash": "eae283ed777258ce2de2547b962656d3",
+    "mtime": 1784945464.4877424,
+    "ast_hash": "fa46ad6928d9e398020250880dcc6aec",
     "semantic_hash": ""
   },
   "src/services/catalogService.ts": {
@@ -290,8 +290,8 @@
     "semantic_hash": ""
   },
   "src/workers/analysisWorker.ts": {
-    "mtime": 1784929372.4912248,
-    "ast_hash": "5e56843c228acc100ca0d345f50ae1ec",
+    "mtime": 1784946559.8476381,
+    "ast_hash": "722485d7a107663d95e54fd003eb461f",
     "semantic_hash": ""
   },
   "tsconfig.app.json": {
@@ -405,8 +405,8 @@
     "semantic_hash": ""
   },
   "src/repositories/blobCodec.ts": {
-    "mtime": 1784903168.551209,
-    "ast_hash": "dc99b5d223d6f2e2b05837fd69038fb9",
+    "mtime": 1784964879.882932,
+    "ast_hash": "f1d8ebefe69445dd46d1b5ded48938b4",
     "semantic_hash": ""
   },
   "src/services/duckdbService.ts": {
@@ -775,18 +775,18 @@
     "semantic_hash": ""
   },
   "src/core/buildAnalysisResult.ts": {
-    "mtime": 1784908270.5811217,
-    "ast_hash": "ba03093e097b5e3868329d37289735e7",
+    "mtime": 1784944969.2043443,
+    "ast_hash": "7f7eef6efc51343de73ff5c5601b77a1",
     "semantic_hash": ""
   },
   "src/services/reportSheetsService.ts": {
-    "mtime": 1784929408.2716882,
-    "ast_hash": "e293dfa4d14312d174837cf029158766",
+    "mtime": 1784946750.4597945,
+    "ast_hash": "9642974f491cd3b4d77c35603327058c",
     "semantic_hash": ""
   },
   "docs/apps-script-report-sheets.md": {
-    "mtime": 1784910002.9554746,
-    "ast_hash": "4fe89b5b513dec5f309fffd7b503356b",
+    "mtime": 1784946205.5294347,
+    "ast_hash": "eccaaac14c3c6b5fefc67960a1f873f6",
     "semantic_hash": ""
   },
   "src/store/reportSheetsSyncStore.ts": {
@@ -802,6 +802,26 @@
   "src/modules/solicitudes/SolicitarContextMenu.tsx": {
     "mtime": 1784926603.6457825,
     "ast_hash": "efc4c638a5ac081850a015f55e281163",
+    "semantic_hash": ""
+  },
+  "src/lib/utils.test.ts": {
+    "mtime": 1784931383.5105534,
+    "ast_hash": "41d71ce3535f28046be7ea724460b215",
+    "semantic_hash": ""
+  },
+  "src/repositories/sheetsCache.ts": {
+    "mtime": 1784946535.2328322,
+    "ast_hash": "5bc912dd87e59fcaedf96d27174aaaae",
+    "semantic_hash": ""
+  },
+  "src/repositories/rawRehydrate.ts": {
+    "mtime": 1784948383.8038352,
+    "ast_hash": "51110f8b9562f6cdfb70ea16c40e1a79",
+    "semantic_hash": ""
+  },
+  ".opencode/skills/degasa-optimize/SKILL.md": {
+    "mtime": 1784969608.5132654,
+    "ast_hash": "c88dfea72810f049c4d23856363f759a",
     "semantic_hash": ""
   }
 }

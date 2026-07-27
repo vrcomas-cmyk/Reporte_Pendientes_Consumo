@@ -87,13 +87,14 @@ export function UploadPage() {
     });
   }, []);
 
-  const handleSyncReportSheets = useCallback(async () => {
+  const handleSyncReportSheets = useCallback(async (forceFull = false) => {
     try {
       const result = await syncReportSheets({
         catalog,
         settings,
         previous: activeAnalysis,
         selectedRoles: [...sheetsRoles],
+        forceFull,
       });
       setActiveAnalysis(result);
     } catch {
@@ -284,12 +285,22 @@ export function UploadPage() {
 
             <Button
               variant={activeAnalysis ? 'outline' : 'default'}
-              onClick={handleSyncReportSheets}
+              onClick={() => handleSyncReportSheets()}
               disabled={sheetsSyncing || sheetsRoles.size === 0}
               className="self-start"
             >
               <RefreshCcw className={`size-4 ${sheetsSyncing ? 'animate-spin' : ''}`} />
               {sheetsSyncing ? 'Sincronizando…' : 'Sincronizar ahora'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleSyncReportSheets(true)}
+              disabled={sheetsSyncing || sheetsRoles.size === 0}
+              className="self-start text-[11px]"
+              title="Vuelve a pedir las pestañas enteras en vez de solo las filas nuevas — útil si se editó una celda existente. Borra la cache local de filas."
+            >
+              Sincronización completa
             </Button>
           </CardContent>
         </Card>

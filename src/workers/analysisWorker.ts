@@ -15,7 +15,7 @@ export type WorkerRequest =
   | {
       id: string;
       type: 'build-from-sheets';
-      sheets: Record<string, Record<string, unknown>[]>;
+      sheets: Record<string, TabRows>;
       sheetsDetected: DetectedSheet[];
       catalog: CatalogSnapshot | null;
       settings: Pick<AppSettings, 'shortExpiryDays' | 'lowStockThreshold'>;
@@ -33,6 +33,32 @@ export type WorkerResponse =
   | { id: string; type: 'cancelled' };
 
 const cancelled = new Set<string>();
+
+/** Dense Apps-Script wire shape kept all the way from `fetchReportSheetTab`
+ * through to THIS worker. Doing the headers+row zip here (off the main thread)
+ * avoids an O(n) main-thread walk and a structured-clone of ~80k row objects
+ * just to feed `buildAnalysisResult`, which ultimately wants `{header: value}`
+ * objects the same as the xlsx path. `rowCount` is the total data-row count
+ * of the sheet reported by the Apps Script response (independent of any
+ * `?offset=&limit=` window — used by the delta-sync logic in
+ * `reportSheetsService` to detect truncation/replacement). */
+export interface TabRows {
+  headers: string[];
+  rows: unknown[][];
+  rowCount?: number;
+}
+
+function zipRows({ headers, rows }: TabRows): Record<string, unknown>[] {
+  if (!rows.length) return [];
+  const out: Record<string, unknown>[] = new Array(rows.length);
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const obj: Record<string, unknown> = {};
+    for (let j = 0; j < headers.length; j++) obj[headers[j]] = row[j];
+    out[i] = obj;
+  }
+  return out;
+}
 
 function post(msg: WorkerResponse) {
   (self as unknown as Worker).postMessage(msg);
@@ -164,9 +190,14 @@ async function handleProcessReport(req: Extract<WorkerRequest, { type: 'process-
 async function handleBuildFromSheets(req: Extract<WorkerRequest, { type: 'build-from-sheets' }>) {
   const { id, sheets, sheetsDetected, catalog, settings, fileName, startedAt, previous, selectedRoles } = req;
   try {
-    progress(id, 'crossing', 45, 'Cruzando reporte contra catálogo...');
-    progress(id, 'kpis', 75, 'Calculando KPIs...');
-    const result = buildAnalysisResult({ sheets, sheetsDetected, catalog, settings, fileName, startedAt, previous, selectedRoles });
+    progress(id, 'crossing', 45, 'Cruzando reporte contra catálogo…');
+    progress(id, 'kpis', 75, 'Calculando KPIs…');
+    // Zip dense {headers, rows} → {header: value} objects here (in the worker),
+    // not on the main thread — keeps buildAnalysisResult's object-shaped input
+    // contract the same as the xlsx path while avoiding a main-thread clone.
+    const sheetsObj: Record<string, Record<string, unknown>[]> = {};
+    for (const [name, tabRows] of Object.entries(sheets)) sheetsObj[name] = zipRows(tabRows);
+    const result = buildAnalysisResult({ sheets: sheetsObj, sheetsDetected, catalog, settings, fileName, startedAt, previous, selectedRoles });
     progress(id, 'done', 100, 'Análisis completado.');
     post({ id, type: 'report-result', result });
   } catch (e) {

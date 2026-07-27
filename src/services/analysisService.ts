@@ -1,4 +1,4 @@
-import type { WorkerRequest, WorkerResponse } from '@/workers/analysisWorker';
+import type { WorkerRequest, WorkerResponse, TabRows } from '@/workers/analysisWorker';
 import type { CatalogSnapshot, AnalysisResult, AppSettings, DetectedSheet, ProcessingProgress, SheetRole } from '@/core/types';
 
 // Orchestration layer: owns the worker lifecycle, exposes promise-based APIs
@@ -101,7 +101,7 @@ export function processReport(
 }
 
 export interface BuildFromSheetsParams {
-  sheets: Record<string, Record<string, unknown>[]>;
+  sheets: Record<string, TabRows>;
   sheetsDetected: DetectedSheet[];
   catalog: CatalogSnapshot | null;
   settings: Pick<AppSettings, 'shortExpiryDays' | 'lowStockThreshold'>;

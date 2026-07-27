@@ -1,5 +1,7 @@
 import { reportRepository } from '@/repositories';
 import { buildFromSheetsInWorker } from '@/services/analysisService';
+import type { TabRows } from '@/workers/analysisWorker';
+import { getCachedTab, putCachedTab, clearCachedTabs } from '@/repositories/sheetsCache';
 import { logInfo } from '@/lib/logError';
 import { ROLE_LABEL } from '@/core/roleDetection';
 import { useReportSheetsSyncStore } from '@/store/reportSheetsSyncStore';
@@ -41,25 +43,22 @@ export async function fetchReportSheetsMeta(): Promise<{ modifiedTime: string }>
   return data as { modifiedTime: string };
 }
 
-/** Wire shape from `getTabRows` in the Apps Script: headers sent once, each
- * row as a plain array — NOT one object per row. For a ~80k-row sheet like
- * "Reporte de Consumo", repeating every header string on every row would
- * inflate the JSON several times over and slow down the script's own
- * `JSON.stringify`, the transfer, and the browser's `JSON.parse`. Zipping
- * headers+row back into `{header: value}` objects here is cheap by
- * comparison, and keeps `buildAnalysisResult`'s input contract unchanged
- * (same shape the xlsx worker already produces). */
-interface TabResponse {
-  headers: string[];
-  rows: unknown[][];
-}
-
-async function fetchReportSheetTab(tab: string): Promise<Record<string, unknown>[]> {
-  const res = await fetch(`${requireUrl()}?tab=${encodeURIComponent(tab)}`);
+/** Wire shape from `getTabRows` in the Apps Script — headers sent once, each
+ * row as a plain array (`rows: unknown[][]`). We keep that shape ALL the way
+ * to the worker (we do NOT zip into `{header: value}` objects on the main
+ * thread), because for a ~80k-row "Reporte de Consumo" tab that zip is an
+ * O(n) main-thread walk + structured-clone of 80k objects across to the
+ * worker. Instead the worker receives the dense arrays and does the zip
+ * there, where it neither blocks the UI nor pays the clone cost twice. */
+async function fetchReportSheetTab(tab: string, offset?: number): Promise<TabRows> {
+  const url = offset && offset > 0
+    ? `${requireUrl()}?tab=${encodeURIComponent(tab)}&offset=${offset}`
+    : `${requireUrl()}?tab=${encodeURIComponent(tab)}`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} al leer la pestaña "${tab}".`);
   const data = await res.json();
   if (data && typeof data === 'object' && 'error' in data) throw new Error(String((data as { error: unknown }).error));
-  const { headers, rows } = data as TabResponse;
+  const { headers, rows, rowCount } = data as TabRows;
   if (!Array.isArray(headers) || !Array.isArray(rows)) {
     // NEVER silently treat an unrecognized shape as "no rows" — that's how a
     // stale Apps Script deployment (still on the old array-of-objects format,
@@ -70,11 +69,7 @@ async function fetchReportSheetTab(tab: string): Promise<Record<string, unknown>
       `Formato de respuesta inesperado en la pestaña "${tab}" — ¿el Apps Script tiene desplegada la última versión? (ver docs/apps-script-report-sheets.md)`,
     );
   }
-  return rows.map((row) => {
-    const obj: Record<string, unknown> = {};
-    headers.forEach((h, i) => { obj[h] = row[i]; });
-    return obj;
-  });
+  return { headers, rows, rowCount };
 }
 
 export interface SyncReportSheetsParams {
@@ -95,6 +90,13 @@ export interface SyncReportSheetsParams {
    * silent background checks don't pile up `degasa_history`/`degasa_logs`
    * entries no one asked for. */
   silent?: boolean;
+  /** Force a full re-fetch of every selected tab, ignoring the dense-rows
+   * IndexedDB cache (`sheetsCache`). Use this when the user suspects an
+   * edit landed in the middle of an existing row (the delta-sync scheme
+   * only catches appends — see docs/apps-script-report-sheets.md §5).
+   * Also wipes the cache for the selected roles so the next incremental
+   * sync starts fresh from the new rowCount. */
+  forceFull?: boolean;
 }
 
 // Module-level guard: at most one Sheets sync in flight at a time, shared
@@ -140,35 +142,95 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
 
   const roles = params.selectedRoles && params.selectedRoles.length ? params.selectedRoles : REPORT_SHEET_ROLES;
   const start = Date.now();
+  const forceFull = params.forceFull === true;
+
+  if (forceFull) {
+    // Full reconcile: wipe the dense-rows cache so the next incremental sync
+    // (which might not pass forceFull) starts from the new rowCount baseline.
+    await clearCachedTabs().catch(() => {});
+  }
 
   try {
     const tabs = roles.map((role) => REPORT_TABS[role]).filter((t): t is string => !!t);
     emit({ phase: 'detecting', percent: 5, message: `Consultando ${tabs.length} pestaña(s)…` });
 
-    // Fetched in parallel (fastest — total time ~ the slowest tab, not the
-    // sum), but each still reports its own completion as it lands so the UI
-    // can show real "N de M" progress instead of a single opaque wait.
+    // Delta-sync: for each selected tab, ask the Apps Script only for the rows
+    // past the cached rowCount on this device (offset === cached.rows.length).
+    // The response includes the current total `rowCount`, which we compare to
+    // the offset to detect truncation/replacement (rowCount < offset → the tab
+    // shrunk, re-fetch fully) — see docs/apps-script-report-sheets.md §5.
     let done = 0;
-    const rowsPerTab = await Promise.all(
+    const tabsData = await Promise.all(
       roles.map(async (role, i) => {
-        const rows = await fetchReportSheetTab(tabs[i]);
+        const tab = tabs[i];
+        const cached = forceFull ? undefined : await getCachedTab(tab);
+        const offset = cached?.rows.length ?? 0;
+        let tabRows = await fetchReportSheetTab(tab, offset);
+
+        // If the sheet shrank (rows deleted/replaced) since the last sync, the
+        // delta window starting at the old offset is meaningless — re-fetch the
+        // whole tab. Also happens when `cached.rowCount` lagged behind reality.
+        if (offset > 0 && typeof tabRows.rowCount === 'number' && tabRows.rowCount < offset) {
+          tabRows = await fetchReportSheetTab(tab, 0);
+        }
+
+        const merged: TabRows = {
+          headers: tabRows.headers,
+          rows: offset > 0 ? [...(cached?.rows ?? []), ...tabRows.rows] : tabRows.rows,
+          rowCount: typeof tabRows.rowCount === 'number' ? tabRows.rowCount : (offset + tabRows.rows.length),
+        };
+
+        // Persist the fresh full tab back to the dense-rows cache (so the next
+        // incremental sync continues from this offset). Failure here is
+        // non-fatal — at worst the next sync re-fetches the whole tab.
+        await putCachedTab({
+          tab,
+          headers: merged.headers,
+          rows: merged.rows,
+          rowCount: merged.rowCount ?? merged.rows.length,
+          syncedAt: new Date().toISOString(),
+        }).catch(() => {});
+
         done += 1;
         emit({
           phase: 'parsing',
           percent: Math.round(10 + (70 * done) / tabs.length),
           message: `${ROLE_LABEL[role]} (${done} de ${tabs.length})`,
         });
-        return rows;
+        return merged;
       }),
     );
 
-    const sheets: Record<string, Record<string, unknown>[]> = {};
+    // For roles NOT in `roles` (the user only ticked a subset), fall back to
+    // the dense-rows cache if it has them — so buildAnalysisResult always sees
+    // the full set and the memoized-derivatives path can skip recomputation
+    // for untouched roles. If a role isn't cached yet either, it comes back
+    // empty the same way a non-loaded sheet would.
+    const sheets: Record<string, TabRows> = {};
     const sheetsDetected: DetectedSheet[] = [];
     tabs.forEach((tab, i) => {
-      const rows = rowsPerTab[i];
-      sheets[tab] = rows;
-      sheetsDetected.push({ name: tab, role: roles[i], rowCount: rows.length, headers: rows.length ? Object.keys(rows[0]) : [], loaded: true });
+      sheets[tab] = tabsData[i];
+      sheetsDetected.push({ name: tab, role: roles[i], rowCount: tabsData[i].rows.length, headers: tabsData[i].headers, loaded: true });
     });
+
+    // Fill in unselected roles from the cache (delta state persists across
+    // partial syncs). This mirrors what `buildAnalysisResult`'s `pick()` does
+    // with `previous.<role>` for the object-mapped arrays — but here we feed
+    // the dense source so the worker can process them too. Without this, the
+    // memoization short-circuit would still recompute because the input sheet
+    // for that role would be missing.
+    if (!forceFull && params.selectedRoles && params.selectedRoles.length) {
+      for (const role of REPORT_SHEET_ROLES) {
+        if (roles.includes(role)) continue;
+        const tab = REPORT_TABS[role];
+        if (!tab || sheets[tab]) continue;
+        const cached = await getCachedTab(tab);
+        if (cached) {
+          sheets[tab] = { headers: cached.headers, rows: cached.rows, rowCount: cached.rowCount };
+          sheetsDetected.push({ name: tab, role, rowCount: cached.rows.length, headers: cached.headers, loaded: true });
+        }
+      }
+    }
 
     emit({ phase: 'crossing', percent: 85, message: 'Cruzando reporte contra catálogo…' });
     emit({ phase: 'kpis', percent: 92, message: 'Calculando KPIs…' });

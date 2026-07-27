@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableCell, SortableTableHead } from '@/components/ui/table';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useSort } from '@/hooks/useSort';
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
@@ -23,6 +23,9 @@ import type { Sugerencia } from '@/core/types';
 const INV_COLS = ['1030', '1031', '1032'] as const;
 
 type BORow = (ReturnType<typeof useAnalytics>['bo'])[number];
+/** One "Desagrupar" row: a BO item plus the specific fuente (alternate supply
+ * source) it represents, or `null` for the BO's own row when it has none. */
+interface RawRow { it: BORow; f: Sugerencia | null; key: string }
 
 export function SugerenciasPage() {
   const a = useAnalytics();
@@ -133,7 +136,7 @@ export function SugerenciasPage() {
   };
 
   const COL_COUNT = 19;
-  const COL_COUNT_RAW = 14;
+  const COL_COUNT_RAW = 22;
   const sortAcc = useMemo(() => ({
     grupocli: (it: (typeof filtered)[number]) => grupoCli(it.bo),
     pedido: (it: (typeof filtered)[number]) => it.bo.pedido,
@@ -159,35 +162,49 @@ export function SugerenciasPage() {
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
 
-  // "Desagrupado": the report as-is, one row per original Sugerencia (every
-  // fuente is its own row too) — always computed (hooks can't be called
-  // conditionally), just not rendered unless `agrupado` is off.
-  const allRaw = a.result?.sugerencias ?? [];
-  const filteredRaw = useMemo(() => {
-    if (!q) return allRaw;
-    return allRaw.filter((r) => matchesQuery(q, `${r.materialBase} ${r.descripcionSolicitada} ${r.pedido} ${r.razonSocial} ${r.solicitante} ${r.destinatario}`));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRaw, q]);
+  // "Desagrupado": the exact same BO dataset as "Agrupar" (`filtered` — same
+  // search/estado/fuente-toggle/column-chip filters), just exploded into one
+  // row per fuente (alternate supply source); a BO with none still gets a
+  // single row (f: null) so nothing disappears.
+  const flatRaw = useMemo(() => {
+    const rows: RawRow[] = [];
+    filtered.forEach((it) => {
+      if (it.fuentes.length) {
+        it.fuentes.forEach((f, idx) => rows.push({ it, f, key: `${it.k}|${idx}` }));
+      } else {
+        rows.push({ it, f: null, key: it.k });
+      }
+    });
+    return rows;
+  }, [filtered]);
   const sortAccRaw = useMemo(() => ({
-    pedido: (r: Sugerencia) => r.pedido,
-    fecha: (r: Sugerencia) => r.fecha,
-    cliente: (r: Sugerencia) => r.razonSocial,
-    ejecutivo: (r: Sugerencia) => ejec(r),
-    centro: (r: Sugerencia) => r.centroPedido,
-    material: (r: Sugerencia) => r.materialBase,
-    fuente: (r: Sugerencia) => r.fuente,
-    matsug: (r: Sugerencia) => r.materialSugerido,
-    centrosug: (r: Sugerencia) => r.centroSugerido,
-    cantped: (r: Sugerencia) => num(r.cantidadPedido),
-    pend: (r: Sugerencia) => num(r.cantidadPendiente),
-    ofertar: (r: Sugerencia) => num(r.cantidadOfertar),
-    precio: (r: Sugerencia) => num(r.precio),
-    lote: (r: Sugerencia) => r.lote,
-    bloq: (r: Sugerencia) => r.bloqueado,
-  }), []);
-  const { sorted: sortedRaw, sortKey: sortKeyRaw, dir: dirRaw, toggleSort: toggleSortRaw } = useSort(filteredRaw, sortAccRaw);
+    pedido: (r: RawRow) => r.it.bo.pedido,
+    fecha: (r: RawRow) => r.it.bo.fecha,
+    cliente: (r: RawRow) => r.it.bo.razonSocial,
+    ejecutivo: (r: RawRow) => ejec(r.it.bo),
+    centro: (r: RawRow) => r.it.bo.centroPedido,
+    material: (r: RawRow) => r.it.bo.materialBase,
+    sector: (r: RawRow) => e.matSector(r.it.bo.materialBase),
+    cantped: (r: RawRow) => num(r.it.bo.cantidadPedido),
+    pend: (r: RawRow) => num(r.it.bo.cantidadPendiente),
+    precio: (r: RawRow) => num(r.it.bo.precio),
+    consumo: (r: RawRow) => num(r.it.consumoProm),
+    inv1030: (r: RawRow) => num(r.it.bo.invByCenter['1030'] || 0),
+    inv1031: (r: RawRow) => num(r.it.bo.invByCenter['1031'] || 0),
+    inv1032: (r: RawRow) => num(r.it.bo.invByCenter['1032'] || 0),
+    inv1060: (r: RawRow) => num(r.it.bo.invByCenter['1060'] || 0),
+    bloq: (r: RawRow) => r.it.bo.bloqueado,
+    estado: (r: RawRow) => r.it.status.label,
+    tendencia: (r: RawRow) => r.it.tend.txt,
+    fuente: (r: RawRow) => r.f?.fuente ?? '',
+    matsug: (r: RawRow) => r.f?.materialSugerido ?? '',
+    centrosug: (r: RawRow) => r.f?.centroSugerido ?? '',
+    disponible: (r: RawRow) => (r.f ? num(r.f.disponible) : -1),
+  }), [e, ejec]);
+  const { sorted: sortedRaw, sortKey: sortKeyRaw, dir: dirRaw, toggleSort: toggleSortRaw } = useSort(flatRaw, sortAccRaw);
   const { scrollRef: scrollRefRaw, items: itemsRaw, paddingTop: paddingTopRaw, paddingBottom: paddingBottomRaw } = useRowVirtualizer(sortedRaw.length);
-  const rawKeyOf = (r: Sugerencia) => `${r.pedido}|${r.materialBase}|${r.centroPedido}|${r.almacen}|${r.destinatario}|${r.fuente}|${r.lote}`;
+  // Matches `buildFromSugerencia`'s own `sourceKey` convention exactly, so
+  // "ya solicitado" reflects this specific fuente, not just the parent BO.
   const rawSolicitadas = useMemo(() => {
     const set = new Set<string>();
     for (const s of solicitudesList) {
@@ -219,15 +236,22 @@ export function SugerenciasPage() {
   };
 
   const exportarRaw = () => {
-    const rowsX = filteredRaw.map((r) => ({
-      Pedido: r.pedido, OC: r.oc, Fecha: r.fecha,
-      'Razón social': r.razonSocial, Solicitante: r.solicitante, Destinatario: r.destinatario,
-      Ejecutivo: ejec(r), Centro: r.centroPedido, Almacén: r.almacen,
-      'Material base': r.materialBase, Descripción: r.descripcionSolicitada,
-      Fuente: r.fuente, 'Material sugerido': r.materialSugerido, 'Centro sugerido': r.centroSugerido, 'Almacén sugerido': r.almacenSugerido,
-      'Cant. pedida': num(r.cantidadPedido), Pendiente: num(r.cantidadPendiente), 'Cant. a ofertar': num(r.cantidadOfertar), Precio: num(r.precio),
-      Lote: r.lote, 'Fecha caducidad': r.fechaCaducidad, Bloqueado: r.bloqueado,
-    }));
+    const rowsX = flatRaw.map(({ it, f }) => {
+      const b = it.bo;
+      return {
+        Pedido: b.pedido, OC: b.oc, Fecha: b.fecha,
+        'Razón social': b.razonSocial, Solicitante: b.solicitante, Destinatario: b.destinatario,
+        Ejecutivo: ejec(b), Centro: b.centroPedido, Almacén: b.almacen,
+        'Material base': b.materialBase, Descripción: b.descripcionSolicitada, Sector: e.matSector(b.materialBase), 'Grupo art.': e.matGrupo(b.materialBase),
+        'Cant. pedida': num(b.cantidadPedido), Pendiente: num(b.cantidadPendiente), Precio: num(b.precio), 'Consumo prom.': num(it.consumoProm),
+        'Inv 1030': num(b.invByCenter['1030'] || 0), 'Inv 1031': num(b.invByCenter['1031'] || 0), 'Inv 1032': num(b.invByCenter['1032'] || 0), 'Inv 1060': num(b.invByCenter['1060'] || 0),
+        Bloqueado: b.bloqueado, Estado: it.status.label, Tendencia: it.tend.txt,
+        Fuente: f?.fuente || '', 'Material sugerido': f?.materialSugerido || '', 'Descripción sugerida': f?.descripcionSugerida || '',
+        'Centro sugerido': f?.centroSugerido || '', 'Almacén sugerido': f?.almacenSugerido || '',
+        Disponible: f ? num(f.disponible) : '', Lote: f?.lote || '', 'Fecha caducidad': f?.fechaCaducidad || '',
+        'Meses vigencia lote': f ? num(f.mesesVigenciaLote) : '',
+      };
+    });
     void exportXlsx(`sugerencias_detalle_${stamp()}.xlsx`, rowsX, 'Sugerencias (detalle)');
   };
 
@@ -239,7 +263,7 @@ export function SugerenciasPage() {
           <p className="text-sm text-text-muted">
             {agrupado
               ? <>Órdenes pendientes deduplicadas (BO) · {formatNumber(filtered.length)} renglones</>
-              : <>Reporte original, sin agrupar · {formatNumber(filteredRaw.length)} renglones</>}
+              : <>Detalle por fuente, sin agrupar · {formatNumber(flatRaw.length)} renglones</>}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -301,20 +325,16 @@ export function SugerenciasPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <DebouncedSearch onChange={setQ} placeholder="Buscar material, pedido, cliente…" />
-        {agrupado && (
         <select value={estado} onChange={(ev) => setEstado(ev.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
           <option value="">Estado (todos)</option>
           {ESTADOS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
-        )}
-        {agrupado && (
         <select value={fuente} onChange={(ev) => setFuente(ev.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
           <option value="">Fuentes</option><option value="si">Con fuentes</option><option value="no">Sin fuentes</option>
         </select>
-        )}
       </div>
 
-      {agrupado && <ColumnFilterBar columns={filterCols} rows={a.bo} active={quick} onChange={setQuick} />}
+      <ColumnFilterBar columns={filterCols} rows={a.bo} active={quick} onChange={setQuick} />
 
       <div className="flex justify-end"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
 
@@ -430,14 +450,20 @@ export function SugerenciasPage() {
             <TableHeader>
               <TableRow>
                 {([
-                  ['pedido', 'Pedido/OC'], ['fecha', 'Fecha'], ['cliente', 'Cliente'], ['ejecutivo', 'Ejecutivo'],
-                  ['centro', 'Centro/Alm'], ['material', 'Material base'], ['fuente', 'Fuente'], ['matsug', 'Mat./Centro sugerido'],
+                  ['pedido', 'Pedido/OC'], ['fecha', 'Fecha'], ['cliente', 'Cliente'], ['ejecutivo', 'Ejecutivo / Grupo cli.'],
+                  ['centro', 'Centro/Alm'], ['material', 'Material'], ['sector', 'Sector/Grupo'],
                 ] as const).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>{l}</SortableTableHead>)}
                 {([
-                  ['cantped', 'Cant.ped.'], ['pend', 'Pend.'], ['ofertar', 'Ofertar'], ['precio', 'Precio'],
+                  ['cantped', 'Cant.ped.'], ['pend', 'Pend.'], ['precio', 'Precio'], ['consumo', 'Consumo'],
+                  ['inv1030', '1030'], ['inv1031', '1031'], ['inv1032', '1032'], ['inv1060', '1060'],
                 ] as const).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw} className="text-right justify-end">{l}</SortableTableHead>)}
-                <SortableTableHead sortKey="lote" activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>Lote/Caducidad</SortableTableHead>
-                <SortableTableHead sortKey="bloq" activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>Bloq.</SortableTableHead>
+                {([
+                  ['bloq', 'Bloq.'], ['estado', 'Estado'], ['tendencia', 'Tendencia'],
+                ] as const).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>{l}</SortableTableHead>)}
+                <SortableTableHead sortKey="fuente" activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>Fuente</SortableTableHead>
+                <SortableTableHead sortKey="matsug" activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>Material sugerido</SortableTableHead>
+                <SortableTableHead sortKey="centrosug" activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>Centro sugerido</SortableTableHead>
+                <SortableTableHead sortKey="disponible" activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>Disponible / Lote / Cad.</SortableTableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -445,32 +471,89 @@ export function SugerenciasPage() {
                 <tr><td style={{ height: paddingTopRaw }} colSpan={COL_COUNT_RAW} /></tr>
               )}
               {itemsRaw.map((vi) => {
-                const r = sortedRaw[vi.index];
-                const rKey = rawKeyOf(r);
-                const onSolicitar = () => solicitar.abrir(buildFromSugerencia(r, rKey, r, e));
+                const row = sortedRaw[vi.index];
+                const { it, f } = row;
+                const b = it.bo;
+                const isBloqueado = !!b.bloqueado;
+                const condicionesMat = e.matCondiciones(b.materialBase).join(', ');
+                const invOpciones: { centro: string; almacen: string; cantidad: number }[] = [
+                  { centro: '1031', almacen: '1030', cantidad: num(b.invByCenter['1030'] || 0) },
+                  { centro: '1031', almacen: '1032', cantidad: num(b.invByCenter['1032'] || 0) },
+                  ...(e.matSector(b.materialBase) === 'Suturas' ? [{ centro: '1018', almacen: '', cantidad: num(b.invByCenter['1018'] || 0) }] : []),
+                ].filter((o) => o.cantidad > 0);
+                const loteOptions: LoteOption[] = [
+                  ...invOpciones.map((o) => ({
+                    key: `inv|${o.centro}|${o.almacen}`,
+                    label: `Inventario · Centro ${o.centro}${o.almacen ? ` / Alm ${o.almacen}` : ''} · ${formatNumber(o.cantidad)}`,
+                    draft: buildFromInventarioCentro(b, it.k, o.centro, o.almacen || o.centro, o.cantidad, e),
+                    condicion: condicionesMat,
+                  })),
+                  ...it.fuentes.map((ff, idx) => ({
+                    key: `fuente|${idx}|${ff.lote}`,
+                    label: `Lote ${ff.lote || '—'} · Centro ${ff.centroSugerido || '—'} · ${formatNumber(num(ff.cantidadOfertar))} ${e.matUm(ff.materialSugerido) || ''}`.trim(),
+                    draft: buildFromSugerencia(b, it.k, ff, e),
+                    condicion: condicionesMat,
+                  })),
+                ];
+                const defaultDraft = f ? buildFromSugerencia(b, it.k, f, e) : (loteOptions[0]?.draft ?? buildFromSugerencia(b, it.k, null, e));
+                const onSolicitar = () => solicitar.abrir(defaultDraft, loteOptions.length ? loteOptions : undefined);
+                const sourceKey = `sug|${it.k}|${norm(f?.lote ?? '')}`;
                 const copyItems = [
-                  { label: 'Material', value: r.materialBase },
-                  { label: 'Pedido', value: r.pedido },
-                  { label: 'Cliente', value: r.razonSocial },
-                  { label: 'Centro', value: r.centroPedido },
+                  { label: 'Material', value: b.materialBase },
+                  { label: 'Pedido', value: b.pedido },
+                  { label: 'Cliente', value: b.razonSocial },
+                  { label: 'Centro', value: b.centroPedido },
                 ];
                 return (
-                  <SolicitarContextMenu key={rKey + vi.index} onSolicitar={onSolicitar} solicitado={rawSolicitadas.has(rKey)} label={r.materialBase} copyItems={copyItems}>
-                  <TableRow className={r.bloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}>
-                    <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: r.pedido })}>{r.pedido}</Chip><div className="text-[11px] text-text-faint">OC {r.oc || '—'}</div></TableCell>
-                    <TableCell className="whitespace-nowrap text-xs">{r.fecha || '—'}</TableCell>
-                    <TableCell className="max-w-64 truncate">{r.razonSocial}<div className="text-[11px] text-text-faint">S {r.solicitante} · D {r.destinatario}</div></TableCell>
-                    <TableCell>{ejec(r) || '—'}<div className="text-[11px] text-text-faint">{grupoCli(r) || '—'}</div></TableCell>
-                    <TableCell>{r.centroPedido}{r.almacen ? ` / ${r.almacen}` : ''}</TableCell>
-                    <TableCell><Chip onClick={() => open({ type: 'material', material: r.materialBase })}>{r.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-56 truncate">{r.descripcionSolicitada}</div></TableCell>
-                    <TableCell>{r.fuente ? <StatePill label={r.fuente} cls={/corta/i.test(r.fuente) ? 'rojo' : 'azul'} /> : '—'}</TableCell>
-                    <TableCell>{r.materialSugerido || '—'}<div className="text-[11px] text-text-faint">{r.centroSugerido}{r.almacenSugerido ? ` / ${r.almacenSugerido}` : ''}</div></TableCell>
-                    <TableCell className="text-right">{formatNumber(r.cantidadPedido)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(r.cantidadPendiente)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(r.cantidadOfertar)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(r.precio)}</TableCell>
-                    <TableCell className="whitespace-nowrap text-xs">{r.lote || '—'}{r.fechaCaducidad ? ` · ${r.fechaCaducidad}` : ''}</TableCell>
-                    <TableCell>{r.bloqueado ? <StatePill label={r.bloqueado} cls="amb" /> : '—'}</TableCell>
+                  <SolicitarContextMenu
+                    key={row.key}
+                    onSolicitar={onSolicitar}
+                    solicitado={rawSolicitadas.has(sourceKey)}
+                    label={b.materialBase}
+                    onVerDetalle={() => open({ type: 'sugDetalle', boKey: it.k })}
+                    copyItems={copyItems}
+                  >
+                  <TableRow title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
+                    <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">{b.fecha || '—'}</TableCell>
+                    <TableCell className="max-w-64 truncate">{b.razonSocial}<div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>
+                    <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>
+                    <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>
+                    <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>
+                    <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>
+                    <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>
+                    <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(b.precio)}</TableCell>
+                    <TableCell className="text-right">{formatNumber(it.consumoProm)}</TableCell>
+                    {INV_COLS.map((alm) => {
+                      const invVal = num(b.invByCenter[alm] || 0);
+                      const tr = transitoFor(b.centroPedido, alm, b.materialBase);
+                      return (
+                        <TableCell key={alm} className="text-right">
+                          {formatNumber(invVal)}
+                          {tr > 0 && <div className="text-[10px] text-emerald-500">↻+{formatNumber(tr)}</div>}
+                        </TableCell>
+                      );
+                    })}
+                    <TableCell className="text-right">{formatNumber(b.invByCenter['1060'] || 0)}</TableCell>
+                    <TableCell>{b.bloqueado ? <StatePill label={b.bloqueado} cls="amb" /> : '—'}</TableCell>
+                    <TableCell><StatePill label={it.status.label} cls={it.status.cls} /></TableCell>
+                    <TableCell><TrendBadge t={it.tend} /></TableCell>
+                    <TableCell>{f ? <StatePill label={f.fuente} cls={/corta/i.test(f.fuente) ? 'rojo' : 'azul'} /> : '—'}</TableCell>
+                    <TableCell>{f ? (<>{f.materialSugerido || '—'}<div className="text-[11px] text-text-faint max-w-56 truncate">{f.descripcionSugerida}</div></>) : '—'}</TableCell>
+                    <TableCell>{f ? <>{f.centroSugerido || '—'}{f.almacenSugerido ? ` / ${f.almacenSugerido}` : ''}</> : '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {f ? (
+                        <>
+                          <div>{formatNumber(f.disponible)} disp. · Lote {f.lote || '—'}</div>
+                          {f.fechaCaducidad && (
+                            <div className="text-[11px] text-text-faint">
+                              {formatFechaCaducidad(f.fechaCaducidad)} · {formatNumber(f.mesesVigenciaLote)} meses
+                            </div>
+                          )}
+                        </>
+                      ) : '—'}
+                    </TableCell>
                   </TableRow>
                   </SolicitarContextMenu>
                 );

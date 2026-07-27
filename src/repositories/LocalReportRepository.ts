@@ -1,5 +1,6 @@
 import { db } from './db';
 import { encodeSnapshot, decodeSnapshot, putSnapshot } from './blobCodec';
+import { rehydrateRaw } from './rawRehydrate';
 import type { ReportRepository } from './ReportRepository';
 import type { AnalysisResult, HistoryEntry, LogEntry, AppSettings } from '@/core/types';
 import { DEFAULT_SETTINGS } from '@/core/types';
@@ -11,7 +12,15 @@ import { DEFAULT_SETTINGS } from '@/core/types';
  * (blobCodec/duckdbService) instead of raw JSON — see db.ts. */
 export class LocalReportRepository implements ReportRepository {
   async saveAnalysis(result: AnalysisResult): Promise<number> {
-    const { meta, blobs } = await encodeSnapshot(result);
+    // Strip the per-row `raw` duplicate before Parquet encoding — every mapped
+    // row carries a full copy of its source columns in `raw` for the few pages
+    // that need to read dynamic/legacy columns by name. Persisting that inside
+    // the (already large) Parquet arrays roughly doubles the snapshot size.
+    // The store keeps `raw` live in memory for the current session; on restore,
+    // `getLatestAnalysis`/`getAnalysis` rehydrate it from the dense-rows cache
+    // (`sheetsCache`) which already holds the same source columns densely. See
+    // repositories/rawRehydrate.ts and docs/apps-script-report-sheets.md §5.
+    const { meta, blobs } = await encodeSnapshot(result, { stripField: 'raw' });
     const id = await putSnapshot(db.analyses, {
       id: result.id,
       processedAt: result.processedAt,
@@ -24,13 +33,15 @@ export class LocalReportRepository implements ReportRepository {
   async getLatestAnalysis(): Promise<AnalysisResult | null> {
     const rec = await db.analyses.orderBy('processedAt').last();
     if (!rec) return null;
-    return decodeSnapshot<AnalysisResult>(rec.meta, rec.blobs);
+    const result = await decodeSnapshot<AnalysisResult>(rec.meta, rec.blobs);
+    return rehydrateRaw(result);
   }
 
   async getAnalysis(id: number): Promise<AnalysisResult | null> {
     const rec = await db.analyses.get(id);
     if (!rec) return null;
-    return decodeSnapshot<AnalysisResult>(rec.meta, rec.blobs);
+    const result = await decodeSnapshot<AnalysisResult>(rec.meta, rec.blobs);
+    return rehydrateRaw(result);
   }
 
   async listHistory(): Promise<HistoryEntry[]> {

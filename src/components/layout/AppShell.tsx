@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sidebar } from './Sidebar';
@@ -20,6 +20,7 @@ export function AppShell() {
   const setCatalog = useDataStore((s) => s.setCatalog);
   const setSettings = useDataStore((s) => s.setSettings);
   const setActiveAnalysis = useDataStore((s) => s.setActiveAnalysis);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // Remember the last "real" view so processing can return the user to where
   // they were, instead of always bouncing to the Dashboard.
@@ -27,6 +28,12 @@ export function AppShell() {
     if (location.pathname === '/carga' || location.pathname === '/procesamiento') return;
     setLastViewPath(location.pathname);
   }, [location.pathname, setLastViewPath]);
+
+  // Close the mobile drawer on every navigation — otherwise it'd stay open
+  // over the newly-loaded page.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
 
   // Single sequential bootstrap: restore catalog + last analysis + settings
   // from the browser BEFORE anything else runs, so any page mounted on boot
@@ -93,12 +100,33 @@ export function AppShell() {
           .catch((e) => logWarn('report-sheets-check-failed', e instanceof Error ? e.message : String(e)));
       };
 
-      check();
+      // Defer the first mount-triggered check to the browser's next idle slot
+      // (with a setTimeout fallback for Safari < 17 / older browsers that lack
+      // `requestIdleCallback`). We don't want the cheap `?meta=1` fetch racing
+      // the first paint's React commit / Tailwind hydration — it's tiny, but
+      // "as soon as the page is interactive" beats "right after bootstrap"
+      // when bootstrap itself already restored catalog+analysis+settings.
+      // Defer the first mount-triggered check past the first paint — we
+      // don't want the cheap `?meta=1` fetch competing with the React commit /
+      // Tailwind hydration that just played out right after bootstrap. A
+      // setTimeout(0) is enough: `check()` itself only fires the meta fetch,
+      // the heavy work (if any) still goes to the worker later. The throttle
+      // inside checkForReportSheetsUpdate caps subsequent re-checks anyway.
+      const idleHandle = window.setTimeout(check, 0);
+
       const onVisibility = () => {
-        if (document.visibilityState === 'visible') check();
+        if (document.visibilityState === 'visible') {
+          // On focus regain the user is already active — fire promptly, no
+          // delay (the throttle inside checkForReportSheetsUpdate still caps
+          // how often these actually hit the network).
+          check();
+        }
       };
       document.addEventListener('visibilitychange', onVisibility);
-      cleanupVisibility = () => document.removeEventListener('visibilitychange', onVisibility);
+      cleanupVisibility = () => {
+        document.removeEventListener('visibilitychange', onVisibility);
+        window.clearTimeout(idleHandle);
+      };
     }
 
     let cleanupVisibility: (() => void) | undefined;
@@ -112,9 +140,9 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg text-text">
-      <Sidebar />
+      <Sidebar mobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar path={location.pathname} />
+        <Topbar path={location.pathname} onOpenMobileNav={() => setMobileNavOpen(true)} />
         <main className="min-h-0 flex-1 overflow-auto">
           <AnimatePresence mode="wait">
             <motion.div
