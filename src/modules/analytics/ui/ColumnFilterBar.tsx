@@ -52,14 +52,18 @@ export function ColumnFilterBar<T>({ columns, rows, active, onChange }: {
     return [...s].sort((a, b) => a.localeCompare(b));
   }, [pickCol, columns, rows]);
 
+  const activeValuesForCol = useMemo(() => new Set(active.filter((f) => f.col === pickCol).map((f) => f.value)), [active, pickCol]);
+
   const options = pickCol
-    ? distinctForCol.filter((v) => v.toLowerCase().includes(typed.toLowerCase())).slice(0, 25)
+    ? distinctForCol.filter((v) => v.toLowerCase().includes(typed.toLowerCase()) && !activeValuesForCol.has(v)).slice(0, 25)
     : [];
 
   const addFilter = (col: string, value: string) => {
     if (!value) return;
-    onChange([...active.filter((f) => f.col !== col), { col, value }]);
-    setAdding(false); setPickCol(''); setTyped('');
+    if (!active.some((f) => f.col === col && f.value === value)) {
+      onChange([...active, { col, value }]);
+    }
+    setTyped('');
   };
 
   return (
@@ -67,7 +71,7 @@ export function ColumnFilterBar<T>({ columns, rows, active, onChange }: {
       {active.map((f) => {
         const col = columns.find((c) => c.key === f.col);
         return (
-          <button key={f.col} type="button" onClick={() => onChange(active.filter((x) => x.col !== f.col))} className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-1 text-xs text-accent">
+          <button key={`${f.col}:${f.value}`} type="button" onClick={() => onChange(active.filter((x) => !(x.col === f.col && x.value === f.value)))} className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-1 text-xs text-accent">
             {col?.label || f.col}: {f.value} <X className="size-3" />
           </button>
         );

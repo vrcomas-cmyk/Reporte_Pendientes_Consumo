@@ -47,6 +47,7 @@ export function SugerenciasPage() {
   const [q, setQ] = useState('');
   const [estado, setEstado] = useState('');
   const [fuente, setFuente] = useState('');
+  const [centroValido, setCentroValido] = useState(false);
   const [quick, setQuick] = useState<ActiveFilter[]>([]);
   const [sectorOpen, setSectorOpen] = useState(false);
   const [openSector, setOpenSector] = useState<string | null>(null);
@@ -57,12 +58,23 @@ export function SugerenciasPage() {
   const grupoCli = (b: BORow['bo']) => e.grupoCliente(b.gpoCte) || norm(b.gpoCte);
   const ejec = (b: BORow['bo']) => e.ejecutivoNombre(b.gpoVdor);
 
+  // For fuente "Corta caducidad": centro sugerido debe ser 1031/1022/1017, o
+  // igualar al centro del pedido. Cualquier otra fuente (o ninguna) pasa siempre.
+  const CENTROS_CORTA = ['1031', '1022', '1017'];
+  const centroPasa = (b: BORow['bo'], f: Sugerencia | null) => {
+    if (!f) return true;
+    if (!/corta/i.test(f.fuente)) return true;
+    return CENTROS_CORTA.includes(f.centroSugerido) || f.centroSugerido === b.centroPedido;
+  };
+
   const filterCols: FilterColumn<BORow>[] = useMemo(() => [
     { key: 'material', label: 'Material', get: (it) => it.bo.materialBase },
     { key: 'grupocli', label: 'Grupo cliente', get: (it) => grupoCli(it.bo) },
     { key: 'ejecutivo', label: 'Ejecutivo', get: (it) => ejec(it.bo) },
     { key: 'centro', label: 'Centro', get: (it) => it.bo.centroPedido },
     { key: 'sector', label: 'Sector', get: (it) => e.matSector(it.bo.materialBase) },
+    { key: 'fuente', label: 'Fuente', getMany: (it) => it.fuentes.map((f) => f.fuente).filter(Boolean) },
+    { key: 'centrosug', label: 'Centro Sugerido', getMany: (it) => it.fuentes.map((f) => f.centroSugerido).filter(Boolean) },
   ], [e]);
 
   const filtered = useMemo(() => {
@@ -71,6 +83,7 @@ export function SugerenciasPage() {
       if (estado && it.status.key !== estado) return false;
       if (fuente === 'si' && !it.fuentes.length) return false;
       if (fuente === 'no' && it.fuentes.length) return false;
+      if (centroValido && it.fuentes.length && !it.fuentes.some((f) => centroPasa(b, f))) return false;
       if (!passesFilters(it, filterCols, quick)) return false;
       if (q) {
         const hay = `${b.materialBase} ${b.descripcionSolicitada} ${b.pedido} ${b.razonSocial} ${b.solicitante} ${b.destinatario}`;
@@ -78,7 +91,7 @@ export function SugerenciasPage() {
       }
       return true;
     });
-  }, [a.bo, q, estado, fuente, quick, filterCols]);
+  }, [a.bo, q, estado, fuente, centroValido, quick, filterCols]);
 
   const kpis = useMemo(() => {
     const isBloq = (it: (typeof filtered)[number]) => it.bo.bloqueado !== '';
@@ -169,14 +182,15 @@ export function SugerenciasPage() {
   const flatRaw = useMemo(() => {
     const rows: RawRow[] = [];
     filtered.forEach((it) => {
-      if (it.fuentes.length) {
-        it.fuentes.forEach((f, idx) => rows.push({ it, f, key: `${it.k}|${idx}` }));
+      const fuentesOk = centroValido ? it.fuentes.filter((f) => centroPasa(it.bo, f)) : it.fuentes;
+      if (fuentesOk.length) {
+        fuentesOk.forEach((f, idx) => rows.push({ it, f, key: `${it.k}|${idx}` }));
       } else {
         rows.push({ it, f: null, key: it.k });
       }
     });
     return rows;
-  }, [filtered]);
+  }, [filtered, centroValido]);
   const sortAccRaw = useMemo(() => ({
     pedido: (r: RawRow) => r.it.bo.pedido,
     fecha: (r: RawRow) => r.it.bo.fecha,
@@ -332,6 +346,10 @@ export function SugerenciasPage() {
         <select value={fuente} onChange={(ev) => setFuente(ev.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
           <option value="">Fuentes</option><option value="si">Con fuentes</option><option value="no">Sin fuentes</option>
         </select>
+        <label className="flex h-9 items-center gap-1.5 rounded-md border border-border bg-bg-elevated px-2 text-sm" title="Para fuente Corta caducidad, exige centro sugerido 1031/1022/1017 o igual al centro del pedido. Otras fuentes no se filtran.">
+          <input type="checkbox" checked={centroValido} onChange={(ev) => setCentroValido(ev.target.checked)} />
+          Centro válido (Corta cad.)
+        </label>
       </div>
 
       <ColumnFilterBar columns={filterCols} rows={a.bo} active={quick} onChange={setQuick} />

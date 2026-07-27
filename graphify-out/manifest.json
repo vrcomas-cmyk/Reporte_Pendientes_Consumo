@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "src/components/ui/table.tsx": {
-    "mtime": 1784841027.6866188,
-    "ast_hash": "ca60d907d74f58961114e9b9ea9a602c",
+    "mtime": 1785165315.4610333,
+    "ast_hash": "44d3ecf12bf007fbb0c057907fc006cb",
     "semantic_hash": ""
   },
   "src/components/ui/tabs.tsx": {
@@ -220,8 +220,8 @@
     "semantic_hash": ""
   },
   "src/modules/sugerencias/SugerenciasPage.tsx": {
-    "mtime": 1784935237.5039608,
-    "ast_hash": "d87f2672e6ddc27624943b990189bae6",
+    "mtime": 1785166253.3308282,
+    "ast_hash": "fb8d73d47a094987de304dcb0d7b3f42",
     "semantic_hash": ""
   },
   "src/modules/upload/UploadPage.tsx": {
@@ -630,8 +630,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/ColumnFilterBar.tsx": {
-    "mtime": 1784929428.9106815,
-    "ast_hash": "4e468b76d5737bc4efa0448c34da21d8",
+    "mtime": 1785165179.30869,
+    "ast_hash": "abd786aa75d8979050028e7580f6877c",
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/ComparativaDual.tsx": {

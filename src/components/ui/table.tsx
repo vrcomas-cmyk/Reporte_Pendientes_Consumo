@@ -9,12 +9,48 @@ interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   wrapperClassName?: string;
 }
 
-const Table = React.forwardRef<HTMLTableElement, TableProps>(({ className, wrapperClassName, ...props }, ref) => (
-  <div className={cn('relative w-full overflow-auto', wrapperClassName)}>
-    <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
-  </div>
-));
-Table.displayName = 'Table';
+/** With row virtualization, `<tbody>` only ever holds the currently visible
+ * slice of rows, so plain auto table-layout keeps recomputing column widths
+ * from whatever happens to be mounted — columns visibly shift left/right on
+ * every scroll tick. We track the widest width ever seen per column and pin
+ * it as a `<colgroup>` floor (min, not fixed), so columns only ever grow,
+ * never shrink back and forth, while still auto-sizing normally otherwise. */
+const Table = React.forwardRef<HTMLTableElement, TableProps>(({ className, wrapperClassName, children, ...props }, ref) => {
+  const localRef = React.useRef<HTMLTableElement>(null);
+  const widthsRef = React.useRef<number[]>([]);
+  const [, bump] = React.useReducer((n: number) => n + 1, 0);
+
+  React.useImperativeHandle(ref, () => localRef.current as HTMLTableElement, []);
+
+  React.useLayoutEffect(() => {
+    const table = localRef.current;
+    if (!table) return;
+    const rows = table.querySelectorAll<HTMLTableRowElement>(':scope > thead > tr, :scope > tbody > tr');
+    let changed = false;
+    rows.forEach((row) => {
+      const cells = Array.from(row.children) as HTMLTableCellElement[];
+      // Virtualizer padding rows are a single <td colSpan={colCount}> spacer — skip them.
+      if (cells.length === 1 && cells[0].colSpan > 1) return;
+      cells.forEach((cell, i) => {
+        const w = Math.ceil(cell.getBoundingClientRect().width);
+        if (w > (widthsRef.current[i] || 0)) { widthsRef.current[i] = w; changed = true; }
+      });
+    });
+    if (changed) bump();
+  });
+
+  const widths = widthsRef.current;
+  return (
+    <div className={cn('relative w-full overflow-auto', wrapperClassName)}>
+      <table ref={localRef} className={cn('w-full caption-bottom text-sm', className)} {...props}>
+        {widths.length > 0 && (
+          <colgroup>{widths.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+        )}
+        {children}
+      </table>
+    </div>
+  );
+});
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(({ className, ...props }, ref) => (
   <thead ref={ref} className={cn('sticky top-0 z-10 bg-bg-elevated [&_tr]:border-b', className)} {...props} />

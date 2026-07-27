@@ -91,8 +91,14 @@
   "89": "text.ts",
   "90": "ResultsPage.tsx",
   "91": "@duckdb/duckdb-wasm",
+  "92": "class-variance-authority",
   "93": "commandPaletteStore.ts",
   "94": "db.ts",
   "95": "react",
+  "96": "types.ts",
+  "97": "buildAnalysisResult.test.ts",
+  "98": "ErrorBoundary",
+  "99": "enrich.ts",
+  "100": "roleDetection.ts",
   "101": "dexie"
 }
