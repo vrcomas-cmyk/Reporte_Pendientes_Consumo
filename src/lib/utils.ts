@@ -11,7 +11,7 @@ export function formatNumber(n: number, digits = 0): string {
 }
 
 export function formatCurrency(n: number): string {
-  return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
+  return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export function formatDate(iso: string | null | undefined): string {

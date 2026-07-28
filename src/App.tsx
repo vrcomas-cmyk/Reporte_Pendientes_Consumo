@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { AuthGate } from '@/components/auth/AuthGate';
+import { ModuleGuard, AdminGuard } from '@/components/auth/ModuleGuard';
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 import { Toaster } from '@/components/feedback/Toaster';
 import { DashboardPage } from '@/modules/dashboard/DashboardPage';
@@ -28,6 +29,7 @@ const ConsumoPage = lazy(() => import('@/modules/consumo/ConsumoPage').then((m) 
 const ResumenSinPage = lazy(() => import('@/modules/resumenSin/ResumenSinPage').then((m) => ({ default: m.ResumenSinPage })));
 const AnalisisPage = lazy(() => import('@/modules/analisis/AnalisisPage').then((m) => ({ default: m.AnalisisPage })));
 const SolicitudesPage = lazy(() => import('@/modules/solicitudes/SolicitudesPage').then((m) => ({ default: m.SolicitudesPage })));
+const AdminPage = lazy(() => import('@/modules/admin/AdminPage').then((m) => ({ default: m.AdminPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, refetchOnWindowFocus: false } },
@@ -55,21 +57,22 @@ function App() {
             <AnalyticsProvider>
               <Routes>
                 <Route element={<AppShell />}>
-                  <Route path="/" element={<DashboardPage />} />
-                  <Route path="/carga" element={<Suspense fallback={<RouteFallback />}><UploadPage /></Suspense>} />
-                  <Route path="/generar" element={<Suspense fallback={<RouteFallback />}><GenerarReportePage /></Suspense>} />
-                  <Route path="/procesamiento" element={<Suspense fallback={<RouteFallback />}><ProcessingPage /></Suspense>} />
-                  <Route path="/resultados" element={<Suspense fallback={<RouteFallback />}><ResultsPage /></Suspense>} />
-                  <Route path="/inventario" element={<Suspense fallback={<RouteFallback />}><InventarioPage /></Suspense>} />
-                  <Route path="/sugerencias" element={<Suspense fallback={<RouteFallback />}><SugerenciasPage /></Suspense>} />
-                  <Route path="/consumo" element={<Suspense fallback={<RouteFallback />}><ConsumoPage /></Suspense>} />
-                  <Route path="/resumen-sin" element={<Suspense fallback={<RouteFallback />}><ResumenSinPage /></Suspense>} />
-                  <Route path="/analisis" element={<Suspense fallback={<RouteFallback />}><AnalisisPage /></Suspense>} />
-                  <Route path="/solicitudes" element={<Suspense fallback={<RouteFallback />}><SolicitudesPage /></Suspense>} />
-                  <Route path="/comodato" element={<Suspense fallback={<RouteFallback />}><ComodatoPage /></Suspense>} />
-                  <Route path="/historial" element={<Suspense fallback={<RouteFallback />}><HistoryPage /></Suspense>} />
-                  <Route path="/registros" element={<Suspense fallback={<RouteFallback />}><LogsPage /></Suspense>} />
-                  <Route path="/ajustes" element={<Suspense fallback={<RouteFallback />}><SettingsPage /></Suspense>} />
+                  <Route path="/" element={<ModuleGuard moduleKey="dashboard"><DashboardPage /></ModuleGuard>} />
+                  <Route path="/carga" element={<ModuleGuard moduleKey="carga"><Suspense fallback={<RouteFallback />}><UploadPage /></Suspense></ModuleGuard>} />
+                  <Route path="/generar" element={<ModuleGuard moduleKey="generar"><Suspense fallback={<RouteFallback />}><GenerarReportePage /></Suspense></ModuleGuard>} />
+                  <Route path="/procesamiento" element={<ModuleGuard moduleKey="procesamiento"><Suspense fallback={<RouteFallback />}><ProcessingPage /></Suspense></ModuleGuard>} />
+                  <Route path="/resultados" element={<ModuleGuard moduleKey="resultados"><Suspense fallback={<RouteFallback />}><ResultsPage /></Suspense></ModuleGuard>} />
+                  <Route path="/inventario" element={<ModuleGuard moduleKey="inventario"><Suspense fallback={<RouteFallback />}><InventarioPage /></Suspense></ModuleGuard>} />
+                  <Route path="/sugerencias" element={<ModuleGuard moduleKey="sugerencias"><Suspense fallback={<RouteFallback />}><SugerenciasPage /></Suspense></ModuleGuard>} />
+                  <Route path="/consumo" element={<ModuleGuard moduleKey="consumo"><Suspense fallback={<RouteFallback />}><ConsumoPage /></Suspense></ModuleGuard>} />
+                  <Route path="/resumen-sin" element={<ModuleGuard moduleKey="resumen-sin"><Suspense fallback={<RouteFallback />}><ResumenSinPage /></Suspense></ModuleGuard>} />
+                  <Route path="/analisis" element={<ModuleGuard moduleKey="analisis"><Suspense fallback={<RouteFallback />}><AnalisisPage /></Suspense></ModuleGuard>} />
+                  <Route path="/solicitudes" element={<ModuleGuard moduleKey="solicitudes"><Suspense fallback={<RouteFallback />}><SolicitudesPage /></Suspense></ModuleGuard>} />
+                  <Route path="/comodato" element={<ModuleGuard moduleKey="comodato"><Suspense fallback={<RouteFallback />}><ComodatoPage /></Suspense></ModuleGuard>} />
+                  <Route path="/historial" element={<ModuleGuard moduleKey="historial"><Suspense fallback={<RouteFallback />}><HistoryPage /></Suspense></ModuleGuard>} />
+                  <Route path="/registros" element={<ModuleGuard moduleKey="registros"><Suspense fallback={<RouteFallback />}><LogsPage /></Suspense></ModuleGuard>} />
+                  <Route path="/ajustes" element={<ModuleGuard moduleKey="ajustes"><Suspense fallback={<RouteFallback />}><SettingsPage /></Suspense></ModuleGuard>} />
+                  <Route path="/admin" element={<AdminGuard><Suspense fallback={<RouteFallback />}><AdminPage /></Suspense></AdminGuard>} />
                 </Route>
               </Routes>
               <PanelHost />

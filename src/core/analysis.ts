@@ -147,18 +147,37 @@ export function topMateriales(sugerencias: Sugerencia[], n = 5): TopMaterial[] {
   return [...byMat.values()].sort((a, b) => b.importePendiente - a.importePendiente).slice(0, n);
 }
 
-export function topEjecutivos(sugerencias: Sugerencia[], catalog: CatalogSnapshot | null, n = 5): TopEjecutivo[] {
+/** `n` caps the result (e.g. for a "top 5" chart) — pass `Infinity` (or omit
+ * and slice yourself) to get every catalog executive, including those with
+ * zero pending amount, instead of only whoever happens to have sugerencias. */
+export function topEjecutivos(sugerencias: Sugerencia[], catalog: CatalogSnapshot | null, n: number = Infinity): TopEjecutivo[] {
   // Suggestions carry "Gpo. Cte." (client group); the catalog's Ejecutivos
   // sheet maps a "Gpo Cte" to an Ejecutivo. We join on that key.
+  // Codes must be normalized on both sides (normCode) — same rule enrich.ts
+  // uses for grupoCliente/ejecutivoNombre — otherwise a leading-zero or a
+  // ".0" Excel/Sheets suffix mismatch makes the join miss real matches.
   const gpoToEjecutivo = new Map<string, string>();
+  const codToEjecutivo = new Map<string, string>();
+  const byEjec = new Map<string, TopEjecutivo>();
   if (catalog) {
     for (const e of catalog.ejecutivos) {
-      if (e.gpoCte) gpoToEjecutivo.set(e.gpoCte, e.ejecutivo);
+      const nombre = (e.ejecutivo || '').trim();
+      if (!nombre) continue;
+      if (e.gpoCte) gpoToEjecutivo.set(normCode(e.gpoCte), nombre);
+      if (e.zona) codToEjecutivo.set(normCode(e.zona), nombre);
+      if (e.codOfVtas) codToEjecutivo.set(normCode(e.codOfVtas), nombre);
+      // Seed every real catalog executive at 0 up front, so one with no
+      // sugerencias this cycle still shows up (at 0) instead of silently
+      // disappearing from the list — no venta isn't the same as "doesn't exist".
+      if (!byEjec.has(nombre)) byEjec.set(nombre, { ejecutivo: nombre, cantidadPendiente: 0, importePendiente: 0, pedidos: 0 });
     }
   }
-  const byEjec = new Map<string, TopEjecutivo>();
   for (const s of sugerencias) {
-    const ejecutivo = gpoToEjecutivo.get(s.gpoCte) || s.gpoVdor || 'Sin asignar';
+    // Never fall back to the raw gpoVdor/gpoCte code as a pseudo-name — an
+    // unmatched code isn't a distinct executive, it's a join miss, and
+    // showing it as one inflates the list with duplicates of names that
+    // just didn't match. Bucket those under "Sin asignar" instead.
+    const ejecutivo = gpoToEjecutivo.get(normCode(s.gpoCte)) || codToEjecutivo.get(normCode(s.gpoVdor)) || 'Sin asignar';
     const cur = byEjec.get(ejecutivo) ?? { ejecutivo, cantidadPendiente: 0, importePendiente: 0, pedidos: 0 };
     cur.cantidadPendiente += s.cantidadPendiente;
     cur.importePendiente += s.cantidadPendiente * s.precio;

@@ -110,7 +110,7 @@ export function buildAnalysisResult(params: BuildAnalysisResultParams): Analysis
   // topMateriales / topEjecutivos depend only on sugerencias (+ catalog).
   const topPrev = maybePrev('sugerencias');
   const top5Materiales = topPrev ? topPrev.topMateriales : topMateriales(sugerencias, 5);
-  const top5Ejecutivos = topPrev ? topPrev.topEjecutivos : topEjecutivos(sugerencias, catalog, 5);
+  const top5Ejecutivos = topPrev ? topPrev.topEjecutivos : topEjecutivos(sugerencias, catalog);
 
   // monthlyInvoicing depends only on resumenFac.
   const monthlyPrev = maybePrev('resumenFac');

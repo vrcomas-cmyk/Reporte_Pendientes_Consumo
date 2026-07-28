@@ -5,13 +5,16 @@ import { getCachedTab, putCachedTab, clearCachedTabs } from '@/repositories/shee
 import { logInfo } from '@/lib/logError';
 import { ROLE_LABEL } from '@/core/roleDetection';
 import { useReportSheetsSyncStore } from '@/store/reportSheetsSyncStore';
+import { getConnector, CONNECTOR_KEYS } from '@/services/connectorsService';
 import type { AnalysisResult, AppSettings, CatalogSnapshot, DetectedSheet, ProcessingProgress, SheetRole } from '@/core/types';
 
 /** Google Apps Script endpoint for the daily-report spreadsheet
  * (`1OULGx8ZWdSR1w9JIPrccW3ci_-MZeQ5DckNjo2pSk_c`) — a DIFFERENT spreadsheet
  * from the catalog's `VITE_APPSCRIPT_URL`, so it gets its own env var and
- * `doGet` deployment. See docs/apps-script-report-sheets.md. */
-const REPORT_SHEETS_URL = import.meta.env.VITE_REPORT_SHEETS_URL as string | undefined;
+ * `doGet` deployment. See docs/apps-script-report-sheets.md. Resolved from
+ * the admin-editable `degasa_connectors` row first, falling back to the
+ * build-time env var. */
+const REPORT_SHEETS_URL_ENV = import.meta.env.VITE_REPORT_SHEETS_URL as string | undefined;
 
 /** The 4 report tabs this sync covers, by their literal Sheet tab name (not
  * the `ROLE_LABEL` display text — the Apps Script `?tab=` param must match
@@ -25,18 +28,19 @@ const REPORT_TABS: Partial<Record<SheetRole, string>> = {
 };
 export const REPORT_SHEET_ROLES = Object.keys(REPORT_TABS) as SheetRole[];
 
-function requireUrl(): string {
-  if (!REPORT_SHEETS_URL) {
-    throw new Error('Falta configurar VITE_REPORT_SHEETS_URL. Ver docs/apps-script-report-sheets.md.');
+async function requireUrl(): Promise<string> {
+  const url = await getConnector(CONNECTOR_KEYS.reportSheetsUrl, REPORT_SHEETS_URL_ENV);
+  if (!url) {
+    throw new Error('Falta configurar el conector "Apps Script · Reporte diario" (Admin) o VITE_REPORT_SHEETS_URL.');
   }
-  return REPORT_SHEETS_URL;
+  return url;
 }
 
 /** Cheap check: the Drive `modifiedTime` of the whole spreadsheet, no row
  * reading involved — what "revisar al abrir/enfocar" polls before deciding
  * whether a full tab fetch is worth it. */
 export async function fetchReportSheetsMeta(): Promise<{ modifiedTime: string }> {
-  const res = await fetch(`${requireUrl()}?meta=1`);
+  const res = await fetch(`${await requireUrl()}?meta=1`);
   if (!res.ok) throw new Error(`HTTP ${res.status} al consultar el estado del Sheet de reportes.`);
   const data = await res.json();
   if (data && typeof data === 'object' && 'error' in data) throw new Error(String((data as { error: unknown }).error));
@@ -51,9 +55,10 @@ export async function fetchReportSheetsMeta(): Promise<{ modifiedTime: string }>
  * worker. Instead the worker receives the dense arrays and does the zip
  * there, where it neither blocks the UI nor pays the clone cost twice. */
 async function fetchReportSheetTab(tab: string, offset?: number): Promise<TabRows> {
+  const base = await requireUrl();
   const url = offset && offset > 0
-    ? `${requireUrl()}?tab=${encodeURIComponent(tab)}&offset=${offset}`
-    : `${requireUrl()}?tab=${encodeURIComponent(tab)}`;
+    ? `${base}?tab=${encodeURIComponent(tab)}&offset=${offset}`
+    : `${base}?tab=${encodeURIComponent(tab)}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} al leer la pestaña "${tab}".`);
   const data = await res.json();
@@ -84,6 +89,14 @@ export interface SyncReportSheetsParams {
    * manual xlsx flow reports, so the UI can reuse the same `Progress` bar.
    * The auto-check path (AppShell) omits this since it runs silently. */
   onProgress?: (p: ProcessingProgress) => void;
+  /** Optional callback fired with a fresh `AnalysisResult` as SOON as each
+   * individual tab finishes fetching + crossing, instead of only once at the
+   * very end. Lets the UI apply (e.g. `setActiveAnalysis`) each tab's data as
+   * it lands — so "Todas las Sugerencias" shows up the moment it's ready
+   * instead of the user staring at nothing while "Reporte de Consumo" (often
+   * the slowest, ~80k rows) is still loading. The final return value of
+   * `syncReportSheets` is still the complete, all-tabs result. */
+  onPartialResult?: (r: AnalysisResult) => void;
   /** True for the automatic background check (AppShell, on mount/focus) —
    * still saves to IndexedDB (that's what avoids re-syncing constantly) but
    * skips the Supabase history/log rows a user-initiated sync gets, so
@@ -159,59 +172,97 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
     // The response includes the current total `rowCount`, which we compare to
     // the offset to detect truncation/replacement (rowCount < offset → the tab
     // shrunk, re-fetch fully) — see docs/apps-script-report-sheets.md §5.
+    // Fetched sequentially (not Promise.all) so each tab's data can be crossed
+    // and handed to the UI as soon as IT finishes, instead of everything
+    // waiting on whichever tab happens to be slowest (usually "Reporte de
+    // Consumo", ~80k rows). "Todas las Sugerencias" is fetched first so it's
+    // the first thing the user sees land.
     let done = 0;
-    const tabsData = await Promise.all(
-      roles.map(async (role, i) => {
-        const tab = tabs[i];
-        const cached = forceFull ? undefined : await getCachedTab(tab);
-        const offset = cached?.rows.length ?? 0;
-        let tabRows = await fetchReportSheetTab(tab, offset);
-
-        // If the sheet shrank (rows deleted/replaced) since the last sync, the
-        // delta window starting at the old offset is meaningless — re-fetch the
-        // whole tab. Also happens when `cached.rowCount` lagged behind reality.
-        if (offset > 0 && typeof tabRows.rowCount === 'number' && tabRows.rowCount < offset) {
-          tabRows = await fetchReportSheetTab(tab, 0);
-        }
-
-        const merged: TabRows = {
-          headers: tabRows.headers,
-          rows: offset > 0 ? [...(cached?.rows ?? []), ...tabRows.rows] : tabRows.rows,
-          rowCount: typeof tabRows.rowCount === 'number' ? tabRows.rowCount : (offset + tabRows.rows.length),
-        };
-
-        // Persist the fresh full tab back to the dense-rows cache (so the next
-        // incremental sync continues from this offset). Failure here is
-        // non-fatal — at worst the next sync re-fetches the whole tab.
-        await putCachedTab({
-          tab,
-          headers: merged.headers,
-          rows: merged.rows,
-          rowCount: merged.rowCount ?? merged.rows.length,
-          syncedAt: new Date().toISOString(),
-        }).catch(() => {});
-
-        done += 1;
-        emit({
-          phase: 'parsing',
-          percent: Math.round(10 + (70 * done) / tabs.length),
-          message: `${ROLE_LABEL[role]} (${done} de ${tabs.length})`,
-        });
-        return merged;
-      }),
-    );
-
-    // For roles NOT in `roles` (the user only ticked a subset), fall back to
-    // the dense-rows cache if it has them — so buildAnalysisResult always sees
-    // the full set and the memoized-derivatives path can skip recomputation
-    // for untouched roles. If a role isn't cached yet either, it comes back
-    // empty the same way a non-loaded sheet would.
+    const tabsData: TabRows[] = [];
     const sheets: Record<string, TabRows> = {};
     const sheetsDetected: DetectedSheet[] = [];
-    tabs.forEach((tab, i) => {
-      sheets[tab] = tabsData[i];
-      sheetsDetected.push({ name: tab, role: roles[i], rowCount: tabsData[i].rows.length, headers: tabsData[i].headers, loaded: true });
-    });
+    for (let i = 0; i < roles.length; i++) {
+      const role = roles[i];
+      const tab = tabs[i];
+      const cached = forceFull ? undefined : await getCachedTab(tab);
+      const offset = cached?.rows.length ?? 0;
+      let tabRows = await fetchReportSheetTab(tab, offset);
+
+      // If the sheet shrank (rows deleted/replaced) since the last sync, the
+      // delta window starting at the old offset is meaningless — re-fetch the
+      // whole tab. Also happens when `cached.rowCount` lagged behind reality.
+      if (offset > 0 && typeof tabRows.rowCount === 'number' && tabRows.rowCount < offset) {
+        tabRows = await fetchReportSheetTab(tab, 0);
+      }
+
+      const combinedRows = offset > 0 ? [...(cached?.rows ?? []), ...tabRows.rows] : tabRows.rows;
+      // Defensive dedup: "Todas las Sugerencias"/"Reporte de Consumo" are the
+      // output of live formulas (QUERY/FILTER) that can reorder rows when new
+      // data lands in the middle of the sheet, not just at the end. When that
+      // happens the offset-based delta window drifts and a row that's already
+      // in `cached.rows` gets re-fetched and appended a second time, silently
+      // inflating every KPI/total downstream on each subsequent sync. Collapse
+      // exact-duplicate rows (same values in the same order) before persisting,
+      // keeping the first occurrence.
+      const dedupSeen = new Set<string>();
+      const dedupedRows = combinedRows.filter((row) => {
+        const key = JSON.stringify(row);
+        if (dedupSeen.has(key)) return false;
+        dedupSeen.add(key);
+        return true;
+      });
+      const merged: TabRows = {
+        headers: tabRows.headers,
+        rows: dedupedRows,
+        rowCount: typeof tabRows.rowCount === 'number' ? tabRows.rowCount : (offset + tabRows.rows.length),
+      };
+
+      // Persist the fresh full tab back to the dense-rows cache (so the next
+      // incremental sync continues from this offset). Failure here is
+      // non-fatal — at worst the next sync re-fetches the whole tab.
+      await putCachedTab({
+        tab,
+        headers: merged.headers,
+        rows: merged.rows,
+        rowCount: merged.rowCount ?? merged.rows.length,
+        syncedAt: new Date().toISOString(),
+      }).catch(() => {});
+
+      tabsData.push(merged);
+      sheets[tab] = merged;
+      sheetsDetected.push({ name: tab, role, rowCount: merged.rows.length, headers: merged.headers, loaded: true });
+
+      done += 1;
+      emit({
+        phase: 'parsing',
+        percent: Math.round(10 + (60 * done) / tabs.length),
+        message: `${ROLE_LABEL[role]} (${done} de ${tabs.length})`,
+      });
+
+      if (params.onPartialResult) {
+        // Build+cross just what's landed so far, still deferring to `previous`
+        // for every role not yet fetched this round — same fallback rule
+        // `buildAnalysisResult.pick()` uses for a partial sync. Errors here
+        // must never abort the sync itself (the rest of the tabs still need
+        // to load), so they're swallowed — the final full build below is what
+        // actually matters for correctness.
+        try {
+          const partial = await buildFromSheetsInWorker({
+            sheets: { ...sheets },
+            sheetsDetected: [...sheetsDetected],
+            catalog: params.catalog,
+            settings: params.settings,
+            fileName: 'Google Sheets · sincronización',
+            startedAt: start,
+            previous: params.previous,
+            selectedRoles: roles.slice(0, i + 1),
+          }).promise;
+          params.onPartialResult(partial);
+        } catch {
+          // ignore — the next tab's partial (or the final result) will catch up
+        }
+      }
+    }
 
     // Fill in unselected roles from the cache (delta state persists across
     // partial syncs). This mirrors what `buildAnalysisResult`'s `pick()` does
@@ -307,7 +358,8 @@ function writeSyncMeta(meta: SyncMeta): void {
 export async function checkForReportSheetsUpdate(
   params: Omit<SyncReportSheetsParams, 'selectedRoles'>,
 ): Promise<{ changed: boolean; result?: AnalysisResult }> {
-  if (!REPORT_SHEETS_URL) return { changed: false };
+  const url = await getConnector(CONNECTOR_KEYS.reportSheetsUrl, REPORT_SHEETS_URL_ENV);
+  if (!url) return { changed: false };
 
   const meta = readSyncMeta();
   if (meta.checkedAt && Date.now() - new Date(meta.checkedAt).getTime() < CHECK_THROTTLE_MS) {

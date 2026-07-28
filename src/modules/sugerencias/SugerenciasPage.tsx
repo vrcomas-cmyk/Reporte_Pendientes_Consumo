@@ -18,6 +18,8 @@ import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSo
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
 import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
+import { usePermissionsStore } from '@/store/permissionsStore';
+import { isColumnHidden, isDetailHidden } from '@/core/permissions';
 import type { Sugerencia } from '@/core/types';
 
 const INV_COLS = ['1030', '1031', '1032'] as const;
@@ -32,6 +34,13 @@ export function SugerenciasPage() {
   const open = usePanelStore((s) => s.open);
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
+  const perms = usePermissionsStore((s) => s.perms);
+  const precioOculto = isColumnHidden(perms, 'sugerencias', 'precio');
+  // "Desagrupar" and the "Fuentes" count/detail only exist to expose fuente
+  // (alternate supply source) data — when that detail is hidden for this
+  // role, skip the whole thing instead of trying to redact it column by
+  // column inside a view whose entire point is showing it.
+  const fuenteOculto = isDetailHidden(perms, 'sugerencias', 'fuente');
   // Sugerencias picks its lote inside the dialog (BOItem.fuentes may hold
   // several), so the sourceKey isn't known ahead of time — match by BO key
   // prefix instead of the full `sug|${boKey}|${lote}` string.
@@ -51,7 +60,8 @@ export function SugerenciasPage() {
   const [quick, setQuick] = useState<ActiveFilter[]>([]);
   const [sectorOpen, setSectorOpen] = useState(false);
   const [openSector, setOpenSector] = useState<string | null>(null);
-  const [agrupado, setAgrupado] = useState(true);
+  const [agrupadoState, setAgrupado] = useState(true);
+  const agrupado = fuenteOculto || agrupadoState;
   const zoom = useZoom();
 
   const e = a.enrich;
@@ -73,9 +83,11 @@ export function SugerenciasPage() {
     { key: 'ejecutivo', label: 'Ejecutivo', get: (it) => ejec(it.bo) },
     { key: 'centro', label: 'Centro', get: (it) => it.bo.centroPedido },
     { key: 'sector', label: 'Sector', get: (it) => e.matSector(it.bo.materialBase) },
-    { key: 'fuente', label: 'Fuente', getMany: (it) => it.fuentes.map((f) => f.fuente).filter(Boolean) },
-    { key: 'centrosug', label: 'Centro Sugerido', getMany: (it) => it.fuentes.map((f) => f.centroSugerido).filter(Boolean) },
-  ], [e]);
+    ...(fuenteOculto ? [] : [
+      { key: 'fuente', label: 'Fuente', getMany: (it: BORow) => it.fuentes.map((f) => f.fuente).filter(Boolean) },
+      { key: 'centrosug', label: 'Centro Sugerido', getMany: (it: BORow) => it.fuentes.map((f) => f.centroSugerido).filter(Boolean) },
+    ]),
+  ], [e, fuenteOculto]);
 
   const filtered = useMemo(() => {
     return a.bo.filter((it) => {
@@ -281,10 +293,12 @@ export function SugerenciasPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="inline-flex items-center gap-1 rounded-md border border-border p-0.5 text-xs">
-            <button onClick={() => setAgrupado(true)} className={`rounded px-2 py-1 ${agrupado ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Agrupar</button>
-            <button onClick={() => setAgrupado(false)} className={`rounded px-2 py-1 ${!agrupado ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Desagrupar</button>
-          </div>
+          {!fuenteOculto && (
+            <div className="inline-flex items-center gap-1 rounded-md border border-border p-0.5 text-xs">
+              <button onClick={() => setAgrupado(true)} className={`rounded px-2 py-1 ${agrupado ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Agrupar</button>
+              <button onClick={() => setAgrupado(false)} className={`rounded px-2 py-1 ${!agrupado ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Desagrupar</button>
+            </div>
+          )}
           <Button variant="outline" size="sm" onClick={agrupado ? exportar : exportarRaw}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
         </div>
       </div>
@@ -295,7 +309,7 @@ export function SugerenciasPage() {
           <StatTile compact label="Renglones BO" value={formatNumber(filtered.length)} />
           <StatTile compact label="Cant. pendiente" value={formatNumber(kpis.pendTot)} sub={<>🟢 {formatNumber(kpis.pendTot - kpis.pendBloq)} · 🟡 {formatNumber(kpis.pendBloq)}</>} />
           <StatTile compact label="Importe pendiente" value={formatCurrency(kpis.impTot)} />
-          <StatTile compact label="Con fuentes" value={formatNumber(kpis.conF)} />
+          {!fuenteOculto && <StatTile compact label="Con fuentes" value={formatNumber(kpis.conF)} />}
         </div>
         <Ranking title="Top 10 material por importe pendiente" items={kpis.rk} money wide onRow={(m) => open({ type: 'material', material: m })} className="min-w-[420px] flex-1" />
       </div>
@@ -343,13 +357,17 @@ export function SugerenciasPage() {
           <option value="">Estado (todos)</option>
           {ESTADOS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
-        <select value={fuente} onChange={(ev) => setFuente(ev.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
-          <option value="">Fuentes</option><option value="si">Con fuentes</option><option value="no">Sin fuentes</option>
-        </select>
-        <label className="flex h-9 items-center gap-1.5 rounded-md border border-border bg-bg-elevated px-2 text-sm" title="Para fuente Corta caducidad, exige centro sugerido 1031/1022/1017 o igual al centro del pedido. Otras fuentes no se filtran.">
-          <input type="checkbox" checked={centroValido} onChange={(ev) => setCentroValido(ev.target.checked)} />
-          Centro válido (Corta cad.)
-        </label>
+        {!fuenteOculto && (
+          <select value={fuente} onChange={(ev) => setFuente(ev.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
+            <option value="">Fuentes</option><option value="si">Con fuentes</option><option value="no">Sin fuentes</option>
+          </select>
+        )}
+        {!fuenteOculto && (
+          <label className="flex h-9 items-center gap-1.5 rounded-md border border-border bg-bg-elevated px-2 text-sm" title="Para fuente Corta caducidad, exige centro sugerido 1031/1022/1017 o igual al centro del pedido. Otras fuentes no se filtran.">
+            <input type="checkbox" checked={centroValido} onChange={(ev) => setCentroValido(ev.target.checked)} />
+            Centro válido (Corta cad.)
+          </label>
+        )}
       </div>
 
       <ColumnFilterBar columns={filterCols} rows={a.bo} active={quick} onChange={setQuick} />
@@ -367,13 +385,13 @@ export function SugerenciasPage() {
                   ['centro', 'Centro/Alm'], ['material', 'Material'], ['sector', 'Sector/Grupo'],
                 ] as const).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKey} dir={dir} onSort={toggleSort}>{l}</SortableTableHead>)}
                 {([
-                  ['cantped', 'Cant.ped.'], ['pend', 'Pend.'], ['precio', 'Precio'], ['consumo', 'Consumo'],
+                  ['cantped', 'Cant.ped.'], ['pend', 'Pend.'], ...(precioOculto ? [] : [['precio', 'Precio'] as const]), ['consumo', 'Consumo'],
                   ['inv1030', '1030'], ['inv1031', '1031'], ['inv1032', '1032'], ['inv1060', '1060'],
                 ] as const).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right justify-end">{l}</SortableTableHead>)}
                 {([
                   ['bloq', 'Bloq.'], ['estado', 'Estado'], ['tendencia', 'Tendencia'],
                 ] as const).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKey} dir={dir} onSort={toggleSort}>{l}</SortableTableHead>)}
-                <SortableTableHead sortKey="fuentes" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Fuentes</SortableTableHead>
+                {!fuenteOculto && <SortableTableHead sortKey="fuentes" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Fuentes</SortableTableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -429,11 +447,11 @@ export function SugerenciasPage() {
                     <TableCell className="max-w-64 truncate">{b.razonSocial}<div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>
                     <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>
                     <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>
-                    <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>
+                    <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>
                     <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>
                     <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>
                     <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(b.precio)}</TableCell>
+                    {!precioOculto && <TableCell className="text-right">{formatCurrency(b.precio)}</TableCell>}
                     <TableCell className="text-right">{formatNumber(it.consumoProm)}</TableCell>
                     {INV_COLS.map((alm) => {
                       const invVal = num(b.invByCenter[alm] || 0);
@@ -449,7 +467,7 @@ export function SugerenciasPage() {
                     <TableCell>{b.bloqueado ? <StatePill label={b.bloqueado} cls="amb" /> : '—'}</TableCell>
                     <TableCell><StatePill label={it.status.label} cls={it.status.cls} /></TableCell>
                     <TableCell><TrendBadge t={it.tend} /></TableCell>
-                    <TableCell className="text-right">{it.fuentes.length || '—'}</TableCell>
+                    {!fuenteOculto && <TableCell className="text-right">{it.fuentes.length || '—'}</TableCell>}
                   </TableRow>
                   </SolicitarContextMenu>
                 );
@@ -472,7 +490,7 @@ export function SugerenciasPage() {
                   ['centro', 'Centro/Alm'], ['material', 'Material'], ['sector', 'Sector/Grupo'],
                 ] as const).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>{l}</SortableTableHead>)}
                 {([
-                  ['cantped', 'Cant.ped.'], ['pend', 'Pend.'], ['precio', 'Precio'], ['consumo', 'Consumo'],
+                  ['cantped', 'Cant.ped.'], ['pend', 'Pend.'], ...(precioOculto ? [] : [['precio', 'Precio'] as const]), ['consumo', 'Consumo'],
                   ['inv1030', '1030'], ['inv1031', '1031'], ['inv1032', '1032'], ['inv1060', '1060'],
                 ] as const).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw} className="text-right justify-end">{l}</SortableTableHead>)}
                 {([
@@ -537,11 +555,11 @@ export function SugerenciasPage() {
                     <TableCell className="max-w-64 truncate">{b.razonSocial}<div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>
                     <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>
                     <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>
-                    <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>
+                    <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>
                     <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>
                     <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>
                     <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(b.precio)}</TableCell>
+                    {!precioOculto && <TableCell className="text-right">{formatCurrency(b.precio)}</TableCell>}
                     <TableCell className="text-right">{formatNumber(it.consumoProm)}</TableCell>
                     {INV_COLS.map((alm) => {
                       const invVal = num(b.invByCenter[alm] || 0);

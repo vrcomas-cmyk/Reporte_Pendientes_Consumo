@@ -34,6 +34,7 @@ import { getLatestAnalysis } from '@/services/reportService';
 import { useUiStore } from '@/store/uiStore';
 import { categorical } from '@/lib/chartColors';
 import { formatCurrency, formatNumber } from '@/lib/utils';
+import { topEjecutivos as computeTopEjecutivos } from '@/core/analysis';
 
 export function DashboardPage() {
   const activeAnalysis = useDataStore((s) => s.activeAnalysis);
@@ -59,7 +60,12 @@ export function DashboardPage() {
     return <div className="flex h-full items-center justify-center text-sm text-text-faint">Cargando…</div>;
   }
 
-  if (!activeAnalysis) {
+  // Catalog and daily report sync independently (see UploadPage) — only bail
+  // out to the empty state when NEITHER has landed yet. Whatever catalog-only
+  // data is available (ejecutivos) should render right away instead of
+  // waiting on the daily report, which obviously can't supply the rest
+  // (materiales, facturación, inventario) until it syncs too.
+  if (!activeAnalysis && !catalog) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
         <div className="flex size-14 items-center justify-center rounded-full bg-accent-soft text-accent">
@@ -80,10 +86,19 @@ export function DashboardPage() {
     );
   }
 
-  const { kpis, topMateriales, topEjecutivos, monthlyInvoicing, heatmap } = activeAnalysis;
+  const kpis = activeAnalysis?.kpis ?? null;
+  const topMateriales = activeAnalysis?.topMateriales ?? [];
+  const monthlyInvoicing = activeAnalysis?.monthlyInvoicing ?? [];
+  const heatmap = activeAnalysis?.heatmap ?? [];
+  // Ejecutivos only needs the catalog (see topEjecutivos()) — with no daily
+  // report yet this is every catalog executive at 0, not an empty list.
+  const topEjecutivos = activeAnalysis?.topEjecutivos ?? computeTopEjecutivos([], catalog);
 
   const barData = topMateriales.map((m) => ({ name: m.material, importe: Math.round(m.importePendiente) }));
-  const pieData = topEjecutivos.map((e) => ({ name: e.ejecutivo, value: Math.round(e.importePendiente) }));
+  // `topEjecutivos` now holds every catalog executive (0 included) sorted by
+  // importe — the pie chart still only wants the top slice, real 0-importe
+  // slivers would just clutter it.
+  const pieData = topEjecutivos.filter((e) => e.importePendiente > 0).slice(0, 5).map((e) => ({ name: e.ejecutivo, value: Math.round(e.importePendiente) }));
   const lineData = monthlyInvoicing.map((m) => ({ mes: m.mes, importe: Math.round(m.importe) }));
 
   return (
@@ -92,19 +107,21 @@ export function DashboardPage() {
         <div>
           <h2 className="font-display text-2xl font-semibold">Panel general</h2>
           <p className="text-sm text-text-muted">
-            {activeAnalysis.fileName} · {formatNumber(activeAnalysis.rowCount)} filas · catálogo {catalog ? 'sincronizado' : 'no disponible'}
+            {activeAnalysis ? <>{activeAnalysis.fileName} · {formatNumber(activeAnalysis.rowCount)} filas</> : 'Reporte diario aún no sincronizado'} · catálogo {catalog ? 'sincronizado' : 'no disponible'}
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-7">
-        <KpiTile label="Materiales analizados" value={formatNumber(kpis.materialesAnalizados)} icon={Boxes} />
-        <KpiTile label="Ejecutivos" value={formatNumber(kpis.ejecutivosCount)} icon={Users} />
-        <KpiTile label="Sin consumo" value={formatNumber(kpis.productosSinConsumo)} icon={PackageX} tone="warning" />
-        <KpiTile label="Corta caducidad" value={formatNumber(kpis.productosCortaCaducidad)} icon={Clock4} tone="danger" />
-        <KpiTile label="Lento movimiento" value={formatNumber(kpis.productosLentoMovimiento)} icon={TrendingDown} tone="warning" />
-        <KpiTile label="Inventario total" value={formatNumber(kpis.inventarioTotal)} icon={Warehouse} />
-        <KpiTile label="Valor económico" value={formatCurrency(kpis.valorEconomico)} icon={CircleDollarSign} />
+        <KpiTile label="Materiales analizados" value={formatNumber(kpis?.materialesAnalizados ?? 0)} icon={Boxes} />
+        {/* Ejecutivos comes from the catalog directly (topEjecutivos.length), not kpis —
+            it must show real numbers the instant the catalog syncs, before any daily report. */}
+        <KpiTile label="Ejecutivos" value={formatNumber(topEjecutivos.length)} icon={Users} />
+        <KpiTile label="Sin consumo" value={formatNumber(kpis?.productosSinConsumo ?? 0)} icon={PackageX} tone="warning" />
+        <KpiTile label="Corta caducidad" value={formatNumber(kpis?.productosCortaCaducidad ?? 0)} icon={Clock4} tone="danger" />
+        <KpiTile label="Lento movimiento" value={formatNumber(kpis?.productosLentoMovimiento ?? 0)} icon={TrendingDown} tone="warning" />
+        <KpiTile label="Inventario total" value={formatNumber(kpis?.inventarioTotal ?? 0)} icon={Warehouse} />
+        <KpiTile label="Valor económico" value={formatCurrency(kpis?.valorEconomico ?? 0)} icon={CircleDollarSign} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -114,6 +131,9 @@ export function DashboardPage() {
             <CardDescription>Todas las Sugerencias</CardDescription>
           </CardHeader>
           <CardContent className="h-72">
+            {!activeAnalysis ? (
+              <div className="flex h-full items-center justify-center text-xs text-text-faint">Sin datos — carga el reporte diario.</div>
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barData} layout="vertical" margin={{ left: 24 }}>
                 <CartesianGrid stroke={gridColor} horizontal={false} />
@@ -126,6 +146,7 @@ export function DashboardPage() {
                 <Bar dataKey="importe" fill={palette[0]} radius={[0, 4, 4, 0]} maxBarSize={22} />
               </BarChart>
             </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -135,6 +156,9 @@ export function DashboardPage() {
             <CardDescription>Todas las Sugerencias × catálogo</CardDescription>
           </CardHeader>
           <CardContent className="h-72">
+            {!activeAnalysis ? (
+              <div className="flex h-full items-center justify-center text-xs text-text-faint">Sin datos — carga el reporte diario.</div>
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2}>
@@ -149,6 +173,7 @@ export function DashboardPage() {
                 />
               </PieChart>
             </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -159,6 +184,9 @@ export function DashboardPage() {
           <CardDescription>Resumen_Fac agrupado por mes</CardDescription>
         </CardHeader>
         <CardContent className="h-72">
+          {!activeAnalysis ? (
+            <div className="flex h-full items-center justify-center text-xs text-text-faint">Sin datos — carga el reporte diario.</div>
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={lineData}>
               <CartesianGrid stroke={gridColor} vertical={false} />
@@ -171,6 +199,7 @@ export function DashboardPage() {
               <Line type="monotone" dataKey="importe" stroke={palette[0]} strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
+          )}
         </CardContent>
       </Card>
 
@@ -180,7 +209,9 @@ export function DashboardPage() {
             <CardTitle>Top 5 materiales</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            {topMateriales.map((m) => (
+            {!activeAnalysis ? (
+              <div className="text-xs text-text-faint">Sin datos — carga el reporte diario.</div>
+            ) : topMateriales.map((m) => (
               <div key={m.material} className="flex items-center justify-between text-xs">
                 <span className="truncate font-mono text-text-muted">{m.material}</span>
                 <span className="font-medium">{formatCurrency(m.importePendiente)}</span>
@@ -190,9 +221,10 @@ export function DashboardPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Top 5 ejecutivos</CardTitle>
+            <CardTitle>Ejecutivos</CardTitle>
+            <CardDescription>{topEjecutivos.length} del catálogo · pendiente en 0 si no tienen venta</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-2">
+          <CardContent className="flex max-h-72 flex-col gap-2 overflow-auto">
             {topEjecutivos.map((e) => (
               <div key={e.ejecutivo} className="flex items-center justify-between text-xs">
                 <span className="truncate text-text-muted">{e.ejecutivo}</span>
@@ -207,7 +239,9 @@ export function DashboardPage() {
             <CardDescription>Mapa de calor</CardDescription>
           </CardHeader>
           <CardContent>
-            <Heatmap cells={heatmap} />
+            {!activeAnalysis ? (
+              <div className="text-xs text-text-faint">Sin datos — carga el reporte diario.</div>
+            ) : <Heatmap cells={heatmap} />}
           </CardContent>
         </Card>
       </div>

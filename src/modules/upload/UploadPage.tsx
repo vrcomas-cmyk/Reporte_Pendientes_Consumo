@@ -95,6 +95,10 @@ export function UploadPage() {
         previous: activeAnalysis,
         selectedRoles: [...sheetsRoles],
         forceFull,
+        // Apply each tab's data the moment it lands (e.g. "Todas las
+        // Sugerencias" shows up immediately) instead of leaving the page
+        // blank until every selected tab has synced.
+        onPartialResult: setActiveAnalysis,
       });
       setActiveAnalysis(result);
     } catch {

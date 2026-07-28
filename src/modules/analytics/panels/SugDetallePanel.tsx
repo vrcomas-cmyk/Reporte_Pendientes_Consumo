@@ -6,6 +6,8 @@ import { useSolicitarDialog } from '@/modules/solicitudes/useSolicitarDialog';
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
 import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
+import { usePermissionsStore } from '@/store/permissionsStore';
+import { isColumnHidden, isDetailHidden } from '@/core/permissions';
 import type { Panel } from '@/store/panelStore';
 import type { Analytics } from '../AnalyticsContext';
 
@@ -15,6 +17,9 @@ export function SugDetallePanel({ panel, a, push }: { panel: Extract<Panel, { ty
   void _rf;
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
+  const perms = usePermissionsStore((s) => s.perms);
+  const fuenteDetalleOculto = isDetailHidden(perms, 'sugerencias', 'fuente');
+  const precioOculto = isColumnHidden(perms, 'sugerencias', 'precio');
   const it = boByKey.get(panel.boKey);
   if (!it) return <p>Sugerencia no encontrada.</p>;
   const b = it.bo;
@@ -51,17 +56,19 @@ export function SugDetallePanel({ panel, a, push }: { panel: Extract<Panel, { ty
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatTile label="Pendiente" value={formatNumber(b.cantidadPendiente)} />
-        <StatTile label="Precio" value={formatCurrency(b.precio)} />
+        {!precioOculto && <StatTile label="Precio" value={formatCurrency(b.precio)} />}
         <StatTile label="Estado" value={it.status.label} />
         <StatTile label="Ejecutivo" value={enrich.ejecutivoNombre(b.gpoVdor) || '—'} />
       </div>
       <Section title="Evolución mensual — material + destinatario"><EvolChart serie={it.serie} onMonth={(mes) => push({ type: 'clientesMes', material: b.materialBase, mes })} /></Section>
       {a.rf && <Section title="Comparativo anual"><ComparativaDual serie={it.serie} /></Section>}
-      <Section title={`Fuentes / materiales ofertables (${it.fuentes.length})`}>
-        {it.fuentes.length ? (
-          <FuentesTable fuentes={it.fuentes} push={push} />
-        ) : <p className="text-sm text-text-muted">Este BO no tiene fuentes asociadas.</p>}
-      </Section>
+      {!fuenteDetalleOculto && (
+        <Section title={`Fuentes / materiales ofertables (${it.fuentes.length})`}>
+          {it.fuentes.length ? (
+            <FuentesTable fuentes={it.fuentes} push={push} />
+          ) : <p className="text-sm text-text-muted">Este BO no tiene fuentes asociadas.</p>}
+        </Section>
+      )}
       <Section title="Inventario principales"><InvGrid items={invPrin} /></Section>
       <Section title="Otros centros (1001–1036)"><InvGrid items={invOtros} /></Section>
       <Section title="Solicitar desde inventario (click derecho)">

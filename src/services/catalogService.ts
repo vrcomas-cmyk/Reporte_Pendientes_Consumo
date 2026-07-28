@@ -2,12 +2,15 @@ import { catalogRepository } from '@/repositories';
 import { parseCatalog } from './analysisService';
 import { mapEjecutivo, mapMaterial, mapInvConsolidado, mapInvDetalle } from '@/core/mappers';
 import { logInfo } from '@/lib/logError';
+import { getConnector, CONNECTOR_KEYS } from '@/services/connectorsService';
 import type { CatalogSnapshot, ProcessingProgress } from '@/core/types';
 
 /** Google Apps Script endpoint (one Sync workbook, four tabs, no auth) — same
- * source the legacy portal used. Provided at build time via the VITE_APPSCRIPT_URL
- * env var (see .env.example) so the endpoint is never hardcoded in the repo. */
-const APPSCRIPT_URL = import.meta.env.VITE_APPSCRIPT_URL as string | undefined;
+ * source the legacy portal used. Resolved from the admin-editable
+ * `degasa_connectors` row (see /admin · Conectores), falling back to the
+ * build-time VITE_APPSCRIPT_URL env var (see .env.example) when that row is
+ * empty or Supabase is unreachable. */
+const APPSCRIPT_URL_ENV = import.meta.env.VITE_APPSCRIPT_URL as string | undefined;
 const APPSCRIPT_TABS = {
   ejecutivos: 'Ejecutivos',
   materiales: 'Materiales',
@@ -16,10 +19,11 @@ const APPSCRIPT_TABS = {
 } as const;
 
 async function fetchAppScriptTab(tab: string): Promise<Record<string, unknown>[]> {
-  if (!APPSCRIPT_URL) {
-    throw new Error('Falta configurar VITE_APPSCRIPT_URL. Copia ".env.example" a ".env.local" y coloca la URL del AppScript.');
+  const appscriptUrl = await getConnector(CONNECTOR_KEYS.appscriptCatalogUrl, APPSCRIPT_URL_ENV);
+  if (!appscriptUrl) {
+    throw new Error('Falta configurar el conector "Apps Script · Catálogo" (Admin) o VITE_APPSCRIPT_URL.');
   }
-  const url = `${APPSCRIPT_URL}?tab=${encodeURIComponent(tab)}`;
+  const url = `${appscriptUrl}?tab=${encodeURIComponent(tab)}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} al leer la pestaña "${tab}" del catálogo.`);
   const data = await res.json();

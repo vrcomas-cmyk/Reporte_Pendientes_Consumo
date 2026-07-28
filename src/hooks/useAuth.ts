@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
+import { usePermissionsStore } from '@/store/permissionsStore';
 
 export type AuthStatus = 'loading' | 'signed-out' | 'not-allowed' | 'signed-in';
 
@@ -17,6 +18,7 @@ export function useAuth(): { status: AuthStatus; session: Session | null; signIn
 
     async function checkAllowed(s: Session | null) {
       if (!s) {
+        usePermissionsStore.getState().reset();
         if (!cancelled) { setSession(null); setStatus('signed-out'); }
         return;
       }
@@ -29,12 +31,14 @@ export function useAuth(): { status: AuthStatus; session: Session | null; signIn
         if (cancelled) return;
         if (error || !data) {
           await supabase.auth.signOut();
+          usePermissionsStore.getState().reset();
           setSession(null);
           setStatus('not-allowed');
           return;
         }
         setSession(s);
         setStatus('signed-in');
+        if (s.user.email) void usePermissionsStore.getState().load(s.user.email);
       } catch {
         // Red caída, Supabase inalcanzable, etc. — nunca dejar el gate
         // atascado en "loading" (spinner infinito): volver a la pantalla
