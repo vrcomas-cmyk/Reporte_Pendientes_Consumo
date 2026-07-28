@@ -22,8 +22,10 @@ export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNa
   const theme = useUiStore((s) => s.theme);
   const toggleTheme = useUiStore((s) => s.toggleTheme);
   const catalog = useDataStore((s) => s.catalog);
+  const activeAnalysis = useDataStore((s) => s.activeAnalysis);
   const sheetsSyncing = useReportSheetsSyncStore((s) => s.syncing);
   const sheetsProgress = useReportSheetsSyncStore((s) => s.progress);
+  const sheetsError = useReportSheetsSyncStore((s) => s.error);
   const openPalette = useCommandPaletteStore((s) => s.openPalette);
 
   return (
@@ -53,11 +55,35 @@ export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNa
             {isMac ? '⌘' : 'Ctrl'}K
           </kbd>
         </button>
-        {sheetsSyncing && (
+        {/* Report-sync status — deliberately global chrome (rendered by AppShell
+            for every route), not gated by ModuleGuard: a role restricted to a
+            single module (e.g. only Consumo) has no access to /carga and would
+            otherwise have zero visibility into whether the daily report is
+            still loading, done, or failed — especially on mobile, where the
+            tooltip on the old spinner-only badge was never reachable. */}
+        {sheetsSyncing ? (
           <Badge variant="warning" className="gap-1" title={sheetsProgress?.message}>
             <RefreshCcw className="size-3 shrink-0 animate-spin" />
-            <span className="hidden sm:inline">Sincronizando reporte…</span>
-            <span className="sm:hidden">Sync…</span>
+            <span className="hidden sm:inline">{sheetsProgress?.message ?? 'Sincronizando reporte…'}</span>
+            <span className="sm:hidden">Sync {sheetsProgress ? `${sheetsProgress.percent}%` : '…'}</span>
+          </Badge>
+        ) : sheetsError ? (
+          <Badge variant="danger" className="gap-1" title={sheetsError}>
+            <AlertCircle className="size-3 shrink-0" />
+            <span className="hidden sm:inline">Reporte: falló la sincronización</span>
+            <span className="sm:hidden">Reporte: error</span>
+          </Badge>
+        ) : activeAnalysis ? (
+          <Badge variant="success" className="gap-1">
+            <CheckCircle2 className="size-3 shrink-0" />
+            <span className="hidden sm:inline">Reporte actualizado · {formatDateTime(activeAnalysis.processedAt)}</span>
+            <span className="sm:hidden">Reporte</span>
+          </Badge>
+        ) : (
+          <Badge variant="warning" className="gap-1">
+            <AlertCircle className="size-3 shrink-0" />
+            <span className="hidden sm:inline">Reporte no cargado</span>
+            <span className="sm:hidden">Sin reporte</span>
           </Badge>
         )}
         {catalog ? (

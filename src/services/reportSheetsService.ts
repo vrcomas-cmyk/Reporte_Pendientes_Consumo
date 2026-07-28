@@ -172,18 +172,22 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
     // The response includes the current total `rowCount`, which we compare to
     // the offset to detect truncation/replacement (rowCount < offset → the tab
     // shrunk, re-fetch fully) — see docs/apps-script-report-sheets.md §5.
-    // Fetched sequentially (not Promise.all) so each tab's data can be crossed
-    // and handed to the UI as soon as IT finishes, instead of everything
-    // waiting on whichever tab happens to be slowest (usually "Reporte de
-    // Consumo", ~80k rows). "Todas las Sugerencias" is fetched first so it's
-    // the first thing the user sees land.
+    //
+    // Fetched in PARALLEL (not one at a time) so the total wait is however
+    // long the slowest tab takes, not the sum of all four — but each tab's
+    // data is still crossed and handed to the UI (`onPartialResult`) the
+    // moment THAT tab lands, whichever one finishes first, instead of waiting
+    // for every tab before showing anything. `partialChain` serializes those
+    // progressive builds (each one waits for the previous to finish) so two
+    // tabs landing close together don't kick off overlapping worker builds.
     let done = 0;
-    const tabsData: TabRows[] = [];
+    const tabsData: TabRows[] = new Array(roles.length);
     const sheets: Record<string, TabRows> = {};
     const sheetsDetected: DetectedSheet[] = [];
-    for (let i = 0; i < roles.length; i++) {
-      const role = roles[i];
-      const tab = tabs[i];
+    const arrivedRoles: SheetRole[] = [];
+    let partialChain = Promise.resolve();
+
+    async function processTab(role: SheetRole, tab: string, index: number): Promise<void> {
       const cached = forceFull ? undefined : await getCachedTab(tab);
       const offset = cached?.rows.length ?? 0;
       let tabRows = await fetchReportSheetTab(tab, offset);
@@ -228,9 +232,10 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
         syncedAt: new Date().toISOString(),
       }).catch(() => {});
 
-      tabsData.push(merged);
+      tabsData[index] = merged;
       sheets[tab] = merged;
       sheetsDetected.push({ name: tab, role, rowCount: merged.rows.length, headers: merged.headers, loaded: true });
+      arrivedRoles.push(role);
 
       done += 1;
       emit({
@@ -240,29 +245,40 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
       });
 
       if (params.onPartialResult) {
-        // Build+cross just what's landed so far, still deferring to `previous`
-        // for every role not yet fetched this round — same fallback rule
+        // Snapshot what's arrived so far BEFORE chaining — `sheets`/
+        // `sheetsDetected`/`arrivedRoles` keep mutating as other tabs land
+        // concurrently, so the build must close over a copy, not the live
+        // arrays. Build+cross just this snapshot, still deferring to
+        // `previous` for every role not yet arrived — same fallback rule
         // `buildAnalysisResult.pick()` uses for a partial sync. Errors here
-        // must never abort the sync itself (the rest of the tabs still need
-        // to load), so they're swallowed — the final full build below is what
-        // actually matters for correctness.
-        try {
-          const partial = await buildFromSheetsInWorker({
-            sheets: { ...sheets },
-            sheetsDetected: [...sheetsDetected],
-            catalog: params.catalog,
-            settings: params.settings,
-            fileName: 'Google Sheets · sincronización',
-            startedAt: start,
-            previous: params.previous,
-            selectedRoles: roles.slice(0, i + 1),
-          }).promise;
-          params.onPartialResult(partial);
-        } catch {
-          // ignore — the next tab's partial (or the final result) will catch up
-        }
+        // must never abort the sync itself (other tabs still need to land),
+        // so they're swallowed — the final full build below is what actually
+        // matters for correctness.
+        const sheetsSnapshot = { ...sheets };
+        const sheetsDetectedSnapshot = [...sheetsDetected];
+        const arrivedSnapshot = [...arrivedRoles];
+        partialChain = partialChain.then(async () => {
+          try {
+            const partial = await buildFromSheetsInWorker({
+              sheets: sheetsSnapshot,
+              sheetsDetected: sheetsDetectedSnapshot,
+              catalog: params.catalog,
+              settings: params.settings,
+              fileName: 'Google Sheets · sincronización',
+              startedAt: start,
+              previous: params.previous,
+              selectedRoles: arrivedSnapshot,
+            }).promise;
+            params.onPartialResult!(partial);
+          } catch {
+            // ignore — the next tab's partial (or the final result) will catch up
+          }
+        });
       }
     }
+
+    await Promise.all(roles.map((role, i) => processTab(role, tabs[i], i)));
+    await partialChain;
 
     // Fill in unselected roles from the cache (delta state persists across
     // partial syncs). This mirrors what `buildAnalysisResult`'s `pick()` does

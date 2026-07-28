@@ -91,20 +91,8 @@
   "89": "text.ts",
   "90": "ResultsPage.tsx",
   "91": "@duckdb/duckdb-wasm",
-  "92": "mappers.ts",
   "93": "commandPaletteStore.ts",
   "94": "db.ts",
   "95": "react",
-  "96": "permissionsService.ts",
-  "97": "resumenSin.ts",
-  "98": "enrich.ts",
-  "99": "permissions.ts",
-  "100": "catalogService.ts",
-  "101": "dexie",
-  "102": "roleDetection.ts",
-  "103": "AdminPage.tsx",
-  "104": "connectorsService.ts",
-  "105": "permissionsRegistry.ts",
-  "106": "permissionsStore.ts",
-  "107": "@duckdb/duckdb-wasm"
+  "101": "dexie"
 }
