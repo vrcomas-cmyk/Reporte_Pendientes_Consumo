@@ -37,16 +37,26 @@ const keyOf = (r: Sugerencia): string =>
 const hasFuente = (r: Sugerencia): boolean => norm(r.fuente) !== '';
 
 export function buildBO(rows: Sugerencia[], rf: RFIndex | null): BOItem[] {
-  const map = new Map<string, { origen: Sugerencia | null; fuentes: Sugerencia[]; any: Sugerencia }>();
+  const map = new Map<string, { origen: Sugerencia | null; fuentes: Sugerencia[]; fuenteKeys: Set<string>; any: Sugerencia }>();
   for (const r of rows) {
     const k = keyOf(r);
     let g = map.get(k);
     if (!g) {
-      g = { origen: null, fuentes: [], any: r };
+      g = { origen: null, fuentes: [], fuenteKeys: new Set(), any: r };
       map.set(k, g);
     }
-    if (hasFuente(r)) g.fuentes.push(r);
-    else if (!g.origen) g.origen = r;
+    if (hasFuente(r)) {
+      // Defensive dedup: the incremental Sheets sync can occasionally re-fetch
+      // and re-append a row it already has (delta window drift when the
+      // source sheet's live formulas reorder rows — see reportSheetsService's
+      // own dedup comment). An exact-duplicate fuente row would otherwise
+      // double-count as a second alternate supply source.
+      const fk = JSON.stringify(r);
+      if (!g.fuenteKeys.has(fk)) {
+        g.fuenteKeys.add(fk);
+        g.fuentes.push(r);
+      }
+    } else if (!g.origen) g.origen = r;
   }
   return [...map.values()].map((g) => {
     const b = g.origen || g.any;

@@ -221,21 +221,19 @@ export function SugerenciasPage() {
     fuentes: (it: (typeof filtered)[number]) => it.fuentes.length,
   }), [e, grupoCli, ejec]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
-  const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
+  const { scrollRef, items, paddingTop, paddingBottom, measureElement } = useRowVirtualizer(sorted.length);
 
-  // "Desagrupado": the exact same BO dataset as "Agrupar" (`filtered` — same
-  // search/estado/fuente-toggle/column-chip filters), just exploded into one
-  // row per fuente (alternate supply source); a BO with none still gets a
-  // single row (f: null) so nothing disappears.
+  // "Desagrupado": mirrors the raw sheet 1-to-1 — the origin row (no fuente,
+  // the actual pending order) PLUS one row per fuente (alternate supply
+  // source), same as "Todas las Sugerencias" lists them. Previously this only
+  // rendered the fuente rows and dropped the origin row whenever fuentes
+  // existed, so a BO with, say, 6 fuentes lost its origin renglón entirely.
   const flatRaw = useMemo(() => {
     const rows: RawRow[] = [];
     filtered.forEach((it) => {
+      rows.push({ it, f: null, key: it.k });
       const fuentesOk = centroValido ? it.fuentes.filter((f) => centroPasa(it.bo, f)) : it.fuentes;
-      if (fuentesOk.length) {
-        fuentesOk.forEach((f, idx) => rows.push({ it, f, key: `${it.k}|${idx}` }));
-      } else {
-        rows.push({ it, f: null, key: it.k });
-      }
+      fuentesOk.forEach((f, idx) => rows.push({ it, f, key: `${it.k}|${idx}` }));
     });
     return rows;
   }, [filtered, centroValido]);
@@ -265,7 +263,7 @@ export function SugerenciasPage() {
     disponible: (r: RawRow) => (r.f ? num(r.f.disponible) : -1),
   }), [e, ejec]);
   const { sorted: sortedRaw, sortKey: sortKeyRaw, dir: dirRaw, toggleSort: toggleSortRaw } = useSort(flatRaw, sortAccRaw);
-  const { scrollRef: scrollRefRaw, items: itemsRaw, paddingTop: paddingTopRaw, paddingBottom: paddingBottomRaw } = useRowVirtualizer(sortedRaw.length);
+  const { scrollRef: scrollRefRaw, items: itemsRaw, paddingTop: paddingTopRaw, paddingBottom: paddingBottomRaw, measureElement: measureElementRaw } = useRowVirtualizer(sortedRaw.length);
   // Matches `buildFromSugerencia`'s own `sourceKey` convention exactly, so
   // "ya solicitado" reflects this specific fuente, not just the parent BO.
   const rawSolicitadas = useMemo(() => {
@@ -424,7 +422,7 @@ export function SugerenciasPage() {
             <TableHeader>
               <TableRow>
                 {([
-                  ['pedido', 'Pedido/OC'], ['fecha', 'Fecha'], ['cliente', 'Cliente'], ['ejecutivo', 'Ejecutivo / Grupo cli.'],
+                  ['ejecutivo', 'Ejecutivo / Grupo cli.'], ['pedido', 'Pedido/OC'], ['fecha', 'Fecha'], ['cliente', 'Cliente'],
                   ['centro', 'Centro/Alm'], ['material', 'Material'], ['sector', 'Sector/Grupo'],
                 ] as const).filter(([k]) => vis(k)).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKey} dir={dir} onSort={toggleSort}>{l}</SortableTableHead>)}
                 {([
@@ -484,11 +482,11 @@ export function SugerenciasPage() {
                     onVerDetalle={() => open({ type: 'sugDetalle', boKey: it.k })}
                     copyItems={copyItems}
                   >
-                  <TableRow title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
+                  <TableRow ref={measureElement} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
+                    {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
                     {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs">{b.fecha || '—'}</TableCell>}
                     {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial}<div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
-                    {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
                     {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
                     {vis('sector') && <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>}
@@ -540,7 +538,7 @@ export function SugerenciasPage() {
             <TableHeader>
               <TableRow>
                 {([
-                  ['pedido', 'Pedido/OC'], ['fecha', 'Fecha'], ['cliente', 'Cliente'], ['ejecutivo', 'Ejecutivo / Grupo cli.'],
+                  ['ejecutivo', 'Ejecutivo / Grupo cli.'], ['pedido', 'Pedido/OC'], ['fecha', 'Fecha'], ['cliente', 'Cliente'],
                   ['centro', 'Centro/Alm'], ['material', 'Material'], ['sector', 'Sector/Grupo'],
                 ] as const).filter(([k]) => vis(k)).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKeyRaw} dir={dirRaw} onSort={toggleSortRaw}>{l}</SortableTableHead>)}
                 {([
@@ -603,11 +601,11 @@ export function SugerenciasPage() {
                     onVerDetalle={() => open({ type: 'sugDetalle', boKey: it.k })}
                     copyItems={copyItems}
                   >
-                  <TableRow title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
+                  <TableRow ref={measureElementRaw} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
+                    {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
                     {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs">{b.fecha || '—'}</TableCell>}
                     {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial}<div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
-                    {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
                     {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
                     {vis('sector') && <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>}

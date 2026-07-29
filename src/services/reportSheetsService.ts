@@ -2,7 +2,7 @@ import { reportRepository } from '@/repositories';
 import { buildFromSheetsInWorker } from '@/services/analysisService';
 import type { TabRows } from '@/workers/analysisWorker';
 import { getCachedTab, putCachedTab, clearCachedTabs } from '@/repositories/sheetsCache';
-import { logInfo } from '@/lib/logError';
+import { logInfo, logWarn } from '@/lib/logError';
 import { ROLE_LABEL } from '@/core/roleDetection';
 import { useReportSheetsSyncStore } from '@/store/reportSheetsSyncStore';
 import { getConnector, CONNECTOR_KEYS } from '@/services/connectorsService';
@@ -232,9 +232,30 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
     const sheets: Record<string, TabRows> = {};
     const sheetsDetected: DetectedSheet[] = [];
     const arrivedRoles: SheetRole[] = [];
+    // One tab failing (e.g. a renamed/missing sheet tab → HTTP 404) must never
+    // sink the other tabs that already landed fine — each tab is isolated in
+    // its own try/catch below, and a failed role is simply excluded from
+    // `selectedRoles` on the final build so `buildAnalysisResult.pick()` falls
+    // back to `previous`'s data for it instead of overwriting with empty rows.
+    const failedRoles: { role: SheetRole; message: string }[] = [];
     let partialChain = Promise.resolve();
 
     async function processTab(role: SheetRole, tab: string, index: number): Promise<void> {
+      try {
+        await processTabInner(role, tab, index);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        failedRoles.push({ role, message });
+        done += 1;
+        emit({
+          phase: 'parsing',
+          percent: Math.round(10 + (60 * done) / tabs.length),
+          message: `${ROLE_LABEL[role]}: error (${message}) — se conservan los datos anteriores`,
+        });
+      }
+    }
+
+    async function processTabInner(role: SheetRole, tab: string, index: number): Promise<void> {
       const cached = forceFull ? undefined : await getCachedTab(tab);
       const offset = cached?.rows.length ?? 0;
 
@@ -368,6 +389,10 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
     // Runs the cross-reference + KPI computation in the Web Worker (same one
     // the xlsx-upload path uses) instead of the main thread, so a large
     // "Reporte de Consumo" tab doesn't stall the UI while it's crunched.
+    // Only roles that actually arrived go in `selectedRoles` — a failed tab
+    // must NOT appear here, or `pick()` would treat it as "selected but
+    // empty" and overwrite good `previous` data with zero rows.
+    const succeededRoles = roles.filter((r) => arrivedRoles.includes(r));
     const result = await buildFromSheetsInWorker({
       sheets,
       sheetsDetected,
@@ -376,7 +401,7 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
       fileName: 'Google Sheets · sincronización',
       startedAt: start,
       previous: params.previous,
-      selectedRoles: roles,
+      selectedRoles: succeededRoles,
     }).promise;
 
     await reportRepository.saveAnalysis(result);
@@ -390,9 +415,19 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
       }).catch(() => {});
       void logInfo('report-sheets-sync', `${roles.join(', ')}: ${result.rowCount} sugerencias`);
     }
+    if (failedRoles.length) {
+      void logWarn('report-sheets-sync-partial', failedRoles.map((f) => `${f.role}: ${f.message}`).join(' | '));
+    }
 
-    emit({ phase: 'done', percent: 100, message: 'Sincronización completada.' });
-    sync.finish();
+    // A partial failure isn't fatal — the tabs that did land are still
+    // applied (return `result` normally, no throw), but surface which
+    // pestaña(s) failed and kept their previous data, same banner slot a
+    // full-sync error uses.
+    const warning = failedRoles.length
+      ? `No se pudo sincronizar: ${failedRoles.map((f) => `${ROLE_LABEL[f.role]} (${f.message})`).join('; ')}. Se conservan los datos anteriores para esa(s) pestaña(s).`
+      : undefined;
+    emit({ phase: 'done', percent: 100, message: warning ? 'Sincronización completada con errores.' : 'Sincronización completada.' });
+    sync.finish(warning);
     return result;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

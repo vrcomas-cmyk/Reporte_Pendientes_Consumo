@@ -32,5 +32,10 @@ export function useRowVirtualizer(count: number, estimateSize = 36, overscan = 1
   const paddingTop = items.length ? items[0].start : 0;
   const paddingBottom = items.length ? virtualizer.getTotalSize() - items[items.length - 1].end : 0;
 
-  return { scrollRef, virtualizer, items, paddingTop, paddingBottom };
+  // Rows with variable height (wrapped text, multi-line cells) drift from
+  // `estimateSize` — without remeasuring, the virtualizer's total height
+  // undercounts and the scroll container maxes out before the last rows are
+  // reachable. Pass `measureElement` as `ref` (plus `data-index={item.index}`)
+  // on each rendered row so real heights correct the estimate as they mount.
+  return { scrollRef, virtualizer, items, paddingTop, paddingBottom, measureElement: virtualizer.measureElement };
 }

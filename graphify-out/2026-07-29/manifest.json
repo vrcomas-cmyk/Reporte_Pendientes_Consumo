@@ -85,8 +85,8 @@
     "semantic_hash": ""
   },
   "src/core/buildBO.ts": {
-    "mtime": 1784903168.3218472,
-    "ast_hash": "2c1c66b8cf94c688eed4f1ed9ed0e500",
+    "mtime": 1785346267.457082,
+    "ast_hash": "e4f1ce999489515a9504d2ec3b0b0b58",
     "semantic_hash": ""
   },
   "src/core/enrich.ts": {
@@ -120,8 +120,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useRowVirtualizer.ts": {
-    "mtime": 1784841027.7224138,
-    "ast_hash": "dd089482cf0763723d2b86601dc899cc",
+    "mtime": 1785345288.2618845,
+    "ast_hash": "25b8eea7b06a165610400f7e77e0e0c2",
     "semantic_hash": ""
   },
   "src/hooks/useSort.ts": {
@@ -220,8 +220,8 @@
     "semantic_hash": ""
   },
   "src/modules/sugerencias/SugerenciasPage.tsx": {
-    "mtime": 1785338023.356642,
-    "ast_hash": "04ba2e7bed1396ab2dfb6c78405e58c9",
+    "mtime": 1785346258.5780106,
+    "ast_hash": "a8c69959e9ce1927ed430f0fe44049d0",
     "semantic_hash": ""
   },
   "src/modules/upload/UploadPage.tsx": {
@@ -680,8 +680,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/index.ts": {
-    "mtime": 1785337212.2924843,
-    "ast_hash": "7bd4a3472b1be4649bf5cdd110c9da66",
+    "mtime": 1785338373.9999154,
+    "ast_hash": "74ff3d9b9fb37029e340289aeac6ac27",
     "semantic_hash": ""
   },
   "src/components/navigation/CheatsheetDialog.tsx": {
@@ -2260,8 +2260,13 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/ColumnVisibility.tsx": {
-    "mtime": 1785337207.93673,
-    "ast_hash": "ac7b223315fa3b16a39a524eb65fe57b",
+    "mtime": 1785338354.0365746,
+    "ast_hash": "646e92b7df9e32b888d43c7aa01551b1",
+    "semantic_hash": ""
+  },
+  "src/modules/analytics/ui/SavedViews.tsx": {
+    "mtime": 1785338369.6374862,
+    "ast_hash": "a7d8aa8668df029e42c2691b70ce3ce7",
     "semantic_hash": ""
   }
 }
