@@ -10,3 +10,7 @@ export { ComparativaDual } from './ComparativaDual';
 export { InvGrid } from './InvGrid';
 export { Ranking } from './Ranking';
 export { StatTile } from './StatTile';
+export { useColumnVisibility, ColumnVisibilityControl } from './ColumnVisibility';
+export type { ColDef } from './ColumnVisibility';
+export { useSavedViews, SavedViewsControl } from './SavedViews';
+export type { SavedView } from './SavedViews';
