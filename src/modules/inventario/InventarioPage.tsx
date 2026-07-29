@@ -146,7 +146,7 @@ export function InventarioPage() {
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden p-5">
       <div className="flex items-start justify-between gap-2">
-        <div><h2 className="font-display text-2xl font-semibold">Inventario por Condición</h2>
+        <div><h2 className="font-display text-2xl font-semibold">Inv Condición</h2>
           <p className="text-sm text-text-muted">{formatNumber(filtered.length)} renglones · clic en cantidad = lotes del material</p></div>
         <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
       </div>

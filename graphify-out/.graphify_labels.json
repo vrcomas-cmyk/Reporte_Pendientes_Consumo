@@ -106,5 +106,6 @@
   "104": "connectorsService.ts",
   "105": "permissionsRegistry.ts",
   "106": "permissionsStore.ts",
-  "107": "@duckdb/duckdb-wasm"
+  "107": "@duckdb/duckdb-wasm",
+  "108": "ResultsPage.tsx"
 }

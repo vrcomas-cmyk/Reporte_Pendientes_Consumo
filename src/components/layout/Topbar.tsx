@@ -7,16 +7,26 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatDateTime } from '@/lib/utils';
 import { isMac } from '@/hooks/useKeybindings';
+import { NAV, ADMIN_NAV_ITEM } from '@/components/layout/Sidebar';
 
-const TITLES: Record<string, string> = {
+// A few routes read better with fuller copy than the Sidebar's short nav
+// label ("Panel" -> "Panel general"). Anything NOT listed here falls back to
+// NAV's label (single source of truth) instead of silently going blank — that
+// fallback gap is exactly how Sugerencias/Consumo/Inventario/Análisis/
+// Comodato/Solicitudes/Admin used to all show the bare "DEGASA" wordmark.
+const TITLE_OVERRIDES: Record<string, string> = {
   '/': 'Panel general',
   '/carga': 'Carga de archivos',
-  '/procesamiento': 'Procesamiento',
   '/resultados': 'Resultados del análisis',
   '/historial': 'Historial de análisis',
   '/registros': 'Registros del sistema',
-  '/ajustes': 'Ajustes',
 };
+
+function titleFor(path: string): string {
+  if (TITLE_OVERRIDES[path]) return TITLE_OVERRIDES[path];
+  if (path === ADMIN_NAV_ITEM.to) return ADMIN_NAV_ITEM.label;
+  return NAV.find((n) => n.to === path)?.label ?? 'DEGASA';
+}
 
 export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNav: () => void }) {
   const theme = useUiStore((s) => s.theme);
@@ -39,7 +49,7 @@ export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNa
         >
           <Menu className="size-5" />
         </button>
-        <h1 className="truncate font-display text-[15px] font-semibold text-text">{TITLES[path] ?? 'DEGASA'}</h1>
+        <h1 className="truncate font-display text-[15px] font-semibold text-text">{titleFor(path)}</h1>
       </div>
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <button

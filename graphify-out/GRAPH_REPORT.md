@@ -1,16 +1,16 @@
 # Graph Report - Reporte_Pendientes_Consumo  (2026-07-28)
 
 ## Corpus Check
-- 168 files · ~78,607 words
+- 168 files · ~78,841 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 978 nodes · 1451 edges · 108 communities (62 shown, 46 thin omitted)
+- 978 nodes · 1449 edges · 109 communities (63 shown, 46 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 10 edges (avg confidence: 0.68)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5bca9c35`
+- Built from commit: `3a3ee62d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -65,7 +65,6 @@
 - framer-motion
 - resumenSin.ts
 - @radix-ui/react-dialog
-- @radix-ui/react-progress
 - @radix-ui/react-scroll-area
 - @radix-ui/react-separator
 - @radix-ui/react-slot
@@ -116,6 +115,7 @@
 - permissionsRegistry.ts
 - permissionsStore.ts
 - @duckdb/duckdb-wasm
+- ResultsPage.tsx
 
 ## God Nodes (most connected - your core abstractions)
 1. `react` - 65 edges
@@ -144,7 +144,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (108 total, 46 thin omitted)
+## Communities (109 total, 46 thin omitted)
 
 ### Community 0 - "mappers.ts"
 Cohesion: 0.50
@@ -171,15 +171,15 @@ Cohesion: 0.09
 Nodes (20): node, vite.config.ts, vitest/config, compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, lib, module (+12 more)
 
 ### Community 7 - "react"
-Cohesion: 0.05
-Nodes (4): react, Input, Progress, columns
+Cohesion: 0.06
+Nodes (4): react, Input, Progress, SortAccessors
 
 ### Community 8 - "analysisService.ts"
 Cohesion: 0.23
 Nodes (11): buildFromSheetsInWorker(), BuildFromSheetsParams, getWorker(), makeWorker(), nextId(), parseCatalog(), processReport(), runJob() (+3 more)
 
 ### Community 9 - "resumenSin.ts"
-Cohesion: 0.22
+Cohesion: 0.20
 Nodes (14): checkForReportSheetsUpdate(), fetchReportSheetsMeta(), fetchReportSheetTab(), progressListeners, readSyncMeta(), REPORT_SHEET_ROLES, REPORT_SHEETS_URL_ENV, REPORT_TABS (+6 more)
 
 ### Community 10 - "table.tsx"
@@ -367,21 +367,21 @@ Cohesion: 0.50
 Nodes (3): MODULE_COLUMNS, MODULE_DETAILS, RegistryItem
 
 ## Knowledge Gaps
-- **344 isolated node(s):** `UploadPage`, `GenerarReportePage`, `ComodatoPage`, `ProcessingPage`, `ResultsPage` (+339 more)
+- **345 isolated node(s):** `TITLES`, `REPORT_SHEETS_URL_ENV`, `REPORT_TABS`, `REPORT_SHEET_ROLES`, `SyncReportSheetsParams` (+340 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **46 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `react` to `mappers.ts`, `PanelHost.tsx`, `table.tsx`, `clsx`, `plugins`, `sheet.tsx`, `InventarioPage.tsx`, `card.tsx`, `dialog.tsx`, `App.tsx`, `badge.tsx`, `button.tsx`, `ProcessingPage.tsx`, `SugerenciasPage.tsx`, `AnalisisPage.tsx`, `ConsumoPage.tsx`, `class-variance-authority`, `mappers.ts`, `@radix-ui/react-progress`, `SupabaseReportRepository`, `Toaster.tsx`, `useAuth.ts`, `LocalReportRepository`, `SolicitarDialog.tsx`, `SolicitarContextMenu.tsx`, `SolicitudesPage.tsx`, `EmptyState.tsx`, `AdminPage.tsx`?**
+- **Why does `react` connect `react` to `mappers.ts`, `PanelHost.tsx`, `table.tsx`, `clsx`, `plugins`, `sheet.tsx`, `InventarioPage.tsx`, `card.tsx`, `dialog.tsx`, `App.tsx`, `badge.tsx`, `button.tsx`, `ProcessingPage.tsx`, `SugerenciasPage.tsx`, `AnalisisPage.tsx`, `ConsumoPage.tsx`, `class-variance-authority`, `mappers.ts`, `@radix-ui/react-progress`, `SupabaseReportRepository`, `Toaster.tsx`, `useAuth.ts`, `LocalReportRepository`, `SolicitarDialog.tsx`, `SolicitarContextMenu.tsx`, `SolicitudesPage.tsx`, `EmptyState.tsx`, `AdminPage.tsx`, `ResultsPage.tsx`?**
   _High betweenness centrality (0.271) - this node is a cross-community bridge._
 - **Why does `xlsx` connect `mappers.ts` to `xlsx`, `dependencies`?**
   _High betweenness centrality (0.152) - this node is a cross-community bridge._
 - **Why does `EnrichIndex` connect `solicitudService.ts` to `PanelHost.tsx`, `resumenFac.ts`, `enrich.ts`?**
   _High betweenness centrality (0.106) - this node is a cross-community bridge._
-- **What connects `UploadPage`, `GenerarReportePage`, `ComodatoPage` to the rest of the system?**
-  _344 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `TITLES`, `REPORT_SHEETS_URL_ENV`, `REPORT_TABS` to the rest of the system?**
+  _345 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `PanelHost.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.06207044673539519 - nodes in this community are weakly interconnected._
 - **Should `resumenFac.ts` be split into smaller, more focused modules?**

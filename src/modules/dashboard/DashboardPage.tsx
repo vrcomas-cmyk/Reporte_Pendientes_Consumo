@@ -27,6 +27,7 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { KpiTile } from './KpiTile';
 import { Heatmap } from './Heatmap';
 import { useDataStore } from '@/store/dataStore';
@@ -57,7 +58,27 @@ export function DashboardPage() {
   }, [activeAnalysis, setActiveAnalysis]);
 
   if (loading) {
-    return <div className="flex h-full items-center justify-center text-sm text-text-faint">Cargando…</div>;
+    // Mirrors the real layout below (KPI strip + two-up card row) instead of
+    // a bare centered word — a blank "Cargando…" read as unfinished next to
+    // the otherwise-polished sidebar motion and sticky-table craft elsewhere.
+    return (
+      <div className="flex h-full flex-col gap-5 overflow-auto p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-7 w-40" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-7">
+          {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-[72px]" />)}
+        </div>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <Skeleton className="h-72" />
+          <Skeleton className="h-72" />
+        </div>
+        <Skeleton className="h-72" />
+      </div>
+    );
   }
 
   // Catalog and daily report sync independently (see UploadPage) — only bail

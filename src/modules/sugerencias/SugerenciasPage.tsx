@@ -18,6 +18,7 @@ import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSo
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
 import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
+import { Select } from '@/components/ui/select';
 import { usePermissionsStore } from '@/store/permissionsStore';
 import { isColumnHidden, isDetailHidden } from '@/core/permissions';
 import type { Sugerencia } from '@/core/types';
@@ -285,7 +286,7 @@ export function SugerenciasPage() {
     <div className="flex h-full flex-col gap-3 overflow-auto p-5">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="font-display text-2xl font-semibold">Sugerencias</h2>
+          <h2 className="font-display text-2xl font-semibold">Pedidos</h2>
           <p className="text-sm text-text-muted">
             {agrupado
               ? <>Órdenes pendientes deduplicadas (BO) · {formatNumber(filtered.length)} renglones</>
@@ -353,14 +354,14 @@ export function SugerenciasPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <DebouncedSearch onChange={setQ} placeholder="Buscar material, pedido, cliente…" />
-        <select value={estado} onChange={(ev) => setEstado(ev.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
+        <Select value={estado} onChange={(ev) => setEstado(ev.target.value)} className="w-auto">
           <option value="">Estado (todos)</option>
           {ESTADOS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </select>
+        </Select>
         {!fuenteOculto && (
-          <select value={fuente} onChange={(ev) => setFuente(ev.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
+          <Select value={fuente} onChange={(ev) => setFuente(ev.target.value)} className="w-auto">
             <option value="">Fuentes</option><option value="si">Con fuentes</option><option value="no">Sin fuentes</option>
-          </select>
+          </Select>
         )}
         {!fuenteOculto && (
           <label className="flex h-9 items-center gap-1.5 rounded-md border border-border bg-bg-elevated px-2 text-sm" title="Para fuente Corta caducidad, exige centro sugerido 1031/1022/1017 o igual al centro del pedido. Otras fuentes no se filtran.">

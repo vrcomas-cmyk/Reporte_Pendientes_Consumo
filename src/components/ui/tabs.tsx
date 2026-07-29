@@ -10,7 +10,11 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
-    className={cn('inline-flex h-9 items-center gap-1 rounded-lg bg-bg-inset p-1 text-text-muted', className)}
+    // `max-w-full overflow-x-auto` + each trigger's own `shrink-0`: on a
+    // narrow viewport (e.g. Admin's 4 tabs at 390px) the list scrolls
+    // horizontally instead of silently clipping the last tab(s) off-screen
+    // with no visible way to reach them.
+    className={cn('inline-flex h-9 max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-bg-inset p-1 text-text-muted', className)}
     {...props}
   />
 ));
@@ -23,7 +27,7 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-colors focus-visible:outline-none data-[state=active]:bg-bg-elevated data-[state=active]:text-text data-[state=active]:shadow-sm',
+      'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-colors focus-visible:outline-none data-[state=active]:bg-bg-elevated data-[state=active]:text-text data-[state=active]:shadow-sm',
       className,
     )}
     {...props}

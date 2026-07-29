@@ -6,15 +6,21 @@ import { AuthGate } from '@/components/auth/AuthGate';
 import { ModuleGuard, AdminGuard } from '@/components/auth/ModuleGuard';
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 import { Toaster } from '@/components/feedback/Toaster';
-import { DashboardPage } from '@/modules/dashboard/DashboardPage';
 import { AnalyticsProvider } from '@/modules/analytics/AnalyticsContext';
 import { PanelHost } from '@/modules/analytics/PanelHost';
 import { useSolicitudStore } from '@/store/solicitudStore';
 
-// Dashboard + shell stay eager for instant first paint. Every other route is
-// code-split so its JS (and heavy deps like recharts/xlsx pulled in transitively)
-// only downloads when the user actually navigates there. Cuts the initial bundle
-// from a single ~1.5 MB chunk to shell + per-view chunks.
+// Only the shell (AppShell/Topbar/Sidebar) stays eager for instant first
+// paint. Every route, INCLUDING Dashboard, is code-split so its JS — and
+// heavy deps pulled in transitively (recharts for Dashboard, ~400KB+; xlsx;
+// duckdb) — only downloads when the user actually navigates there. Dashboard
+// used to be eager "for instant first paint", but with per-role module
+// permissions (see ModuleGuard) a user restricted to a single non-Dashboard
+// module (e.g. Consumo-only, common on a slow mobile connection) never
+// renders it — yet was still paying to download recharts + Dashboard on
+// every load before this. Cuts the initial bundle from a single ~1.5 MB
+// chunk to shell + per-view chunks.
+const DashboardPage = lazy(() => import('@/modules/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const UploadPage = lazy(() => import('@/modules/upload/UploadPage').then((m) => ({ default: m.UploadPage })));
 const GenerarReportePage = lazy(() => import('@/modules/generar/GenerarReportePage').then((m) => ({ default: m.GenerarReportePage })));
 const ComodatoPage = lazy(() => import('@/modules/comodato/ComodatoPage').then((m) => ({ default: m.ComodatoPage })));
@@ -57,7 +63,7 @@ function App() {
             <AnalyticsProvider>
               <Routes>
                 <Route element={<AppShell />}>
-                  <Route path="/" element={<ModuleGuard moduleKey="dashboard"><DashboardPage /></ModuleGuard>} />
+                  <Route path="/" element={<ModuleGuard moduleKey="dashboard"><Suspense fallback={<RouteFallback />}><DashboardPage /></Suspense></ModuleGuard>} />
                   <Route path="/carga" element={<ModuleGuard moduleKey="carga"><Suspense fallback={<RouteFallback />}><UploadPage /></Suspense></ModuleGuard>} />
                   <Route path="/generar" element={<ModuleGuard moduleKey="generar"><Suspense fallback={<RouteFallback />}><GenerarReportePage /></Suspense></ModuleGuard>} />
                   <Route path="/procesamiento" element={<ModuleGuard moduleKey="procesamiento"><Suspense fallback={<RouteFallback />}><ProcessingPage /></Suspense></ModuleGuard>} />

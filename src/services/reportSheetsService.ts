@@ -54,11 +54,12 @@ export async function fetchReportSheetsMeta(): Promise<{ modifiedTime: string }>
  * O(n) main-thread walk + structured-clone of 80k objects across to the
  * worker. Instead the worker receives the dense arrays and does the zip
  * there, where it neither blocks the UI nor pays the clone cost twice. */
-async function fetchReportSheetTab(tab: string, offset?: number): Promise<TabRows> {
+async function fetchReportSheetTab(tab: string, offset?: number, limit?: number): Promise<TabRows> {
   const base = await requireUrl();
-  const url = offset && offset > 0
-    ? `${base}?tab=${encodeURIComponent(tab)}&offset=${offset}`
-    : `${base}?tab=${encodeURIComponent(tab)}`;
+  const params = new URLSearchParams({ tab });
+  if (offset && offset > 0) params.set('offset', String(offset));
+  if (limit && limit > 0) params.set('limit', String(limit));
+  const url = `${base}?${params.toString()}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} al leer la pestaña "${tab}".`);
   const data = await res.json();
@@ -74,6 +75,52 @@ async function fetchReportSheetTab(tab: string, offset?: number): Promise<TabRow
       `Formato de respuesta inesperado en la pestaña "${tab}" — ¿el Apps Script tiene desplegada la última versión? (ver docs/apps-script-report-sheets.md)`,
     );
   }
+  return { headers, rows, rowCount };
+}
+
+/** Rows per Apps Script request once a tab needs more than one page (i.e. the
+ * first-ever sync, or after "Sincronización completa"). The Apps Script
+ * `doGet` already accepts `?limit=` (see docs/apps-script-report-sheets.md)
+ * but the client used to always omit it and ask for "everything from offset
+ * to the end" in a single call — for the ~80k-row "Reporte de Consumo" tab
+ * that's one huge `getValues()` + `JSON.stringify()` inside a single Apps
+ * Script execution, which is slow and risks hitting Apps Script's execution
+ * time limit outright (the "no está siendo funcional" symptom). Paginating
+ * client-side turns that into several smaller, faster executions instead —
+ * and if an older deployment ignores `limit` and returns everything anyway,
+ * the loop below still terminates correctly on the first page (offset
+ * advances by however many rows actually came back). */
+const TAB_PAGE_SIZE = 20_000;
+
+/** Fetches every row of a tab starting at `offset`, in pages of
+ * `TAB_PAGE_SIZE`, calling `onPage` after each page lands so the caller can
+ * report finer-grained progress than "waiting on the whole tab" for the
+ * large ones. Returns the same `{ headers, rows, rowCount }` shape as a
+ * single `fetchReportSheetTab` call would, with `rows` being everything
+ * collected across all pages. */
+async function fetchReportSheetTabPaginated(
+  tab: string,
+  offset: number,
+  onPage?: (rowsSoFar: number, rowCount: number | undefined) => void,
+): Promise<TabRows> {
+  let cursor = offset;
+  let headers: string[] = [];
+  const rows: unknown[][] = [];
+  let rowCount: number | undefined;
+
+  for (;;) {
+    const page = await fetchReportSheetTab(tab, cursor, TAB_PAGE_SIZE);
+    headers = page.headers;
+    rowCount = page.rowCount;
+    rows.push(...page.rows);
+    onPage?.(rows.length, rowCount);
+
+    if (page.rows.length === 0) break; // nothing more, or an unpaginated deployment already returned everything on page 1
+    cursor += page.rows.length;
+    if (typeof rowCount === 'number' && cursor - offset >= rowCount - offset) break; // caught up to the reported total
+    if (page.rows.length < TAB_PAGE_SIZE) break; // short page with no rowCount to check against — nothing left
+  }
+
   return { headers, rows, rowCount };
 }
 
@@ -190,13 +237,30 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
     async function processTab(role: SheetRole, tab: string, index: number): Promise<void> {
       const cached = forceFull ? undefined : await getCachedTab(tab);
       const offset = cached?.rows.length ?? 0;
-      let tabRows = await fetchReportSheetTab(tab, offset);
+
+      // Per-PAGE progress (not just per-tab): a cold "Reporte de Consumo"
+      // sync (~80k rows, no cache yet) used to sit at the same percent for
+      // however long that one giant request took. Now it's several smaller
+      // requests, so report fractional progress within this tab's slot too.
+      const reportPage = (rowsSoFar: number, rowCount: number | undefined) => {
+        const remaining = typeof rowCount === 'number' ? Math.max(1, rowCount - offset) : null;
+        const tabFrac = remaining ? Math.min(1, rowsSoFar / remaining) : 0;
+        emit({
+          phase: 'parsing',
+          percent: Math.round(10 + (60 * (done + tabFrac)) / tabs.length),
+          message: remaining && remaining > TAB_PAGE_SIZE
+            ? `${ROLE_LABEL[role]}: ${rowsSoFar.toLocaleString('es-MX')} de ${remaining.toLocaleString('es-MX')} filas…`
+            : `${ROLE_LABEL[role]} (${done} de ${tabs.length})`,
+        });
+      };
+
+      let tabRows = await fetchReportSheetTabPaginated(tab, offset, reportPage);
 
       // If the sheet shrank (rows deleted/replaced) since the last sync, the
       // delta window starting at the old offset is meaningless — re-fetch the
       // whole tab. Also happens when `cached.rowCount` lagged behind reality.
       if (offset > 0 && typeof tabRows.rowCount === 'number' && tabRows.rowCount < offset) {
-        tabRows = await fetchReportSheetTab(tab, 0);
+        tabRows = await fetchReportSheetTabPaginated(tab, 0, reportPage);
       }
 
       const combinedRows = offset > 0 ? [...(cached?.rows ?? []), ...tabRows.rows] : tabRows.rows;

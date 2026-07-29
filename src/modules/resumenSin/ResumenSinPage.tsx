@@ -141,7 +141,7 @@ export function ResumenSinPage() {
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden p-5">
       <div className="flex items-start justify-between gap-2">
-        <div><h2 className="font-display text-2xl font-semibold">Resumen Sin Sugerencias</h2>
+        <div><h2 className="font-display text-2xl font-semibold">Inventario</h2>
           <p className="text-sm text-text-muted">Pivote material × centro · inventario general (1030+1031+1060)</p></div>
         <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
       </div>

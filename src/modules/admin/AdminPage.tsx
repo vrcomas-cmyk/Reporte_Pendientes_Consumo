@@ -3,6 +3,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { toast } from '@/store/toastStore';
 import { MODULE_COLUMNS, MODULE_DETAILS } from '@/core/permissionsRegistry';
 import type { PermissionRow, RoleRow } from '@/core/permissions';
@@ -75,6 +77,8 @@ function UsuariosTab() {
     }
   };
 
+  const [pendingRemove, setPendingRemove] = useState<string | null>(null);
+
   const handleRemove = async (userEmail: string) => {
     try {
       await removeUser(userEmail);
@@ -82,6 +86,8 @@ function UsuariosTab() {
       toast.success('Removido', `${userEmail} ya no tiene acceso.`);
     } catch (e) {
       toast.error('No se pudo remover', e instanceof Error ? e.message : String(e));
+    } finally {
+      setPendingRemove(null);
     }
   };
 
@@ -100,20 +106,28 @@ function UsuariosTab() {
           {users.map((u) => (
             <div key={u.email} className="flex items-center gap-3 px-3 py-2 text-sm">
               <span className="min-w-0 flex-1 truncate">{u.email}</span>
-              <select
+              <Select
                 value={u.roleId ?? ''}
                 onChange={(e) => handleRoleChange(u.email, e.target.value)}
-                className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs"
+                className="h-8 w-auto text-xs"
               >
                 <option value="">Sin restricción</option>
                 {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
-              <Button size="sm" variant="ghost" className="text-danger" onClick={() => handleRemove(u.email)}>Quitar</Button>
+              </Select>
+              <Button size="sm" variant="ghost" className="text-danger" onClick={() => setPendingRemove(u.email)}>Quitar</Button>
             </div>
           ))}
           {!users.length && <div className="px-3 py-4 text-xs text-text-faint">Sin invitados todavía.</div>}
         </div>
       </CardContent>
+      <ConfirmDialog
+        open={pendingRemove !== null}
+        title="¿Quitar acceso a este usuario?"
+        description={pendingRemove ? `${pendingRemove} ya no podrá entrar con Google hasta que lo vuelvas a invitar.` : undefined}
+        confirmLabel="Quitar acceso"
+        onConfirm={() => pendingRemove && handleRemove(pendingRemove)}
+        onCancel={() => setPendingRemove(null)}
+      />
     </Card>
   );
 }
@@ -173,6 +187,8 @@ function PermissionsTab({ subjectType }: { subjectType: 'role' | 'user' }) {
     }
   };
 
+  const [confirmDeleteRole, setConfirmDeleteRole] = useState(false);
+
   const handleDeleteRole = async () => {
     if (!subjectId) return;
     try {
@@ -181,6 +197,8 @@ function PermissionsTab({ subjectType }: { subjectType: 'role' | 'user' }) {
       setSubjectId('');
     } catch (e) {
       toast.error('No se pudo borrar el rol', e instanceof Error ? e.message : String(e));
+    } finally {
+      setConfirmDeleteRole(false);
     }
   };
 
@@ -198,19 +216,19 @@ function PermissionsTab({ subjectType }: { subjectType: 'role' | 'user' }) {
         <div className="flex items-center gap-2">
           {subjectType === 'role' ? (
             <>
-              <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
+              <Select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="w-auto">
                 <option value="">Elige un rol…</option>
                 {roles.filter((r) => !r.isAdmin).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
+              </Select>
               <Input value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} placeholder="Nuevo rol…" className="max-w-40" />
               <Button size="sm" variant="outline" onClick={handleCreateRole} disabled={!newRoleName.trim()}>Crear rol</Button>
-              {subjectId && <Button size="sm" variant="ghost" className="ml-auto text-danger" onClick={handleDeleteRole}>Borrar rol</Button>}
+              {subjectId && <Button size="sm" variant="ghost" className="ml-auto text-danger" onClick={() => setConfirmDeleteRole(true)}>Borrar rol</Button>}
             </>
           ) : (
-            <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
+            <Select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="w-auto">
               <option value="">Elige un usuario…</option>
               {users.map((u) => <option key={u.email} value={u.email}>{u.email}</option>)}
-            </select>
+            </Select>
           )}
         </div>
 
@@ -267,6 +285,16 @@ function PermissionsTab({ subjectType }: { subjectType: 'role' | 'user' }) {
           </div>
         )}
       </CardContent>
+      {subjectType === 'role' && (
+        <ConfirmDialog
+          open={confirmDeleteRole}
+          title="¿Borrar este rol?"
+          description={`Todos los permisos configurados para "${roles.find((r) => r.id === subjectId)?.name ?? ''}" se pierden, y cualquier usuario con este rol asignado queda sin restricciones (acceso total) hasta que le asignes otro.`}
+          confirmLabel="Borrar rol"
+          onConfirm={handleDeleteRole}
+          onCancel={() => setConfirmDeleteRole(false)}
+        />
+      )}
     </Card>
   );
 }

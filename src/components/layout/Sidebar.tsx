@@ -30,16 +30,20 @@ import { canViewModule } from '@/core/permissions';
 
 // `moduleKey` matches the route path minus the leading slash ('/' -> 'dashboard')
 // and `degasa_modules.key` — see supabase/migrations/0002_permissions_and_connectors.sql.
-const NAV = [
+// Exported as the single source of truth for route labels: Topbar derives its
+// header title from this (with its own nicer-copy overrides) instead of
+// keeping a second, easily-stale label map — that duplication is exactly how
+// 7 of 15 routes ended up silently falling back to the bare "DEGASA" wordmark.
+export const NAV = [
   { to: '/', moduleKey: 'dashboard', label: 'Panel', icon: LayoutDashboard, end: true },
   { to: '/carga', moduleKey: 'carga', label: 'Carga', icon: UploadCloud },
   { to: '/generar', moduleKey: 'generar', label: 'Generar reporte', icon: Wand2 },
   { to: '/procesamiento', moduleKey: 'procesamiento', label: 'Procesamiento', icon: Loader2 },
   { to: '/resultados', moduleKey: 'resultados', label: 'Resultados', icon: Table2 },
-  { to: '/sugerencias', moduleKey: 'sugerencias', label: 'Sugerencias', icon: ClipboardList },
+  { to: '/sugerencias', moduleKey: 'sugerencias', label: 'Pedidos', icon: ClipboardList },
   { to: '/consumo', moduleKey: 'consumo', label: 'Consumo', icon: Activity },
-  { to: '/resumen-sin', moduleKey: 'resumen-sin', label: 'Resumen Sin Sug.', icon: Grid3x3 },
-  { to: '/inventario', moduleKey: 'inventario', label: 'Inventario', icon: Boxes },
+  { to: '/resumen-sin', moduleKey: 'resumen-sin', label: 'Inventario', icon: Grid3x3 },
+  { to: '/inventario', moduleKey: 'inventario', label: 'Inv Condición', icon: Boxes },
   { to: '/analisis', moduleKey: 'analisis', label: 'Análisis', icon: LineChart },
   { to: '/comodato', moduleKey: 'comodato', label: 'Comodato vs. Fac.', icon: HandCoins },
   { to: '/solicitudes', moduleKey: 'solicitudes', label: 'Solicitudes DRP', icon: Truck },
@@ -47,6 +51,10 @@ const NAV = [
   { to: '/registros', moduleKey: 'registros', label: 'Registros', icon: ScrollText },
   { to: '/ajustes', moduleKey: 'ajustes', label: 'Ajustes', icon: Settings },
 ];
+
+// Not module-gated by permission (see ModuleGuard/AdminGuard), so it isn't
+// part of NAV — but the Topbar still needs its label for the header title.
+export const ADMIN_NAV_ITEM = { to: '/admin', label: 'Administración' };
 
 interface SidebarProps {
   /** True while the mobile drawer (< md) is open. Ignored at md+ where the
@@ -149,7 +157,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
           ))}
           {perms.isAdmin && (
             <NavLink
-              to="/admin"
+              to={ADMIN_NAV_ITEM.to}
               onClick={() => onCloseMobile?.()}
               className={({ isActive }) =>
                 cn(
@@ -161,7 +169,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
               {({ isActive }) => (
                 <>
                   <ShieldCheck className={cn('size-4 shrink-0', isActive && 'text-accent')} />
-                  {expanded && <span className="truncate">Administración</span>}
+                  {expanded && <span className="truncate">{ADMIN_NAV_ITEM.label}</span>}
                 </>
               )}
             </NavLink>

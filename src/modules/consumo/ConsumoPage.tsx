@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, Download } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead } from '@/components/ui/table';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useSort } from '@/hooks/useSort';
@@ -292,9 +293,9 @@ export function ConsumoPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <DebouncedSearch onChange={setQ} placeholder="Buscar…" />
-        <select value={estado} onChange={(ev) => setEstado(ev.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
+        <Select value={estado} onChange={(ev) => setEstado(ev.target.value)} className="w-auto">
           <option value="">Estado (todos)</option>{ESTADOS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </select>
+        </Select>
       </div>
       <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
 

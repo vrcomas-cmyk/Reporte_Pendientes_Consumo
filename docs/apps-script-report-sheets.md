@@ -158,3 +158,21 @@ numRows, cols)` en vez de `getDataRange().getValues()` — la lectura de
 rango parcial es proporcional a las filas pedidas, no a las totales de la
 hoja, así que pedir 100 filas nuevas cuesta ~100/80000 de lo que costaría
 pedirlas todas.
+
+## 6. Paginación por chunks (`?limit=`)
+
+El `getTabRows` de arriba ya acepta `?limit=` desde el paso 1 (junto con
+`?offset=`), pero el portal antes nunca lo mandaba: pedía "todo desde offset
+hasta el final" en una sola llamada. Para una sync en frío de "Reporte de
+Consumo" (~80k filas, sin caché todavía) eso es un solo `getValues()` +
+`JSON.stringify()` gigante dentro de UNA ejecución de Apps Script — lento, y
+con riesgo real de toparse con el límite de tiempo de ejecución de Apps
+Script (el síntoma de "se tarda mucho y no carga").
+
+Ahora `reportSheetsService.ts` pide cada pestaña en páginas de 20,000 filas
+(`TAB_PAGE_SIZE`), acumulando hasta llegar al `rowCount` reportado. **No
+requiere volver a desplegar el script** — como ya soporta `limit`, el cliente
+simplemente empezó a usarlo. Si por alguna razón el script desplegado es una
+versión vieja que ignora `limit` (antes de este doc), el loop del cliente
+sigue funcionando igual: recibe todo en la primera "página" y se detiene ahí,
+solo sin el beneficio de repartir la carga en ejecuciones más chicas.
