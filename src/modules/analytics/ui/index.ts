@@ -14,3 +14,4 @@ export { useColumnVisibility, ColumnVisibilityControl } from './ColumnVisibility
 export type { ColDef } from './ColumnVisibility';
 export { useSavedViews, SavedViewsControl } from './SavedViews';
 export type { SavedView } from './SavedViews';
+export { RowContextMenu } from './RowContextMenu';

@@ -21,6 +21,7 @@ import { useSolicitudStore } from '@/store/solicitudStore';
 // every load before this. Cuts the initial bundle from a single ~1.5 MB
 // chunk to shell + per-view chunks.
 const DashboardPage = lazy(() => import('@/modules/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const HoyPage = lazy(() => import('@/modules/dashboard/HoyPage').then((m) => ({ default: m.HoyPage })));
 const UploadPage = lazy(() => import('@/modules/upload/UploadPage').then((m) => ({ default: m.UploadPage })));
 const GenerarReportePage = lazy(() => import('@/modules/generar/GenerarReportePage').then((m) => ({ default: m.GenerarReportePage })));
 const ComodatoPage = lazy(() => import('@/modules/comodato/ComodatoPage').then((m) => ({ default: m.ComodatoPage })));
@@ -64,6 +65,7 @@ function App() {
               <Routes>
                 <Route element={<AppShell />}>
                   <Route path="/" element={<ModuleGuard moduleKey="dashboard"><Suspense fallback={<RouteFallback />}><DashboardPage /></Suspense></ModuleGuard>} />
+                  <Route path="/hoy" element={<ModuleGuard moduleKey="hoy"><Suspense fallback={<RouteFallback />}><HoyPage /></Suspense></ModuleGuard>} />
                   <Route path="/carga" element={<ModuleGuard moduleKey="carga"><Suspense fallback={<RouteFallback />}><UploadPage /></Suspense></ModuleGuard>} />
                   <Route path="/generar" element={<ModuleGuard moduleKey="generar"><Suspense fallback={<RouteFallback />}><GenerarReportePage /></Suspense></ModuleGuard>} />
                   <Route path="/procesamiento" element={<ModuleGuard moduleKey="procesamiento"><Suspense fallback={<RouteFallback />}><ProcessingPage /></Suspense></ModuleGuard>} />

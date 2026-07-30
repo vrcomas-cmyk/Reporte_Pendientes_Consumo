@@ -4,12 +4,12 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead } from '@/components/ui/table';
-import { cn, formatCurrency, formatNumber } from '@/lib/utils';
+import { cn, formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
 import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { buildLotesSheet } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom } from '@/modules/analytics/ui';
+import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { norm, matchesQuery } from '@/modules/analytics/helpers';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useSort } from '@/hooks/useSort';
@@ -52,7 +52,15 @@ export function InventarioPage() {
   const [centro, setCentro] = useState('');
   const [isAdmin, setIsAdmin] = useState(readAdmin);
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
+  const [quick, setQuick] = useState<ActiveFilter[]>([]);
   const zoom = useZoom();
+
+  // Vistas guardadas: snapshot de filtros (condicion/sector/centro/quick), persistido entre sesiones.
+  const savedViews = useSavedViews<{ cond: string; sector: string; centro: string; quick: ActiveFilter[] }>('inventario_vistas');
+  const applyView = (state: { cond: string; sector: string; centro: string; quick: ActiveFilter[] }) => {
+    setCond(state.cond); setSector(state.sector); setCentro(state.centro); setQuick(state.quick);
+  };
+  const saveCurrentView = (name: string) => savedViews.save(name, { cond, sector, centro, quick });
   const qd = useDebouncedValue(q, 200);
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
@@ -65,6 +73,44 @@ export function InventarioPage() {
     }
     return set;
   }, [solicitudesList]);
+
+  // #7: consumo reciente por material (+ mejor cliente al que ofrecer), para
+  // cruzar contra los lotes por vencer y priorizar los que sí tienen demanda
+  // en vez de ofrecerlos al azar.
+  const consumoPorMaterial = useMemo(() => {
+    const m = new Map<string, { total: number; clientes: Map<string, { razon: string; destinatario: string; consumo: number }> }>();
+    (a.result?.consumo ?? []).forEach((r) => {
+      if (!(r.consumoActual > 0)) return;
+      const key = norm(r.material);
+      let o = m.get(key);
+      if (!o) { o = { total: 0, clientes: new Map() }; m.set(key, o); }
+      o.total += r.consumoActual;
+      const ck = norm(r.destinatario);
+      const c = o.clientes.get(ck) || { razon: r.razonSocial, destinatario: r.destinatario, consumo: 0 };
+      c.consumo += r.consumoActual;
+      o.clientes.set(ck, c);
+    });
+    return m;
+  }, [a.result]);
+
+  const lotesPorVencer = useMemo(() => {
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    return a.lotes
+      .map((l) => {
+        if (!l.fechaCaducidad) return null;
+        const d = new Date(l.fechaCaducidad);
+        if (Number.isNaN(d.getTime())) return null;
+        d.setHours(0, 0, 0, 0);
+        const dias = Math.round((d.getTime() - now.getTime()) / 86400000);
+        if (dias < 0 || dias > 90) return null;
+        const cons = consumoPorMaterial.get(norm(l.material));
+        const topCliente = cons ? [...cons.clientes.values()].sort((x, y) => y.consumo - x.consumo)[0] : undefined;
+        return { ...l, dias, demanda: cons?.total ?? 0, topCliente };
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x)
+      .sort((x, y) => (y.demanda > 0 ? 1 : 0) - (x.demanda > 0 ? 1 : 0) || x.dias - y.dias)
+      .slice(0, 20);
+  }, [a.lotes, consumoPorMaterial]);
 
   useEffect(() => { writeAdmin(isAdmin); }, [isAdmin]);
 
@@ -81,16 +127,26 @@ export function InventarioPage() {
   const conds = useMemo(() => [...new Set(rows.map((r) => r.condicion).filter(Boolean))].sort(), [rows]);
   const sectores = useMemo(() => [...new Set(rows.map((r) => a.enrich.matSector(r.material) || r.sector).filter(Boolean))].sort(), [rows, a.enrich]);
 
+  // Condición/Sector/Centro ya tienen su propio dropdown arriba — esta barra
+  // cubre el resto de columnas/subcolumnas visibles en la tabla.
+  const filterCols: FilterColumn<(typeof rows)[number]>[] = useMemo(() => [
+    { key: 'material', label: 'Material', get: (r) => r.material },
+    { key: 'descripcion', label: 'Descripción', get: (r) => r.textoBreve },
+    { key: 'grupoart', label: 'Grupo artículo', get: (r) => a.enrich.matGrupo(r.material) || r.grupo },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [a.enrich]);
+
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (cond && norm(r.condicion) !== cond) return false;
       if (sector && (a.enrich.matSector(r.material) || r.sector) !== sector) return false;
       if (centro && !(r.invByCenter[centro] > 0)) return false;
+      if (!passesFilters(r, filterCols, quick)) return false;
       if (qd && !matchesQuery(qd, `${r.material} ${r.textoBreve}`)) return false;
       if (!isAdmin && hidden.has(rowKey(r.material, r.condicion))) return false;
       return true;
     });
-  }, [rows, qd, cond, sector, centro, a.enrich, isAdmin, hidden]);
+  }, [rows, qd, cond, sector, centro, a.enrich, isAdmin, hidden, filterCols, quick]);
 
   const kpis = useMemo(() => {
     const mats = new Set(filtered.map((r) => norm(r.material)));
@@ -114,6 +170,21 @@ export function InventarioPage() {
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
   const colCount = (isAdmin ? 1 : 0) + 5 + 2 + CENTERS.length + 1 + 1;
+
+  // Fixed pixel widths for the sticky (frozen) columns — the previous
+  // hardcoded `left-[Npx]` offsets assumed specific column widths, but those
+  // columns auto-sized to content (and the shared <Table> colgroup only ever
+  // grows column widths, never shrinks them back), so as soon as real data
+  // made one of them wider than assumed, every sticky column after it drifted
+  // out of alignment with the header on horizontal scroll. Giving each a
+  // fixed width (+ truncate) keeps the offsets always accurate, and also
+  // accounts for the admin toggle column, which the old offsets ignored.
+  const ADMIN_W = 36, MATERIAL_W = 160, CONDICION_W = 110, SECTOR_W = 140, PRECIO_W = 90;
+  const adminLeft = 0;
+  const materialLeft = isAdmin ? ADMIN_W : 0;
+  const condicionLeft = materialLeft + MATERIAL_W;
+  const sectorLeft = condicionLeft + CONDICION_W;
+  const precioLeft = sectorLeft + SECTOR_W;
 
   if (!rows.length) {
     return <EmptyState title={'No hay datos de "Inventario por condición".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
@@ -148,7 +219,10 @@ export function InventarioPage() {
       <div className="flex items-start justify-between gap-2">
         <div><h2 className="font-display text-2xl font-semibold">Inv Condición</h2>
           <p className="text-sm text-text-muted">{formatNumber(filtered.length)} renglones · clic en cantidad = lotes del material</p></div>
-        <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
+        <div className="flex items-center gap-2">
+          <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
+          <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-start gap-3">
@@ -159,6 +233,51 @@ export function InventarioPage() {
         </div>
         <Ranking title="Top 10 por Importe $" items={kpis.rk} money wide onRow={(m) => open({ type: 'material', material: m })} className="min-w-[420px] flex-1" />
       </div>
+
+      {lotesPorVencer.length > 0 && (
+        <Card className="p-3">
+          <h4 className="mb-2 text-xs font-semibold text-text-muted">
+            Lotes por vencer (≤90 días) con demanda activa · {lotesPorVencer.length}
+          </h4>
+          <div>
+            <Table wrapperClassName="max-h-56 rounded-lg border border-border">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Material</TableHead><TableHead>Lote / Centro</TableHead>
+                  <TableHead className="text-right">Disp.</TableHead><TableHead>Vence</TableHead>
+                  <TableHead className="text-right">Consumo/mes</TableHead><TableHead>Ofrecer a</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lotesPorVencer.map((l, i) => (
+                  <RowContextMenu
+                    key={i}
+                    label={l.material}
+                    onVerDetalle={() => open({ type: 'material', material: l.material })}
+                    copyItems={[{ label: 'Material', value: l.material }, { label: 'Lote', value: l.lote }, { label: 'Cliente', value: l.topCliente?.razon ?? '' }]}
+                  >
+                    <TableRow className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'material', material: l.material })}>
+                      <TableCell><Chip onClick={() => open({ type: 'material', material: l.material })}>{l.material}</Chip><div className="text-[11px] text-text-faint max-w-56 truncate">{l.textoBreve}</div></TableCell>
+                      <TableCell className="whitespace-nowrap text-xs">{l.lote || '—'} · {l.centro}</TableCell>
+                      <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-xs">
+                        <StatePill label={l.dias <= 31 ? `${l.dias} d` : `${l.dias} d`} cls={l.dias <= 31 ? 'rojo' : l.dias <= 60 ? 'amb' : 'gris'} />
+                        <div className="text-[10px] text-text-faint">{formatFechaCaducidad(l.fechaCaducidad)}</div>
+                      </TableCell>
+                      <TableCell className="text-right">{l.demanda > 0 ? formatNumber(l.demanda) : <span className="text-text-faint">sin demanda</span>}</TableCell>
+                      <TableCell className="max-w-48 truncate text-xs">
+                        {l.topCliente
+                          ? <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: l.topCliente!.destinatario })}>{l.topCliente.razon || l.topCliente.destinatario}</Chip>
+                          : <span className="text-text-faint">—</span>}
+                      </TableCell>
+                    </TableRow>
+                  </RowContextMenu>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-64"><Search className="absolute left-2.5 top-2.5 size-3.5 text-text-faint" />
@@ -184,16 +303,18 @@ export function InventarioPage() {
         <div className="ml-auto"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
       </div>
 
+      <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
+
       <Card className="min-h-0 flex-1 overflow-hidden">
         <div ref={scrollRef} className="h-full overflow-auto">
           <Table className={zoom.className} wrapperClassName="overflow-visible">
             <TableHeader>
               <TableRow>
-                {isAdmin && <TableHead></TableHead>}
-                <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky left-0 z-20 bg-bg-elevated">Material</SortableTableHead>
-                <SortableTableHead sortKey="condicion" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky left-[140px] z-20 bg-bg-elevated">Condición</SortableTableHead>
-                <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky left-[260px] z-20 bg-bg-elevated">Sector/Grupo</SortableTableHead>
-                <SortableTableHead sortKey="precio" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky left-[400px] z-20 bg-bg-elevated text-right">Precio</SortableTableHead>
+                {isAdmin && <TableHead className="sticky z-20 bg-bg-elevated" style={{ left: adminLeft, width: ADMIN_W, minWidth: ADMIN_W }}></TableHead>}
+                <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: materialLeft, width: MATERIAL_W, minWidth: MATERIAL_W }}>Material</SortableTableHead>
+                <SortableTableHead sortKey="condicion" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: condicionLeft, width: CONDICION_W, minWidth: CONDICION_W }}>Condición</SortableTableHead>
+                <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: sectorLeft, width: SECTOR_W, minWidth: SECTOR_W }}>Sector/Grupo</SortableTableHead>
+                <SortableTableHead sortKey="precio" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated text-right" style={{ left: precioLeft, width: PRECIO_W, minWidth: PRECIO_W }}>Precio</SortableTableHead>
                 <SortableTableHead sortKey="disp3130" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Disp 31·30</SortableTableHead>
                 <SortableTableHead sortKey="disp3132" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Disp 31·32</SortableTableHead>
                 {CENTERS.map((c) => <TableHead key={c} className="text-right">Inv {c}</TableHead>)}
@@ -238,7 +359,7 @@ export function InventarioPage() {
                   >
                   <TableRow className={cn(isAdmin && isHidden && 'opacity-40')}>
                     {isAdmin && (
-                      <TableCell>
+                      <TableCell className="sticky z-10 bg-bg-elevated" style={{ left: adminLeft, width: ADMIN_W, minWidth: ADMIN_W }}>
                         <button
                           type="button"
                           title={isHidden ? 'Mostrar' : 'Ocultar'}
@@ -249,10 +370,10 @@ export function InventarioPage() {
                         </button>
                       </TableCell>
                     )}
-                    <TableCell className="sticky left-0 z-10 bg-bg-elevated"><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoBreve}</div></TableCell>
-                    <TableCell className="sticky left-[140px] z-10 bg-bg-elevated"><StatePill label={r.condicion || '—'} cls={corta ? 'rojo' : 'gris'} /></TableCell>
-                    <TableCell className="sticky left-[260px] z-10 bg-bg-elevated">{a.enrich.matSector(r.material) || r.sector || '—'}<div className="text-[11px] text-text-faint">{a.enrich.matGrupo(r.material) || r.grupo}</div></TableCell>
-                    <TableCell className="sticky left-[400px] z-10 bg-bg-elevated text-right">{r.precioOferta ? formatCurrency(r.precioOferta) : '—'}</TableCell>
+                    <TableCell className="sticky z-10 truncate bg-bg-elevated" style={{ left: materialLeft, width: MATERIAL_W, minWidth: MATERIAL_W }}><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="truncate text-[11px] text-text-faint">{r.textoBreve}</div></TableCell>
+                    <TableCell className="sticky z-10 bg-bg-elevated" style={{ left: condicionLeft, width: CONDICION_W, minWidth: CONDICION_W }}><StatePill label={r.condicion || '—'} cls={corta ? 'rojo' : 'gris'} /></TableCell>
+                    <TableCell className="sticky z-10 truncate bg-bg-elevated" style={{ left: sectorLeft, width: SECTOR_W, minWidth: SECTOR_W }}>{a.enrich.matSector(r.material) || r.sector || '—'}<div className="truncate text-[11px] text-text-faint">{a.enrich.matGrupo(r.material) || r.grupo}</div></TableCell>
+                    <TableCell className="sticky z-10 bg-bg-elevated text-right" style={{ left: precioLeft, width: PRECIO_W, minWidth: PRECIO_W }}>{r.precioOferta ? formatCurrency(r.precioOferta) : '—'}</TableCell>
                     <TableCell className="text-right">{formatNumber(r.disponible31_30)}</TableCell>
                     <TableCell className="text-right">{formatNumber(r.disponible31_32)}</TableCell>
                     {CENTERS.map((c) => (

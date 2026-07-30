@@ -150,8 +150,8 @@
     "semantic_hash": ""
   },
   "src/modules/analisis/AnalisisPage.tsx": {
-    "mtime": 1784903168.4004617,
-    "ast_hash": "e55c5a5ebe7fe8d57a01bee72a2295ac",
+    "mtime": 1785380063.5715947,
+    "ast_hash": "d21fe440e3b45b291f24833423cef349",
     "semantic_hash": ""
   },
   "src/modules/analytics/AnalyticsContext.tsx": {
@@ -170,8 +170,8 @@
     "semantic_hash": ""
   },
   "src/modules/consumo/ConsumoPage.tsx": {
-    "mtime": 1785298409.1639316,
-    "ast_hash": "29797c689281220d4b76e025247aedaf",
+    "mtime": 1785365594.1086664,
+    "ast_hash": "0b880fc52d8fb6288d818c718eeebf6f",
     "semantic_hash": ""
   },
   "src/modules/dashboard/DashboardPage.tsx": {
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "src/modules/inventario/InventarioPage.tsx": {
-    "mtime": 1785300732.1474805,
-    "ast_hash": "df95e15b5ba6d1ed7ddf69a8bca787e3",
+    "mtime": 1785379158.921518,
+    "ast_hash": "17783a5b99d47ca541947405512831ee",
     "semantic_hash": ""
   },
   "src/modules/processing/ProcessingPage.tsx": {
@@ -205,13 +205,13 @@
     "semantic_hash": ""
   },
   "src/modules/results/ResultsPage.tsx": {
-    "mtime": 1784907285.455576,
-    "ast_hash": "ddc7dc308006f1d4a95e032cebba4599",
+    "mtime": 1785379934.9953916,
+    "ast_hash": "abf5e9f17e909982b29b8c1d253fded5",
     "semantic_hash": ""
   },
   "src/modules/resumenSin/ResumenSinPage.tsx": {
-    "mtime": 1785300708.6806948,
-    "ast_hash": "b0a7b09d883c16854b3e6f37fac033df",
+    "mtime": 1785359643.310883,
+    "ast_hash": "2114b833f2bb467a0979c12b3596d8fc",
     "semantic_hash": ""
   },
   "src/modules/settings/SettingsPage.tsx": {
@@ -220,8 +220,8 @@
     "semantic_hash": ""
   },
   "src/modules/sugerencias/SugerenciasPage.tsx": {
-    "mtime": 1785346258.5780106,
-    "ast_hash": "a8c69959e9ce1927ed430f0fe44049d0",
+    "mtime": 1785359609.5902362,
+    "ast_hash": "4f4a283a9c92b23d64bc151c3d05b9a2",
     "semantic_hash": ""
   },
   "src/modules/upload/UploadPage.tsx": {
@@ -420,8 +420,8 @@
     "semantic_hash": ""
   },
   "src/modules/comodato/ComodatoPage.tsx": {
-    "mtime": 1784903168.42537,
-    "ast_hash": "154ba452f738c9d92c038e3dbb7e3462",
+    "mtime": 1785379969.1921642,
+    "ast_hash": "c33d16820f76d5997d2453ed86430faa",
     "semantic_hash": ""
   },
   "src/modules/generar/GenerarReportePage.tsx": {
@@ -610,8 +610,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/SectorPanel.tsx": {
-    "mtime": 1784878915.1596005,
-    "ast_hash": "946ff92982709f9a883d4c83f5d42e3a",
+    "mtime": 1785379430.7289734,
+    "ast_hash": "984c71b43eff39267bc54fe3ee246a5b",
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/SugDetallePanel.tsx": {
@@ -620,8 +620,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/_shared.tsx": {
-    "mtime": 1784907256.3538878,
-    "ast_hash": "bce76b1faec96d16c2523bf3bf450d26",
+    "mtime": 1785379313.7010553,
+    "ast_hash": "040ef1dc396d216692fc6c8788b7f2d4",
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/Chip.tsx": {
@@ -660,8 +660,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/Ranking.tsx": {
-    "mtime": 1784878915.2038617,
-    "ast_hash": "e18e28a25cba836c8f7a6a2795f3758f",
+    "mtime": 1785365738.207251,
+    "ast_hash": "c40633dac0802e76ee32dbfd28ade184",
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/StatTile.tsx": {
@@ -680,8 +680,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/index.ts": {
-    "mtime": 1785338373.9999154,
-    "ast_hash": "74ff3d9b9fb37029e340289aeac6ac27",
+    "mtime": 1785379908.831436,
+    "ast_hash": "8a70e814e9cba2948eb89e806a493d4e",
     "semantic_hash": ""
   },
   "src/components/navigation/CheatsheetDialog.tsx": {
@@ -705,8 +705,8 @@
     "semantic_hash": ""
   },
   "src/core/comercial.ts": {
-    "mtime": 1784903168.3238418,
-    "ast_hash": "591e20c74d56bc57100d6d54bcc42e4e",
+    "mtime": 1785379755.1049392,
+    "ast_hash": "1b9584ddaaa3dd835ab3a233dfb45eeb",
     "semantic_hash": ""
   },
   "src/hooks/useAuth.ts": {
@@ -780,8 +780,8 @@
     "semantic_hash": ""
   },
   "src/services/reportSheetsService.ts": {
-    "mtime": 1785300484.0027928,
-    "ast_hash": "1380169a72f296beb797b83b8b9f491c",
+    "mtime": 1785346860.8996916,
+    "ast_hash": "d5f5985e3738a3f6386bd4fc780bd9e8",
     "semantic_hash": ""
   },
   "docs/apps-script-report-sheets.md": {
@@ -2267,6 +2267,11 @@
   "src/modules/analytics/ui/SavedViews.tsx": {
     "mtime": 1785338369.6374862,
     "ast_hash": "a7d8aa8668df029e42c2691b70ce3ce7",
+    "semantic_hash": ""
+  },
+  "src/modules/analytics/ui/RowContextMenu.tsx": {
+    "mtime": 1785379900.0442908,
+    "ast_hash": "ffdad6532d1cec2ad332c78c40fda226",
     "semantic_hash": ""
   }
 }

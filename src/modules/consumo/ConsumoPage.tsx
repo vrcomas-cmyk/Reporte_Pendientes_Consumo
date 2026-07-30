@@ -11,7 +11,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useSavedViews, SavedViewsControl, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { ESTADOS, mesKey, mesLabel, clasificarEstado, tendenciaTexto, mesRefQAnterior, mesAnterior, hoyMes, type Serie, type Estado, type Tendencia } from '@/core/resumenFac';
 import { norm, num, searchNorm, consumoEnrich, consumoSerie, matchesQueryNormalized, RC, pickField } from '@/modules/analytics/helpers';
 import type { ConsumoRow } from '@/core/types';
@@ -25,6 +25,20 @@ import { useSolicitudStore } from '@/store/solicitudStore';
 function fechaCantCell(fecha: string, cant: number) {
   if (!fecha && !cant) return '—';
   return <div>{formatNumber(cant)}<div className="text-[11px] text-text-faint">{fecha || '—'}</div></div>;
+}
+
+// Sortable value for the date subíndice under "Última"/"Penúltima" — the raw
+// field is whatever text the sheet cell had (dd/mm/yyyy, mm/yyyy, yyyy-mm-dd…),
+// never normalized on import, so this tries the shapes we actually see before
+// falling back to Date.parse and finally "unparseable sorts first".
+function dateSortValue(s: string): number {
+  if (!s) return -Infinity;
+  const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(s);
+  if (dmy) return new Date(+dmy[3], +dmy[2] - 1, +dmy[1]).getTime();
+  const my = /^(\d{1,2})[/-](\d{4})$/.exec(s);
+  if (my) return new Date(+my[2], +my[1] - 1, 1).getTime();
+  const t = Date.parse(s);
+  return Number.isNaN(t) ? -Infinity : t;
 }
 
 export function ConsumoPage() {
@@ -42,6 +56,11 @@ export function ConsumoPage() {
   const [gruposOpen, setGruposOpen] = useState(false);
   const [periodo, setPeriodo] = useState<'corriente' | 'anterior'>('corriente');
   const zoom = useZoom();
+
+  // Vistas guardadas: snapshot de estado + filtros rápidos, persistido entre sesiones.
+  const savedViews = useSavedViews<{ estado: string; quick: ActiveFilter[] }>('consumo_vistas');
+  const applyView = (state: { estado: string; quick: ActiveFilter[] }) => { setEstado(state.estado); setQuick(state.quick); };
+  const saveCurrentView = (name: string) => savedViews.save(name, { estado, quick });
   const solicitar = useSolicitarDialog();
   const solicitudSourceKeys = useSolicitudStore((s) => s.sourceKeys);
 
@@ -71,6 +90,9 @@ export function ConsumoPage() {
   }, [rows]);
 
   const filterCols: FilterColumn<ConsumoRow>[] = useMemo(() => [
+    { key: 'cliente', label: 'Cliente (razón social)', get: (r) => r.razonSocial },
+    { key: 'solicitante', label: 'Solicitante', get: (r) => r.solicitante },
+    { key: 'destinatario', label: 'Destinatario', get: (r) => r.destinatario },
     { key: 'material', label: 'Material', get: (r) => r.material },
     { key: 'grupocli', label: 'Grupo cliente', get: (r) => ce.grupoCli(r) },
     { key: 'ejecutivo', label: 'Ejecutivo', get: (r) => ce.ejec(r) },
@@ -79,7 +101,10 @@ export function ConsumoPage() {
     // #3: Sector and Grupo artículo share one visual cell — each field still
     // needs its own independent filter entry.
     { key: 'grupoart', label: 'Grupo artículo', get: (r) => ce.grupoArt(r) },
-  ], [ce]);
+    { key: 'estado', label: 'Estado', get: (r) => statusOf(r).status.label },
+    { key: 'tendencia', label: 'Tendencia', get: (r) => statusOf(r).tend.txt },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [ce, statusIndex]);
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
@@ -168,16 +193,24 @@ export function ConsumoPage() {
 
   const rankMat = useMemo(() => {
     if (!a.rf) return [];
-    const cur = mesKey(a.rf.curmes), lo = cur - 11, seen = new Set<string>(), acc = new Map<string, number>();
+    const cur = mesKey(a.rf.curmes), lo = cur - 11, seen = new Set<string>();
+    const acc = new Map<string, { imp: number; cant: number }>();
     for (const r of filtered) {
       const k = norm(r.destinatario) + '||' + norm(r.material);
       if (seen.has(k)) continue;
       seen.add(k);
-      let sum = 0;
-      for (const p of consumoSerie(a.rf, r)) { const mk = mesKey(p.mes); if (mk >= lo && mk <= cur) sum += p.imp; }
-      if (sum) acc.set(norm(r.material), (acc.get(norm(r.material)) || 0) + sum);
+      let sumImp = 0, sumCant = 0;
+      for (const p of consumoSerie(a.rf, r)) { const mk = mesKey(p.mes); if (mk >= lo && mk <= cur) { sumImp += p.imp; sumCant += p.cant; } }
+      if (sumImp) {
+        const m = norm(r.material);
+        const o = acc.get(m) || { imp: 0, cant: 0 };
+        o.imp += sumImp; o.cant += sumCant;
+        acc.set(m, o);
+      }
     }
-    return [...acc.entries()].map(([m, s]) => ({ code: m, desc: a.rf?.matTexto.get(m) || '', val: s / 12 })).sort((x, y) => y.val - x.val).slice(0, 10);
+    return [...acc.entries()]
+      .map(([m, s]) => ({ code: m, desc: a.rf?.matTexto.get(m) || '', val: s.imp / 12, valSub: s.cant / 12 }))
+      .sort((x, y) => y.val - x.val).slice(0, 10);
   }, [filtered, a.rf]);
 
   // #8: top ranking is now Sector-level (with trend), moved above the fold.
@@ -199,9 +232,10 @@ export function ConsumoPage() {
     }
     return [...bySector.entries()].map(([sector, bucket]) => {
       const serie = [...bucket.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
-      let imp12 = 0; serie.forEach((x) => { const mk = mesKey(x.mes); if (mk >= lo && mk <= cur) imp12 += x.imp; });
+      let imp12 = 0, cant12 = 0;
+      serie.forEach((x) => { const mk = mesKey(x.mes); if (mk >= lo && mk <= cur) { imp12 += x.imp; cant12 += x.cant; } });
       const t = tendenciaTexto(serie);
-      return { code: sector, desc: t.txt, val: imp12 / 12 };
+      return { code: sector, desc: t.txt, val: imp12 / 12, valSub: cant12 / 12 };
     }).filter((x) => x.val > 0).sort((x, y) => y.val - x.val).slice(0, 10);
   }, [filtered, a.rf, ce]);
 
@@ -246,7 +280,9 @@ export function ConsumoPage() {
     sector: (r: ConsumoRow) => ce.sector(r),
     consumo: (r: ConsumoRow) => num(r.consumoActual),
     ultima: (r: ConsumoRow) => num(r.cantidadUltima),
+    ultimaFecha: (r: ConsumoRow) => dateSortValue(r.ultimoMesFacturacion),
     penultima: (r: ConsumoRow) => num(r.raw[RC.cantPen]),
+    penultimaFecha: (r: ConsumoRow) => dateSortValue(pickField(r.raw, [RC.penFecha])),
     impultima: (r: ConsumoRow) => num(r.importeUltima),
     estado: (r: ConsumoRow) => statusOf(r).status.label,
     tendencia: (r: ConsumoRow) => statusOf(r).tend.txt,
@@ -288,7 +324,10 @@ export function ConsumoPage() {
       <div className="flex items-start justify-between gap-2">
         <div><h2 className="font-display text-2xl font-semibold">Reporte de Consumo</h2>
           <p className="text-sm text-text-muted">{formatNumber(filtered.length)} de {formatNumber(rows.length)} registros</p></div>
-        <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
+        <div className="flex items-center gap-2">
+          <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
+          <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -383,8 +422,24 @@ export function ConsumoPage() {
             <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort}>Material</SortableTableHead>
             <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort}>Sector/Grupo</SortableTableHead>
             <SortableTableHead sortKey="consumo" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Consumo</SortableTableHead>
-            <SortableTableHead sortKey="ultima" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Última</SortableTableHead>
-            <SortableTableHead sortKey="penultima" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Penúltima</SortableTableHead>
+            <SortableTableHead
+              sortKey="ultima"
+              activeKey={sortKey === 'ultimaFecha' ? 'ultima' : sortKey}
+              dir={dir}
+              onSort={toggleSort}
+              onContextMenu={(ev) => { ev.preventDefault(); toggleSort('ultimaFecha'); }}
+              className="text-right"
+              title="Clic: ordenar por cantidad · Clic derecho: ordenar por fecha"
+            >Última</SortableTableHead>
+            <SortableTableHead
+              sortKey="penultima"
+              activeKey={sortKey === 'penultimaFecha' ? 'penultima' : sortKey}
+              dir={dir}
+              onSort={toggleSort}
+              onContextMenu={(ev) => { ev.preventDefault(); toggleSort('penultimaFecha'); }}
+              className="text-right"
+              title="Clic: ordenar por cantidad · Clic derecho: ordenar por fecha"
+            >Penúltima</SortableTableHead>
             <SortableTableHead sortKey="impultima" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Imp. últ.</SortableTableHead>
             <SortableTableHead sortKey="estado" activeKey={sortKey} dir={dir} onSort={toggleSort}>Estado</SortableTableHead>
             <SortableTableHead sortKey="tendencia" activeKey={sortKey} dir={dir} onSort={toggleSort}>Tendencia</SortableTableHead>

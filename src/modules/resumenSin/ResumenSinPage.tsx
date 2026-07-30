@@ -65,12 +65,14 @@ export function ResumenSinPage() {
 
   const filterCols: FilterColumn<RSSMaterial>[] = useMemo(() => [
     { key: 'material', label: 'Material', get: (mo) => mo.material },
+    { key: 'descripcion', label: 'Descripción', get: (mo) => mo.desc },
     { key: 'sector', label: 'Sector', get: (mo) => a.enrich.matSector(mo.material) },
     { key: 'grupo', label: 'Grupo de artículo', get: (mo) => a.enrich.matGrupo(mo.material) },
+    { key: 'tendencia', label: 'Tendencia', get: (mo) => tendenciaTexto(serieMaterial(a.rf, mo.material)).txt },
     { key: 'status', label: 'Status Revisión', getMany: (mo) => [...statusSetOf(mo)] },
     { key: 'centro', label: 'Centro', getMany: (mo) => [...mo.centros.keys()] },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [a.enrich]);
+  ], [a.enrich, a.rf]);
 
   const list = useMemo(() => {
     if (!rss) return [];

@@ -63,10 +63,10 @@ export function SugTable({ list, push }: { list: BOItem[]; push: (p: Panel) => v
               const isBloqueado = !!it.bo.bloqueado;
               return (
                 <TableRow key={it.k} className={`group ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`}>
-                  <TableCell>{it.bo.pedido}</TableCell>
-                  <TableCell className="max-w-64 truncate">{it.bo.razonSocial}</TableCell>
+                  <TableCell><Chip onClick={() => push({ type: 'pedido', pedido: it.bo.pedido })}>{it.bo.pedido}</Chip></TableCell>
+                  <TableCell className="max-w-64 truncate">{it.bo.razonSocial}<div className="text-[11px]"><Chip onClick={() => push({ type: 'evol', kind: 'solic', key: it.bo.solicitante })}>S {it.bo.solicitante}</Chip> · <Chip onClick={() => push({ type: 'evol', kind: 'dest', key: it.bo.destinatario })}>D {it.bo.destinatario}</Chip></div></TableCell>
                   <TableCell>{it.bo.centroPedido}</TableCell>
-                  <TableCell>{it.bo.materialBase}<div className="text-[11px] text-text-faint max-w-48 truncate">{it.bo.descripcionSolicitada}</div></TableCell>
+                  <TableCell><Chip onClick={() => push({ type: 'material', material: it.bo.materialBase })}>{it.bo.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-48 truncate">{it.bo.descripcionSolicitada}</div></TableCell>
                   <TableCell className="text-right">{formatNumber(it.bo.cantidadPendiente)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(it.bo.precio)}</TableCell>
                   <TableCell><StatePill label={it.status.label} cls={it.status.cls} /></TableCell>
@@ -103,10 +103,10 @@ export function ConsumoTable({ list, a, push }: { list: ConsumoRow[]; a: Analyti
           <TableBody>
             {shown.map((r, i) => (
               <TableRow key={i} className="group">
-                <TableCell className="max-w-64 truncate">{r.razonSocial}<div className="text-[11px] text-text-faint">D {r.destinatario}</div></TableCell>
+                <TableCell className="max-w-64 truncate">{r.razonSocial}<div className="text-[11px]"><Chip onClick={() => push({ type: 'evol', kind: 'solic', key: r.solicitante })}>S {r.solicitante}</Chip> · <Chip onClick={() => push({ type: 'evol', kind: 'dest', key: r.destinatario })}>D {r.destinatario}</Chip></div></TableCell>
                 <TableCell>{r.centro || ce.grupoCli(r) || '—'}</TableCell>
                 <TableCell className="text-right">{formatNumber(r.consumoActual)}/{formatNumber(r.consumoPromedioMensual)}</TableCell>
-                <TableCell className="text-right">{formatCurrency(r.importeUltima)}</TableCell>
+                <TableCell className="text-right">{formatCurrency(r.importeUltima)}<div className="text-[11px] text-text-faint">{r.ultimoMesFacturacion || '—'}</div></TableCell>
                 <TableCell><StatePill label={consumoStatus(a.rf, r).label} cls={consumoStatus(a.rf, r).cls} /></TableCell>
                 <TableCell><TrendBadge t={consumoTend(a.rf, r)} /></TableCell>
                 <TableCell><DetailChevron onOpen={() => push({ type: 'consumoMaterial', dest: r.destinatario, material: r.material })} /></TableCell>

@@ -4,7 +4,9 @@ import { cn, formatCurrency, formatNumber } from '@/lib/utils';
 /** Ranking de items (code/desc/val) con barra de progreso y, opcionalmente, layout wide con rows de dos líneas. */
 export const Ranking = memo(function Ranking({ title, items, money = false, onRow, wide = false, className }: {
   title: string;
-  items: { code: string; desc: string; val: number }[];
+  /** `valSub` is an optional second metric shown under `val` (e.g. avg
+   * quantity under avg importe) — plain formatNumber, never currency. */
+  items: { code: string; desc: string; val: number; valSub?: number }[];
   money?: boolean;
   onRow?: (code: string) => void;
   wide?: boolean;
@@ -26,7 +28,10 @@ export const Ranking = memo(function Ranking({ title, items, money = false, onRo
             >
               <div className="flex items-center justify-between gap-2">
                 <span className={cn('font-medium text-xs', onRow && 'text-accent')}>{it.code}</span>
-                <span className="font-mono text-xs tabular-nums shrink-0">{money ? formatCurrency(it.val) : formatNumber(it.val)}</span>
+                <div className="flex shrink-0 flex-col items-end">
+                  <span className="font-mono text-sm font-medium tabular-nums">{money ? formatCurrency(it.val) : formatNumber(it.val)}</span>
+                  {it.valSub !== undefined && <span className="font-mono text-xs tabular-nums text-text-faint">{formatNumber(it.valSub)}</span>}
+                </div>
               </div>
               <div className="text-[11px] text-text-faint whitespace-normal break-words">{it.desc}</div>
               <div className="mt-1 h-1 rounded-full bg-bg-inset">

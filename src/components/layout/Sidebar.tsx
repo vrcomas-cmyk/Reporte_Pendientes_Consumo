@@ -22,6 +22,7 @@ import {
   Truck,
   ShieldCheck,
   X,
+  Sunrise,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/store/uiStore';
@@ -36,6 +37,7 @@ import { canViewModule } from '@/core/permissions';
 // 7 of 15 routes ended up silently falling back to the bare "DEGASA" wordmark.
 export const NAV = [
   { to: '/', moduleKey: 'dashboard', label: 'Panel', icon: LayoutDashboard, end: true },
+  { to: '/hoy', moduleKey: 'hoy', label: 'Hoy', icon: Sunrise },
   { to: '/carga', moduleKey: 'carga', label: 'Carga', icon: UploadCloud },
   { to: '/generar', moduleKey: 'generar', label: 'Generar reporte', icon: Wand2 },
   { to: '/procesamiento', moduleKey: 'procesamiento', label: 'Procesamiento', icon: Loader2 },

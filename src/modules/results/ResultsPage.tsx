@@ -21,7 +21,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { useDataStore } from '@/store/dataStore';
 import type { Sugerencia } from '@/core/types';
 import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
-import { ZoomControl, useZoom } from '@/modules/analytics/ui';
+import { ZoomControl, useZoom, ColumnFilterBar, passesFilters, RowContextMenu, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 
 const columns: ColumnDef<Sugerencia>[] = [
   { accessorKey: 'materialBase', header: 'Material' },
@@ -42,6 +42,7 @@ export function ResultsPage() {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'cantidadPendiente', desc: true }]);
   const [fuenteFilter, setFuenteFilter] = useState<string>('todas');
   const [bloqueadoFilter, setBloqueadoFilter] = useState<string>('todos');
+  const [quick, setQuick] = useState<ActiveFilter[]>([]);
   const [selected, setSelected] = useState<Sugerencia | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const zoom = useZoom();
@@ -50,11 +51,24 @@ export function ResultsPage() {
 
   const fuentes = useMemo(() => ['todas', ...new Set(rows.map((r) => r.fuente).filter(Boolean))], [rows]);
 
+  // Columnas y subcolumnas filtrables desde la barra "+ Filtro" — Fuente y
+  // Bloqueado ya tienen su propio dropdown arriba, así que no se repiten aquí.
+  const filterCols: FilterColumn<Sugerencia>[] = useMemo(() => [
+    { key: 'material', label: 'Material', get: (r) => r.materialBase },
+    { key: 'descripcion', label: 'Descripción', get: (r) => r.descripcionSolicitada },
+    { key: 'centro', label: 'Centro', get: (r) => r.centroPedido },
+    { key: 'pedido', label: 'Pedido', get: (r) => r.pedido },
+    { key: 'destinatario', label: 'Destinatario', get: (r) => r.destinatario },
+    { key: 'solicitante', label: 'Solicitante', get: (r) => r.solicitante },
+    { key: 'razonSocial', label: 'Cliente (razón social)', get: (r) => r.razonSocial },
+  ], []);
+
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (fuenteFilter !== 'todas' && r.fuente !== fuenteFilter) return false;
       if (bloqueadoFilter === 'si' && !r.bloqueado) return false;
       if (bloqueadoFilter === 'no' && r.bloqueado) return false;
+      if (!passesFilters(r, filterCols, quick)) return false;
       if (globalFilter) {
         const q = globalFilter.toLowerCase();
         return (
@@ -66,7 +80,7 @@ export function ResultsPage() {
       }
       return true;
     });
-  }, [rows, fuenteFilter, bloqueadoFilter, globalFilter]);
+  }, [rows, fuenteFilter, bloqueadoFilter, quick, filterCols, globalFilter]);
 
   const table = useReactTable({
     data: filtered,
@@ -162,6 +176,8 @@ export function ResultsPage() {
         <div className="ml-auto"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
       </div>
 
+      <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
+
       <Card className="min-h-0 flex-1 overflow-hidden">
         <div ref={scrollRef} className="h-full overflow-auto">
           <Table className={zoom.className} wrapperClassName="overflow-visible">
@@ -191,12 +207,25 @@ export function ResultsPage() {
               )}
               {items.map((vi) => {
                 const row = tableRows[vi.index];
+                const r = row.original;
                 return (
-                  <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelected(row.original)}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                    ))}
-                  </TableRow>
+                  <RowContextMenu
+                    key={row.id}
+                    label={r.materialBase}
+                    onVerDetalle={() => setSelected(r)}
+                    copyItems={[
+                      { label: 'Material', value: r.materialBase },
+                      { label: 'Pedido', value: r.pedido },
+                      { label: 'Destinatario', value: r.destinatario },
+                      { label: 'Centro', value: r.centroPedido },
+                    ]}
+                  >
+                    <TableRow className="cursor-pointer" onClick={() => setSelected(r)}>
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                      ))}
+                    </TableRow>
+                  </RowContextMenu>
                 );
               })}
               {paddingBottom > 0 && (

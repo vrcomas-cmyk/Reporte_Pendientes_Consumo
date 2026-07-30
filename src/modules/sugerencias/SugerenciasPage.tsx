@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Download, ChevronDown } from 'lucide-react';
+import { Download, ChevronDown, ClipboardList } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, TableHeader, TableBody, TableRow, TableCell, SortableTableHead } from '@/components/ui/table';
+import { Table, TableHeader, TableBody, TableRow, TableCell, TableHead, SortableTableHead } from '@/components/ui/table';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useSort } from '@/hooks/useSort';
 import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
@@ -13,7 +13,7 @@ import { StatePill, TrendBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, C
 import { ESTADOS } from '@/core/resumenFac';
 import { norm, num, matchesQuery } from '@/modules/analytics/helpers';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
-import { buildFromSugerencia, buildFromInventarioCentro } from '@/services/solicitudService';
+import { buildFromSugerencia, buildFromInventarioCentro, crear } from '@/services/solicitudService';
 import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSolicitarDialog';
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
 import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
@@ -21,10 +21,33 @@ import { useSolicitudStore } from '@/store/solicitudStore';
 import { Select } from '@/components/ui/select';
 import { usePermissionsStore } from '@/store/permissionsStore';
 import { isColumnHidden, isDetailHidden } from '@/core/permissions';
+import { toast } from '@/store/toastStore';
 import type { Sugerencia } from '@/core/types';
 
 const INV_COLS = ['1030', '1031', '1032'] as const;
 const INV_ALL = ['1030', '1031', '1032', '1060'] as const;
+
+/** Días transcurridos desde la fecha del pedido — misma tolerancia de formato
+ * (dd/mm/yyyy, yyyy-mm-dd…) que el resto de la app, ya que el campo llega
+ * como texto crudo del reporte. `null` si no se puede interpretar. */
+function diasDesde(fecha: string): number | null {
+  if (!fecha) return null;
+  let d: Date | null = null;
+  const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(fecha);
+  if (dmy) d = new Date(+dmy[3], +dmy[2] - 1, +dmy[1]);
+  else { const t = Date.parse(fecha); if (!Number.isNaN(t)) d = new Date(t); }
+  if (!d) return null;
+  const now = new Date(); now.setHours(0, 0, 0, 0); d.setHours(0, 0, 0, 0);
+  return Math.round((now.getTime() - d.getTime()) / 86400000);
+}
+
+/** Semáforo de urgencia por antigüedad: 🟢 <15d · 🟡 15-30d · 🔴 >30d. */
+function UrgenciaDot({ fecha }: { fecha: string }) {
+  const dias = diasDesde(fecha);
+  if (dias === null || dias < 0) return null;
+  const cls = dias > 30 ? 'bg-danger' : dias > 15 ? 'bg-warning' : 'bg-emerald-500';
+  return <span className={`inline-block size-1.5 rounded-full ${cls}`} title={`${dias} día(s) desde el pedido`} />;
+}
 
 type BORow = (ReturnType<typeof useAnalytics>['bo'])[number];
 /** One "Desagrupar" row: a BO item plus the specific fuente (alternate supply
@@ -36,6 +59,9 @@ export function SugerenciasPage() {
   const open = usePanelStore((s) => s.open);
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
+  const addSolicitud = useSolicitudStore((s) => s.add);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkSending, setBulkSending] = useState(false);
   const perms = usePermissionsStore((s) => s.perms);
   const precioOculto = isColumnHidden(perms, 'sugerencias', 'precio');
   // "Desagrupar" and the "Fuentes" count/detail only exist to expose fuente
@@ -59,6 +85,7 @@ export function SugerenciasPage() {
   const [estado, setEstado] = useState('');
   const [fuente, setFuente] = useState('');
   const [centroValido, setCentroValido] = useState(false);
+  const [soloAccionables, setSoloAccionables] = useState(false);
   const [quick, setQuick] = useState<ActiveFilter[]>([]);
   const [sectorOpen, setSectorOpen] = useState(false);
   const [openSector, setOpenSector] = useState<string | null>(null);
@@ -80,14 +107,28 @@ export function SugerenciasPage() {
   };
 
   const filterCols: FilterColumn<BORow>[] = useMemo(() => [
-    { key: 'material', label: 'Material', get: (it) => it.bo.materialBase },
+    { key: 'pedido', label: 'Pedido', get: (it) => it.bo.pedido },
+    { key: 'oc', label: 'OC', get: (it) => it.bo.oc },
+    { key: 'fecha', label: 'Fecha', get: (it) => it.bo.fecha },
+    { key: 'cliente', label: 'Cliente (razón social)', get: (it) => it.bo.razonSocial },
+    { key: 'solicitante', label: 'Solicitante', get: (it) => it.bo.solicitante },
+    { key: 'destinatario', label: 'Destinatario', get: (it) => it.bo.destinatario },
     { key: 'grupocli', label: 'Grupo cliente', get: (it) => grupoCli(it.bo) },
     { key: 'ejecutivo', label: 'Ejecutivo', get: (it) => ejec(it.bo) },
     { key: 'centro', label: 'Centro', get: (it) => it.bo.centroPedido },
+    { key: 'almacen', label: 'Almacén', get: (it) => it.bo.almacen },
+    { key: 'material', label: 'Material', get: (it) => it.bo.materialBase },
     { key: 'sector', label: 'Sector', get: (it) => e.matSector(it.bo.materialBase) },
+    { key: 'grupoart', label: 'Grupo artículo', get: (it) => e.matGrupo(it.bo.materialBase) },
+    { key: 'bloq', label: 'Bloqueado', get: (it) => it.bo.bloqueado },
+    { key: 'estado', label: 'Estado', get: (it) => it.status.label },
+    { key: 'tendencia', label: 'Tendencia', get: (it) => it.tend.txt },
     ...(fuenteOculto ? [] : [
       { key: 'fuente', label: 'Fuente', getMany: (it: BORow) => it.fuentes.map((f) => f.fuente).filter(Boolean) },
+      { key: 'matsug', label: 'Material sugerido', getMany: (it: BORow) => it.fuentes.map((f) => f.materialSugerido).filter(Boolean) },
       { key: 'centrosug', label: 'Centro Sugerido', getMany: (it: BORow) => it.fuentes.map((f) => f.centroSugerido).filter(Boolean) },
+      { key: 'almacensug', label: 'Almacén sugerido', getMany: (it: BORow) => it.fuentes.map((f) => f.almacenSugerido).filter(Boolean) },
+      { key: 'lote', label: 'Lote', getMany: (it: BORow) => it.fuentes.map((f) => f.lote).filter(Boolean) },
     ]),
   ], [e, fuenteOculto]);
 
@@ -98,6 +139,10 @@ export function SugerenciasPage() {
       if (fuente === 'si' && !it.fuentes.length) return false;
       if (fuente === 'no' && it.fuentes.length) return false;
       if (centroValido && it.fuentes.length && !it.fuentes.some((f) => centroPasa(b, f))) return false;
+      // "Solo accionables": pendiente con fuente disponible, sin bloqueo, y con
+      // al menos una fuente en centro válido — lo que realmente se puede
+      // resolver hoy, sin tener que combinar Fuentes + Centro válido a mano.
+      if (soloAccionables && (num(b.cantidadPendiente) <= 0 || !it.fuentes.length || b.bloqueado || !it.fuentes.some((f) => centroPasa(b, f)))) return false;
       if (!passesFilters(it, filterCols, quick)) return false;
       if (q) {
         const hay = `${b.materialBase} ${b.descripcionSolicitada} ${b.pedido} ${b.razonSocial} ${b.solicitante} ${b.destinatario}`;
@@ -105,7 +150,7 @@ export function SugerenciasPage() {
       }
       return true;
     });
-  }, [a.bo, q, estado, fuente, centroValido, quick, filterCols]);
+  }, [a.bo, q, estado, fuente, centroValido, soloAccionables, quick, filterCols]);
 
   const kpis = useMemo(() => {
     const isBloq = (it: (typeof filtered)[number]) => it.bo.bloqueado !== '';
@@ -162,6 +207,37 @@ export function SugerenciasPage() {
     setQuick([...quick, { col: field, value }]);
   };
 
+  const toggleSelected = (k: string) => setSelected((prev) => {
+    const next = new Set(prev);
+    if (next.has(k)) next.delete(k); else next.add(k);
+    return next;
+  });
+
+  // Envía en lote las filas marcadas (siempre con fuente — sin eso no hay de
+  // dónde surtir), usando su primera fuente como origen por defecto, sin
+  // pasar por el diálogo uno por uno. El usuario puede revisar/ajustar cada
+  // una después desde "Solicitudes DRP" si algo no quedó bien.
+  const solicitarSeleccionados = async () => {
+    const items = sorted.filter((it) => selected.has(it.k) && it.fuentes.length > 0);
+    if (!items.length) return;
+    setBulkSending(true);
+    let ok = 0, fail = 0;
+    for (const it of items) {
+      try {
+        const draft = buildFromSugerencia(it.bo, it.k, it.fuentes[0], e);
+        const solicitud = await crear(draft);
+        addSolicitud(solicitud);
+        if (solicitud.sync === 'error') fail++; else ok++;
+      } catch {
+        fail++;
+      }
+    }
+    setBulkSending(false);
+    setSelected(new Set());
+    if (fail) toast.warning(`Solicitadas ${ok} de ${items.length}`, `${fail} fallaron — revísalas en Solicitudes DRP`);
+    else toast.success(`Solicitadas ${ok} de ${items.length}`);
+  };
+
   const colVis = useColumnVisibility();
   const vis = colVis.isVisible;
   const [unificarInv, setUnificarInv] = useState(false);
@@ -195,7 +271,7 @@ export function SugerenciasPage() {
     { key: 'centrosug', label: 'Centro sugerido' }, { key: 'disponible', label: 'Disponible / Lote / Cad.' },
   ];
 
-  const COL_COUNT = COLS_AGRUPADO.filter((c) => vis(c.key)).length;
+  const COL_COUNT = COLS_AGRUPADO.filter((c) => vis(c.key)).length + (fuenteOculto ? 0 : 1);
   const COL_COUNT_RAW = COLS_RAW.filter((c) => vis(c.key)).length;
   const sortAcc = useMemo(() => ({
     grupocli: (it: (typeof filtered)[number]) => grupoCli(it.bo),
@@ -340,6 +416,12 @@ export function SugerenciasPage() {
           </label>
           <ColumnVisibilityControl columns={agrupado ? COLS_AGRUPADO : COLS_RAW} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
           <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
+          {agrupado && selected.size > 0 && (
+            <Button size="sm" onClick={solicitarSeleccionados} disabled={bulkSending}>
+              <ClipboardList className="mr-1 size-3.5" />
+              {bulkSending ? 'Solicitando…' : `Solicitar seleccionados (${selected.size})`}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={agrupado ? exportar : exportarRaw}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
         </div>
       </div>
@@ -409,6 +491,16 @@ export function SugerenciasPage() {
             Centro válido (Corta cad.)
           </label>
         )}
+        {!fuenteOculto && (
+          <button
+            type="button"
+            onClick={() => setSoloAccionables((v) => !v)}
+            title="Pendiente + con fuente + sin bloqueo + centro válido: lo que se puede resolver hoy"
+            className={`flex h-9 items-center gap-1.5 rounded-md border px-2 text-sm ${soloAccionables ? 'border-accent bg-accent-soft text-accent' : 'border-border bg-bg-elevated text-text-muted hover:text-text'}`}
+          >
+            Solo accionables
+          </button>
+        )}
       </div>
 
       <ColumnFilterBar columns={filterCols} rows={a.bo} active={quick} onChange={setQuick} />
@@ -421,6 +513,16 @@ export function SugerenciasPage() {
           <Table className={zoom.className} wrapperClassName="overflow-visible">
             <TableHeader>
               <TableRow>
+                {!fuenteOculto && (
+                  <TableHead className="w-8">
+                    <input
+                      type="checkbox"
+                      title="Seleccionar todas las visibles con fuente"
+                      checked={sorted.some((it) => it.fuentes.length > 0) && sorted.filter((it) => it.fuentes.length > 0).every((it) => selected.has(it.k))}
+                      onChange={(ev) => setSelected(ev.target.checked ? new Set(sorted.filter((it) => it.fuentes.length > 0).map((it) => it.k)) : new Set())}
+                    />
+                  </TableHead>
+                )}
                 {([
                   ['ejecutivo', 'Ejecutivo / Grupo cli.'], ['pedido', 'Pedido/OC'], ['fecha', 'Fecha'], ['cliente', 'Cliente'],
                   ['centro', 'Centro/Alm'], ['material', 'Material'], ['sector', 'Sector/Grupo'],
@@ -483,9 +585,16 @@ export function SugerenciasPage() {
                     copyItems={copyItems}
                   >
                   <TableRow ref={measureElement} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
+                    {!fuenteOculto && (
+                      <TableCell onClick={(ev) => ev.stopPropagation()}>
+                        {it.fuentes.length > 0 && (
+                          <input type="checkbox" checked={selected.has(it.k)} onChange={() => toggleSelected(it.k)} title="Seleccionar para solicitar en lote" />
+                        )}
+                      </TableCell>
+                    )}
                     {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
                     {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
-                    {vis('fecha') && <TableCell className="whitespace-nowrap text-xs">{b.fecha || '—'}</TableCell>}
+                    {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}
                     {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial}<div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
                     {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
@@ -604,7 +713,7 @@ export function SugerenciasPage() {
                   <TableRow ref={measureElementRaw} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
                     {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
                     {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
-                    {vis('fecha') && <TableCell className="whitespace-nowrap text-xs">{b.fecha || '—'}</TableCell>}
+                    {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}
                     {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial}<div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
                     {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}

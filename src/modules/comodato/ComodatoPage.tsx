@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { AlertTriangle, Loader2, PlayCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,9 +6,10 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { DropZone } from '@/components/upload/DropZone';
 import { FacturacionEstadoCard } from '@/modules/shared/FacturacionEstadoCard';
 import { ApiLauncherCard } from '@/modules/shared/ApiLauncherCard';
-import { runComodatoAnalysis, type ComodatoResult } from '@/services/comodatoService';
+import { runComodatoAnalysis, type ComodatoResult, type SeguimientoRow } from '@/services/comodatoService';
 import { useDataStore } from '@/store/dataStore';
 import { formatCurrency, formatNumber } from '@/lib/utils';
+import { ColumnFilterBar, passesFilters, RowContextMenu, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 
 export function ComodatoPage() {
   const catalog = useDataStore((s) => s.catalog);
@@ -16,6 +17,17 @@ export function ComodatoPage() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ComodatoResult | null>(null);
+  const [quick, setQuick] = useState<ActiveFilter[]>([]);
+
+  const filterCols: FilterColumn<SeguimientoRow>[] = useMemo(() => [
+    { key: 'cliente', label: 'Cliente', get: (r) => String(r.razon_social ?? r.cliente ?? '') },
+    { key: 'equipo', label: 'Equipo', get: (r) => String(r.descripcion_comodato ?? r.material_comodato ?? '') },
+    { key: 'estado', label: 'Estado', get: (r) => String(r.status_actividad ?? '') },
+  ], []);
+  const seguimientoFiltrado = useMemo(
+    () => (data ? data.seguimiento360.filter((r) => passesFilters(r, filterCols, quick)) : []),
+    [data, filterCols, quick],
+  );
 
   const materiales = catalog?.materiales ?? [];
   const ejecutivos = catalog?.ejecutivos ?? [];
@@ -82,10 +94,11 @@ export function ComodatoPage() {
       {data && (
         <Card>
           <CardHeader>
-            <CardTitle>Seguimiento 360 · {data.seguimiento360.length.toLocaleString('es-MX')} filas</CardTitle>
+            <CardTitle>Seguimiento 360 · {seguimientoFiltrado.length.toLocaleString('es-MX')} de {data.seguimiento360.length.toLocaleString('es-MX')} filas</CardTitle>
             <CardDescription>Cliente × equipo — comodato instalado, facturación de bolsas, margen y ROI.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-3">
+            <ColumnFilterBar columns={filterCols} rows={data.seguimiento360} active={quick} onChange={setQuick} />
             <Table wrapperClassName="max-h-[32rem] rounded-lg border border-border">
               <TableHeader>
                 <TableRow>
@@ -97,20 +110,30 @@ export function ComodatoPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.seguimiento360.slice(0, 500).map((r, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="max-w-64 truncate">{String(r.razon_social ?? r.cliente)}</TableCell>
-                    <TableCell>{String(r.descripcion_comodato ?? r.material_comodato)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(Number(r.cantidad_comodato ?? 0))}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(Number(r.facturacion_total ?? 0))}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(Number(r.margen_total ?? 0))}</TableCell>
-                    <TableCell>{String(r.status_actividad ?? '—')}</TableCell>
-                  </TableRow>
+                {seguimientoFiltrado.slice(0, 500).map((r, i) => (
+                  <RowContextMenu
+                    key={i}
+                    label={String(r.razon_social ?? r.cliente)}
+                    copyItems={[
+                      { label: 'Cliente', value: String(r.razon_social ?? r.cliente ?? '') },
+                      { label: 'Equipo', value: String(r.descripcion_comodato ?? r.material_comodato ?? '') },
+                      { label: 'Código', value: String(r.codigo_comodato ?? '') },
+                    ]}
+                  >
+                    <TableRow>
+                      <TableCell className="max-w-64 truncate">{String(r.razon_social ?? r.cliente)}</TableCell>
+                      <TableCell>{String(r.descripcion_comodato ?? r.material_comodato)}</TableCell>
+                      <TableCell className="text-right">{formatNumber(Number(r.cantidad_comodato ?? 0))}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(Number(r.facturacion_total ?? 0))}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(Number(r.margen_total ?? 0))}</TableCell>
+                      <TableCell>{String(r.status_actividad ?? '—')}</TableCell>
+                    </TableRow>
+                  </RowContextMenu>
                 ))}
               </TableBody>
             </Table>
-            {data.seguimiento360.length > 500 && (
-              <p className="mt-2 text-[11px] text-text-faint">Mostrando las primeras 500 de {data.seguimiento360.length.toLocaleString('es-MX')} filas.</p>
+            {seguimientoFiltrado.length > 500 && (
+              <p className="mt-2 text-[11px] text-text-faint">Mostrando las primeras 500 de {seguimientoFiltrado.length.toLocaleString('es-MX')} filas.</p>
             )}
           </CardContent>
         </Card>

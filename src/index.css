@@ -11,13 +11,13 @@
   --text: 28 27 25;
   --text-muted: 108 105 99;
   --text-faint: 150 147 141;
-  --accent: 21 94 74;
-  --accent-soft: 209 232 222;
+  --accent: 2 132 199;
+  --accent-soft: 224 242 254;
   --accent-fg: 255 255 255;
   --danger: 185 40 40;
   --warning: 178 108 8;
   --success: 27 122 69;
-  --ring: 21 94 74;
+  --ring: 2 132 199;
 }
 
 .dark {
@@ -29,13 +29,13 @@
   --text: 237 236 233;
   --text-muted: 163 160 154;
   --text-faint: 118 116 111;
-  --accent: 74 209 173;
-  --accent-soft: 26 61 51;
-  --accent-fg: 8 24 19;
+  --accent: 56 189 248;
+  --accent-soft: 12 74 110;
+  --accent-fg: 8 20 32;
   --danger: 240 100 100;
   --warning: 232 168 66;
   --success: 96 201 140;
-  --ring: 74 209 173;
+  --ring: 56 189 248;
 }
 
 @theme inline {
