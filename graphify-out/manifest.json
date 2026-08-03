@@ -780,13 +780,13 @@
     "semantic_hash": ""
   },
   "src/services/reportSheetsService.ts": {
-    "mtime": 1785346860.8996916,
-    "ast_hash": "d5f5985e3738a3f6386bd4fc780bd9e8",
+    "mtime": 1785777892.703169,
+    "ast_hash": "3e912a51b9512bfc920c5219a3d4baa3",
     "semantic_hash": ""
   },
   "docs/apps-script-report-sheets.md": {
-    "mtime": 1785300567.0757072,
-    "ast_hash": "be23a1285884a5d76b3dd8204719e85f",
+    "mtime": 1785777920.6981478,
+    "ast_hash": "4b324377162e16e7c8ba500bbd681bf8",
     "semantic_hash": ""
   },
   "src/store/reportSheetsSyncStore.ts": {

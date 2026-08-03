@@ -28,6 +28,24 @@ const REPORT_TABS: Partial<Record<SheetRole, string>> = {
 };
 export const REPORT_SHEET_ROLES = Object.keys(REPORT_TABS) as SheetRole[];
 
+/** "Todas las Sugerencias", "Resumen Sin Sugerencias" y "Resumen_Fac" son
+ * salida de fórmulas vivas (QUERY/FILTER): un registro puede desaparecer de
+ * la pestaña (ya se cubrió, ya no aplica) mientras el `rowCount` total se
+ * mantiene igual o crece porque entran registros nuevos al mismo tiempo. El
+ * esquema delta de abajo solo detecta "la hoja se encogió" (rowCount menor
+ * al offset) — un rowCount igual/mayor con registros distintos por dentro
+ * pasa inadvertido y el registro eliminado queda viviendo en el caché para
+ * siempre. Por eso estas tres siempre se traen completas, sin caché delta. */
+const ALWAYS_FULL_REFRESH_ROLES = new Set<SheetRole>(['sugerencias', 'resumenSinSugerencias', 'resumenFac']);
+
+/** "Reporte de Consumo" sí es mayormente append-only (~80k filas, crece por
+ * abajo) pero las filas más recientes pueden actualizarse in-place (el
+ * consumo de los últimos días cambia de valor sin que se agreguen o quiten
+ * filas). Re-pedir esta ventana de filas "recientes" en cada sync — en vez
+ * de asumir que todo lo previo al offset sigue vigente — corrige esos
+ * valores sin pagar el costo de re-descargar las 80k filas completas. */
+const CONSUMO_REFRESH_WINDOW = 15_000;
+
 async function requireUrl(): Promise<string> {
   const url = await getConnector(CONNECTOR_KEYS.reportSheetsUrl, REPORT_SHEETS_URL_ENV);
   if (!url) {
@@ -256,8 +274,14 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
     }
 
     async function processTabInner(role: SheetRole, tab: string, index: number): Promise<void> {
-      const cached = forceFull ? undefined : await getCachedTab(tab);
-      const offset = cached?.rows.length ?? 0;
+      const alwaysFull = ALWAYS_FULL_REFRESH_ROLES.has(role);
+      const cached = forceFull || alwaysFull ? undefined : await getCachedTab(tab);
+      const priorRows = cached?.rows ?? [];
+      const refreshWindow = role === 'reporteConsumo' ? CONSUMO_REFRESH_WINDOW : 0;
+      // For "Reporte de Consumo", re-fetch the trailing `refreshWindow` rows
+      // (they'll be replaced below, not just appended to) instead of trusting
+      // that everything before the last-known length is still accurate.
+      const offset = Math.max(0, priorRows.length - refreshWindow);
 
       // Per-PAGE progress (not just per-tab): a cold "Reporte de Consumo"
       // sync (~80k rows, no cache yet) used to sit at the same percent for
@@ -284,7 +308,11 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
         tabRows = await fetchReportSheetTabPaginated(tab, 0, reportPage);
       }
 
-      const combinedRows = offset > 0 ? [...(cached?.rows ?? []), ...tabRows.rows] : tabRows.rows;
+      // Rows from `offset` onward are REPLACED by the fresh fetch (not
+      // appended after) — that's what lets the refresh window above correct
+      // in-place edits, and what makes a shrink-triggered `offset = 0`
+      // refetch above fully replace the tab instead of duplicating it.
+      const combinedRows = offset > 0 ? [...priorRows.slice(0, offset), ...tabRows.rows] : tabRows.rows;
       // Defensive dedup: "Todas las Sugerencias"/"Reporte de Consumo" are the
       // output of live formulas (QUERY/FILTER) that can reorder rows when new
       // data lands in the middle of the sheet, not just at the end. When that

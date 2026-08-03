@@ -15,8 +15,8 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1785296022.3794665,
-    "ast_hash": "a6ae22bc0bb795f94536589a1080dadd",
+    "mtime": 1785387144.5330784,
+    "ast_hash": "190695e6c98bb7c8fbbc31250d23038f",
     "semantic_hash": ""
   },
   "src/components/layout/AppShell.tsx": {
@@ -25,8 +25,8 @@
     "semantic_hash": ""
   },
   "src/components/layout/Sidebar.tsx": {
-    "mtime": 1785300675.213629,
-    "ast_hash": "48897a0f2a56aee61638c41b2530fcc7",
+    "mtime": 1785387158.1354454,
+    "ast_hash": "99470ffc1fa3384281f76f4aeec7758b",
     "semantic_hash": ""
   },
   "src/components/layout/Topbar.tsx": {
@@ -150,8 +150,8 @@
     "semantic_hash": ""
   },
   "src/modules/analisis/AnalisisPage.tsx": {
-    "mtime": 1785380063.5715947,
-    "ast_hash": "d21fe440e3b45b291f24833423cef349",
+    "mtime": 1785382548.1760335,
+    "ast_hash": "510cd66128610d19d6d1751026b77436",
     "semantic_hash": ""
   },
   "src/modules/analytics/AnalyticsContext.tsx": {
@@ -170,8 +170,8 @@
     "semantic_hash": ""
   },
   "src/modules/consumo/ConsumoPage.tsx": {
-    "mtime": 1785365594.1086664,
-    "ast_hash": "0b880fc52d8fb6288d818c718eeebf6f",
+    "mtime": 1785381857.9835763,
+    "ast_hash": "11c15877d4be3d0d466fb9762a00411e",
     "semantic_hash": ""
   },
   "src/modules/dashboard/DashboardPage.tsx": {
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "src/modules/inventario/InventarioPage.tsx": {
-    "mtime": 1785379158.921518,
-    "ast_hash": "17783a5b99d47ca541947405512831ee",
+    "mtime": 1785386993.6256492,
+    "ast_hash": "e1d2ee508d333284e47d1bbb8bbce8e4",
     "semantic_hash": ""
   },
   "src/modules/processing/ProcessingPage.tsx": {
@@ -220,8 +220,8 @@
     "semantic_hash": ""
   },
   "src/modules/sugerencias/SugerenciasPage.tsx": {
-    "mtime": 1785359609.5902362,
-    "ast_hash": "4f4a283a9c92b23d64bc151c3d05b9a2",
+    "mtime": 1785382358.0894518,
+    "ast_hash": "513ec0ac8faefd62dea2dfddd09d1394",
     "semantic_hash": ""
   },
   "src/modules/upload/UploadPage.tsx": {
@@ -2272,6 +2272,11 @@
   "src/modules/analytics/ui/RowContextMenu.tsx": {
     "mtime": 1785379900.0442908,
     "ast_hash": "ffdad6532d1cec2ad332c78c40fda226",
+    "semantic_hash": ""
+  },
+  "src/modules/dashboard/HoyPage.tsx": {
+    "mtime": 1785387130.7646546,
+    "ast_hash": "40dfb6d5fad7458fccea77422360b98d",
     "semantic_hash": ""
   }
 }

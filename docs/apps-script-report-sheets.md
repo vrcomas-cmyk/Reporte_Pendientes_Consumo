@@ -146,12 +146,31 @@ número de filas ya sincronizadas por pestaña en `localStorage`
 - Si es **igual**: no pedir las filas de esa pestaña (no cambió) — la
   memoización de derivados de `buildAnalysisResult` evita recomputar.
 
-**Limitación:** este esquema asume append-only. Si el usuario **edita**
-una celda de una fila ya existente (sin agregar nuevas filas → rowCount
-igual), el cambio NO se detecta automáticamente. Para esos casos existe el
-botón **"Sincronización completa"** (forceFull) en la card de Carga, que
-ignora `lastRowCount` y vuelve a pedir las 4 pestañas enteras. Recomendado
-correrlo de vez en cuando o si se detectan datos sospechosos.
+**Limitación (histórica, ya corregida):** este esquema asumía append-only.
+Si el usuario **editaba** o **eliminaba** una fila existente sin que el
+`rowCount` total bajara (por ejemplo porque entraban filas nuevas al mismo
+tiempo), el cambio no se detectaba y el registro viejo quedaba viviendo en
+el caché para siempre — el síntoma exacto era "sincronizo pero sigo viendo
+datos de reportes anteriores".
+
+La corrección (`src/services/reportSheetsService.ts`,
+`ALWAYS_FULL_REFRESH_ROLES` / `CONSUMO_REFRESH_WINDOW`):
+
+- **"Todas las Sugerencias", "Resumen Sin Sugerencias" y "Resumen_Fac"**
+  son salida de fórmulas vivas (QUERY/FILTER) donde un registro puede
+  desaparecer sin que el total baje. Estas tres **siempre se traen
+  completas** en cada sync (sin caché delta) — no vale la pena arriesgar
+  datos obsoletos por el ahorro de banda, son pestañas chicas.
+- **"Reporte de Consumo"** (~80k filas) sí es mayormente append-only, pero
+  los valores de las filas más recientes cambian in-place (consumo de los
+  últimos días). Cada sync re-pide y **reemplaza** una ventana de las
+  últimas 15,000 filas (`CONSUMO_REFRESH_WINDOW`) además de lo genuinamente
+  nuevo, en vez de asumir que todo lo anterior al offset sigue vigente.
+
+El botón **"Sincronización completa"** (forceFull) en la card de Carga
+sigue existiendo para forzar una re-descarga total de las 4 pestañas (por
+ejemplo si se sospecha de datos corruptos más allá de la ventana de
+Consumo).
 
 **After Apple V8:** el `?offset=` en Apps Script usa `getRange(startRow, 1,
 numRows, cols)` en vez de `getDataRange().getValues()` — la lectura de
