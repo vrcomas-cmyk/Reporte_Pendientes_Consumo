@@ -1,11 +1,34 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Columns3 } from 'lucide-react';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { TooltipHint } from '@/components/ui/tooltip';
 
 export interface ColDef { key: string; label: string }
 
-/** Visibilidad de columnas por sesión: no persiste al recargar, solo mientras se usa la tabla. */
-export function useColumnVisibility() {
-  const [hidden, setHidden] = useState<Set<string>>(() => new Set());
+function readStoredHidden(storageKey: string): Set<string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    return Array.isArray(raw) ? new Set(raw) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+function writeStoredHidden(storageKey: string, hidden: Set<string>): void {
+  try { localStorage.setItem(storageKey, JSON.stringify([...hidden])); } catch { /* ignore */ }
+}
+
+/** Visibilidad de columnas, persistida en localStorage por `storageKey` (por
+ * tabla) — antes se perdía al recargar y había que re-ocultar las mismas
+ * columnas cada vez que se entraba a la página. */
+export function useColumnVisibility(storageKey: string) {
+  const [hidden, setHiddenState] = useState<Set<string>>(() => readStoredHidden(storageKey));
+  const setHidden = (next: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+    setHiddenState((prev) => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      writeStoredHidden(storageKey, resolved);
+      return resolved;
+    });
+  };
   const isVisible = (key: string) => !hidden.has(key);
   const toggle = (key: string) => setHidden((prev) => {
     const next = new Set(prev);
@@ -24,44 +47,32 @@ export function ColumnVisibilityControl({ columns, hidden, toggle, reset }: {
   toggle: (key: string) => void;
   reset: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (ev: MouseEvent) => {
-      if (ref.current && !ref.current.contains(ev.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, [open]);
-
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-bg-elevated px-2 text-sm text-text-muted hover:bg-bg-inset"
-        title="Mostrar/ocultar columnas (solo esta sesión)"
-      >
-        <Columns3 className="size-3.5" />
-        Columnas{hidden.size > 0 ? ` (${hidden.size} ocultas)` : ''}
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 max-h-80 w-56 overflow-auto rounded-md border border-border bg-bg-elevated p-1 shadow-lg">
-          {hidden.size > 0 && (
-            <button type="button" onClick={reset} className="mb-1 w-full rounded px-2 py-1 text-left text-xs text-accent hover:bg-bg-inset">
-              Mostrar todas
-            </button>
-          )}
-          {columns.map((c) => (
-            <label key={c.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-bg-inset">
-              <input type="checkbox" checked={!hidden.has(c.key)} onChange={() => toggle(c.key)} />
-              {c.label}
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
+    <Popover>
+      <TooltipHint text="Mostrar/ocultar columnas (solo esta sesión)">
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-bg-elevated px-2 text-sm text-text-muted hover:bg-bg-inset"
+          >
+            <Columns3 className="size-3.5" />
+            Columnas{hidden.size > 0 ? ` (${hidden.size} ocultas)` : ''}
+          </button>
+        </PopoverTrigger>
+      </TooltipHint>
+      <PopoverContent className="max-h-80 w-56 overflow-auto">
+        {hidden.size > 0 && (
+          <button type="button" onClick={reset} className="mb-1 w-full rounded px-2 py-1 text-left text-xs text-accent hover:bg-bg-inset">
+            Mostrar todas
+          </button>
+        )}
+        {columns.map((c) => (
+          <label key={c.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-bg-inset">
+            <input type="checkbox" checked={!hidden.has(c.key)} onChange={() => toggle(c.key)} />
+            {c.label}
+          </label>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }

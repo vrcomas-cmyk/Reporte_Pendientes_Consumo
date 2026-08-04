@@ -5,13 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead } from '@/components/ui/table';
 import { EmptyState } from '@/components/feedback/EmptyState';
+import { TableSkeleton } from '@/components/ui/skeleton';
+import { useDataStore } from '@/store/dataStore';
 import { useSort } from '@/hooks/useSort';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useSavedViews, SavedViewsControl, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, AbcBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useSavedViews, SavedViewsControl, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { ESTADOS, mesKey, mesLabel, clasificarEstado, tendenciaTexto, mesRefQAnterior, mesAnterior, hoyMes, type Serie, type Estado, type Tendencia } from '@/core/resumenFac';
 import { norm, num, searchNorm, consumoEnrich, consumoSerie, matchesQueryNormalized, RC, pickField } from '@/modules/analytics/helpers';
 import type { ConsumoRow } from '@/core/types';
@@ -42,6 +44,7 @@ function dateSortValue(s: string): number {
 }
 
 export function ConsumoPage() {
+  const bootstrapped = useDataStore((s) => s.bootstrapped);
   const a = useAnalytics();
   const open = usePanelStore((s) => s.open);
   const rows = a.result?.consumo ?? [];
@@ -52,15 +55,17 @@ export function ConsumoPage() {
   const ce = useMemo(() => consumoEnrich(a.enrich), [a.enrich]);
   const [q, setQ] = useState(''); // committed (debounced) query; input state lives in DebouncedSearch
   const [estado, setEstado] = useState('');
+  const [clase, setClase] = useState('');
+  const claseDe = (r: ConsumoRow) => a.abc.classByMaterial.get(norm(r.material)) || '';
   const [quick, setQuick] = useState<ActiveFilter[]>([]);
   const [gruposOpen, setGruposOpen] = useState(false);
   const [periodo, setPeriodo] = useState<'corriente' | 'anterior'>('corriente');
-  const zoom = useZoom();
+  const zoom = useZoom('consumo_zoom');
 
   // Vistas guardadas: snapshot de estado + filtros rápidos, persistido entre sesiones.
-  const savedViews = useSavedViews<{ estado: string; quick: ActiveFilter[] }>('consumo_vistas');
-  const applyView = (state: { estado: string; quick: ActiveFilter[] }) => { setEstado(state.estado); setQuick(state.quick); };
-  const saveCurrentView = (name: string) => savedViews.save(name, { estado, quick });
+  const savedViews = useSavedViews<{ estado: string; clase: string; quick: ActiveFilter[] }>('consumo_vistas');
+  const applyView = (state: { estado: string; clase?: string; quick: ActiveFilter[] }) => { setEstado(state.estado); setClase(state.clase ?? ''); setQuick(state.quick); };
+  const saveCurrentView = (name: string) => savedViews.save(name, { estado, clase, quick });
   const solicitar = useSolicitarDialog();
   const solicitudSourceKeys = useSolicitudStore((s) => s.sourceKeys);
 
@@ -103,12 +108,14 @@ export function ConsumoPage() {
     { key: 'grupoart', label: 'Grupo artículo', get: (r) => ce.grupoArt(r) },
     { key: 'estado', label: 'Estado', get: (r) => statusOf(r).status.label },
     { key: 'tendencia', label: 'Tendencia', get: (r) => statusOf(r).tend.txt },
+    { key: 'abc', label: 'Clase ABC', get: (r) => claseDe(r) },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [ce, statusIndex]);
+  ], [ce, statusIndex, a.abc]);
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (estado && statusOf(r).status.key !== estado) return false;
+      if (clase && claseDe(r) !== clase) return false;
       if (!passesFilters(r, filterCols, quick)) return false;
       if (q) {
         const hay = searchIndex.get(r) ?? '';
@@ -117,7 +124,7 @@ export function ConsumoPage() {
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, q, estado, quick, statusIndex, searchIndex, filterCols]);
+  }, [rows, q, estado, clase, quick, statusIndex, searchIndex, filterCols, a.abc]);
 
   const kpis = useMemo(() => {
     const cnt = (k: string) => filtered.filter((r) => statusOf(r).status.key === k).length;
@@ -213,6 +220,15 @@ export function ConsumoPage() {
       .sort((x, y) => y.val - x.val).slice(0, 10);
   }, [filtered, a.rf]);
 
+  // Dispersión de precios entre clientes distintos, para el mismo material,
+  // acotada a los materiales visibles bajo el filtro actual — así "Buscar" o
+  // los filtros rápidos también recortan esta tabla, no solo la principal.
+  const dispersionShown = useMemo(() => {
+    if (!filtered.length || filtered.length === rows.length) return a.precioDispersion.slice(0, 30);
+    const visibles = new Set(filtered.map((r) => norm(r.material)));
+    return a.precioDispersion.filter((e) => visibles.has(e.material)).slice(0, 30);
+  }, [a.precioDispersion, filtered, rows.length]);
+
   // #8: top ranking is now Sector-level (with trend), moved above the fold.
   const rankSector = useMemo(() => {
     if (!a.rf) return [];
@@ -286,14 +302,16 @@ export function ConsumoPage() {
     impultima: (r: ConsumoRow) => num(r.importeUltima),
     estado: (r: ConsumoRow) => statusOf(r).status.label,
     tendencia: (r: ConsumoRow) => statusOf(r).tend.txt,
+    abc: (r: ConsumoRow) => claseDe(r) || 'Z', // sin clasificar ordena al final
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [ce, statusIndex]);
+  }), [ce, statusIndex, a.abc]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   // Perf #3: virtualize the full result set (~80k rows) instead of paginating
   // 100/page. Two-line cells run ~56px tall. Only the visible slice renders.
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length, 56);
 
   if (!rows.length) {
+    if (!bootstrapped) return <TableSkeleton />;
     return <EmptyState title={'No se cargó la hoja "Reporte de Consumo".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 
@@ -313,7 +331,7 @@ export function ConsumoPage() {
         Material: r.material, Descripción: r.textoMaterial, Sector: ce.sector(r), 'Grupo art.': ce.grupoArt(r),
         'Consumo actual': r.consumoActual, 'Prom. mensual': r.consumoPromedioMensual,
         'Último mes': r.ultimoMesFacturacion, 'Cant. última': r.cantidadUltima, 'Importe última': r.importeUltima,
-        Estado: st.label, Tendencia: tn.txt,
+        Estado: st.label, Tendencia: tn.txt, 'Clase ABC': claseDe(r) || 'Sin clasificar',
       };
     });
     void exportXlsx(`consumo_${stamp()}.xlsx`, rowsX, 'Consumo');
@@ -334,6 +352,12 @@ export function ConsumoPage() {
         <DebouncedSearch onChange={setQ} placeholder="Buscar…" />
         <Select value={estado} onChange={(ev) => setEstado(ev.target.value)} className="w-auto">
           <option value="">Estado (todos)</option>{ESTADOS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </Select>
+        <Select value={clase} onChange={(ev) => setClase(ev.target.value)} className="w-auto" title="Clase ABC del material — importe facturado en los últimos 12 meses">
+          <option value="">Clase ABC (todas)</option>
+          <option value="A">A — 80% del importe</option>
+          <option value="B">B — hasta 95%</option>
+          <option value="C">C — cola</option>
         </Select>
       </div>
       <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
@@ -372,6 +396,36 @@ export function ConsumoPage() {
 
       <Ranking title="Sectores · fact. prom 12m" items={rankSector} money wide onRow={(s) => open({ type: 'sector', sector: s })} />
       <Ranking title="Materiales · fact. prom 12m" items={rankMat} money wide onRow={(m) => open({ type: 'material', material: m })} />
+
+      <div className="rounded-xl border border-border p-3">
+        <h4 className="mb-2 text-xs font-semibold text-text-muted">
+          Dispersión de precios entre clientes · mismo material, precio muy distinto · {dispersionShown.length}
+        </h4>
+        {dispersionShown.length === 0 ? (
+          <p className="text-xs text-text-faint">Sin dispersión detectada (o ningún material del filtro actual tiene 2+ clientes con precio vigente).</p>
+        ) : (
+          <Table wrapperClassName="max-h-64">
+            <TableHeader><TableRow>
+              <TableHead>Material</TableHead>
+              <TableHead className="text-right">Spread</TableHead>
+              <TableHead>Paga menos</TableHead>
+              <TableHead>Paga más</TableHead>
+              <TableHead className="text-right"># Clientes</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {dispersionShown.map((e) => (
+                <TableRow key={e.material} className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'material', material: e.material })}>
+                  <TableCell><Chip onClick={() => open({ type: 'material', material: e.material })}>{e.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{e.descripcion}</div></TableCell>
+                  <TableCell className="text-right"><span className={e.spread > 1 ? 'text-danger font-medium' : 'text-warning font-medium'}>+{(e.spread * 100).toFixed(0)}%</span></TableCell>
+                  <TableCell className="max-w-48 truncate">{e.clienteMin.razonSocial || e.clienteMin.destinatario}<div className="text-[11px] text-text-faint">{formatCurrency(e.clienteMin.precioUnitario)}</div></TableCell>
+                  <TableCell className="max-w-48 truncate">{e.clienteMax.razonSocial || e.clienteMax.destinatario}<div className="text-[11px] text-text-faint">{formatCurrency(e.clienteMax.precioUnitario)}</div></TableCell>
+                  <TableCell className="text-right">{e.nClientes}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
 
       <div className="w-full rounded-xl border border-border p-3">
         <h4 className="mb-2 text-xs font-semibold text-text-muted">Facturación mensual (filtro)</h4>
@@ -420,6 +474,7 @@ export function ConsumoPage() {
             <SortableTableHead sortKey="ejecutivo" activeKey={sortKey} dir={dir} onSort={toggleSort}>Ejecutivo / Grupo cli.</SortableTableHead>
             <SortableTableHead sortKey="centro" activeKey={sortKey} dir={dir} onSort={toggleSort}>Centro</SortableTableHead>
             <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort}>Material</SortableTableHead>
+            <SortableTableHead sortKey="abc" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Clase ABC — importe facturado en los últimos 12 meses">ABC</SortableTableHead>
             <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort}>Sector/Grupo</SortableTableHead>
             <SortableTableHead sortKey="consumo" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Consumo</SortableTableHead>
             <SortableTableHead
@@ -445,7 +500,7 @@ export function ConsumoPage() {
             <SortableTableHead sortKey="tendencia" activeKey={sortKey} dir={dir} onSort={toggleSort}>Tendencia</SortableTableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {paddingTop > 0 && (<tr><td style={{ height: paddingTop }} colSpan={11} /></tr>)}
+            {paddingTop > 0 && (<tr><td style={{ height: paddingTop }} colSpan={12} /></tr>)}
             {items.map((vi) => {
               const r = sorted[vi.index];
               const onSolicitar = () => solicitar.abrir(buildFromConsumo(r));
@@ -472,6 +527,7 @@ export function ConsumoPage() {
                 </TableCell>
                 <TableCell><Chip onClick={() => addQuick('centro', r.centro)}>{r.centro || '—'}</Chip></TableCell>
                 <TableCell><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div>{ce.precioOferta(r) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(ce.precioOferta(r))}</div>}</TableCell>
+                <TableCell><AbcBadge clase={claseDe(r) || undefined} /></TableCell>
                 <TableCell>{ce.sector(r) || '—'}<div className="text-[11px] text-text-faint">{ce.grupoArt(r)}</div></TableCell>
                 <TableCell className="text-right">{vsCell(r.consumoActual, r.consumoPromedioMensual)}</TableCell>
                 <TableCell className="text-right">{fechaCantCell(r.ultimoMesFacturacion, r.cantidadUltima)}</TableCell>
@@ -483,7 +539,7 @@ export function ConsumoPage() {
               </SolicitarContextMenu>
               );
             })}
-            {paddingBottom > 0 && (<tr><td style={{ height: paddingBottom }} colSpan={11} /></tr>)}
+            {paddingBottom > 0 && (<tr><td style={{ height: paddingBottom }} colSpan={12} /></tr>)}
           </TableBody>
         </Table>
         </div>

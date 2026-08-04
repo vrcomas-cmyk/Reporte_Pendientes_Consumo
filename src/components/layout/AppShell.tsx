@@ -20,6 +20,7 @@ export function AppShell() {
   const setCatalog = useDataStore((s) => s.setCatalog);
   const setSettings = useDataStore((s) => s.setSettings);
   const setActiveAnalysis = useDataStore((s) => s.setActiveAnalysis);
+  const setBootstrapped = useDataStore((s) => s.setBootstrapped);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // Remember the last "real" view so processing can return the user to where
@@ -65,6 +66,7 @@ export function AppShell() {
       setCatalog(cached);
       if (analysis) setActiveAnalysis(analysis);
       if (cfg) setSettings(cfg);
+      setBootstrapped(true);
 
       // First-ever boot with nothing cached yet: sync automatically so the
       // user isn't required to find and click a button before anything works.
@@ -136,7 +138,7 @@ export function AppShell() {
       cancelled = true;
       cleanupVisibility?.();
     };
-  }, [setCatalog, setSettings, setActiveAnalysis]);
+  }, [setCatalog, setSettings, setActiveAnalysis, setBootstrapped]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg text-text">

@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
@@ -7,11 +8,14 @@ export function KpiTile({
   value,
   icon: Icon,
   tone = 'default',
+  sub,
 }: {
   label: string;
   value: string;
   icon: LucideIcon;
   tone?: 'default' | 'warning' | 'danger';
+  /** Optional second line under the value (e.g. a breakdown) — same pattern as `StatTile.sub`. */
+  sub?: ReactNode;
 }) {
   return (
     <Card>
@@ -19,6 +23,7 @@ export function KpiTile({
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-wide text-text-faint">{label}</p>
           <p className="mt-1 truncate font-mono text-xl font-medium text-text">{value}</p>
+          {sub && <p className="mt-0.5 truncate text-[11px] text-text-faint">{sub}</p>}
         </div>
         <div
           className={cn(

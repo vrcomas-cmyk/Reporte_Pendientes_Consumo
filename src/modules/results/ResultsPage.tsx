@@ -45,7 +45,7 @@ export function ResultsPage() {
   const [quick, setQuick] = useState<ActiveFilter[]>([]);
   const [selected, setSelected] = useState<Sugerencia | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const zoom = useZoom();
+  const zoom = useZoom('resultados_zoom');
 
   const rows = activeAnalysis?.sugerencias ?? [];
 

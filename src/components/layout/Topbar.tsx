@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatDateTime } from '@/lib/utils';
 import { isMac } from '@/hooks/useKeybindings';
 import { NAV, ADMIN_NAV_ITEM } from '@/components/layout/Sidebar';
+import { TooltipHint } from '@/components/ui/tooltip';
 
 // A few routes read better with fuller copy than the Sidebar's short nav
 // label ("Panel" -> "Panel general"). Anything NOT listed here falls back to
@@ -72,17 +73,21 @@ export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNa
             still loading, done, or failed — especially on mobile, where the
             tooltip on the old spinner-only badge was never reachable. */}
         {sheetsSyncing ? (
-          <Badge variant="warning" className="gap-1" title={sheetsProgress?.message}>
-            <RefreshCcw className="size-3 shrink-0 animate-spin" />
-            <span className="hidden sm:inline">{sheetsProgress?.message ?? 'Sincronizando reporte…'}</span>
-            <span className="sm:hidden">Sync {sheetsProgress ? `${sheetsProgress.percent}%` : '…'}</span>
-          </Badge>
+          <TooltipHint text={sheetsProgress?.message ?? 'Sincronizando reporte…'}>
+            <Badge variant="warning" className="gap-1">
+              <RefreshCcw className="size-3 shrink-0 animate-spin" />
+              <span className="hidden sm:inline">{sheetsProgress?.message ?? 'Sincronizando reporte…'}</span>
+              <span className="sm:hidden">Sync {sheetsProgress ? `${sheetsProgress.percent}%` : '…'}</span>
+            </Badge>
+          </TooltipHint>
         ) : sheetsError ? (
-          <Badge variant="danger" className="gap-1" title={sheetsError}>
-            <AlertCircle className="size-3 shrink-0" />
-            <span className="hidden sm:inline">Reporte: falló la sincronización</span>
-            <span className="sm:hidden">Reporte: error</span>
-          </Badge>
+          <TooltipHint text={sheetsError}>
+            <Badge variant="danger" className="gap-1">
+              <AlertCircle className="size-3 shrink-0" />
+              <span className="hidden sm:inline">Reporte: falló la sincronización</span>
+              <span className="sm:hidden">Reporte: error</span>
+            </Badge>
+          </TooltipHint>
         ) : activeAnalysis ? (
           <Badge variant="success" className="gap-1">
             <CheckCircle2 className="size-3 shrink-0" />

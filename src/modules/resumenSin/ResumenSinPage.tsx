@@ -9,13 +9,18 @@ import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { buildLotesSheet, loteKey } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { TrendBadge, Chip, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
-import { invGen, esLento, type RSSMaterial, type RSSCentro } from '@/core/resumenSin';
+import { StatePill, TrendBadge, Chip, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import {
+  invGen, esLento, peorCobertura, summarizeCoberturaConTransito, quiebreMitigadoPorTransito, COBERTURA_LABEL, COBERTURA_CLS,
+  type RSSMaterial, type RSSCentro, type CoberturaEstado,
+} from '@/core/resumenSin';
 import { serieMaterial, tendenciaTexto } from '@/core/resumenFac';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { matchesQuery, norm } from '@/modules/analytics/helpers';
 import { EmptyState } from '@/components/feedback/EmptyState';
+import { TableSkeleton } from '@/components/ui/skeleton';
+import { useDataStore } from '@/store/dataStore';
 import { useSort } from '@/hooks/useSort';
 import { buildFromResumenSin } from '@/services/solicitudService';
 import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSolicitarDialog';
@@ -24,6 +29,7 @@ import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu
 import { useSolicitudStore } from '@/store/solicitudStore';
 
 export function ResumenSinPage() {
+  const bootstrapped = useDataStore((s) => s.bootstrapped);
   const a = useAnalytics();
   const open = usePanelStore((s) => s.open);
   const [q, setQ] = useState('');
@@ -32,7 +38,8 @@ export function ResumenSinPage() {
   const [pendFiltro, setPendFiltro] = useState<'' | 'con' | 'sin'>('');
   const [lentoFiltro, setLentoFiltro] = useState<'' | 'con' | 'sin'>('');
   const [transitoFiltro, setTransitoFiltro] = useState<'' | 'con' | 'sin'>('');
-  const zoom = useZoom();
+  const [coberturaFiltro, setCoberturaFiltro] = useState<'' | CoberturaEstado>('');
+  const zoom = useZoom('resumen_sin_zoom');
   const rss = a.rss;
   const qd = useDebouncedValue(q, 200);
   const solicitar = useSolicitarDialog();
@@ -85,15 +92,25 @@ export function ResumenSinPage() {
       if (lentoFiltro === 'sin' && anyCentro(mo, (co) => esLento(co, rss.curMes))) return false;
       if (transitoFiltro === 'con' && !anyCentro(mo, (co) => co.transito > 0)) return false;
       if (transitoFiltro === 'sin' && anyCentro(mo, (co) => co.transito > 0)) return false;
+      if (coberturaFiltro && !anyCentro(mo, (co) => peorCobertura(co) === coberturaFiltro)) return false;
       return true;
     });
-  }, [rss, qd, a.enrich, filterCols, quick, pendFiltro, lentoFiltro, transitoFiltro]);
+  }, [rss, qd, a.enrich, filterCols, quick, pendFiltro, lentoFiltro, transitoFiltro, coberturaFiltro]);
 
   const totals = useMemo(() => {
     let inv = 0, pend = 0, trans = 0;
     for (const mo of list) mo.centros.forEach((co) => { inv += invGen(co); pend += co.pend; trans += co.transito; });
     return { inv, pend, trans };
   }, [list]);
+
+  // Peor cobertura por cada par (material, centro) visible — base tanto del
+  // resumen por clase como del badge por celda, calculado una sola vez.
+  const coberturaSummary = useMemo(() => {
+    const pares: { estado: CoberturaEstado | undefined; co: RSSCentro }[] = [];
+    for (const mo of list) mo.centros.forEach((co) => pares.push({ estado: peorCobertura(co), co }));
+    return summarizeCoberturaConTransito(pares);
+  }, [list]);
+  const coberturaCount = (estado: CoberturaEstado) => coberturaSummary.base.find((s) => s.estado === estado)?.count ?? 0;
 
   const statusMat = (mo: RSSMaterial) => [...statusSetOf(mo)].join(', ');
   const sortAcc = useMemo(() => ({
@@ -108,6 +125,7 @@ export function ResumenSinPage() {
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
 
   if (!rss) {
+    if (!bootstrapped) return <TableSkeleton />;
     return <EmptyState title={'No se cargó la hoja "Resumen Sin Sugerencias".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 
@@ -125,10 +143,15 @@ export function ResumenSinPage() {
       mo.centros.forEach((co, centro) => {
         pares.add(loteKey(mo.material, centro));
         const ig = invGen(co);
+        const peor = peorCobertura(co);
+        const coberturaTxt = peor
+          ? quiebreMitigadoPorTransito(peor, co) ? `${COBERTURA_LABEL.quiebre} (en tránsito)` : COBERTURA_LABEL[peor]
+          : '';
         out.push({
           Material: mo.material, Descripción: mo.desc, Centro: centro,
           'Inv. general (1030+1031+1060)': ig, Pendiente: co.pend, 'En tránsito': co.transito,
           Lento: esLento(co, rss.curMes) ? 'Sí' : '',
+          Cobertura: coberturaTxt,
           Sector: a.enrich.matSector(mo.material) || '', 'Grupo art.': a.enrich.matGrupo(mo.material) || '',
         });
       });
@@ -153,6 +176,13 @@ export function ResumenSinPage() {
         <StatTile label="Inv. total" value={formatNumber(totals.inv)} />
         <StatTile label="Pendiente total" value={formatNumber(totals.pend)} tone="text-danger" />
         <StatTile label="En tránsito total" value={formatNumber(totals.trans)} tone="text-warning" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <StatTile compact label="Quiebre urgente (sin tránsito)" value={formatNumber(coberturaSummary.quiebreUrgente)} tone="text-danger" />
+        <StatTile compact label="Quiebre con tránsito en camino" value={formatNumber(coberturaSummary.quiebreMitigado)} tone="text-warning" />
+        <StatTile compact label="Inmovilizado (sin consumo, con inv.)" value={formatNumber(coberturaCount('inmovilizado'))} tone="text-violet-500" />
+        <StatTile compact label="Exceso (> 12 meses cobertura)" value={formatNumber(coberturaCount('exceso'))} tone="text-warning" />
       </div>
 
       <div className="flex items-center gap-2">
@@ -182,6 +212,13 @@ export function ResumenSinPage() {
           <option value="">En tránsito: todos</option>
           <option value="con">Con tránsito</option>
           <option value="sin">Sin tránsito</option>
+        </select>
+        <select value={coberturaFiltro} onChange={(e) => setCoberturaFiltro(e.target.value as typeof coberturaFiltro)} className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs" title="Peor cobertura entre los almacenes de cada centro">
+          <option value="">Cobertura: todas</option>
+          <option value="quiebre">{COBERTURA_LABEL.quiebre}</option>
+          <option value="inmovilizado">{COBERTURA_LABEL.inmovilizado}</option>
+          <option value="exceso">{COBERTURA_LABEL.exceso}</option>
+          <option value="sano">{COBERTURA_LABEL.sano}</option>
         </select>
       </div>
 
@@ -217,6 +254,11 @@ export function ResumenSinPage() {
                       const co = mo.centros.get(c);
                       if (!co) return <TableCell key={c} className="text-right text-text-faint">—</TableCell>;
                       const ig = invGen(co);
+                      const peor = peorCobertura(co);
+                      const showCoberturaBadge = peor && peor !== 'sano' && peor !== 'aceptable' && peor !== 'sinDatos';
+                      const mitigado = quiebreMitigadoPorTransito(peor, co);
+                      const coberturaLabel = mitigado ? `${COBERTURA_LABEL.quiebre} (en tránsito)` : peor ? COBERTURA_LABEL[peor] : '';
+                      const coberturaCls = mitigado ? 'amb' : peor ? COBERTURA_CLS[peor] : 'gris';
                       const cellSolicitada = rssSolicitadas.has(`${norm(mo.material)}|${c}`);
                       const condicionesMat = a.enrich.matCondiciones(mo.material).join(', ');
                       const onSolicitar = () => {
@@ -248,6 +290,7 @@ export function ResumenSinPage() {
                           {co.transito > 0 && <span className="text-emerald-500"> +{formatNumber(co.transito)}</span>}
                           {esLento(co, rss.curMes) && <AlertTriangle className="ml-1 inline size-3 text-warning" />}
                           {co.pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(co.pend)}</div>}
+                          {showCoberturaBadge && <div className="mt-0.5"><StatePill label={coberturaLabel} cls={coberturaCls} /></div>}
                         </TableCell>
                         </SolicitarContextMenu>
                       );

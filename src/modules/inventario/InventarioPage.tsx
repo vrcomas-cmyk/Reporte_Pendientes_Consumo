@@ -12,6 +12,8 @@ import { usePanelStore } from '@/store/panelStore';
 import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { norm, matchesQuery } from '@/modules/analytics/helpers';
 import { EmptyState } from '@/components/feedback/EmptyState';
+import { TableSkeleton } from '@/components/ui/skeleton';
+import { useDataStore } from '@/store/dataStore';
 import { useSort } from '@/hooks/useSort';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
@@ -43,6 +45,7 @@ function rowKey(material: string, condicion: string) {
 }
 
 export function InventarioPage() {
+  const bootstrapped = useDataStore((s) => s.bootstrapped);
   const a = useAnalytics();
   const open = usePanelStore((s) => s.open);
   const rows = a.invCondicion;
@@ -53,7 +56,7 @@ export function InventarioPage() {
   const [isAdmin, setIsAdmin] = useState(readAdmin);
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
   const [quick, setQuick] = useState<ActiveFilter[]>([]);
-  const zoom = useZoom();
+  const zoom = useZoom('inventario_zoom');
 
   // Vistas guardadas: snapshot de filtros (condicion/sector/centro/quick), persistido entre sesiones.
   const savedViews = useSavedViews<{ cond: string; sector: string; centro: string; quick: ActiveFilter[] }>('inventario_vistas');
@@ -187,6 +190,7 @@ export function InventarioPage() {
   const precioLeft = sectorLeft + SECTOR_W;
 
   if (!rows.length) {
+    if (!bootstrapped) return <TableSkeleton />;
     return <EmptyState title={'No hay datos de "Inventario por condición".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 

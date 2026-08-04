@@ -148,6 +148,11 @@ export interface ConsumoRow {
   precioMin: number;
   precioMax: number;
   precioProm: number;
+  /** Precio unitario de la última factura de este cliente para este material
+   * (`Precio_unitario_ultima`) — a diferencia de precioMin/Max/Prom, que son
+   * el rango histórico de ESTE cliente, este es el precio vigente hoy. Es la
+   * base de la dispersión de precios entre clientes (`core/precios.ts`). */
+  precioUnitarioUltima: number;
   raw: Record<string, unknown>;
 }
 
@@ -200,6 +205,15 @@ export interface CatalogSnapshot {
   invDetalle: InvDetalleRow[];
 }
 
+/** Importe pendiente bloqueado agrupado por el motivo real de la hoja
+ * ("Detenido", "Crédito", "Detenido por ambos", …) — no colapsado a un
+ * booleano como hacían `HoyPage`/`comercial.ts` antes de esto. */
+export interface BloqueadoMotivo {
+  motivo: string;
+  count: number;
+  importePendiente: number;
+}
+
 /** Computed KPIs shown on the dashboard for one analysis run. */
 export interface DashboardKpis {
   materialesAnalizados: number;
@@ -209,6 +223,10 @@ export interface DashboardKpis {
   productosLentoMovimiento: number;
   inventarioTotal: number;
   valorEconomico: number;
+  /** Suma de `cantidadPendiente * precio` sobre toda sugerencia con `bloqueado` no vacío. */
+  bloqueadosImportePendiente: number;
+  bloqueadosCount: number;
+  bloqueadosPorMotivo: BloqueadoMotivo[];
 }
 
 export interface TopMaterial {

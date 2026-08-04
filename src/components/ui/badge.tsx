@@ -17,8 +17,12 @@ const badgeVariants = cva('inline-flex items-center rounded-full border px-2 py-
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement>, VariantProps<typeof badgeVariants> {}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return <span className={cn(badgeVariants({ variant }), className)} {...props} />;
-}
+// forwardRef so Badge can be used as a Radix `asChild` target (e.g. wrapped
+// in TooltipTrigger) — Slot clones the child and injects a `ref`, which a
+// plain function component silently drops, breaking tooltip positioning.
+const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(({ className, variant, ...props }, ref) => (
+  <span ref={ref} className={cn(badgeVariants({ variant }), className)} {...props} />
+));
+Badge.displayName = 'Badge';
 
 export { Badge, badgeVariants };

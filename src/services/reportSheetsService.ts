@@ -28,23 +28,19 @@ const REPORT_TABS: Partial<Record<SheetRole, string>> = {
 };
 export const REPORT_SHEET_ROLES = Object.keys(REPORT_TABS) as SheetRole[];
 
-/** "Todas las Sugerencias", "Resumen Sin Sugerencias" y "Resumen_Fac" son
- * salida de fórmulas vivas (QUERY/FILTER): un registro puede desaparecer de
- * la pestaña (ya se cubrió, ya no aplica) mientras el `rowCount` total se
- * mantiene igual o crece porque entran registros nuevos al mismo tiempo. El
- * esquema delta de abajo solo detecta "la hoja se encogió" (rowCount menor
- * al offset) — un rowCount igual/mayor con registros distintos por dentro
- * pasa inadvertido y el registro eliminado queda viviendo en el caché para
- * siempre. Por eso estas tres siempre se traen completas, sin caché delta. */
-const ALWAYS_FULL_REFRESH_ROLES = new Set<SheetRole>(['sugerencias', 'resumenSinSugerencias', 'resumenFac']);
-
-/** "Reporte de Consumo" sí es mayormente append-only (~80k filas, crece por
- * abajo) pero las filas más recientes pueden actualizarse in-place (el
- * consumo de los últimos días cambia de valor sin que se agreguen o quiten
- * filas). Re-pedir esta ventana de filas "recientes" en cada sync — en vez
- * de asumir que todo lo previo al offset sigue vigente — corrige esos
- * valores sin pagar el costo de re-descargar las 80k filas completas. */
-const CONSUMO_REFRESH_WINDOW = 15_000;
+/** Las 4 pestañas son salida de fórmulas vivas (QUERY/FILTER) o de valores
+ * que se actualizan in-place: un registro puede desaparecer o cambiar de
+ * valor sin que el `rowCount` total baje — entran otros al mismo tiempo. Se
+ * intentó un esquema delta (pedir solo lo nuevo desde el último offset, con
+ * una ventana de "filas recientes" para Reporte de Consumo) pero medido
+ * contra snapshots reales del reporte, los cambios en Consumo NO se
+ * concentran en la cola: comparando dos sync consecutivas, solo ~22% de los
+ * cambios caían en las últimas 15,000 filas y el decil con MÁS cambios era
+ * el primero, no el último. Cualquier ventana parcial deja datos viejos sin
+ * detectar. Por eso las 4 pestañas siempre se traen completas, sin caché
+ * delta — ver `processTabInner` (offset siempre 0) y
+ * docs/apps-script-report-sheets.md §5. El caché (`sheetsCache`) se conserva
+ * solo para rellenar roles NO seleccionados en una sync parcial. */
 
 async function requireUrl(): Promise<string> {
   const url = await getConnector(CONNECTOR_KEYS.reportSheetsUrl, REPORT_SHEETS_URL_ENV);
@@ -168,12 +164,11 @@ export interface SyncReportSheetsParams {
    * silent background checks don't pile up `degasa_history`/`degasa_logs`
    * entries no one asked for. */
   silent?: boolean;
-  /** Force a full re-fetch of every selected tab, ignoring the dense-rows
-   * IndexedDB cache (`sheetsCache`). Use this when the user suspects an
-   * edit landed in the middle of an existing row (the delta-sync scheme
-   * only catches appends — see docs/apps-script-report-sheets.md §5).
-   * Also wipes the cache for the selected roles so the next incremental
-   * sync starts fresh from the new rowCount. */
+  /** Historical flag from when this sync had a delta mode — every tab is now
+   * always fetched in full (see docs/apps-script-report-sheets.md §5), so
+   * this no longer changes what gets fetched. Kept only because it still
+   * wipes the dense-rows IndexedDB cache (`sheetsCache`), which is otherwise
+   * used to fill in roles the caller didn't select this time. */
   forceFull?: boolean;
 }
 
@@ -232,11 +227,9 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
     const tabs = roles.map((role) => REPORT_TABS[role]).filter((t): t is string => !!t);
     emit({ phase: 'detecting', percent: 5, message: `Consultando ${tabs.length} pestaña(s)…` });
 
-    // Delta-sync: for each selected tab, ask the Apps Script only for the rows
-    // past the cached rowCount on this device (offset === cached.rows.length).
-    // The response includes the current total `rowCount`, which we compare to
-    // the offset to detect truncation/replacement (rowCount < offset → the tab
-    // shrunk, re-fetch fully) — see docs/apps-script-report-sheets.md §5.
+    // Every selected tab is fetched in FULL (offset 0) — see the comment on
+    // "Las 4 pestañas..." above and docs/apps-script-report-sheets.md §5 for
+    // why the old delta scheme was dropped.
     //
     // Fetched in PARALLEL (not one at a time) so the total wait is however
     // long the slowest tab takes, not the sum of all four — but each tab's
@@ -274,19 +267,18 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
     }
 
     async function processTabInner(role: SheetRole, tab: string, index: number): Promise<void> {
-      const alwaysFull = ALWAYS_FULL_REFRESH_ROLES.has(role);
-      const cached = forceFull || alwaysFull ? undefined : await getCachedTab(tab);
-      const priorRows = cached?.rows ?? [];
-      const refreshWindow = role === 'reporteConsumo' ? CONSUMO_REFRESH_WINDOW : 0;
-      // For "Reporte de Consumo", re-fetch the trailing `refreshWindow` rows
-      // (they'll be replaced below, not just appended to) instead of trusting
-      // that everything before the last-known length is still accurate.
-      const offset = Math.max(0, priorRows.length - refreshWindow);
+      // Todas las pestañas se traen completas (offset 0) — ver el comentario
+      // de arriba. `forceFull` ya no cambia nada aquí (se deja el parámetro
+      // por compatibilidad con la UI existente); el caché delta
+      // (`sheetsCache`) solo sirve ahora para rellenar roles NO seleccionados
+      // en una sync parcial (ver más abajo, fuera de este loop).
+      const offset = 0;
 
       // Per-PAGE progress (not just per-tab): a cold "Reporte de Consumo"
-      // sync (~80k rows, no cache yet) used to sit at the same percent for
-      // however long that one giant request took. Now it's several smaller
-      // requests, so report fractional progress within this tab's slot too.
+      // sync (~80k rows) solía quedarse en el mismo porcentaje todo el tiempo
+      // que tardaba esa sola petición. Ahora son varias peticiones más
+      // chicas, así que se reporta progreso fraccional dentro del slot de
+      // cada pestaña también.
       const reportPage = (rowsSoFar: number, rowCount: number | undefined) => {
         const remaining = typeof rowCount === 'number' ? Math.max(1, rowCount - offset) : null;
         const tabFrac = remaining ? Math.min(1, rowsSoFar / remaining) : 0;
@@ -299,30 +291,14 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
         });
       };
 
-      let tabRows = await fetchReportSheetTabPaginated(tab, offset, reportPage);
+      const tabRows = await fetchReportSheetTabPaginated(tab, offset, reportPage);
 
-      // If the sheet shrank (rows deleted/replaced) since the last sync, the
-      // delta window starting at the old offset is meaningless — re-fetch the
-      // whole tab. Also happens when `cached.rowCount` lagged behind reality.
-      if (offset > 0 && typeof tabRows.rowCount === 'number' && tabRows.rowCount < offset) {
-        tabRows = await fetchReportSheetTabPaginated(tab, 0, reportPage);
-      }
-
-      // Rows from `offset` onward are REPLACED by the fresh fetch (not
-      // appended after) — that's what lets the refresh window above correct
-      // in-place edits, and what makes a shrink-triggered `offset = 0`
-      // refetch above fully replace the tab instead of duplicating it.
-      const combinedRows = offset > 0 ? [...priorRows.slice(0, offset), ...tabRows.rows] : tabRows.rows;
-      // Defensive dedup: "Todas las Sugerencias"/"Reporte de Consumo" are the
-      // output of live formulas (QUERY/FILTER) that can reorder rows when new
-      // data lands in the middle of the sheet, not just at the end. When that
-      // happens the offset-based delta window drifts and a row that's already
-      // in `cached.rows` gets re-fetched and appended a second time, silently
-      // inflating every KPI/total downstream on each subsequent sync. Collapse
-      // exact-duplicate rows (same values in the same order) before persisting,
-      // keeping the first occurrence.
+      // Defensive dedup: "Todas las Sugerencias"/"Reporte de Consumo" son
+      // salida de fórmulas vivas (QUERY/FILTER) o traen claves repetidas
+      // legítimas en origen. Colapsar filas exactamente duplicadas (mismos
+      // valores en el mismo orden), quedándose con la primera ocurrencia.
       const dedupSeen = new Set<string>();
-      const dedupedRows = combinedRows.filter((row) => {
+      const dedupedRows = tabRows.rows.filter((row) => {
         const key = JSON.stringify(row);
         if (dedupSeen.has(key)) return false;
         dedupSeen.add(key);
@@ -331,7 +307,7 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
       const merged: TabRows = {
         headers: tabRows.headers,
         rows: dedupedRows,
-        rowCount: typeof tabRows.rowCount === 'number' ? tabRows.rowCount : (offset + tabRows.rows.length),
+        rowCount: typeof tabRows.rowCount === 'number' ? tabRows.rowCount : tabRows.rows.length,
       };
 
       // Persist the fresh full tab back to the dense-rows cache (so the next

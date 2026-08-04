@@ -48,12 +48,11 @@ function getMeta() {
  * generar/transmitir ese JSON inflado.
  *
  * Soporta paginación opcional con `?offset=` y `?limit=` (basados en filas de
- * datos, sin contar el encabezado). El portal usa `offset` para pedir solo las
- * filas nuevas desde la última sync (append-only) y `rowCount` para detectar
- * si el número total creció, disminuyó (reemplazo → forzar sync completa) o
- * se mantuvo (posible edición → el usuario puede forzar sync completa
- * manualmente). Sin parámetros, devuelve todas las filas (comportamiento
- * original). */
+ * datos, sin contar el encabezado) — el portal las usa solo para trocear una
+ * pestaña grande en páginas de `TAB_PAGE_SIZE` dentro de UNA sync completa
+ * (ver §6), NO para saltarse filas ya sincronizadas: ese modo delta se probó
+ * y se abandonó por incorrecto (ver §5). Sin parámetros, devuelve todas las
+ * filas (comportamiento original). */
 function getTabRows(tabName, offset, limit) {
   const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(tabName);
   if (!sheet) return { error: `No existe la pestaña "${tabName}"` };
@@ -132,51 +131,59 @@ un aviso.
 Si no despliegas este script, la carga manual de `.xlsx` sigue funcionando
 exactamente igual — esta sync es un camino adicional, no un reemplazo.
 
-## 5. Sync incremental (delta)
+## 5. Por qué las 4 pestañas siempre se traen completas (historia del delta)
 
-A partir de la versión paginada del script anterior, el portal guarda el
-número de filas ya sincronizadas por pestaña en `localStorage`
-(`report-sheets-tab-meta`). En cada sync:
+Versiones anteriores de este sync usaban un esquema delta: el portal
+guardaba el número de filas ya sincronizadas por pestaña
+(IndexedDB `sheetsCache`) y en cada sync pedía solo `offset=<lastRowCount>`
+en adelante, concatenando las filas nuevas al final — rápido para una hoja
+de ~80k filas, pero **incorrecto**, y quedó abandonado. Se documenta aquí
+para que nadie lo reintroduzca sin volver a medir.
 
-- Si el rowCount actual del Sheet es **mayor** que el guardado: pide solo
-  desde `offset=<lastRowCount>` y concatena las filas nuevas al final del
-  análisis existente (modo append-only, mucho más rápido para 80k filas).
-- Si es **menor** (se borraron filas / se reemplazó la pestaña): forzar
-  sync completa de esa pestaña.
-- Si es **igual**: no pedir las filas de esa pestaña (no cambió) — la
-  memoización de derivados de `buildAnalysisResult` evita recomputar.
+**El bug:** el esquema asumía append-only — que la hoja solo crece por
+abajo. Falso para estas pestañas: "Todas las Sugerencias" y
+"Resumen Sin Sugerencias" son salida de fórmulas vivas (QUERY/FILTER) donde
+un registro puede desaparecer (ya se cubrió, ya no aplica) mientras el
+`rowCount` total se mantiene igual o crece porque entran registros nuevos
+al mismo tiempo. El delta solo reaccionaba si el `rowCount` **bajaba** —
+un total igual o mayor con contenido distinto por dentro pasaba
+inadvertido y el registro viejo quedaba viviendo en el caché para siempre.
+Ese era el síntoma reportado: "sincronizo pero sigo viendo datos de
+reportes anteriores".
 
-**Limitación (histórica, ya corregida):** este esquema asumía append-only.
-Si el usuario **editaba** o **eliminaba** una fila existente sin que el
-`rowCount` total bajara (por ejemplo porque entraban filas nuevas al mismo
-tiempo), el cambio no se detectaba y el registro viejo quedaba viviendo en
-el caché para siempre — el síntoma exacto era "sincronizo pero sigo viendo
-datos de reportes anteriores".
+Medido contra tres snapshots reales del reporte (28-jul → 03-ago 2026):
+"Resumen Sin Sugerencias" pasó de 6,473 a 6,488 filas (creció 15) pero por
+dentro se fueron 130 registros, entraron 145 y solo 860 de 6,488 filas
+quedaron idénticas — el `rowCount` no delató nada.
 
-La corrección (`src/services/reportSheetsService.ts`,
-`ALWAYS_FULL_REFRESH_ROLES` / `CONSUMO_REFRESH_WINDOW`):
+**El primer intento de fix** trató "Todas las Sugerencias",
+"Resumen Sin Sugerencias" y "Resumen_Fac" como siempre-completas (son
+pestañas chicas, no vale la pena arriesgar datos obsoletos por banda) y
+dejó "Reporte de Consumo" en modo delta con una ventana de las últimas
+15,000 filas re-pedidas y reemplazadas en cada sync, bajo la suposición de
+que los cambios de facturación caen en las filas recientes.
 
-- **"Todas las Sugerencias", "Resumen Sin Sugerencias" y "Resumen_Fac"**
-  son salida de fórmulas vivas (QUERY/FILTER) donde un registro puede
-  desaparecer sin que el total baje. Estas tres **siempre se traen
-  completas** en cada sync (sin caché delta) — no vale la pena arriesgar
-  datos obsoletos por el ahorro de banda, son pestañas chicas.
-- **"Reporte de Consumo"** (~80k filas) sí es mayormente append-only, pero
-  los valores de las filas más recientes cambian in-place (consumo de los
-  últimos días). Cada sync re-pide y **reemplaza** una ventana de las
-  últimas 15,000 filas (`CONSUMO_REFRESH_WINDOW`) además de lo genuinamente
-  nuevo, en vez de asumir que todo lo anterior al offset sigue vigente.
+**Esa suposición era falsa.** Comparando el mismo par de snapshots
+(83,248 → 83,847 filas de Consumo), de 16,825 cambios significativos por
+fila (excluyendo la columna `Meses ult fac - Fecha act`, que cambia sola
+cada día por ser un delta contra la fecha actual — ruido puro, no dato de
+negocio) **solo el 21.7% caía en las últimas 15,000 filas**, y el decil
+con más cambios era el **primero** de la hoja (38.9%), no el último.
+Cualquier ventana parcial —de cola o de cualquier otro tipo, sin una firma
+por fila del lado del Apps Script— deja la mayoría de los cambios sin
+detectar.
 
-El botón **"Sincronización completa"** (forceFull) en la card de Carga
-sigue existiendo para forzar una re-descarga total de las 4 pestañas (por
-ejemplo si se sospecha de datos corruptos más allá de la ventana de
-Consumo).
+**Estado actual:** las 4 pestañas se piden completas (`offset=0`) en cada
+sync — no hay caché delta activo. El parámetro `forceFull` de
+`syncReportSheets` ya no cambia qué se pide (todo se pide igual); solo
+sigue limpiando `sheetsCache`, que hoy únicamente sirve para rellenar
+pestañas que el usuario **no** seleccionó en una sync parcial (checklist de
+roles en Carga) con la última copia completa conocida.
 
-**After Apple V8:** el `?offset=` en Apps Script usa `getRange(startRow, 1,
-numRows, cols)` en vez de `getDataRange().getValues()` — la lectura de
-rango parcial es proporcional a las filas pedidas, no a las totales de la
-hoja, así que pedir 100 filas nuevas cuesta ~100/80000 de lo que costaría
-pedirlas todas.
+**After Apple V8:** el `?offset=`/`?limit=` en Apps Script usa
+`getRange(startRow, 1, numRows, cols)` en vez de `getDataRange().getValues()`
+— sigue siendo relevante para la paginación en páginas de 20,000 filas
+(§6), aunque ya no para saltarse filas ya sincronizadas.
 
 ## 6. Paginación por chunks (`?limit=`)
 

@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/feedback/EmptyState';
 import { StatTile, Chip, RowContextMenu } from '@/modules/analytics/ui';
 import { norm, num } from '@/modules/analytics/helpers';
 import { analisisVentas } from '@/core/comercial';
+import { buildRiesgoCaducidad } from '@/core/caducidad';
 
 /** "Hoy" — lo que vale la pena revisar en la sesión, en un solo lugar: pedidos
  * bloqueados con más importe en juego, clientes en riesgo de abandono, y
@@ -53,6 +54,16 @@ export function HoyPage() {
       .sort((x, y) => (y.conDemanda ? 1 : 0) - (x.conDemanda ? 1 : 0) || x.dias - y.dias);
   }, [a.lotes, consumoActivoPorMaterial]);
 
+  // #1.6: pesos en riesgo por mes de vencimiento (no solo lotes/cantidad),
+  // cruzado con demanda reciente para separar "se va a vender solo" de "hay
+  // que rematarlo ya". Mismo horizonte de 12 meses por default.
+  const riesgoCaducidad = useMemo(
+    () => buildRiesgoCaducidad(a.lotes, { precioDe: a.enrich.matPrecioOferta, tieneDemanda: (m) => consumoActivoPorMaterial.has(m) }),
+    [a.lotes, a.enrich, consumoActivoPorMaterial],
+  );
+  const riesgoCaducidadImpTotal = riesgoCaducidad.reduce((s, m) => s + m.importeTotal, 0);
+  const riesgoCaducidadImpSinDemanda = riesgoCaducidad.reduce((s, m) => s + (m.importeTotal - m.importeConDemanda), 0);
+
   if (!a.result && !a.rss) {
     return <EmptyState title="Aún no hay reporte cargado" description="Carga el reporte diario para ver el resumen de hoy." action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
@@ -64,10 +75,11 @@ export function HoyPage() {
         <p className="text-sm text-text-muted">Estado actual — pedidos bloqueados, clientes en riesgo y lotes por vencer, en un vistazo</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Pedidos bloqueados" value={formatNumber(bloqueados.length)} sub={formatCurrency(bloqueadosImp)} tone="text-danger" />
         <StatTile label="Clientes en riesgo" value={formatNumber(riesgo.length)} sub="≥3 compras, 3-24m sin comprar" tone="text-warning" />
         <StatTile label="Lotes por vencer (≤30d)" value={formatNumber(lotesPorVencer.length)} sub={`${lotesPorVencer.filter((l) => l.conDemanda).length} con demanda activa`} tone="text-danger" />
+        <StatTile label="En riesgo por caducidad (≤12m)" value={formatCurrency(riesgoCaducidadImpTotal)} sub={`${formatCurrency(riesgoCaducidadImpSinDemanda)} sin demanda reciente`} tone="text-danger" />
       </div>
 
       <Card>
@@ -146,6 +158,30 @@ export function HoyPage() {
                       <TableCell>{l.conDemanda ? <span className="text-emerald-500">Activa</span> : <span className="text-text-faint">Sin consumo reciente</span>}</TableCell>
                     </TableRow>
                   </RowContextMenu>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Clock4 className="size-4 text-danger" /> Valor en riesgo por mes de vencimiento</CardTitle>
+          <CardDescription>Cantidad disponible × precio de oferta, próximos 12 meses — separado por si el material tiene demanda reciente</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {riesgoCaducidad.length === 0 ? <p className="text-sm text-text-muted">Sin lotes con caducidad en los próximos 12 meses.</p> : (
+            <Table wrapperClassName="max-h-72 rounded-lg border border-border">
+              <TableHeader><TableRow><TableHead>Mes</TableHead><TableHead className="text-right">Lotes</TableHead><TableHead className="text-right">Importe total</TableHead><TableHead className="text-right">Sin demanda</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {riesgoCaducidad.map((m) => (
+                  <TableRow key={m.mesKey}>
+                    <TableCell>{m.mes}</TableCell>
+                    <TableCell className="text-right">{formatNumber(m.lotes)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(m.importeTotal)}</TableCell>
+                    <TableCell className="text-right text-danger">{formatCurrency(m.importeTotal - m.importeConDemanda)}</TableCell>
+                  </TableRow>
                 ))}
               </TableBody>
             </Table>

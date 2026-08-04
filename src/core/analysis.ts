@@ -6,6 +6,7 @@ import type {
   InvConsolidadoRow,
   InvDetalleRow,
   DashboardKpis,
+  BloqueadoMotivo,
   TopMaterial,
   TopEjecutivo,
   MonthlyInvoicing,
@@ -118,6 +119,9 @@ export function computeKpis(params: {
   const invConsolidadoConPrecio = applyCatalogPriceFallback(invConsolidado, catalog);
   const valorEconomico = invConsolidadoConPrecio.reduce((acc, r) => acc + r.precioOferta * r.invSuma, 0);
 
+  const { count: bloqueadosCount, importeTotal: bloqueadosImportePendiente, porMotivo: bloqueadosPorMotivo } =
+    computeBloqueados(sugerencias);
+
   return {
     materialesAnalizados,
     ejecutivosCount,
@@ -126,7 +130,33 @@ export function computeKpis(params: {
     productosLentoMovimiento,
     inventarioTotal,
     valorEconomico,
+    bloqueadosImportePendiente,
+    bloqueadosCount,
+    bloqueadosPorMotivo,
   };
+}
+
+/** Groups pending-amount by the real `bloqueado` reason on the sheet
+ * ("Detenido", "Crédito", "Detenido por ambos", …) instead of collapsing it
+ * to a yes/no flag — "cuánto dinero está detenido y por qué" is the question
+ * a bare count/boolean can't answer. Sorted by importe descending. */
+export function computeBloqueados(sugerencias: Sugerencia[]): { count: number; importeTotal: number; porMotivo: BloqueadoMotivo[] } {
+  const byMotivo = new Map<string, BloqueadoMotivo>();
+  let count = 0;
+  let importeTotal = 0;
+  for (const s of sugerencias) {
+    const motivo = (s.bloqueado || '').trim();
+    if (!motivo) continue;
+    const imp = s.cantidadPendiente * s.precio;
+    count += 1;
+    importeTotal += imp;
+    const cur = byMotivo.get(motivo) ?? { motivo, count: 0, importePendiente: 0 };
+    cur.count += 1;
+    cur.importePendiente += imp;
+    byMotivo.set(motivo, cur);
+  }
+  const porMotivo = [...byMotivo.values()].sort((a, b) => b.importePendiente - a.importePendiente);
+  return { count, importeTotal, porMotivo };
 }
 
 export function topMateriales(sugerencias: Sugerencia[], n = 5): TopMaterial[] {

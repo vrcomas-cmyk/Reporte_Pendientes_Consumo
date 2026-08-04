@@ -4,6 +4,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableCell, TableHead, SortableTableHead } from '@/components/ui/table';
 import { EmptyState } from '@/components/feedback/EmptyState';
+import { TableSkeleton } from '@/components/ui/skeleton';
+import { useDataStore } from '@/store/dataStore';
 import { useSort } from '@/hooks/useSort';
 import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
@@ -22,6 +24,7 @@ import { Select } from '@/components/ui/select';
 import { usePermissionsStore } from '@/store/permissionsStore';
 import { isColumnHidden, isDetailHidden } from '@/core/permissions';
 import { toast } from '@/store/toastStore';
+import { TooltipHint } from '@/components/ui/tooltip';
 import type { Sugerencia } from '@/core/types';
 
 const INV_COLS = ['1030', '1031', '1032'] as const;
@@ -46,7 +49,11 @@ function UrgenciaDot({ fecha }: { fecha: string }) {
   const dias = diasDesde(fecha);
   if (dias === null || dias < 0) return null;
   const cls = dias > 30 ? 'bg-danger' : dias > 15 ? 'bg-warning' : 'bg-emerald-500';
-  return <span className={`inline-block size-1.5 rounded-full ${cls}`} title={`${dias} día(s) desde el pedido`} />;
+  return (
+    <TooltipHint text={`${dias} día(s) desde el pedido`}>
+      <span tabIndex={0} className={`inline-block size-1.5 rounded-full outline-none ${cls}`} />
+    </TooltipHint>
+  );
 }
 
 type BORow = (ReturnType<typeof useAnalytics>['bo'])[number];
@@ -55,6 +62,7 @@ type BORow = (ReturnType<typeof useAnalytics>['bo'])[number];
 interface RawRow { it: BORow; f: Sugerencia | null; key: string }
 
 export function SugerenciasPage() {
+  const bootstrapped = useDataStore((s) => s.bootstrapped);
   const a = useAnalytics();
   const open = usePanelStore((s) => s.open);
   const solicitar = useSolicitarDialog();
@@ -91,7 +99,7 @@ export function SugerenciasPage() {
   const [openSector, setOpenSector] = useState<string | null>(null);
   const [agrupadoState, setAgrupado] = useState(true);
   const agrupado = fuenteOculto || agrupadoState;
-  const zoom = useZoom();
+  const zoom = useZoom('sugerencias_zoom');
 
   const e = a.enrich;
   const grupoCli = (b: BORow['bo']) => e.grupoCliente(b.gpoCte) || norm(b.gpoCte);
@@ -238,7 +246,7 @@ export function SugerenciasPage() {
     else toast.success(`Solicitadas ${ok} de ${items.length}`);
   };
 
-  const colVis = useColumnVisibility();
+  const colVis = useColumnVisibility('sugerencias_columnas');
   const vis = colVis.isVisible;
   const [unificarInv, setUnificarInv] = useState(false);
   const invTotal = (b: BORow['bo']) => INV_ALL.reduce((s, c) => s + num(b.invByCenter[c] || 0), 0);
@@ -352,6 +360,7 @@ export function SugerenciasPage() {
   }, [solicitudesList]);
 
   if (!a.result || !a.bo.length) {
+    if (!bootstrapped) return <TableSkeleton />;
     return <EmptyState title="No hay sugerencias. Carga catálogo y procesa un reporte." action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 

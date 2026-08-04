@@ -4,6 +4,7 @@ export { DetailChevron } from './DetailChevron';
 export { ColumnFilterBar, passesFilters } from './ColumnFilterBar';
 export type { FilterColumn, ActiveFilter } from './ColumnFilterBar';
 export { StatePill, TrendBadge } from './StatePill';
+export { AbcBadge } from './AbcBadge';
 export { Chip } from './Chip';
 export { EvolChart } from './EvolChart';
 export { ComparativaDual } from './ComparativaDual';

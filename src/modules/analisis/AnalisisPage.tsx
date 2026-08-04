@@ -9,9 +9,10 @@ import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { usePanelStore } from '@/store/panelStore';
-import { StatTile, EvolChart, ComparativaDual, Chip, RowContextMenu, StatePill, useSavedViews, SavedViewsControl } from '@/modules/analytics/ui';
+import { StatTile, EvolChart, ComparativaDual, Chip, RowContextMenu, StatePill, AbcBadge, useSavedViews, SavedViewsControl } from '@/modules/analytics/ui';
 import { analisisVentas, type ClienteAna, type MatAna, type AnalisisFilters } from '@/core/comercial';
 import { mesKey, mesAnterior, hoyMes } from '@/core/resumenFac';
+import { summarizeAbc, type AbcEntry } from '@/core/abc';
 import { norm, num } from '@/modules/analytics/helpers';
 
 function pct(a: number, b: number) {
@@ -115,6 +116,11 @@ export function AnalisisPage() {
     return { qLabel: qLabelOf(qStartK), cur, prev };
   }, [A, periodo]);
 
+  const abcMaterialesSummary = useMemo(() => summarizeAbc(a.abc.materiales), [a.abc.materiales]);
+  const abcClientesSummary = useMemo(() => summarizeAbc(a.abc.clientes), [a.abc.clientes]);
+  const [abcTab, setAbcTab] = useState<'materiales' | 'clientes'>('materiales');
+  const abcShown = abcTab === 'materiales' ? a.abc.materiales : a.abc.clientes;
+
   const opsShown = useMemo(() => {
     if (!A) return [];
     return A.ops.top.filter((o) => !soloNoDetenido || !o.bloqueado).slice(0, 15);
@@ -199,6 +205,14 @@ export function AnalisisPage() {
         rows: A.ops.top.map((o) => ({ Pedido: o.pedido, Cliente: o.razon, Material: o.mat, 'Imp. pendiente': o.imp, Bloqueado: o.bloqueado ? 'Sí' : '' })),
       },
       {
+        name: 'ABC Materiales',
+        rows: a.abc.materiales.map((e) => ({ Rank: e.rank, Material: e.key, Descripción: e.label, 'Importe 12m': e.importe12m, 'Cantidad 12m': e.cantidad12m, '% del importe': e.share, '% acumulado': e.cumShare, Clase: e.clase })),
+      },
+      {
+        name: 'ABC Clientes',
+        rows: a.abc.clientes.map((e) => ({ Rank: e.rank, Solicitante: e.key, Cliente: e.label, 'Importe 12m': e.importe12m, 'Cantidad 12m': e.cantidad12m, '% del importe': e.share, '% acumulado': e.cumShare, Clase: e.clase })),
+      },
+      {
         name: 'Sectores',
         rows: A.sectores.map((s) => ({ Sector: s.sector, '3m previos': s.p3, 'Últ. 3m': s.a3, 'Imp. 12m': s.i12, Grupos: s.grupos.size })),
       },
@@ -271,6 +285,53 @@ export function AnalisisPage() {
           <button onClick={() => setPeriodo('anterior')} className={`rounded px-2 py-1 ${periodo === 'anterior' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo anterior</button>
         </div>
       </div>
+
+      <Card className="p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Clasificación ABC / Pareto · últimos 12 meses</h3>
+          <div className="inline-flex items-center gap-1 rounded-md border border-border p-0.5 text-xs">
+            <button onClick={() => setAbcTab('materiales')} className={`rounded px-2 py-1 ${abcTab === 'materiales' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Materiales</button>
+            <button onClick={() => setAbcTab('clientes')} className={`rounded px-2 py-1 ${abcTab === 'clientes' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Clientes</button>
+          </div>
+        </div>
+        <div className="mb-3 grid grid-cols-3 gap-2">
+          {(abcTab === 'materiales' ? abcMaterialesSummary : abcClientesSummary).map((s) => (
+            <div key={s.clase} className="rounded-xl border border-border p-3">
+              <div className="flex items-center gap-1.5"><AbcBadge clase={s.clase} /><span className="text-xs font-medium text-text-faint">Clase {s.clase}</span></div>
+              <div className="mt-1 font-display text-xl font-semibold">{formatNumber(s.count)}</div>
+              <div className="text-[11px] text-text-faint">{formatCurrency(s.importe)} · {(s.shareOfTotal * 100).toFixed(1)}% del importe</div>
+            </div>
+          ))}
+        </div>
+        <div>
+          <Table wrapperClassName="max-h-72">
+            <TableHeader><TableRow>
+              <TableHead className="w-10">#</TableHead>
+              <TableHead>{abcTab === 'materiales' ? 'Material' : 'Cliente'}</TableHead>
+              <TableHead className="text-right">Importe 12m</TableHead>
+              <TableHead className="text-right">% acum.</TableHead>
+              <TableHead>Clase</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {abcShown.slice(0, 50).map((e: AbcEntry) => (
+                <TableRow
+                  key={e.key}
+                  className="cursor-pointer"
+                  title="Doble clic para ver detalle"
+                  onDoubleClick={() => open(abcTab === 'materiales' ? { type: 'material', material: e.key } : { type: 'evol', kind: 'solic', key: e.key })}
+                >
+                  <TableCell className="text-text-faint">{e.rank}</TableCell>
+                  <TableCell className="max-w-72 truncate"><Chip onClick={() => open(abcTab === 'materiales' ? { type: 'material', material: e.key } : { type: 'evol', kind: 'solic', key: e.key })}>{e.key}</Chip><div className="text-[11px] text-text-faint truncate">{e.label}</div></TableCell>
+                  <TableCell className="text-right">{formatCurrency(e.importe12m)}</TableCell>
+                  <TableCell className="text-right">{(e.cumShare * 100).toFixed(1)}%</TableCell>
+                  <TableCell><AbcBadge clase={e.clase} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <p className="mt-2 text-[11px] text-text-faint">Mostrando los primeros 50 de {formatNumber(abcShown.length)} · el listado completo está en el Excel exportado.</p>
+      </Card>
 
       <Card className="p-4">
         <h3 className="mb-2 text-sm font-semibold">Facturación mensual total</h3>

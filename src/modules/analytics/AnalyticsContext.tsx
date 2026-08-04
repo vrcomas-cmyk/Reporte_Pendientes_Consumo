@@ -5,6 +5,8 @@ import { buildBO, type BOItem } from '@/core/buildBO';
 import { buildRSS, type RSSIndex } from '@/core/resumenSin';
 import { buildEnrich, type EnrichIndex } from '@/core/enrich';
 import { applyCatalogPriceFallback } from '@/core/analysis';
+import { buildAbc, type AbcResult } from '@/core/abc';
+import { buildPrecioDispersion, type PrecioDispersionEntry } from '@/core/precios';
 import type { AnalysisResult, InvConsolidadoRow, InvDetalleRow } from '@/core/types';
 
 export interface Analytics {
@@ -23,6 +25,12 @@ export interface Analytics {
   invConsolidadoCatalog: InvConsolidadoRow[];
   lotes: InvDetalleRow[];
   curmes: string;
+  /** Clasificación ABC/Pareto de materiales y clientes por importe facturado
+   * en los últimos 12 meses (ver `core/abc.ts`). Vacía sin Resumen_Fac. */
+  abc: AbcResult;
+  /** Dispersión de precio unitario vigente entre clientes distintos, por
+   * material (ver `core/precios.ts`). Vacía sin Reporte de Consumo. */
+  precioDispersion: PrecioDispersionEntry[];
 }
 
 const AnalyticsCtx = createContext<Analytics | null>(null);
@@ -35,7 +43,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     const enrich = buildEnrich(catalog);
     const invConsolidadoCatalog = catalog?.invConsolidado ?? [];
     if (!result) {
-      return { result: null, rf: null, bo: [], boByKey: new Map(), rss: null, enrich, invCondicion: [], invConsolidadoCatalog, lotes: [], curmes: '' };
+      return {
+        result: null, rf: null, bo: [], boByKey: new Map(), rss: null, enrich,
+        invCondicion: [], invConsolidadoCatalog, lotes: [], curmes: '', abc: buildAbc(null), precioDispersion: [],
+      };
     }
     const rf = result.resumenFac.length ? buildRF(result.resumenFac) : null;
     const bo = result.sugerencias.length ? buildBO(result.sugerencias, rf) : [];
@@ -46,7 +57,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     const invCondicionRaw = result.inventarioCondicion.length ? result.inventarioCondicion : invConsolidadoCatalog;
     const invCondicion = applyCatalogPriceFallback(invCondicionRaw, catalog);
     const lotes = [...(catalog?.invDetalle ?? []), ...result.lotesCortaCaducidad];
-    return { result, rf, bo, boByKey, rss, enrich, invCondicion, invConsolidadoCatalog, lotes, curmes: rf?.curmes ?? '' };
+    const abc = buildAbc(rf);
+    const precioDispersion = result.consumo.length ? buildPrecioDispersion(result.consumo) : [];
+    return { result, rf, bo, boByKey, rss, enrich, invCondicion, invConsolidadoCatalog, lotes, curmes: rf?.curmes ?? '', abc, precioDispersion };
   }, [result, catalog]);
 
   return <AnalyticsCtx.Provider value={value}>{children}</AnalyticsCtx.Provider>;

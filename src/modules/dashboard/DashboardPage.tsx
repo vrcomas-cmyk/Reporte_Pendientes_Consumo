@@ -9,6 +9,7 @@ import {
   Warehouse,
   CircleDollarSign,
   UploadCloud,
+  Ban,
 } from 'lucide-react';
 import {
   BarChart,
@@ -69,8 +70,8 @@ export function DashboardPage() {
             <Skeleton className="h-4 w-64" />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-7">
-          {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-[72px]" />)}
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-8">
+          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-[72px]" />)}
         </div>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Skeleton className="h-72" />
@@ -133,7 +134,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-8">
         <KpiTile label="Materiales analizados" value={formatNumber(kpis?.materialesAnalizados ?? 0)} icon={Boxes} />
         {/* Ejecutivos comes from the catalog directly (topEjecutivos.length), not kpis —
             it must show real numbers the instant the catalog syncs, before any daily report. */}
@@ -143,6 +144,17 @@ export function DashboardPage() {
         <KpiTile label="Lento movimiento" value={formatNumber(kpis?.productosLentoMovimiento ?? 0)} icon={TrendingDown} tone="warning" />
         <KpiTile label="Inventario total" value={formatNumber(kpis?.inventarioTotal ?? 0)} icon={Warehouse} />
         <KpiTile label="Valor económico" value={formatCurrency(kpis?.valorEconomico ?? 0)} icon={CircleDollarSign} />
+        <KpiTile
+          label="Bloqueado"
+          value={formatCurrency(kpis?.bloqueadosImportePendiente ?? 0)}
+          icon={Ban}
+          tone="danger"
+          sub={
+            kpis?.bloqueadosPorMotivo.length
+              ? kpis.bloqueadosPorMotivo.map((m) => `${m.motivo} (${formatNumber(m.count)})`).join(' · ')
+              : undefined
+          }
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

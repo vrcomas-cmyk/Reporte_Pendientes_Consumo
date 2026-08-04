@@ -267,6 +267,7 @@ export function mapConsumo(r: Row): ConsumoRow {
     precioMin: num(r['precio_min']),
     precioMax: num(r['precio_max']),
     precioProm: num(r['precio_prom']),
+    precioUnitarioUltima: num(r['Precio_unitario_ultima']),
     raw: r,
   };
 }
