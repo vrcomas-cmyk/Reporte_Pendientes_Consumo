@@ -88,7 +88,38 @@ export async function fetchReportSheetsMeta(): Promise<{ modifiedTime: string }>
  * O(n) main-thread walk + structured-clone of 80k objects across to the
  * worker. Instead the worker receives the dense arrays and does the zip
  * there, where it neither blocks the UI nor pays the clone cost twice. */
+/** Reintentos ante fallas transitorias del lado de Google — visto en la
+ * práctica en "Resumen_Fac": pestañas grandes cuyo cómputo en Apps Script
+ * (`getRange().getValues()`) se acerca al límite de tiempo de respuesta de un
+ * Web App, y el frontend de Google corta la conexión devolviendo un HTTP 404
+ * genérico (no el `{error: ...}` propio del script) en vez de la respuesta.
+ * Es transitorio: reintentar la MISMA página (offset/limit) suele bastar, sin
+ * necesidad de reiniciar todo el tab. Backoff simple, no exponencial — el
+ * tiempo de cómputo del lado del script no cambia entre intentos. */
+const TAB_FETCH_RETRIES = 3;
+const TAB_FETCH_RETRY_DELAY_MS = 2000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function fetchReportSheetTab(tab: string, offset?: number, limit?: number): Promise<TabRows> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= TAB_FETCH_RETRIES; attempt++) {
+    try {
+      return await fetchReportSheetTabOnce(tab, offset, limit);
+    } catch (e) {
+      lastError = e;
+      if (attempt < TAB_FETCH_RETRIES) {
+        logWarn(`Reintentando pestaña "${tab}" (intento ${attempt + 1}/${TAB_FETCH_RETRIES}): ${e instanceof Error ? e.message : String(e)}`);
+        await sleep(TAB_FETCH_RETRY_DELAY_MS);
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+async function fetchReportSheetTabOnce(tab: string, offset?: number, limit?: number): Promise<TabRows> {
   const base = await requireUrl();
   const params = new URLSearchParams({ tab });
   if (offset && offset > 0) params.set('offset', String(offset));
@@ -126,6 +157,18 @@ async function fetchReportSheetTab(tab: string, offset?: number, limit?: number)
  * advances by however many rows actually came back). */
 const TAB_PAGE_SIZE = 20_000;
 
+/** "Resumen_Fac" venía dando HTTP 404 intermitentes al pedirla completa (ver
+ * `fetchReportSheetTab` arriba) — Apps Script tardaba demasiado en responder
+ * y Google cortaba la conexión. Sin fórmulas de por medio, el costo es
+ * puramente de tamaño de página: una página más chica reduce el tiempo de
+ * `getRange().getValues()` por request y lo aleja del límite de respuesta del
+ * Web App. */
+const RESUMEN_FAC_TAB_PAGE_SIZE = 5_000;
+
+function pageSizeFor(tab: string): number {
+  return tab === REPORT_TABS.resumenFac ? RESUMEN_FAC_TAB_PAGE_SIZE : TAB_PAGE_SIZE;
+}
+
 /** Fetches every row of a tab starting at `offset`, in pages of
  * `TAB_PAGE_SIZE`, calling `onPage` after each page lands so the caller can
  * report finer-grained progress than "waiting on the whole tab" for the
@@ -142,8 +185,9 @@ async function fetchReportSheetTabPaginated(
   const rows: unknown[][] = [];
   let rowCount: number | undefined;
 
+  const pageSize = pageSizeFor(tab);
   for (;;) {
-    const page = await fetchReportSheetTab(tab, cursor, TAB_PAGE_SIZE);
+    const page = await fetchReportSheetTab(tab, cursor, pageSize);
     headers = page.headers;
     rowCount = page.rowCount;
     rows.push(...page.rows);
@@ -152,7 +196,7 @@ async function fetchReportSheetTabPaginated(
     if (page.rows.length === 0) break; // nothing more, or an unpaginated deployment already returned everything on page 1
     cursor += page.rows.length;
     if (typeof rowCount === 'number' && cursor - offset >= rowCount - offset) break; // caught up to the reported total
-    if (page.rows.length < TAB_PAGE_SIZE) break; // short page with no rowCount to check against — nothing left
+    if (page.rows.length < pageSize) break; // short page with no rowCount to check against — nothing left
   }
 
   return { headers, rows, rowCount };
@@ -305,7 +349,7 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
         emit({
           phase: 'parsing',
           percent: Math.round(10 + (60 * (done + tabFrac)) / tabs.length),
-          message: remaining && remaining > TAB_PAGE_SIZE
+          message: remaining && remaining > pageSizeFor(tab)
             ? `${ROLE_LABEL[role]}: ${rowsSoFar.toLocaleString('es-MX')} de ${remaining.toLocaleString('es-MX')} filas…`
             : `${ROLE_LABEL[role]} (${done} de ${tabs.length})`,
         });
