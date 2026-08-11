@@ -7,6 +7,7 @@ import {
   mapInvDetalle,
 } from './mappers';
 import { computeKpis, topMateriales, topEjecutivos, monthlyInvoicing, buildHeatmap, detectInconsistencies } from './analysis';
+import { buildEnrich } from './enrich';
 import { roleOf } from './roleDetection';
 import type { CatalogSnapshot, AnalysisResult, AppSettings, SheetRole, DetectedSheet } from './types';
 
@@ -116,9 +117,17 @@ export function buildAnalysisResult(params: BuildAnalysisResultParams): Analysis
   const monthlyPrev = maybePrev('resumenFac');
   const monthly = monthlyPrev ? monthlyPrev.monthlyInvoicing : monthlyInvoicing(resumenFac);
 
-  // heatmap depends on invForAnalysis (inventarioCondicion or catalog invConsolidado).
-  const heatmapPrev = maybePrev('inventarioCondicion');
-  const heatmap = heatmapPrev ? heatmapPrev.heatmap : buildHeatmap(invForAnalysis);
+  // heatmap depends on invForAnalysis (inventarioCondicion, o si esa hoja no
+  // llegó, catalog.invConsolidado). A propósito NO se memoiza contra
+  // `previous` como los demás: su único rol de entrada real,
+  // `inventarioCondicion`, nunca forma parte de `selectedRoles` en la sync de
+  // reportes de Google Sheets (viene de OTRO spreadsheet, el del catálogo),
+  // así que `maybePrev('inventarioCondicion')` lo daba por "no tocado" y
+  // reusaba `previous.heatmap` PARA SIEMPRE — si el primer análisis se generó
+  // antes de sincronizar el catálogo, el mapa de calor quedaba vacío de forma
+  // permanente. Es una agregación barata (una pasada sobre el inventario), no
+  // justifica el mismo mecanismo de caché que las 4 pestañas pesadas.
+  const heatmap = buildHeatmap(invForAnalysis, buildEnrich(catalog));
 
   // inconsistencies depend on catalog + sugerencias + invForAnalysis.
   const incPrev = maybePrev(['sugerencias', 'inventarioCondicion']);

@@ -76,6 +76,7 @@ export function SavedViewsControl<T>({ views, onApply, onSave, onRemove }: {
             onChange={(ev) => setName(ev.target.value)}
             onKeyDown={(ev) => { if (ev.key === 'Enter') doSave(); }}
             placeholder="Nombre de la vista"
+            autoComplete="off"
             className="h-8 min-w-0 flex-1 rounded border border-border bg-bg px-2 text-sm"
           />
           <button type="button" onClick={doSave} disabled={!name.trim()} className="h-8 shrink-0 rounded bg-accent px-2 text-xs text-accent-fg disabled:opacity-40">

@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { StatePill, Chip, TrendBadge, DetailChevron } from '../ui';
+import { StatePill, Chip, TrendBadge, AbcBadge, DetailChevron, useColumnVisibility, ColumnVisibilityControl } from '../ui';
 import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
-import { matchesQuery, RC, pickField, num, consumoStatus, consumoTend, consumoEnrich } from '../helpers';
+import { matchesQuery, RC, pickField, num, norm, consumoStatus, consumoTend, consumoEnrich } from '../helpers';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import type { RFIndex } from '@/core/resumenFac';
 import { preciosPorCondicion } from '@/core/enrich';
@@ -10,6 +10,10 @@ import type { BOItem } from '@/core/buildBO';
 import type { ConsumoRow } from '@/core/types';
 import type { Panel } from '@/store/panelStore';
 import type { Analytics } from '../AnalyticsContext';
+import { usePermissionsStore } from '@/store/permissionsStore';
+import { isColumnHidden, isDetailHidden } from '@/core/permissions';
+import { buildSugerenciasColsAgrupado } from '@/modules/sugerencias/columns';
+import { COLS_CONSUMO } from '@/modules/consumo/columns';
 
 /** Normaliza una fecha de caducidad y la convierte en un texto legible con clase de color (rojo/ámbar/verde) según los días restantes. */
 export function vigenciaTxt(fecha: string): { txt: string; cls: string } | null {
@@ -35,42 +39,97 @@ export function SubFilter({ value, onChange, placeholder = 'Filtrar…' }: { val
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
+      autoComplete="off"
       className="mb-2 h-8 w-full max-w-xs rounded-md border border-border bg-bg-elevated px-2 text-xs outline-none focus:border-accent"
     />
   );
 }
 
-/** Subtabla reutilizable de sugerencias (BO) con filtrado y drill hacia el detalle de cada sugerencia. */
-export function SugTable({ list, push }: { list: BOItem[]; push: (p: Panel) => void }) {
+/** Subtabla reutilizable de sugerencias (BO), con las MISMAS columnas y la
+ * misma preferencia de visibilidad (`useColumnVisibility('sugerencias_columnas')`)
+ * que la tabla completa de `/sugerencias` — así el panel de un material dice
+ * literalmente lo mismo que el reporte, y ocultar una columna desde Ajustes o
+ * desde la página se refleja aquí también. Sin selección en lote ni menú
+ * contextual de "Solicitar" — eso sigue siendo exclusivo de la página
+ * completa; aquí el drill-down (`Chip`/`DetailChevron`) es lo que importa. */
+export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push: (p: Panel) => void }) {
   const [f, setF] = useState('');
+  const perms = usePermissionsStore((s) => s.perms);
+  const precioOculto = isColumnHidden(perms, 'sugerencias', 'precio');
+  const fuenteOculto = isDetailHidden(perms, 'sugerencias', 'fuente');
+  const colVis = useColumnVisibility('sugerencias_columnas');
+  const vis = colVis.isVisible;
+  const cols = useMemo(() => buildSugerenciasColsAgrupado({ precioOculto, unificarInv: false, fuenteOculto }), [precioOculto, fuenteOculto]);
+  const transitoFor = (centro: string, alm: string, material: string): number => {
+    const rss = a.rss;
+    if (!rss) return 0;
+    const mo = rss.mats.get(norm(material));
+    if (!mo) return 0;
+    const co = mo.centros.get(norm(centro));
+    if (!co) return 0;
+    return co.alm.get(alm)?.transito || 0;
+  };
   if (!list.length) return <p className="text-sm text-text-muted">Sin sugerencias.</p>;
   const shown = f ? list.filter((it) => matchesQuery(f, `${it.bo.pedido} ${it.bo.razonSocial} ${it.bo.centroPedido}`)) : list;
   return (
     <div>
-      <SubFilter value={f} onChange={setF} placeholder="Filtrar pedido, cliente, centro…" />
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <SubFilter value={f} onChange={setF} placeholder="Filtrar pedido, cliente, centro…" />
+        <ColumnVisibilityControl columns={cols} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
+      </div>
       <div>
-        <Table wrapperClassName="max-h-80 rounded-lg border border-border">
+        <Table wrapperClassName="max-h-[32rem] rounded-lg border border-border">
           <TableHeader>
             <TableRow>
-              <TableHead>Pedido</TableHead><TableHead>Cliente</TableHead><TableHead>Centro</TableHead>
-              <TableHead>Material</TableHead>
-              <TableHead className="text-right">Pendiente</TableHead><TableHead className="text-right">Precio</TableHead>
-              <TableHead>Estado</TableHead><TableHead className="text-right">Fuentes</TableHead><TableHead className="w-8" />
+              {vis('ejecutivo') && <TableHead>Ejecutivo / Grupo cli.</TableHead>}
+              {vis('pedido') && <TableHead>Pedido/OC</TableHead>}
+              {vis('fecha') && <TableHead>Fecha</TableHead>}
+              {vis('cliente') && <TableHead>Cliente</TableHead>}
+              {vis('centro') && <TableHead>Centro/Alm</TableHead>}
+              {vis('material') && <TableHead>Material</TableHead>}
+              {vis('sector') && <TableHead>Sector/Grupo</TableHead>}
+              {vis('cantped') && <TableHead className="text-right">Cant.ped.</TableHead>}
+              {vis('pend') && <TableHead className="text-right">Pend.</TableHead>}
+              {!precioOculto && vis('precio') && <TableHead className="text-right">Precio</TableHead>}
+              {vis('consumo') && <TableHead className="text-right">Consumo</TableHead>}
+              {vis('inv1030') && <TableHead className="text-right">1030</TableHead>}
+              {vis('inv1031') && <TableHead className="text-right">1031</TableHead>}
+              {vis('inv1032') && <TableHead className="text-right">1032</TableHead>}
+              {vis('inv1060') && <TableHead className="text-right">1060</TableHead>}
+              {vis('bloq') && <TableHead>Bloq.</TableHead>}
+              {vis('estado') && <TableHead>Estado</TableHead>}
+              {vis('tendencia') && <TableHead>Tendencia</TableHead>}
+              {!fuenteOculto && vis('fuentes') && <TableHead className="text-right">Fuentes</TableHead>}
+              <TableHead className="w-8" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {shown.map((it) => {
-              const isBloqueado = !!it.bo.bloqueado;
+              const b = it.bo;
+              const isBloqueado = !!b.bloqueado;
               return (
                 <TableRow key={it.k} className={`group ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`}>
-                  <TableCell><Chip onClick={() => push({ type: 'pedido', pedido: it.bo.pedido })}>{it.bo.pedido}</Chip></TableCell>
-                  <TableCell className="max-w-64 truncate">{it.bo.razonSocial}<div className="text-[11px]"><Chip onClick={() => push({ type: 'evol', kind: 'solic', key: it.bo.solicitante })}>S {it.bo.solicitante}</Chip> · <Chip onClick={() => push({ type: 'evol', kind: 'dest', key: it.bo.destinatario })}>D {it.bo.destinatario}</Chip></div></TableCell>
-                  <TableCell>{it.bo.centroPedido}</TableCell>
-                  <TableCell><Chip onClick={() => push({ type: 'material', material: it.bo.materialBase })}>{it.bo.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-48 truncate">{it.bo.descripcionSolicitada}</div></TableCell>
-                  <TableCell className="text-right">{formatNumber(it.bo.cantidadPendiente)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(it.bo.precio)}</TableCell>
-                  <TableCell><StatePill label={it.status.label} cls={it.status.cls} /></TableCell>
-                  <TableCell className="text-right">{it.fuentes.length || '—'}</TableCell>
+                  {vis('ejecutivo') && <TableCell>{a.enrich.ejecutivoNombre(b.gpoVdor) || '—'}<div className="text-[11px] text-text-faint">{a.enrich.grupoCliente(b.gpoCte) || '—'}</div></TableCell>}
+                  {vis('pedido') && <TableCell><Chip onClick={() => push({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
+                  {vis('fecha') && <TableCell className="whitespace-nowrap text-xs">{b.fecha || '—'}</TableCell>}
+                  {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial}<div className="text-[11px]"><Chip onClick={() => push({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => push({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
+                  {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
+                  {vis('material') && <TableCell><Chip onClick={() => push({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-48 truncate">{b.descripcionSolicitada}</div></TableCell>}
+                  {vis('sector') && <TableCell>{a.enrich.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{a.enrich.matGrupo(b.materialBase)}</div></TableCell>}
+                  {vis('cantped') && <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>}
+                  {vis('pend') && <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>}
+                  {!precioOculto && vis('precio') && <TableCell className="text-right">{formatCurrency(b.precio)}</TableCell>}
+                  {vis('consumo') && <TableCell className="text-right">{formatNumber(it.consumoProm)}</TableCell>}
+                  {(['1030', '1031', '1032', '1060'] as const).map((alm) => vis(`inv${alm}`) && (
+                    <TableCell key={alm} className="text-right">
+                      {formatNumber(num(b.invByCenter[alm] || 0))}
+                      {transitoFor(b.centroPedido, alm, b.materialBase) > 0 && <div className="text-[10px] text-emerald-500">↻+{formatNumber(transitoFor(b.centroPedido, alm, b.materialBase))}</div>}
+                    </TableCell>
+                  ))}
+                  {vis('bloq') && <TableCell>{b.bloqueado ? <StatePill label={b.bloqueado} cls="amb" /> : '—'}</TableCell>}
+                  {vis('estado') && <TableCell><StatePill label={it.status.label} cls={it.status.cls} /></TableCell>}
+                  {vis('tendencia') && <TableCell><TrendBadge t={it.tend} /></TableCell>}
+                  {!fuenteOculto && vis('fuentes') && <TableCell className="text-right">{it.fuentes.length || '—'}</TableCell>}
                   <TableCell><DetailChevron onOpen={() => push({ type: 'sugDetalle', boKey: it.k })} /></TableCell>
                 </TableRow>
               );
@@ -82,33 +141,57 @@ export function SugTable({ list, push }: { list: BOItem[]; push: (p: Panel) => v
   );
 }
 
-/** Subtabla reutilizable de consumo (Resumen_Fac) con filtrado y drill hacia el detalle por destinatario+material. */
+/** Subtabla reutilizable de consumo (Resumen_Fac), con las mismas columnas y
+ * la misma preferencia de visibilidad (`useColumnVisibility('consumo_columnas')`)
+ * que la tabla completa de `/consumo` — ver comentario de `SugTable`. */
 export function ConsumoTable({ list, a, push }: { list: ConsumoRow[]; a: Analytics; push: (p: Panel) => void }) {
   const ce = consumoEnrich(a.enrich);
   const [f, setF] = useState('');
+  const colVis = useColumnVisibility('consumo_columnas');
+  const vis = colVis.isVisible;
+  const claseDe = (r: ConsumoRow) => a.abc.classByMaterial.get(norm(r.material)) || '';
   if (!list.length) return <p className="text-sm text-text-muted">Sin facturación de consumo.</p>;
   const shown = f ? list.filter((r) => matchesQuery(f, `${r.razonSocial} ${r.destinatario} ${r.centro}`)) : list;
   return (
     <div>
-      <SubFilter value={f} onChange={setF} placeholder="Filtrar cliente, centro…" />
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <SubFilter value={f} onChange={setF} placeholder="Filtrar cliente, centro…" />
+        <ColumnVisibilityControl columns={COLS_CONSUMO} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
+      </div>
       <div>
-        <Table wrapperClassName="max-h-80 rounded-lg border border-border">
+        <Table wrapperClassName="max-h-[32rem] rounded-lg border border-border">
           <TableHeader>
             <TableRow>
-              <TableHead>Cliente</TableHead><TableHead>Centro</TableHead>
-              <TableHead className="text-right">Consumo/prom</TableHead><TableHead className="text-right">Imp. última</TableHead>
-              <TableHead>Estado</TableHead><TableHead>Tendencia</TableHead><TableHead className="w-8" />
+              {vis('cliente') && <TableHead>Cliente</TableHead>}
+              {vis('ejecutivo') && <TableHead>Ejecutivo / Grupo cli.</TableHead>}
+              {vis('centro') && <TableHead>Centro</TableHead>}
+              {vis('material') && <TableHead>Material</TableHead>}
+              {vis('abc') && <TableHead>ABC</TableHead>}
+              {vis('sector') && <TableHead>Sector/Grupo</TableHead>}
+              {vis('consumo') && <TableHead className="text-right">Consumo/prom</TableHead>}
+              {vis('ultima') && <TableHead className="text-right">Última</TableHead>}
+              {vis('penultima') && <TableHead className="text-right">Penúltima</TableHead>}
+              {vis('impultima') && <TableHead className="text-right">Imp. última</TableHead>}
+              {vis('estado') && <TableHead>Estado</TableHead>}
+              {vis('tendencia') && <TableHead>Tendencia</TableHead>}
+              <TableHead className="w-8" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {shown.map((r, i) => (
               <TableRow key={i} className="group">
-                <TableCell className="max-w-64 truncate">{r.razonSocial}<div className="text-[11px]"><Chip onClick={() => push({ type: 'evol', kind: 'solic', key: r.solicitante })}>S {r.solicitante}</Chip> · <Chip onClick={() => push({ type: 'evol', kind: 'dest', key: r.destinatario })}>D {r.destinatario}</Chip></div></TableCell>
-                <TableCell>{r.centro || ce.grupoCli(r) || '—'}</TableCell>
-                <TableCell className="text-right">{formatNumber(r.consumoActual)}/{formatNumber(r.consumoPromedioMensual)}</TableCell>
-                <TableCell className="text-right">{formatCurrency(r.importeUltima)}<div className="text-[11px] text-text-faint">{r.ultimoMesFacturacion || '—'}</div></TableCell>
-                <TableCell><StatePill label={consumoStatus(a.rf, r).label} cls={consumoStatus(a.rf, r).cls} /></TableCell>
-                <TableCell><TrendBadge t={consumoTend(a.rf, r)} /></TableCell>
+                {vis('cliente') && <TableCell className="max-w-64 truncate">{r.razonSocial}<div className="text-[11px]"><Chip onClick={() => push({ type: 'evol', kind: 'solic', key: r.solicitante })}>S {r.solicitante}</Chip> · <Chip onClick={() => push({ type: 'evol', kind: 'dest', key: r.destinatario })}>D {r.destinatario}</Chip></div></TableCell>}
+                {vis('ejecutivo') && <TableCell>{ce.ejec(r) || '—'}<div className="text-[11px] text-text-faint">{ce.grupoCli(r) || '—'}</div></TableCell>}
+                {vis('centro') && <TableCell>{r.centro || ce.grupoCli(r) || '—'}</TableCell>}
+                {vis('material') && <TableCell><Chip onClick={() => push({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-48 truncate">{r.textoMaterial}</div></TableCell>}
+                {vis('abc') && <TableCell><AbcBadge clase={claseDe(r) || undefined} /></TableCell>}
+                {vis('sector') && <TableCell>{ce.sector(r) || '—'}<div className="text-[11px] text-text-faint">{ce.grupoArt(r)}</div></TableCell>}
+                {vis('consumo') && <TableCell className="text-right">{formatNumber(r.consumoActual)}/{formatNumber(r.consumoPromedioMensual)}</TableCell>}
+                {vis('ultima') && <TableCell className="text-right">{formatNumber(r.cantidadUltima)}<div className="text-[11px] text-text-faint">{r.ultimoMesFacturacion || '—'}</div></TableCell>}
+                {vis('penultima') && <TableCell className="text-right">{formatNumber(num(r.raw[RC.cantPen]))}<div className="text-[11px] text-text-faint">{pickField(r.raw, [RC.penFecha]) || '—'}</div></TableCell>}
+                {vis('impultima') && <TableCell className="text-right">{formatCurrency(r.importeUltima)}</TableCell>}
+                {vis('estado') && <TableCell><StatePill label={consumoStatus(a.rf, r).label} cls={consumoStatus(a.rf, r).cls} /></TableCell>}
+                {vis('tendencia') && <TableCell><TrendBadge t={consumoTend(a.rf, r)} /></TableCell>}
                 <TableCell><DetailChevron onOpen={() => push({ type: 'consumoMaterial', dest: r.destinatario, material: r.material })} /></TableCell>
               </TableRow>
             ))}

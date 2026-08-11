@@ -22,12 +22,35 @@ export type Panel =
   | { type: 'materialTotales'; material: string }
   // Client-centric detail (Consumo row click): open orders + consumption history for one
   // destinatario, as opposed to the material-centric 'material' panel.
-  | { type: 'clienteDetalle'; dest: string };
+  | { type: 'clienteDetalle'; dest: string }
+  // Módulo Oportunidades Comerciales (fase 1): vista 360 de un material dentro
+  // del panel lateral persistente, con pestañas (req. 7 del plan) en vez de
+  // navegar a otra página — el tab activo viaja en el propio descriptor, así
+  // "Atrás" reabre exactamente el mismo tab.
+  | { type: 'materialHub'; material: string; tab?: MaterialHubTab; lote?: string; condicion?: string }
+  | { type: 'oportunidad'; id: number }
+  // Fase 2: ficha de conocimiento de un cliente (mini-CRM) — mismo criterio de
+  // tab-en-el-descriptor que materialHub, así "Atrás" no pierde la pestaña.
+  // `prefill*` (fase 3): contexto opcional de un material/oportunidad concreta
+  // desde donde se abrió la ficha — precarga el formulario de la pestaña
+  // Ofertas sin tener que volver a buscar el material.
+  | { type: 'clienteConocimiento'; dest: string; razonSocial?: string; tab?: 'ficha' | 'timeline' | 'ofertas'; prefillMaterial?: string; prefillOportunidadId?: number };
+
+export type MaterialHubTab = 'resumen' | 'inventario' | 'pedidos' | 'consumo' | 'ventas' | 'notas' | 'historial' | 'compatibilidad';
 
 interface PanelState {
   stack: Panel[];
   open: (p: Panel) => void;
   push: (p: Panel) => void;
+  /** Reemplaza el panel en el TOPE del stack en vez de apilar uno nuevo —
+   * usar para cambios que modifican el mismo panel (p.ej. cambiar de tab
+   * dentro de materialHub/clienteConocimiento). `push` es solo para navegar
+   * a un panel distinto (drill-down real) donde "Atrás" debe volver al
+   * anterior. Confundir ambos fue la causa de un bug real: cada clic de tab
+   * apilaba una entrada nueva, así que "Atrás" retrocedía tab por tab en vez
+   * de cerrar, y el reflow resultante (stack creciendo sin límite con clics
+   * rápidos) disparaba "Maximum update depth exceeded". */
+  replaceTop: (p: Panel) => void;
   back: () => void;
   close: () => void;
 }
@@ -36,6 +59,7 @@ export const usePanelStore = create<PanelState>((set) => ({
   stack: [],
   open: (p) => set({ stack: [p] }),
   push: (p) => set((s) => ({ stack: [...s.stack, p] })),
+  replaceTop: (p) => set((s) => (s.stack.length ? { stack: [...s.stack.slice(0, -1), p] } : { stack: [p] })),
   back: () => set((s) => ({ stack: s.stack.slice(0, -1) })),
   close: () => set({ stack: [] }),
 }));

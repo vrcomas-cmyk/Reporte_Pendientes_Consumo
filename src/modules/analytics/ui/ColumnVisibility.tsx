@@ -40,7 +40,39 @@ export function useColumnVisibility(storageKey: string) {
   return { hidden, isVisible, toggle, reset, apply };
 }
 
-/** Botón + panel para ocultar/mostrar columnas de una tabla, solo para la sesión actual. */
+/** Lista de checkboxes de columnas — presentacional, sin popover. Reutilizada
+ * por `ColumnVisibilityControl` (botón + popover, dentro de cada página de
+ * reporte) y directamente por `SettingsPage.tsx` (sección "Columnas
+ * visibles"), ambas apuntando al mismo `hidden`/`toggle` — un solo lugar de
+ * verdad, cambiar desde Ajustes se refleja en la página y en los paneles que
+ * comparten esa misma `storageKey`. */
+export function ColumnChecklist({ columns, hidden, toggle, reset }: {
+  columns: ColDef[];
+  hidden: Set<string>;
+  toggle: (key: string) => void;
+  reset: () => void;
+}) {
+  return (
+    <div>
+      {hidden.size > 0 && (
+        <button type="button" onClick={reset} className="mb-1 w-full rounded px-2 py-1 text-left text-xs text-accent hover:bg-bg-inset">
+          Mostrar todas
+        </button>
+      )}
+      {columns.map((c) => (
+        <label key={c.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-bg-inset">
+          <input type="checkbox" checked={!hidden.has(c.key)} onChange={() => toggle(c.key)} />
+          {c.label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/** Botón + panel para ocultar/mostrar columnas de una tabla. Persistido en
+ * localStorage (`useColumnVisibility`) — no "solo esta sesión": sobrevive a
+ * recargar y es la misma preferencia que la sección "Columnas visibles" de
+ * Ajustes edita. */
 export function ColumnVisibilityControl({ columns, hidden, toggle, reset }: {
   columns: ColDef[];
   hidden: Set<string>;
@@ -49,7 +81,7 @@ export function ColumnVisibilityControl({ columns, hidden, toggle, reset }: {
 }) {
   return (
     <Popover>
-      <TooltipHint text="Mostrar/ocultar columnas (solo esta sesión)">
+      <TooltipHint text="Mostrar/ocultar columnas (también editable desde Ajustes)">
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -61,17 +93,7 @@ export function ColumnVisibilityControl({ columns, hidden, toggle, reset }: {
         </PopoverTrigger>
       </TooltipHint>
       <PopoverContent className="max-h-80 w-56 overflow-auto">
-        {hidden.size > 0 && (
-          <button type="button" onClick={reset} className="mb-1 w-full rounded px-2 py-1 text-left text-xs text-accent hover:bg-bg-inset">
-            Mostrar todas
-          </button>
-        )}
-        {columns.map((c) => (
-          <label key={c.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-bg-inset">
-            <input type="checkbox" checked={!hidden.has(c.key)} onChange={() => toggle(c.key)} />
-            {c.label}
-          </label>
-        ))}
+        <ColumnChecklist columns={columns} hidden={hidden} toggle={toggle} reset={reset} />
       </PopoverContent>
     </Popover>
   );

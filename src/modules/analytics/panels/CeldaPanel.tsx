@@ -54,7 +54,7 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
       <Section title="Sugerencias / Consumo en este centro">
         <Tabs defaultValue="sug">
           <TabsList><TabsTrigger value="sug">Sugerencias ({sug.length})</TabsTrigger><TabsTrigger value="cons">Consumo ({cons.length})</TabsTrigger></TabsList>
-          <TabsContent value="sug"><SugTable list={sug} push={push} /></TabsContent>
+          <TabsContent value="sug"><SugTable list={sug} a={a} push={push} /></TabsContent>
           <TabsContent value="cons"><ConsumoTable list={cons} a={a} push={push} /></TabsContent>
         </Tabs>
       </Section>

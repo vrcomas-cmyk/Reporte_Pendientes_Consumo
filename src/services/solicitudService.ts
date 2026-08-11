@@ -215,6 +215,17 @@ export async function eliminar(id: number): Promise<void> {
   await solicitudRepository.remove(id);
 }
 
+/** Marca a mano el estado de una o varias solicitudes ya persistidas — para
+ * cuando el usuario pegó los renglones en el Sheet DRP fuera de la app
+ * (mientras DRP_AUTO_SEND esté apagado, es el único modo de salir de
+ * "pendiente"). Limpia `error` al marcar como enviada. */
+export async function marcarEstado(ids: number[], sync: SolicitudDRP['sync']): Promise<void> {
+  const patch: Partial<SolicitudDRP> = sync === 'enviada'
+    ? { sync, sentAt: new Date().toISOString(), error: undefined }
+    : { sync, error: undefined };
+  await Promise.all(ids.map((id) => solicitudRepository.update(id, patch)));
+}
+
 export async function listar(): Promise<SolicitudDRP[]> {
   return solicitudRepository.list();
 }

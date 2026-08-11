@@ -7,20 +7,48 @@ interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
    * to set a max-height for a scrollable table instead of nesting another overflow-auto
    * div around <Table> — a second scroll container breaks the sticky <thead>. */
   wrapperClassName?: string;
+  /** Habilita el ajuste manual de ancho de columnas (manija en el borde de cada
+   * <th>) y persiste los anchos elegidos en localStorage bajo esta llave — misma
+   * convención que `useColumnVisibility` (única por tabla, ej. 'sugerencias.cols'). */
+  resizableKey?: string;
 }
+
+function readStoredWidths(key: string): Record<number, number> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(`table-widths:${key}`) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+function writeStoredWidths(key: string, widths: Record<number, number>): void {
+  try { localStorage.setItem(`table-widths:${key}`, JSON.stringify(widths)); } catch { /* ignore */ }
+}
+
+const MIN_COL_WIDTH = 48;
 
 /** With row virtualization, `<tbody>` only ever holds the currently visible
  * slice of rows, so plain auto table-layout keeps recomputing column widths
  * from whatever happens to be mounted — columns visibly shift left/right on
  * every scroll tick. We track the widest width ever seen per column and pin
  * it as a `<colgroup>` floor (min, not fixed), so columns only ever grow,
- * never shrink back and forth, while still auto-sizing normally otherwise. */
-const Table = React.forwardRef<HTMLTableElement, TableProps>(({ className, wrapperClassName, children, ...props }, ref) => {
+ * never shrink back and forth, while still auto-sizing normally otherwise.
+ *
+ * Si `resizableKey` viene, un ancho fijado a mano por el usuario (arrastrando
+ * la manija de un <th>) tiene prioridad sobre esa medición automática — deja
+ * de crecer/auto-medirse esa columna hasta que se resetee (doble clic). */
+const Table = React.forwardRef<HTMLTableElement, TableProps>(({ className, wrapperClassName, resizableKey, children, ...props }, ref) => {
   const localRef = React.useRef<HTMLTableElement>(null);
   const widthsRef = React.useRef<number[]>([]);
+  const [manualWidths, setManualWidthsState] = React.useState<Record<number, number>>(() => (resizableKey ? readStoredWidths(resizableKey) : {}));
   const [, bump] = React.useReducer((n: number) => n + 1, 0);
 
   React.useImperativeHandle(ref, () => localRef.current as HTMLTableElement, []);
+
+  const setManualWidths = React.useCallback((next: Record<number, number>) => {
+    setManualWidthsState(next);
+    if (resizableKey) writeStoredWidths(resizableKey, next);
+  }, [resizableKey]);
 
   React.useLayoutEffect(() => {
     const table = localRef.current;
@@ -32,6 +60,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(({ className, wrapp
       // Virtualizer padding rows are a single <td colSpan={colCount}> spacer — skip them.
       if (cells.length === 1 && cells[0].colSpan > 1) return;
       cells.forEach((cell, i) => {
+        if (manualWidths[i] != null) return; // ancho fijado a mano — no lo recalcules
         const w = Math.ceil(cell.getBoundingClientRect().width);
         if (w > (widthsRef.current[i] || 0)) { widthsRef.current[i] = w; changed = true; }
       });
@@ -39,18 +68,73 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(({ className, wrapp
     if (changed) bump();
   });
 
+  const dragState = React.useRef<{ col: number; startX: number; startW: number } | null>(null);
+
+  const onResizeStart = React.useCallback((col: number, startX: number) => {
+    const table = localRef.current;
+    if (!table) return;
+    const th = table.querySelectorAll<HTMLTableCellElement>(':scope > thead > tr > *')[col];
+    const startW = manualWidths[col] ?? (th ? Math.ceil(th.getBoundingClientRect().width) : MIN_COL_WIDTH);
+    dragState.current = { col, startX, startW };
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragState.current) return;
+      const w = Math.max(MIN_COL_WIDTH, dragState.current.startW + (ev.clientX - dragState.current.startX));
+      setManualWidths({ ...manualWidths, [dragState.current.col]: w });
+    };
+    const onUp = () => {
+      dragState.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [manualWidths, setManualWidths]);
+
+  const onResizeReset = React.useCallback((col: number) => {
+    const next = { ...manualWidths };
+    delete next[col];
+    setManualWidths(next);
+  }, [manualWidths, setManualWidths]);
+
   const widths = widthsRef.current;
   return (
-    <div className={cn('relative w-full overflow-auto', wrapperClassName)}>
-      <table ref={localRef} className={cn('w-full caption-bottom text-sm', className)} {...props}>
-        {widths.length > 0 && (
-          <colgroup>{widths.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
-        )}
-        {children}
-      </table>
-    </div>
+    <TableResizeContext.Provider value={resizableKey ? { onResizeStart, onResizeReset } : null}>
+      <div className={cn('relative w-full overflow-auto', wrapperClassName)}>
+        <table ref={localRef} className={cn('w-full caption-bottom text-sm', className)} {...props}>
+          {(widths.length > 0 || Object.keys(manualWidths).length > 0) && (
+            <colgroup>
+              {Array.from({ length: Math.max(widths.length, ...Object.keys(manualWidths).map((k) => +k + 1), 0) }).map((_, i) => (
+                <col key={i} style={{ width: manualWidths[i] ?? widths[i] }} />
+              ))}
+            </colgroup>
+          )}
+          {children}
+        </table>
+      </div>
+    </TableResizeContext.Provider>
   );
 });
+
+interface TableResizeCtx { onResizeStart: (col: number, startX: number) => void; onResizeReset: (col: number) => void }
+const TableResizeContext = React.createContext<TableResizeCtx | null>(null);
+
+/** Manija de arrastre para el borde derecho de un <th> — solo se renderiza
+ * cuando la tabla contenedora trae `resizableKey`. `stopPropagation` evita
+ * que el arrastre dispare el `onSort` de `SortableTableHead`. */
+function ResizeHandle({ col }: { col: () => number }) {
+  const ctx = React.useContext(TableResizeContext);
+  if (!ctx) return null;
+  return (
+    <span
+      onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); ctx.onResizeStart(col(), e.clientX); }}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => { e.stopPropagation(); ctx.onResizeReset(col()); }}
+      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-accent/40"
+      title="Arrastrar para ajustar ancho · doble clic para restablecer"
+    />
+  );
+}
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(({ className, ...props }, ref) => (
   <thead ref={ref} className={cn('sticky top-0 z-10 bg-bg-elevated [&_tr]:border-b', className)} {...props} />
@@ -67,9 +151,17 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
 ));
 TableRow.displayName = 'TableRow';
 
-const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<HTMLTableCellElement>>(({ className, ...props }, ref) => (
-  <th ref={ref} className={cn('h-9 px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-text-faint whitespace-nowrap', className)} {...props} />
-));
+const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<HTMLTableCellElement>>(({ className, children, ...props }, ref) => {
+  const localRef = React.useRef<HTMLTableCellElement>(null);
+  React.useImperativeHandle(ref, () => localRef.current as HTMLTableCellElement, []);
+  const resize = React.useContext(TableResizeContext);
+  return (
+    <th ref={localRef} className={cn('relative h-9 px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-text-faint whitespace-nowrap', className)} {...props}>
+      {children}
+      {resize && <ResizeHandle col={() => localRef.current?.cellIndex ?? 0} />}
+    </th>
+  );
+});
 TableHead.displayName = 'TableHead';
 
 const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(({ className, ...props }, ref) => (
@@ -88,16 +180,19 @@ interface SortableTableHeadProps extends Omit<React.ThHTMLAttributes<HTMLTableCe
 
 const SortableTableHead = React.forwardRef<HTMLTableCellElement, SortableTableHeadProps>(
   ({ className, sortKey, activeKey, dir, onSort, children, ...props }, ref) => {
+    const localRef = React.useRef<HTMLTableCellElement>(null);
+    React.useImperativeHandle(ref, () => localRef.current as HTMLTableCellElement, []);
+    const resize = React.useContext(TableResizeContext);
     const active = activeKey === sortKey;
     const Icon = active && dir === 'asc' ? ChevronUp : active && dir === 'desc' ? ChevronDown : ChevronsUpDown;
     return (
       <th
-        ref={ref}
+        ref={localRef}
         role="columnheader"
         aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
         onClick={() => onSort(sortKey)}
         className={cn(
-          'h-9 select-none px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-text-faint whitespace-nowrap cursor-pointer hover:text-text-muted',
+          'relative h-9 select-none px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-text-faint whitespace-nowrap cursor-pointer hover:text-text-muted',
           className,
         )}
         {...props}
@@ -106,6 +201,7 @@ const SortableTableHead = React.forwardRef<HTMLTableCellElement, SortableTableHe
           {children}
           <Icon className={cn('size-3', active ? 'opacity-100 text-accent' : 'opacity-40')} />
         </span>
+        {resize && <ResizeHandle col={() => localRef.current?.cellIndex ?? 0} />}
       </th>
     );
   },

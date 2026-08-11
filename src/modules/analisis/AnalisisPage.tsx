@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Download } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,11 +9,12 @@ import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { usePanelStore } from '@/store/panelStore';
-import { StatTile, EvolChart, ComparativaDual, Chip, RowContextMenu, StatePill, AbcBadge, useSavedViews, SavedViewsControl } from '@/modules/analytics/ui';
+import { StatTile, EvolChart, ComparativaDual, Chip, RowContextMenu, StatePill, AbcBadge, useSavedViews, SavedViewsControl, ClearFiltersButton } from '@/modules/analytics/ui';
 import { analisisVentas, type ClienteAna, type MatAna, type AnalisisFilters } from '@/core/comercial';
 import { mesKey, mesAnterior, hoyMes } from '@/core/resumenFac';
 import { summarizeAbc, type AbcEntry } from '@/core/abc';
 import { norm, num } from '@/modules/analytics/helpers';
+import { usePersistedState } from '@/hooks/usePersistedState';
 
 function pct(a: number, b: number) {
   const p = b ? (a / b - 1) * 100 : a ? 100 : 0;
@@ -30,12 +31,12 @@ export function AnalisisPage() {
   const a = useAnalytics();
   const open = usePanelStore((s) => s.open);
 
-  const [ejecutivo, setEjecutivo] = useState('');
-  const [grupoCliente, setGrupoCliente] = useState('');
-  const [sector, setSector] = useState('');
-  const [grupoArticulo, setGrupoArticulo] = useState('');
-  const [soloNoDetenido, setSoloNoDetenido] = useState(false);
-  const [periodo, setPeriodo] = useState<'corriente' | 'anterior'>('corriente');
+  const [ejecutivo, setEjecutivo] = usePersistedState('analisis.ejecutivo', '');
+  const [grupoCliente, setGrupoCliente] = usePersistedState('analisis.grupoCliente', '');
+  const [sector, setSector] = usePersistedState('analisis.sector', '');
+  const [grupoArticulo, setGrupoArticulo] = usePersistedState('analisis.grupoArticulo', '');
+  const [soloNoDetenido, setSoloNoDetenido] = usePersistedState('analisis.soloNoDetenido', false);
+  const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>('analisis.periodo', 'corriente');
 
   // Vistas guardadas: snapshot de los 4 filtros + toggles, persistido entre sesiones.
   type AnalisisViewState = { ejecutivo: string; grupoCliente: string; sector: string; grupoArticulo: string; soloNoDetenido: boolean; periodo: 'corriente' | 'anterior' };
@@ -45,6 +46,9 @@ export function AnalisisPage() {
     setGrupoArticulo(state.grupoArticulo); setSoloNoDetenido(state.soloNoDetenido); setPeriodo(state.periodo);
   };
   const saveCurrentView = (name: string) => savedViews.save(name, { ejecutivo, grupoCliente, sector, grupoArticulo, soloNoDetenido, periodo });
+  const clearFilters = () => {
+    setEjecutivo(''); setGrupoCliente(''); setSector(''); setGrupoArticulo(''); setSoloNoDetenido(false);
+  };
 
   // Opciones distintas para los 4 filtros, tomadas de las mismas fuentes
   // (Resumen_Fac + catálogo) que alimenta analisisVentas — no dependen del
@@ -118,7 +122,7 @@ export function AnalisisPage() {
 
   const abcMaterialesSummary = useMemo(() => summarizeAbc(a.abc.materiales), [a.abc.materiales]);
   const abcClientesSummary = useMemo(() => summarizeAbc(a.abc.clientes), [a.abc.clientes]);
-  const [abcTab, setAbcTab] = useState<'materiales' | 'clientes'>('materiales');
+  const [abcTab, setAbcTab] = usePersistedState<'materiales' | 'clientes'>('analisis.abcTab', 'materiales');
   const abcShown = abcTab === 'materiales' ? a.abc.materiales : a.abc.clientes;
 
   const opsShown = useMemo(() => {
@@ -263,6 +267,7 @@ export function AnalisisPage() {
         <Select value={grupoArticulo} onChange={(ev) => setGrupoArticulo(ev.target.value)} className="w-auto">
           <option value="">Grupo artículo (todos)</option>{grupoArticuloOptions.map((v) => <option key={v} value={v}>{v}</option>)}
         </Select>
+        <ClearFiltersButton onClear={clearFilters} />
       </div>
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">

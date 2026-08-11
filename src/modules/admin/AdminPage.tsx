@@ -15,6 +15,9 @@ import {
 } from '@/services/permissionsService';
 import { invalidateConnectorsCache } from '@/services/connectorsService';
 import { supabase } from '@/lib/supabaseClient';
+import { PESOS_DEFAULT, CRITERIO_LABELS, type CriterioKey } from '@/core/scoring';
+import { loadScoringWeights, saveScoringWeight, SCORING_WEIGHT_PREFIX } from '@/services/scoringWeightsService';
+import { useScoringWeightsStore } from '@/store/scoringWeightsStore';
 
 export function AdminPage() {
   return (
@@ -29,13 +32,72 @@ export function AdminPage() {
           <TabsTrigger value="roles">Roles y permisos</TabsTrigger>
           <TabsTrigger value="overrides">Overrides por usuario</TabsTrigger>
           <TabsTrigger value="conectores">Conectores</TabsTrigger>
+          <TabsTrigger value="compatibilidad">Compatibilidad</TabsTrigger>
         </TabsList>
         <TabsContent value="usuarios"><UsuariosTab /></TabsContent>
         <TabsContent value="roles"><PermissionsTab subjectType="role" /></TabsContent>
         <TabsContent value="overrides"><PermissionsTab subjectType="user" /></TabsContent>
         <TabsContent value="conectores"><ConectoresTab /></TabsContent>
+        <TabsContent value="compatibilidad"><PesosTab /></TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Compatibilidad: pesos del motor de scoring de Oportunidades (fase 5). Cada
+// fila es una regla del `core/scoring.ts`; el peso vive en `degasa_connectors`
+// (mismo mecanismo genérico key/value que Conectores, ver scoringWeightsService).
+// ---------------------------------------------------------------------------
+function PesosTab() {
+  const [drafts, setDrafts] = useState<Partial<Record<CriterioKey, number>>>({});
+  const [busyKey, setBusyKey] = useState<CriterioKey | null>(null);
+  const invalidate = useScoringWeightsStore((s) => s.invalidate);
+
+  const reload = useCallback(async () => {
+    setDrafts(await loadScoringWeights());
+  }, []);
+  useEffect(() => { void reload(); }, [reload]);
+
+  const handleSave = async (key: CriterioKey) => {
+    setBusyKey(key);
+    try {
+      const { data } = await supabase.auth.getUser();
+      await saveScoringWeight(key, drafts[key] ?? PESOS_DEFAULT[key], data.user?.email ?? 'admin');
+      invalidate();
+      toast.success('Guardado', 'El peso se actualizó — ya afecta el próximo ranking.');
+    } catch (e) {
+      toast.error('No se pudo guardar', e instanceof Error ? e.message : String(e));
+    } finally { setBusyKey(null); }
+  };
+
+  const criterios = Object.keys(PESOS_DEFAULT) as CriterioKey[];
+  const suma = criterios.filter((k) => (drafts[k] ?? PESOS_DEFAULT[k]) > 0).reduce((acc, k) => acc + (drafts[k] ?? PESOS_DEFAULT[k]), 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Compatibilidad — pesos del score</CardTitle>
+        <CardDescription>
+          Cada criterio suma (o resta, si es negativo) puntos al score de un cliente para un material. El score final se normaliza a 100
+          sobre la suma de los pesos positivos ({suma}) — no hace falta que sumen exactamente 100.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {criterios.map((key) => (
+          <div key={key} className="flex items-center gap-3">
+            <label className="flex-1 text-sm text-text">{CRITERIO_LABELS[key]}</label>
+            <Input
+              type="number"
+              value={drafts[key] ?? PESOS_DEFAULT[key]}
+              onChange={(e) => setDrafts((d) => ({ ...d, [key]: Number(e.target.value) }))}
+              className="w-24 text-right font-mono text-sm"
+            />
+            <Button size="sm" disabled={busyKey === key} onClick={() => handleSave(key)}>Guardar</Button>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -310,7 +372,10 @@ function ConectoresTab() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    const rows = await listConnectors();
+    // Los pesos del score (fase 5) viven en la misma tabla pero tienen su
+    // propia pestaña "Compatibilidad" con mejor UX (números, no URLs) — se
+    // excluyen aquí para no duplicar la edición en dos lugares.
+    const rows = (await listConnectors()).filter((r) => !r.key.startsWith(SCORING_WEIGHT_PREFIX));
     setConnectors(rows);
     setDrafts(Object.fromEntries(rows.map((r) => [r.key, r.value ?? ''])));
   }, []);

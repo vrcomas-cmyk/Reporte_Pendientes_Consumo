@@ -11,7 +11,8 @@ import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils'
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
+import { enRango } from '@/lib/fechas';
 import { ESTADOS } from '@/core/resumenFac';
 import { norm, num, matchesQuery } from '@/modules/analytics/helpers';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
@@ -20,11 +21,15 @@ import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSo
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
 import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
+import { useMaterialPrefiltro } from '@/hooks/useMaterialPrefiltro';
+import { usePersistedState } from '@/hooks/usePersistedState';
+import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
 import { Select } from '@/components/ui/select';
 import { usePermissionsStore } from '@/store/permissionsStore';
 import { isColumnHidden, isDetailHidden } from '@/core/permissions';
 import { toast } from '@/store/toastStore';
 import { TooltipHint } from '@/components/ui/tooltip';
+import { buildSugerenciasColsAgrupado } from './columns';
 import type { Sugerencia } from '@/core/types';
 
 const INV_COLS = ['1030', '1031', '1032'] as const;
@@ -89,15 +94,22 @@ export function SugerenciasPage() {
     }
     return set;
   }, [solicitudesList]);
-  const [q, setQ] = useState('');
-  const [estado, setEstado] = useState('');
-  const [fuente, setFuente] = useState('');
-  const [centroValido, setCentroValido] = useState(false);
-  const [soloAccionables, setSoloAccionables] = useState(false);
-  const [quick, setQuick] = useState<ActiveFilter[]>([]);
+  const [q, setQ] = usePersistedState('sugerencias.q', '');
+  const { prefiltro, clear: clearPrefiltro } = useMaterialPrefiltro(setQ);
+  const [estado, setEstado] = usePersistedState('sugerencias.estado', '');
+  const [fuente, setFuente] = usePersistedState('sugerencias.fuente', '');
+  const [centroValido, setCentroValido] = usePersistedState('sugerencias.centroValido', false);
+  const [soloAccionables, setSoloAccionables] = usePersistedState('sugerencias.soloAccionables', false);
+  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('sugerencias.quick', []);
+  const [rango, setRango] = usePersistedState<{ desde: string; hasta: string }>('sugerencias.rango', { desde: '', hasta: '' });
+  const [clearTick, setClearTick] = useState(0);
+  const clearFilters = () => {
+    setQ(''); setEstado(''); setFuente(''); setCentroValido(false); setSoloAccionables(false); setQuick([]); setRango({ desde: '', hasta: '' });
+    setClearTick((n) => n + 1);
+  };
   const [sectorOpen, setSectorOpen] = useState(false);
   const [openSector, setOpenSector] = useState<string | null>(null);
-  const [agrupadoState, setAgrupado] = useState(true);
+  const [agrupadoState, setAgrupado] = usePersistedState('sugerencias.agrupado', true);
   const agrupado = fuenteOculto || agrupadoState;
   const zoom = useZoom('sugerencias_zoom');
 
@@ -152,13 +164,14 @@ export function SugerenciasPage() {
       // resolver hoy, sin tener que combinar Fuentes + Centro válido a mano.
       if (soloAccionables && (num(b.cantidadPendiente) <= 0 || !it.fuentes.length || b.bloqueado || !it.fuentes.some((f) => centroPasa(b, f)))) return false;
       if (!passesFilters(it, filterCols, quick)) return false;
+      if (!enRango(b.fecha, rango.desde, rango.hasta)) return false;
       if (q) {
         const hay = `${b.materialBase} ${b.descripcionSolicitada} ${b.pedido} ${b.razonSocial} ${b.solicitante} ${b.destinatario}`;
         if (!matchesQuery(q, hay)) return false;
       }
       return true;
     });
-  }, [a.bo, q, estado, fuente, centroValido, soloAccionables, quick, filterCols]);
+  }, [a.bo, q, estado, fuente, centroValido, soloAccionables, quick, rango, filterCols]);
 
   const kpis = useMemo(() => {
     const isBloq = (it: (typeof filtered)[number]) => it.bo.bloqueado !== '';
@@ -248,7 +261,7 @@ export function SugerenciasPage() {
 
   const colVis = useColumnVisibility('sugerencias_columnas');
   const vis = colVis.isVisible;
-  const [unificarInv, setUnificarInv] = useState(false);
+  const [unificarInv, setUnificarInv] = usePersistedState('sugerencias.unificarInv', false);
   const invTotal = (b: BORow['bo']) => INV_ALL.reduce((s, c) => s + num(b.invByCenter[c] || 0), 0);
   const invTransitoTotal = (b: BORow['bo']) => INV_COLS.reduce((s, c) => s + transitoFor(b.centroPedido, c, b.materialBase), 0);
 
@@ -260,19 +273,8 @@ export function SugerenciasPage() {
   };
   const saveCurrentView = (name: string) => savedViews.save(name, { hidden: [...colVis.hidden], unificarInv });
 
-  const COLS_COMMON: ColDef[] = [
-    { key: 'pedido', label: 'Pedido/OC' }, { key: 'fecha', label: 'Fecha' }, { key: 'cliente', label: 'Cliente' },
-    { key: 'ejecutivo', label: 'Ejecutivo / Grupo cli.' }, { key: 'centro', label: 'Centro/Alm' },
-    { key: 'material', label: 'Material' }, { key: 'sector', label: 'Sector/Grupo' },
-    { key: 'cantped', label: 'Cant.ped.' }, { key: 'pend', label: 'Pend.' },
-    ...(precioOculto ? [] : [{ key: 'precio', label: 'Precio' }]),
-    { key: 'consumo', label: 'Consumo' },
-    ...(unificarInv
-      ? [{ key: 'invtotal', label: 'Inv. total (1030+1031+1032+1060)' }]
-      : [{ key: 'inv1030', label: 'Inv 1030' }, { key: 'inv1031', label: 'Inv 1031' }, { key: 'inv1032', label: 'Inv 1032' }, { key: 'inv1060', label: 'Inv 1060' }]),
-    { key: 'bloq', label: 'Bloq.' }, { key: 'estado', label: 'Estado' }, { key: 'tendencia', label: 'Tendencia' },
-  ];
-  const COLS_AGRUPADO: ColDef[] = [...COLS_COMMON, ...(fuenteOculto ? [] : [{ key: 'fuentes', label: 'Fuentes' }])];
+  const COLS_AGRUPADO: ColDef[] = buildSugerenciasColsAgrupado({ precioOculto, unificarInv, fuenteOculto });
+  const COLS_COMMON: ColDef[] = fuenteOculto ? COLS_AGRUPADO : COLS_AGRUPADO.slice(0, -1);
   const COLS_RAW: ColDef[] = [
     ...COLS_COMMON,
     { key: 'fuente', label: 'Fuente' }, { key: 'matsug', label: 'Material sugerido' },
@@ -483,8 +485,10 @@ export function SugerenciasPage() {
       </div>
       )}
 
+      {prefiltro && <PrefiltroBanner material={prefiltro} onClear={clearPrefiltro} />}
+
       <div className="flex flex-wrap items-center gap-2">
-        <DebouncedSearch onChange={setQ} placeholder="Buscar material, pedido, cliente…" />
+        <DebouncedSearch key={clearTick} initialValue={q} onChange={setQ} placeholder="Buscar material, pedido, cliente…" />
         <Select value={estado} onChange={(ev) => setEstado(ev.target.value)} className="w-auto">
           <option value="">Estado (todos)</option>
           {ESTADOS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
@@ -510,6 +514,8 @@ export function SugerenciasPage() {
             Solo accionables
           </button>
         )}
+        <DateRangeFilter desde={rango.desde} hasta={rango.hasta} onChange={setRango} />
+        <ClearFiltersButton onClear={clearFilters} />
       </div>
 
       <ColumnFilterBar columns={filterCols} rows={a.bo} active={quick} onChange={setQuick} />
@@ -519,7 +525,7 @@ export function SugerenciasPage() {
       {agrupado ? (
       <Card className="min-h-[640px] shrink-0 overflow-hidden">
         <div ref={scrollRef} className="h-[640px] overflow-auto">
-          <Table className={zoom.className} wrapperClassName="overflow-visible">
+          <Table className={zoom.className} wrapperClassName="overflow-visible" resizableKey="sugerencias.agrupado.cols">
             <TableHeader>
               <TableRow>
                 {!fuenteOculto && (
@@ -652,7 +658,7 @@ export function SugerenciasPage() {
       ) : (
       <Card className="min-h-[640px] shrink-0 overflow-hidden">
         <div ref={scrollRefRaw} className="h-[640px] overflow-auto">
-          <Table className={zoom.className} wrapperClassName="overflow-visible">
+          <Table className={zoom.className} wrapperClassName="overflow-visible" resizableKey="sugerencias.raw.cols">
             <TableHeader>
               <TableRow>
                 {([

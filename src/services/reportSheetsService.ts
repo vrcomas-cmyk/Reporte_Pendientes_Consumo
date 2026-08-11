@@ -28,6 +28,26 @@ const REPORT_TABS: Partial<Record<SheetRole, string>> = {
 };
 export const REPORT_SHEET_ROLES = Object.keys(REPORT_TABS) as SheetRole[];
 
+/** Orden de prioridad de negocio (CLAUDE.md / pedido del usuario, 2026-08-07):
+ * Pedidos (sugerencias) → Inventario (resumenSinSugerencias) → Consumo →
+ * Resumen_Fac SIEMPRE al final por ser la pestaña más pesada. `runSync`
+ * reordena `roles` por esta lista y las descarga en dos olas: todo lo que no
+ * sea `resumenFac` en paralelo primero (conserva la ventaja de pintar cada
+ * pestaña en cuanto llega vía `onPartialResult`), y `resumenFac` arranca
+ * hasta que esa ola termina — así lo prioritario aparece primero sin que el
+ * tiempo total de sync se vuelva la suma de las 4 pestañas.
+ * Todo reporte nuevo que se agregue a `REPORT_TABS` debe entrar aquí ANTES de
+ * `resumenFac` — ver docs/apps-script-report-sheets.md §Prioridad de carga. */
+const ROLE_PRIORITY: SheetRole[] = ['sugerencias', 'resumenSinSugerencias', 'reporteConsumo', 'resumenFac'];
+
+function byPriority(roles: SheetRole[]): SheetRole[] {
+  return [...roles].sort((a, b) => {
+    const ia = ROLE_PRIORITY.indexOf(a);
+    const ib = ROLE_PRIORITY.indexOf(b);
+    return (ia === -1 ? ROLE_PRIORITY.length : ia) - (ib === -1 ? ROLE_PRIORITY.length : ib);
+  });
+}
+
 /** Las 4 pestañas son salida de fórmulas vivas (QUERY/FILTER) o de valores
  * que se actualizan in-place: un registro puede desaparecer o cambiar de
  * valor sin que el `rowCount` total baje — entran otros al mismo tiempo. Se
@@ -213,7 +233,7 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
     progressListeners.forEach((fn) => fn(p));
   };
 
-  const roles = params.selectedRoles && params.selectedRoles.length ? params.selectedRoles : REPORT_SHEET_ROLES;
+  const roles = byPriority(params.selectedRoles && params.selectedRoles.length ? params.selectedRoles : REPORT_SHEET_ROLES);
   const start = Date.now();
   const forceFull = params.forceFull === true;
 
@@ -366,7 +386,13 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
       }
     }
 
-    await Promise.all(roles.map((role, i) => processTab(role, tabs[i], i)));
+    // Dos olas en vez de un solo Promise.all: las pestañas ligeras primero (en
+    // paralelo entre sí, cada una pintándose apenas llega), Resumen_Fac —la
+    // más pesada— arranca solo cuando esa ola termina. Ver ROLE_PRIORITY.
+    const liviana = roles.map((role, i) => [role, i] as const).filter(([role]) => role !== 'resumenFac');
+    const pesada = roles.map((role, i) => [role, i] as const).filter(([role]) => role === 'resumenFac');
+    await Promise.all(liviana.map(([role, i]) => processTab(role, tabs[i], i)));
+    await Promise.all(pesada.map(([role, i]) => processTab(role, tabs[i], i)));
     await partialChain;
 
     // Fill in unselected roles from the cache (delta state persists across

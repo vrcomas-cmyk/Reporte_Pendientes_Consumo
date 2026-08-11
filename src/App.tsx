@@ -10,6 +10,8 @@ import { Toaster } from '@/components/feedback/Toaster';
 import { AnalyticsProvider } from '@/modules/analytics/AnalyticsContext';
 import { PanelHost } from '@/modules/analytics/PanelHost';
 import { useSolicitudStore } from '@/store/solicitudStore';
+import { useConocimientoStore } from '@/store/conocimientoStore';
+import { useScoringWeightsStore } from '@/store/scoringWeightsStore';
 
 // Only the shell (AppShell/Topbar/Sidebar) stays eager for instant first
 // paint. Every route, INCLUDING Dashboard, is code-split so its JS — and
@@ -24,9 +26,7 @@ import { useSolicitudStore } from '@/store/solicitudStore';
 const DashboardPage = lazy(() => import('@/modules/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const HoyPage = lazy(() => import('@/modules/dashboard/HoyPage').then((m) => ({ default: m.HoyPage })));
 const UploadPage = lazy(() => import('@/modules/upload/UploadPage').then((m) => ({ default: m.UploadPage })));
-const GenerarReportePage = lazy(() => import('@/modules/generar/GenerarReportePage').then((m) => ({ default: m.GenerarReportePage })));
 const ComodatoPage = lazy(() => import('@/modules/comodato/ComodatoPage').then((m) => ({ default: m.ComodatoPage })));
-const ProcessingPage = lazy(() => import('@/modules/processing/ProcessingPage').then((m) => ({ default: m.ProcessingPage })));
 const ResultsPage = lazy(() => import('@/modules/results/ResultsPage').then((m) => ({ default: m.ResultsPage })));
 const HistoryPage = lazy(() => import('@/modules/history/HistoryPage').then((m) => ({ default: m.HistoryPage })));
 const LogsPage = lazy(() => import('@/modules/logs/LogsPage').then((m) => ({ default: m.LogsPage })));
@@ -38,6 +38,9 @@ const ResumenSinPage = lazy(() => import('@/modules/resumenSin/ResumenSinPage').
 const AnalisisPage = lazy(() => import('@/modules/analisis/AnalisisPage').then((m) => ({ default: m.AnalisisPage })));
 const SolicitudesPage = lazy(() => import('@/modules/solicitudes/SolicitudesPage').then((m) => ({ default: m.SolicitudesPage })));
 const AdminPage = lazy(() => import('@/modules/admin/AdminPage').then((m) => ({ default: m.AdminPage })));
+const OportunidadesPage = lazy(() => import('@/modules/oportunidades/OportunidadesPage').then((m) => ({ default: m.OportunidadesPage })));
+const Material360Page = lazy(() => import('@/modules/oportunidades/Material360Page').then((m) => ({ default: m.Material360Page })));
+const ClientesPage = lazy(() => import('@/modules/oportunidades/ClientesPage').then((m) => ({ default: m.ClientesPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, refetchOnWindowFocus: false } },
@@ -53,9 +56,13 @@ function RouteFallback() {
 
 function App() {
   const hydrateSolicitudes = useSolicitudStore((s) => s.hydrate);
+  const hydrateConocimiento = useConocimientoStore((s) => s.hydrate);
+  const hydrateScoringWeights = useScoringWeightsStore((s) => s.hydrate);
   useEffect(() => {
     void hydrateSolicitudes();
-  }, [hydrateSolicitudes]);
+    void hydrateConocimiento();
+    void hydrateScoringWeights();
+  }, [hydrateSolicitudes, hydrateConocimiento, hydrateScoringWeights]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -69,14 +76,15 @@ function App() {
                   <Route path="/" element={<ModuleGuard moduleKey="dashboard"><Suspense fallback={<RouteFallback />}><DashboardPage /></Suspense></ModuleGuard>} />
                   <Route path="/hoy" element={<ModuleGuard moduleKey="hoy"><Suspense fallback={<RouteFallback />}><HoyPage /></Suspense></ModuleGuard>} />
                   <Route path="/carga" element={<ModuleGuard moduleKey="carga"><Suspense fallback={<RouteFallback />}><UploadPage /></Suspense></ModuleGuard>} />
-                  <Route path="/generar" element={<ModuleGuard moduleKey="generar"><Suspense fallback={<RouteFallback />}><GenerarReportePage /></Suspense></ModuleGuard>} />
-                  <Route path="/procesamiento" element={<ModuleGuard moduleKey="procesamiento"><Suspense fallback={<RouteFallback />}><ProcessingPage /></Suspense></ModuleGuard>} />
                   <Route path="/resultados" element={<ModuleGuard moduleKey="resultados"><Suspense fallback={<RouteFallback />}><ResultsPage /></Suspense></ModuleGuard>} />
                   <Route path="/inventario" element={<ModuleGuard moduleKey="inventario"><Suspense fallback={<RouteFallback />}><InventarioPage /></Suspense></ModuleGuard>} />
                   <Route path="/sugerencias" element={<ModuleGuard moduleKey="sugerencias"><Suspense fallback={<RouteFallback />}><SugerenciasPage /></Suspense></ModuleGuard>} />
                   <Route path="/consumo" element={<ModuleGuard moduleKey="consumo"><Suspense fallback={<RouteFallback />}><ConsumoPage /></Suspense></ModuleGuard>} />
                   <Route path="/resumen-sin" element={<ModuleGuard moduleKey="resumen-sin"><Suspense fallback={<RouteFallback />}><ResumenSinPage /></Suspense></ModuleGuard>} />
                   <Route path="/analisis" element={<ModuleGuard moduleKey="analisis"><Suspense fallback={<RouteFallback />}><AnalisisPage /></Suspense></ModuleGuard>} />
+                  <Route path="/oportunidades" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><OportunidadesPage /></Suspense></ModuleGuard>} />
+                  <Route path="/oportunidades/material/:material" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><Material360Page /></Suspense></ModuleGuard>} />
+                  <Route path="/oportunidades/clientes" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><ClientesPage /></Suspense></ModuleGuard>} />
                   <Route path="/solicitudes" element={<ModuleGuard moduleKey="solicitudes"><Suspense fallback={<RouteFallback />}><SolicitudesPage /></Suspense></ModuleGuard>} />
                   <Route path="/comodato" element={<ModuleGuard moduleKey="comodato"><Suspense fallback={<RouteFallback />}><ComodatoPage /></Suspense></ModuleGuard>} />
                   <Route path="/historial" element={<ModuleGuard moduleKey="historial"><Suspense fallback={<RouteFallback />}><HistoryPage /></Suspense></ModuleGuard>} />

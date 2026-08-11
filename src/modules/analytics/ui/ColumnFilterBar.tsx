@@ -54,7 +54,7 @@ export function ColumnFilterBar<T>({ columns, rows, active, onChange }: {
 
   const activeValuesForCol = useMemo(() => new Set(active.filter((f) => f.col === pickCol).map((f) => f.value)), [active, pickCol]);
 
-  const options = pickCol
+  const options = pickCol && typed.trim()
     ? distinctForCol.filter((v) => v.toLowerCase().includes(typed.toLowerCase()) && !activeValuesForCol.has(v)).slice(0, 25)
     : [];
 
@@ -90,6 +90,7 @@ export function ColumnFilterBar<T>({ columns, rows, active, onChange }: {
             <div className="relative">
               <input
                 autoFocus
+                autoComplete="off"
                 value={typed}
                 onChange={(ev) => setTyped(ev.target.value)}
                 placeholder="Buscar valor…"

@@ -37,6 +37,7 @@ import { useUiStore } from '@/store/uiStore';
 import { categorical } from '@/lib/chartColors';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { topEjecutivos as computeTopEjecutivos } from '@/core/analysis';
+import { Ranking } from '@/modules/analytics/ui';
 
 export function DashboardPage() {
   const activeAnalysis = useDataStore((s) => s.activeAnalysis);
@@ -116,7 +117,7 @@ export function DashboardPage() {
   // report yet this is every catalog executive at 0, not an empty list.
   const topEjecutivos = activeAnalysis?.topEjecutivos ?? computeTopEjecutivos([], catalog);
 
-  const barData = topMateriales.map((m) => ({ name: m.material, importe: Math.round(m.importePendiente) }));
+  const barData = topMateriales.map((m) => ({ name: m.material, desc: m.descripcion, importe: Math.round(m.importePendiente) }));
   // `topEjecutivos` now holds every catalog executive (0 included) sorted by
   // importe — the pie chart still only wants the top slice, real 0-importe
   // slivers would just clutter it.
@@ -174,6 +175,10 @@ export function DashboardPage() {
                 <YAxis type="category" dataKey="name" stroke={axisColor} fontSize={11} width={90} />
                 <Tooltip
                   formatter={(v) => formatCurrency(Number(v))}
+                  labelFormatter={(name, payload) => {
+                    const desc = payload?.[0]?.payload?.desc as string | undefined;
+                    return desc ? `${name} — ${desc}` : name;
+                  }}
                   contentStyle={{ background: theme === 'dark' ? '#1c1c1b' : '#fff', border: `1px solid ${gridColor}`, borderRadius: 8, fontSize: 12 }}
                 />
                 <Bar dataKey="importe" fill={palette[0]} radius={[0, 4, 4, 0]} maxBarSize={22} />
@@ -241,15 +246,17 @@ export function DashboardPage() {
           <CardHeader>
             <CardTitle>Top 5 materiales</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col gap-2">
+          <CardContent>
             {!activeAnalysis ? (
               <div className="text-xs text-text-faint">Sin datos — carga el reporte diario.</div>
-            ) : topMateriales.map((m) => (
-              <div key={m.material} className="flex items-center justify-between text-xs">
-                <span className="truncate font-mono text-text-muted">{m.material}</span>
-                <span className="font-medium">{formatCurrency(m.importePendiente)}</span>
-              </div>
-            ))}
+            ) : (
+              <Ranking
+                title=""
+                wide
+                items={topMateriales.map((m) => ({ code: m.material, desc: m.descripcion, val: m.importePendiente }))}
+                money
+              />
+            )}
           </CardContent>
         </Card>
         <Card>

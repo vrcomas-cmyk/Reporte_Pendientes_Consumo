@@ -18,10 +18,16 @@ export const MODULE_COLUMNS: Record<string, RegistryItem[]> = {
     { key: 'fuente', label: 'Fuente (fuente alterna de abasto)' },
     { key: 'precio', label: 'Precio' },
   ],
+  oportunidades: [
+    { key: 'precio', label: 'Precio oferta (vista lista y exportación)' },
+  ],
 };
 
 export const MODULE_DETAILS: Record<string, RegistryItem[]> = {
   sugerencias: [
     { key: 'fuente', label: 'Detalle de fuente (lote/centro sugerido/disponible)' },
+  ],
+  oportunidades: [
+    { key: 'scoreExplain', label: 'Desglose del score de compatibilidad ("¿Por qué?")' },
   ],
 };

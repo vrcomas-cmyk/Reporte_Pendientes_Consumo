@@ -339,6 +339,154 @@ export type SolicitudOrigen = 'sugerencias' | 'inventario' | 'resumenSin' | 'con
  * portal never writes those three columns. */
 export type SolicitudSync = 'pendiente' | 'enviada' | 'error';
 
+// ---------------------------------------------------------------------------
+// Módulo Oportunidades Comerciales — entidades de conocimiento propio del
+// portal (no provienen de ningún reporte). Viven aquí, junto al resto del
+// dominio, porque `core/scoring.ts` y `core/oportunidad.ts` las consumen y
+// `core/` no debe importar de `modules/`. Persistencia: ver
+// repositories/OportunidadRepository.ts + store/conocimientoStore.ts.
+// ---------------------------------------------------------------------------
+
+export type CondicionEspecial = 'corta-caducidad' | 'lento-movimiento' | 'calidad' | 'danado' | 'normal';
+
+export type EstadoOportunidad =
+  | 'nueva' | 'en-analisis' | 'contactando' | 'negociacion'
+  | 'colocada-parcial' | 'colocada-total' | 'sin-interesados' | 'campana-agresiva';
+
+export const ESTADOS_OPORTUNIDAD: { key: EstadoOportunidad; label: string }[] = [
+  { key: 'nueva', label: 'Nueva' },
+  { key: 'en-analisis', label: 'En análisis' },
+  { key: 'contactando', label: 'Contactando clientes' },
+  { key: 'negociacion', label: 'En negociación' },
+  { key: 'colocada-parcial', label: 'Colocada parcialmente' },
+  { key: 'colocada-total', label: 'Colocada totalmente' },
+  { key: 'sin-interesados', label: 'Sin interesados' },
+  { key: 'campana-agresiva', label: 'En campaña agresiva' },
+];
+
+/** "Oportunidad Comercial": la unidad de trabajo del módulo — material + lote
+ * + condición + inventario disponible, con un estado que avanza a medida que
+ * se contacta a clientes. Ver bandeja en modules/oportunidades. */
+export interface Oportunidad {
+  id?: number;
+  material: string;
+  descripcion: string;
+  lote?: string;
+  centro?: string;
+  condicion: CondicionEspecial;
+  /** Snapshot al crear — permite medir cuánto se movió realmente. */
+  cantidadDisponible: number;
+  fechaCaducidad: string | null;
+  precioOferta: number;
+  estado: EstadoOportunidad;
+  responsable: string;
+  prioridad: 'alta' | 'media' | 'baja';
+  creadaEn: string;
+  actualizadaEn: string;
+  cerradaEn?: string;
+  cantidadColocada: number;
+  notas: string;
+}
+
+export type TipoInteraccion = 'llamada' | 'correo' | 'whatsapp' | 'visita' | 'oferta' | 'nota' | 'cambio-estado';
+
+/** Registro de conocimiento (req. 10): toda interacción con un cliente en el
+ * contexto de una oportunidad queda aquí, para que el sistema "aprenda" sin
+ * depender de que el usuario lo anote en su libreta. */
+export interface Interaccion {
+  id?: number;
+  dest: string;
+  oportunidadId?: number;
+  material?: string;
+  tipo: TipoInteraccion;
+  resumen: string;
+  fecha: string;
+  creadoPor: string;
+}
+
+// ---------------------------------------------------------------------------
+// Fase 2 del módulo Oportunidades: mini-CRM interno. La ficha de un cliente
+// convierte en dato estructurado lo que hoy vive en la libreta del analista
+// (qué condiciones acepta, caducidad mínima, descuento habitual, contacto).
+// Clave natural = `dest` (destinatario), mismo eje que ConsumoRow/Oportunidad.
+// ---------------------------------------------------------------------------
+
+/** Ficha de conocimiento de un cliente — editable por el usuario, salvo los
+ * dos campos derivados (tiempoRespuestaPromDias/tasaAceptacion), que se
+ * recalculan de Oferta/Interaccion en fase 3 y aquí solo se muestran. */
+export interface ClienteConocimiento {
+  id?: number;
+  dest: string;
+  razonSocial: string;
+  condicionesAceptadas: CondicionEspecial[];
+  caducidadMinimaDias: number | null;
+  descuentoHabitualPct: number | null;
+  contactoNombre: string;
+  contactoTelefono: string;
+  contactoCorreo: string;
+  canalPreferido: string;
+  notasComerciales: string;
+  tiempoRespuestaPromDias?: number;
+  tasaAceptacion?: number;
+  actualizadoEn: string;
+  actualizadoPor: string;
+}
+
+/** Nota libre sobre un cliente, opcionalmente ligada a un material. Vive
+ * separada de `notasComerciales` (la ficha) porque es una bitácora append-only,
+ * no un campo que se sobrescribe. */
+export interface Observacion {
+  id?: number;
+  dest: string;
+  material?: string;
+  texto: string;
+  creadoEn: string;
+  creadoPor: string;
+}
+
+// ---------------------------------------------------------------------------
+// Fase 3 del módulo Oportunidades: registro de ofertas + timeline. Cada
+// contacto real con un cliente para colocar inventario queda aquí — es la
+// fuente de la que se derivan `tiempoRespuestaPromDias`/`tasaAceptacion` en
+// ClienteConocimiento y de la que se alimentan los criterios de score
+// `acepto-condicionado`/`rechazo-reciente` (ver core/scoring.ts).
+// ---------------------------------------------------------------------------
+
+export type ResultadoOferta = 'aceptada' | 'rechazada' | 'pendiente' | 'parcial';
+export type MotivoRechazo = 'precio' | 'caducidad' | 'condicion' | 'sin-necesidad' | 'inventario-propio' | 'otro';
+
+export const MOTIVOS_RECHAZO: { key: MotivoRechazo; label: string }[] = [
+  { key: 'precio', label: 'Precio' },
+  { key: 'caducidad', label: 'Caducidad insuficiente' },
+  { key: 'condicion', label: 'No acepta la condición' },
+  { key: 'sin-necesidad', label: 'Sin necesidad actual' },
+  { key: 'inventario-propio', label: 'Tiene inventario propio' },
+  { key: 'otro', label: 'Otro' },
+];
+
+export interface Oferta {
+  id?: number;
+  oportunidadId?: number;
+  dest: string;
+  razonSocial: string;
+  material: string;
+  lote?: string;
+  condicion: CondicionEspecial;
+  fechaCaducidad: string | null;
+  cantidadOfertada: number;
+  cantidadAceptada?: number;
+  precioOfertado: number;
+  /** Snapshot del precio de lista al momento de ofertar — permite calcular el
+   * descuento real después, aunque el precio de lista cambie más tarde. */
+  precioLista?: number;
+  fechaOferta: string;
+  fechaRespuesta?: string;
+  resultado: ResultadoOferta;
+  motivoRechazo?: MotivoRechazo;
+  comentario: string;
+  creadoPor: string;
+}
+
 /** One row of the "DRP" Google Sheet the portal is allowed to write:
  * the 13 data columns, always sent, plus local tracking metadata.
  * Estatus, No. UD and Delivery are intentionally absent — they are filled

@@ -21,11 +21,21 @@ const TITLE_OVERRIDES: Record<string, string> = {
   '/resultados': 'Resultados del análisis',
   '/historial': 'Historial de análisis',
   '/registros': 'Registros del sistema',
+  '/oportunidades/clientes': 'Clientes — fichas comerciales',
 };
+
+// Prefijo — /oportunidades/material/:material no está en NAV (es un
+// deep-link, no una entrada de menú), así que titleFor necesita un match por
+// prefijo para no caer al wordmark "DEGASA".
+const TITLE_PREFIX_OVERRIDES: [string, string][] = [
+  ['/oportunidades/material', 'Material 360'],
+];
 
 function titleFor(path: string): string {
   if (TITLE_OVERRIDES[path]) return TITLE_OVERRIDES[path];
   if (path === ADMIN_NAV_ITEM.to) return ADMIN_NAV_ITEM.label;
+  const prefixMatch = TITLE_PREFIX_OVERRIDES.find(([prefix]) => path.startsWith(prefix));
+  if (prefixMatch) return prefixMatch[1];
   return NAV.find((n) => n.to === path)?.label ?? 'DEGASA';
 }
 

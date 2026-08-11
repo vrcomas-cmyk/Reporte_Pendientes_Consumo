@@ -1,8 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { UploadCloud } from 'lucide-react';
 
-// Exported so GenerarReportePage.tsx (fase B de la migración a API) reusa el
-// mismo control en vez de duplicarlo.
+// Exported so ComodatoPage.tsx reusa el mismo control en vez de duplicarlo.
 export function DropZone({
   onFile,
   accept,

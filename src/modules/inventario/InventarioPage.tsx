@@ -9,7 +9,7 @@ import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { buildLotesSheet } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, ClearFiltersButton, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { norm, matchesQuery } from '@/modules/analytics/helpers';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { TableSkeleton } from '@/components/ui/skeleton';
@@ -22,6 +22,9 @@ import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSo
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
 import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
+import { useMaterialPrefiltro } from '@/hooks/useMaterialPrefiltro';
+import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
+import { usePersistedState } from '@/hooks/usePersistedState';
 
 const CENTERS = ['1001', '1003', '1004', '1017', '1018', '1022', '1036'];
 
@@ -49,14 +52,16 @@ export function InventarioPage() {
   const a = useAnalytics();
   const open = usePanelStore((s) => s.open);
   const rows = a.invCondicion;
-  const [q, setQ] = useState('');
-  const [cond, setCond] = useState('');
-  const [sector, setSector] = useState('');
-  const [centro, setCentro] = useState('');
+  const [q, setQ] = usePersistedState('inventario.q', '');
+  const { prefiltro, clear: clearPrefiltro } = useMaterialPrefiltro(setQ);
+  const [cond, setCond] = usePersistedState('inventario.cond', '');
+  const [sector, setSector] = usePersistedState('inventario.sector', '');
+  const [centro, setCentro] = usePersistedState('inventario.centro', '');
   const [isAdmin, setIsAdmin] = useState(readAdmin);
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
-  const [quick, setQuick] = useState<ActiveFilter[]>([]);
+  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('inventario.quick', []);
   const zoom = useZoom('inventario_zoom');
+  const clearFilters = () => { setQ(''); setCond(''); setSector(''); setCentro(''); setQuick([]); };
 
   // Vistas guardadas: snapshot de filtros (condicion/sector/centro/quick), persistido entre sesiones.
   const savedViews = useSavedViews<{ cond: string; sector: string; centro: string; quick: ActiveFilter[] }>('inventario_vistas');
@@ -283,6 +288,8 @@ export function InventarioPage() {
         </Card>
       )}
 
+      {prefiltro && <PrefiltroBanner material={prefiltro} onClear={clearPrefiltro} />}
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-64"><Search className="absolute left-2.5 top-2.5 size-3.5 text-text-faint" />
           <Input placeholder="Buscar material…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" /></div>
@@ -304,6 +311,7 @@ export function InventarioPage() {
           {isAdmin ? <LockOpen className="size-3.5" /> : <Lock className="size-3.5" />}
           {isAdmin ? 'Admin ON' : 'Admin'}
         </Button>
+        <ClearFiltersButton onClear={clearFilters} />
         <div className="ml-auto"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
       </div>
 

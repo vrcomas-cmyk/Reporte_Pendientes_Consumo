@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Search, AlertTriangle, Download } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { buildLotesSheet, loteKey } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, Chip, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, Chip, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, ClearFiltersButton, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import {
   invGen, esLento, peorCobertura, summarizeCoberturaConTransito, quiebreMitigadoPorTransito, COBERTURA_LABEL, COBERTURA_CLS,
   type RSSMaterial, type RSSCentro, type CoberturaEstado,
@@ -27,19 +27,23 @@ import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSo
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
 import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
+import { usePersistedState } from '@/hooks/usePersistedState';
 
 export function ResumenSinPage() {
   const bootstrapped = useDataStore((s) => s.bootstrapped);
   const a = useAnalytics();
   const open = usePanelStore((s) => s.open);
-  const [q, setQ] = useState('');
-  const [centroFiltro, setCentroFiltro] = useState<string>('');
-  const [quick, setQuick] = useState<ActiveFilter[]>([]);
-  const [pendFiltro, setPendFiltro] = useState<'' | 'con' | 'sin'>('');
-  const [lentoFiltro, setLentoFiltro] = useState<'' | 'con' | 'sin'>('');
-  const [transitoFiltro, setTransitoFiltro] = useState<'' | 'con' | 'sin'>('');
-  const [coberturaFiltro, setCoberturaFiltro] = useState<'' | CoberturaEstado>('');
+  const [q, setQ] = usePersistedState('resumenSin.q', '');
+  const [centroFiltro, setCentroFiltro] = usePersistedState('resumenSin.centro', '');
+  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('resumenSin.quick', []);
+  const [pendFiltro, setPendFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.pend', '');
+  const [lentoFiltro, setLentoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.lento', '');
+  const [transitoFiltro, setTransitoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.transito', '');
+  const [coberturaFiltro, setCoberturaFiltro] = usePersistedState<'' | CoberturaEstado>('resumenSin.cobertura', '');
   const zoom = useZoom('resumen_sin_zoom');
+  const clearFilters = () => {
+    setQ(''); setCentroFiltro(''); setQuick([]); setPendFiltro(''); setLentoFiltro(''); setTransitoFiltro(''); setCoberturaFiltro('');
+  };
   const rss = a.rss;
   const qd = useDebouncedValue(q, 200);
   const solicitar = useSolicitarDialog();
@@ -193,6 +197,7 @@ export function ResumenSinPage() {
           {centrosAll.filter((c) => c !== '1031').map((c) => <option key={c} value={c}>Solo Centro {c} (+1031)</option>)}
         </select>
         <p className="text-xs text-text-faint">Celda = inv. del centro · <span className="text-danger">Pend</span> pendiente · <AlertTriangle className="inline size-3 text-warning" /> lento (≥6m sin mov.)</p>
+        <ClearFiltersButton onClear={clearFilters} />
         <div className="ml-auto"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
       </div>
 

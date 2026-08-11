@@ -202,3 +202,33 @@ simplemente empezó a usarlo. Si por alguna razón el script desplegado es una
 versión vieja que ignora `limit` (antes de este doc), el loop del cliente
 sigue funcionando igual: recibe todo en la primera "página" y se detiene ahí,
 solo sin el beneficio de repartir la carga en ejecuciones más chicas.
+
+## 7. Prioridad de carga entre pestañas
+
+Pedido del usuario (2026-08-07): al sincronizar, lo más urgente para el
+trabajo diario debe aparecer primero, y "Resumen_Fac" —la pestaña más
+pesada— siempre debe quedar al final:
+
+1. **Pedidos** — `sugerencias` ("Todas las Sugerencias")
+2. **Inventario** — `resumenSinSugerencias` ("Resumen Sin Sugerencias")
+3. **Consumo** — `reporteConsumo` ("Reporte de Consumo")
+4. **Resumen_Fac** — `resumenFac`, siempre al final, sin importar qué tan
+   rápido termine (es la única con volumen suficiente para justificarlo —
+   ver §5/§6).
+
+Implementado en `ROLE_PRIORITY` (`reportSheetsService.ts`), que reordena
+`roles` antes de descargar. La descarga sigue siendo en paralelo (no
+secuencial estricto, para no perder el tiempo total de sync) pero en **dos
+olas**: todo lo que no sea `resumenFac` se pide junto primero (cada pestaña
+se pinta apenas llega, vía `onPartialResult`), y `resumenFac` arranca recién
+cuando esa ola termina.
+
+**Nota sobre "Inv Condicion" (InvConsolidado/InvDetalle):** esas dos NO
+pasan por esta tubería de 4 pestañas — son del catálogo (`VITE_APPSCRIPT_URL`,
+otro spreadsheet, otra sincronización). Si se agrega ahí una prioridad
+equivalente, documentarlo aparte junto al script del catálogo.
+
+**Regla a futuro:** cualquier pestaña nueva que entre a `REPORT_TABS` (si
+llega otro reporte tan pesado como Resumen_Fac, o más liviano) debe agregarse
+a `ROLE_PRIORITY` **antes** de `resumenFac` — Resumen_Fac (o su equivalente
+más pesado) se queda al final por definición.

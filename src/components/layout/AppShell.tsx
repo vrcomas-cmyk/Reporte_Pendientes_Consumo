@@ -23,10 +23,10 @@ export function AppShell() {
   const setBootstrapped = useDataStore((s) => s.setBootstrapped);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  // Remember the last "real" view so processing can return the user to where
-  // they were, instead of always bouncing to the Dashboard.
+  // Remember the last "real" view so returning from Carga bounces back to
+  // where the user was, instead of always landing on el Dashboard.
   useEffect(() => {
-    if (location.pathname === '/carga' || location.pathname === '/procesamiento') return;
+    if (location.pathname === '/carga') return;
     setLastViewPath(location.pathname);
   }, [location.pathname, setLastViewPath]);
 
@@ -92,7 +92,13 @@ export function AppShell() {
     function startReportSheetsWatch() {
       const check = () => {
         const { catalog: cat, settings: cfg, activeAnalysis: prev, setActiveAnalysis: applyResult } = useDataStore.getState();
-        checkForReportSheetsUpdate({ catalog: cat, settings: cfg, previous: prev, silent: true })
+        // `onPartialResult` aplica cada pestaña (Pedidos/Consumo/Resumen_Sin/
+        // Resumen_Fac) apenas termina de llegar, en vez de esperar a las 4 —
+        // mismo mecanismo que ya usa la sync manual de Carga (UploadPage.tsx),
+        // solo que aquí faltaba conectarlo: sin esto, el chequeo automático al
+        // abrir/enfocar el portal (el que corre en la práctica todos los días)
+        // dejaba la pantalla sin datos hasta que la pestaña más lenta terminaba.
+        checkForReportSheetsUpdate({ catalog: cat, settings: cfg, previous: prev, silent: true, onPartialResult: applyResult })
           .then(({ changed, result }) => {
             if (changed && result) {
               applyResult(result);

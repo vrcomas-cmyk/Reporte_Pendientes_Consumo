@@ -6,8 +6,8 @@ import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { useUiStore } from '@/store/uiStore';
 import { useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, UploadCloud, Wand2, Table2, ClipboardList, Activity, Grid3x3,
-  Boxes, LineChart, HandCoins, Truck, History, ScrollText, Settings, Moon, Sun,
+  LayoutDashboard, Sunrise, UploadCloud, Table2, ClipboardList, Activity, Grid3x3,
+  Boxes, LineChart, Target, HandCoins, Truck, History, ScrollText, Settings, Moon, Sun,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -31,14 +31,15 @@ interface Cmd {
 
 const PAGES: { to: string; label: string; icon: LucideIcon; hint: string }[] = [
   { to: '/', label: 'Panel general', icon: LayoutDashboard, hint: 'g d' },
+  { to: '/hoy', label: 'Hoy', icon: Sunrise, hint: 'g y' },
   { to: '/carga', label: 'Carga de archivos', icon: UploadCloud, hint: 'g c' },
-  { to: '/generar', label: 'Generar reporte', icon: Wand2, hint: 'g r' },
   { to: '/resultados', label: 'Resultados', icon: Table2, hint: 'g t' },
   { to: '/sugerencias', label: 'Pedidos', icon: ClipboardList, hint: 'g s' },
   { to: '/consumo', label: 'Consumo', icon: Activity, hint: 'g o' },
   { to: '/resumen-sin', label: 'Inventario', icon: Grid3x3, hint: 'g n' },
   { to: '/inventario', label: 'Inv Condición', icon: Boxes, hint: 'g i' },
   { to: '/analisis', label: 'Análisis', icon: LineChart, hint: 'g a' },
+  { to: '/oportunidades', label: 'Oportunidades', icon: Target, hint: 'g p' },
   { to: '/comodato', label: 'Comodato vs. Fac.', icon: HandCoins, hint: 'g m' },
   { to: '/solicitudes', label: 'Solicitudes DRP', icon: Truck, hint: 'g q' },
   { to: '/historial', label: 'Historial', icon: History, hint: 'g h' },

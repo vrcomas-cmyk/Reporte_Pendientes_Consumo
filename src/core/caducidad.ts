@@ -9,6 +9,19 @@
 import type { InvDetalleRow } from './types';
 import { norm } from '@/lib/text';
 
+/** Convierte una fecha a un Date en hora LOCAL sin que el huso desplace el mes.
+ * `new Date('YYYY-MM-DD')` se interpreta como UTC y, según la zona, cae al día
+ * bés siguiente, moviendo lotes del 1º de mes al mes anterior. */
+function toLocalStartOfDay(v: string | Date | null | undefined): Date | null {
+  if (v == null) return null;
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return v;
+  if (typeof v !== 'string') return null;
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export interface RiesgoCaducidadMes {
   /** "mm/aaaa" del mes de vencimiento. */
   mes: string;
@@ -49,8 +62,8 @@ export function buildRiesgoCaducidad(lotes: InvDetalleRow[], opts: RiesgoCaducid
 
   for (const l of lotes) {
     if (!l.fechaCaducidad || l.cantidadDisp <= 0) continue;
-    const d = new Date(l.fechaCaducidad);
-    if (Number.isNaN(d.getTime())) continue;
+    const d = toLocalStartOfDay(l.fechaCaducidad);
+    if (!d) continue;
     // Lotes ya vencidos cuentan en el "mes de hoy" (siguen siendo capital
     // parado que hay que resolver, no algo que ignorar por estar en el pasado).
     const mesKey = Math.max(hoyKey, d.getFullYear() * 12 + d.getMonth());

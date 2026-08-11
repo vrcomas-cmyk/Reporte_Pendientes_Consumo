@@ -23,7 +23,7 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
         <StatTile label="Cant. pendiente" value={formatNumber(pendTot)} />
         <StatTile label="Importe pendiente" value={formatCurrency(impTot)} />
       </div>
-      <Section title="Materiales del pedido"><SugTable list={items} push={push} /></Section>
+      <Section title="Materiales del pedido"><SugTable list={items} a={a} push={push} /></Section>
     </div>
   );
 }

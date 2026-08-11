@@ -333,8 +333,15 @@
   "331": ".opencode/skills/impeccable/reference/colorize.md",
   "332": "checkElementGptBorderShadowDOM",
   "333": ".opencode/skills/impeccable/scripts/live/source-lock.mjs",
-  "334": ".opencode/skills/impeccable/scripts/live/source-search.mjs",
+  "334": "SolicitudesPage.tsx",
   "335": "/impeccable hooks",
   "336": "Visualize: Direction Comps & Asset Production",
-  "337": ".opencode/skills/impeccable/scripts/hook.mjs"
+  "337": ".opencode/skills/impeccable/scripts/hook.mjs",
+  "338": "fechas.ts",
+  "339": "@radix-ui/react-slot",
+  "340": "@radix-ui/react-tooltip",
+  "341": "@tailwindcss/vite",
+  "342": "@tanstack/react-query",
+  "343": "usePersistedState.ts",
+  "344": "@radix-ui/react-dialog"
 }

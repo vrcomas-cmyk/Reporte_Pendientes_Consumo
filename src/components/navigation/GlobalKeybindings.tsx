@@ -28,10 +28,10 @@ import { CheatsheetDialog } from './CheatsheetDialog';
 // ---------------------------------------------------------------------------
 
 const CHORD_NAV: Record<string, string> = {
-  d: '/', c: '/carga', r: '/generar', s: '/sugerencias', o: '/consumo',
-  n: '/resumen-sin', i: '/inventario', a: '/analisis', m: '/comodato',
-  q: '/solicitudes', h: '/historial', l: '/registros', x: '/ajustes',
-  t: '/resultados',
+  d: '/', y: '/hoy', c: '/carga', s: '/sugerencias', o: '/consumo',
+  n: '/resumen-sin', i: '/inventario', a: '/analisis', p: '/oportunidades',
+  m: '/comodato', q: '/solicitudes', h: '/historial', l: '/registros',
+  x: '/ajustes', t: '/resultados',
 };
 
 function isEditableTarget(ev: KeyboardEvent): boolean {

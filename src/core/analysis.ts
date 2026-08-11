@@ -14,7 +14,7 @@ import type {
   Inconsistency,
   AppSettings,
 } from './types';
-import { normCode } from './enrich';
+import { normCode, buildEnrich, type EnrichIndex } from './enrich';
 
 /** Normalizes a "Condición" value for matching between the daily report and
  *  the catalog (trim, deaccent, uppercase). */
@@ -181,21 +181,20 @@ export function topMateriales(sugerencias: Sugerencia[], n = 5): TopMaterial[] {
  * and slice yourself) to get every catalog executive, including those with
  * zero pending amount, instead of only whoever happens to have sugerencias. */
 export function topEjecutivos(sugerencias: Sugerencia[], catalog: CatalogSnapshot | null, n: number = Infinity): TopEjecutivo[] {
-  // Suggestions carry "Gpo. Cte." (client group); the catalog's Ejecutivos
-  // sheet maps a "Gpo Cte" to an Ejecutivo. We join on that key.
-  // Codes must be normalized on both sides (normCode) — same rule enrich.ts
-  // uses for grupoCliente/ejecutivoNombre — otherwise a leading-zero or a
-  // ".0" Excel/Sheets suffix mismatch makes the join miss real matches.
-  const gpoToEjecutivo = new Map<string, string>();
-  const codToEjecutivo = new Map<string, string>();
+  // Resuelve el ejecutivo con el MISMO índice que usa el resto de la app
+  // (Consumo/Sugerencias vía consumoEnrich().ejec() -> enrich.ejecutivoNombre(gpoVdor)) —
+  // antes esta función reconstruía su propio join a mano, con dos bugs que
+  // dejaban ejecutivos reales en 0: (1) los mapas usaban last-write-wins en
+  // vez del first-wins de `buildEnrich` (el último ejecutivo del catálogo con
+  // una clave repetida se quedaba con todo el importe), y (2) priorizaba
+  // `gpoCte` (grupo *cliente*) sobre `gpoVdor` (grupo *vendedor*, el campo
+  // correcto para identificar al ejecutivo).
+  const enrich = buildEnrich(catalog);
   const byEjec = new Map<string, TopEjecutivo>();
   if (catalog) {
     for (const e of catalog.ejecutivos) {
       const nombre = (e.ejecutivo || '').trim();
       if (!nombre) continue;
-      if (e.gpoCte) gpoToEjecutivo.set(normCode(e.gpoCte), nombre);
-      if (e.zona) codToEjecutivo.set(normCode(e.zona), nombre);
-      if (e.codOfVtas) codToEjecutivo.set(normCode(e.codOfVtas), nombre);
       // Seed every real catalog executive at 0 up front, so one with no
       // sugerencias this cycle still shows up (at 0) instead of silently
       // disappearing from the list — no venta isn't the same as "doesn't exist".
@@ -203,11 +202,11 @@ export function topEjecutivos(sugerencias: Sugerencia[], catalog: CatalogSnapsho
     }
   }
   for (const s of sugerencias) {
-    // Never fall back to the raw gpoVdor/gpoCte code as a pseudo-name — an
+    // Never fall back to the raw gpoVdor code as a pseudo-name — an
     // unmatched code isn't a distinct executive, it's a join miss, and
     // showing it as one inflates the list with duplicates of names that
     // just didn't match. Bucket those under "Sin asignar" instead.
-    const ejecutivo = gpoToEjecutivo.get(normCode(s.gpoCte)) || codToEjecutivo.get(normCode(s.gpoVdor)) || 'Sin asignar';
+    const ejecutivo = enrich.ejecutivoNombre(s.gpoVdor) || 'Sin asignar';
     const cur = byEjec.get(ejecutivo) ?? { ejecutivo, cantidadPendiente: 0, importePendiente: 0, pedidos: 0 };
     cur.cantidadPendiente += s.cantidadPendiente;
     cur.importePendiente += s.cantidadPendiente * s.precio;
@@ -229,11 +228,14 @@ export function monthlyInvoicing(rows: ResumenFacRow[]): MonthlyInvoicing[] {
   return [...byMonth.values()].sort((a, b) => a.mes.localeCompare(b.mes));
 }
 
-/** Simple heatmap: rows = sector, cols = center, value = summed inventory. */
-export function buildHeatmap(invConsolidado: InvConsolidadoRow[]): HeatmapCell[] {
+/** Simple heatmap: rows = sector, cols = center, value = summed inventory.
+ * `enrich` es opcional — cuando viene, resuelve el sector por material igual
+ * que InventarioPage (`enrich.matSector(material) || r.sector`), para el caso
+ * en que la hoja de inventario diario no trae columna "Sector" propia. */
+export function buildHeatmap(invConsolidado: InvConsolidadoRow[], enrich?: EnrichIndex): HeatmapCell[] {
   const cells = new Map<string, HeatmapCell>();
   for (const r of invConsolidado) {
-    const rowKey = r.sector || 'Sin sector';
+    const rowKey = (enrich && enrich.matSector(r.material)) || r.sector || 'Sin sector';
     for (const [center, qty] of Object.entries(r.invByCenter)) {
       const key = `${rowKey}::${center}`;
       const cur = cells.get(key) ?? { rowKey, colKey: center, value: 0 };

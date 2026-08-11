@@ -27,8 +27,13 @@ export function ClienteDetallePanel({ panel, a, push }: { panel: Extract<Panel, 
         <StatTile label="Materiales facturados" value={formatNumber(consRows.length)} />
         <StatTile label="Importe última fact. (suma)" value={formatCurrency(totalImp)} />
       </div>
+      <p className="mt-2">
+        <button className="text-xs text-accent hover:underline" onClick={() => push({ type: 'clienteConocimiento', dest: panel.dest, razonSocial: razon })}>
+          Ver ficha comercial (Oportunidades) →
+        </button>
+      </p>
       <Section title={`Órdenes pendientes (Sugerencias) · ${boRows.length}`}>
-        <SugTable list={boRows} push={push} />
+        <SugTable list={boRows} a={a} push={push} />
       </Section>
       <Section title={`Historial de consumo · ${consRows.length} material(es)`}>
         <ClienteConsumoTable rows={consRows} rf={rf} push={push} />
