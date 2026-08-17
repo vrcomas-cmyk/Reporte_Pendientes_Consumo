@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 
 const API_URL = import.meta.env.VITE_REPORT_API_URL as string | undefined;
 
@@ -41,11 +42,17 @@ export function requireApiUrl(): string {
 
 /** fetch() throws a bare "Failed to fetch" (TypeError) for anything from "el
  * servidor no está prendido" a CORS a DNS — sin distinguir la causa. Envuelve
- * con un mensaje accionable en vez de dejar pasar el genérico. */
+ * con un mensaje accionable en vez de dejar pasar el genérico. El timeout (60s)
+ * aborta requests colgados — la API de reportes tarda varios minutos en jobs
+ * grandes, así que el timeout aquí solo cubre la conexión/respuesta, no la
+ * duración del job (que se gestiona por polling en `esperarJob`). */
 export async function fetchApi(url: string, init?: RequestInit): Promise<Response> {
   try {
-    return await fetch(url, init);
-  } catch {
+    return await fetchWithTimeout(url, init ?? {}, 60_000);
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new Error(`Se agotó el tiempo de espera conectando con la API en ${API_URL} (60s) — revisa que el servicio esté respondiendo.`);
+    }
     throw new Error(
       `No se pudo conectar con la API en ${API_URL} — ¿está corriendo? ` +
       `(local: "uvicorn api:app --reload --port 8000" dentro de Sugerencias_SQL; ` +
@@ -83,9 +90,25 @@ export async function consultarJob(jobId: string): Promise<JobStatus> {
   return res.json();
 }
 
-/** Polls until the job finishes (listo/error), calling onUpdate on every tick. */
-export async function esperarJob(jobId: string, onUpdate?: (s: JobStatus) => void, intervalMs = 1500): Promise<JobStatus> {
+/** Polls until the job finishes (listo/error), calling onUpdate on every tick.
+ * Safety valve: jobs that generate the full 6-sheet report (incl. the ~488k-row
+ * Resumen_Fac) legitimately take several minutes, but a server that accepted a
+ * job and then wedged would poll forever. `timeoutMs` (default 30 min) caps the
+ * wait so the UI surfaces an actionable error instead of hanging. */
+export async function esperarJob(
+  jobId: string,
+  onUpdate?: (s: JobStatus) => void,
+  intervalMs = 1500,
+  timeoutMs = 30 * 60 * 1000,
+): Promise<JobStatus> {
+  const deadline = Date.now() + timeoutMs;
   for (;;) {
+    if (Date.now() > deadline) {
+      throw new Error(
+        `El job ${jobId} no terminó dentro de ${Math.round(timeoutMs / 60_000)} min. ` +
+        `Puede que la API se haya quedado procesando; vuelve a intentarlo o revisa el servicio.`,
+      );
+    }
     const status = await consultarJob(jobId);
     onUpdate?.(status);
     if (status.status === 'listo' || status.status === 'error') return status;

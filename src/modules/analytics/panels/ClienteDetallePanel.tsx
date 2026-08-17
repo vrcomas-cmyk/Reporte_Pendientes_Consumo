@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Chip, StatTile } from '../ui';
 import { Section, SugTable, ClienteConsumoTable } from './_shared';
 import { formatCurrency, formatNumber } from '@/lib/utils';
@@ -9,8 +10,10 @@ import type { Analytics } from '../AnalyticsContext';
 export function ClienteDetallePanel({ panel, a, push }: { panel: Extract<Panel, { type: 'clienteDetalle' }>; a: Analytics; push: (p: Panel) => void }) {
   const { rf, bo, enrich, result } = a;
   const destN = norm(panel.dest);
-  const consRows = (result?.consumo ?? []).filter((x) => norm(x.destinatario) === destN);
-  const boRows = bo.filter((it) => norm(it.bo.destinatario) === destN);
+  const { consRows, boRows } = useMemo(() => ({
+    consRows: (result?.consumo ?? []).filter((x) => norm(x.destinatario) === destN),
+    boRows: bo.filter((it) => norm(it.bo.destinatario) === destN),
+  }), [result, bo, destN]);
   const ce = consumoEnrich(enrich);
   const razon = consRows[0]?.razonSocial || boRows[0]?.bo.razonSocial || '';
   const totalImp = consRows.reduce((s, r) => s + r.importeUltima, 0);

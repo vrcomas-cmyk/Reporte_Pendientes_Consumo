@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useDataStore } from '@/store/dataStore';
 import { syncCatalogFromAppScript } from '@/services/catalogService';
-import { syncReportSheets, REPORT_SHEET_ROLES } from '@/services/reportSheetsService';
+import { syncReportSheets, REPORT_SHEET_ROLES, SNAPSHOT_ROLES } from '@/services/reportSheetsService';
 import { useReportSheetsSyncStore } from '@/store/reportSheetsSyncStore';
 import { ROLE_LABEL } from '@/core/roleDetection';
 import type { SheetRole } from '@/core/types';
@@ -54,7 +54,7 @@ export function UploadPage() {
     });
   }, []);
 
-  const handleSyncReportSheets = useCallback(async (forceFull = false) => {
+  const handleSyncReportSheets = useCallback(async (forceFull = false, liveOverride?: SheetRole[]) => {
     try {
       const result = await syncReportSheets({
         catalog,
@@ -62,6 +62,7 @@ export function UploadPage() {
         previous: activeAnalysis,
         selectedRoles: [...sheetsRoles],
         forceFull,
+        liveOverride,
         // Apply each tab's data the moment it lands (e.g. "Todas las
         // Sugerencias" shows up immediately) instead of leaving the page
         // blank until every selected tab has synced.
@@ -123,7 +124,7 @@ export function UploadPage() {
           <CardHeader className="flex-row items-center justify-between">
             <div>
               <CardTitle>Reporte diario · Google Sheets</CardTitle>
-              <CardDescription>Todas las Sugerencias, Resumen Sin Sug., Reporte de Consumo y Resumen_Fac — sincronizado en vivo</CardDescription>
+              <CardDescription>Todas las Sugerencias y Resumen Sin Sug. en vivo · Reporte de Consumo y Resumen_Fac desde el snapshot nocturno</CardDescription>
             </div>
             {activeAnalysis ? <Badge variant="success">Sincronizado</Badge> : <Badge variant="warning">Pendiente</Badge>}
           </CardHeader>
@@ -187,16 +188,28 @@ export function UploadPage() {
               <RefreshCcw className={`size-4 ${sheetsSyncing ? 'animate-spin' : ''}`} />
               {sheetsSyncing ? 'Sincronizando…' : 'Sincronizar ahora'}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleSyncReportSheets(true)}
-              disabled={sheetsSyncing || sheetsRoles.size === 0}
-              className="self-start text-[11px]"
-              title="Vuelve a pedir las pestañas enteras en vez de solo las filas nuevas — útil si se editó una celda existente. Borra la cache local de filas."
-            >
-              Sincronización completa
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleSyncReportSheets(true)}
+                disabled={sheetsSyncing || sheetsRoles.size === 0}
+                className="self-start text-[11px]"
+                title="Vuelve a pedir las pestañas enteras en vez de solo las filas nuevas — útil si se editó una celda existente. Borra la cache local de filas."
+              >
+                Sincronización completa
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleSyncReportSheets(false, SNAPSHOT_ROLES)}
+                disabled={sheetsSyncing || sheetsRoles.size === 0}
+                className="self-start text-[11px]"
+                title="Reporte de Consumo y Resumen_Fac normalmente se sirven del snapshot nocturno (generado cada madrugada). Este botón ignora el snapshot y las trae en vivo desde Google Sheets, para ver un cambio de hoy mismo sin esperar a la noche."
+              >
+                Actualizar Consumo/Resumen_Fac en vivo
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

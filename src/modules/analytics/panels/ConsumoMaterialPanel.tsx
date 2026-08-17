@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Chip, StatTile, EvolChart, ComparativaDual } from '../ui';
 import { Section, PrecioCondicionBox } from './_shared';
 import { formatNumber } from '@/lib/utils';
@@ -8,7 +9,10 @@ import type { Analytics } from '../AnalyticsContext';
 /** Panel — Consumo de un material para un destinatario: stats, precios por condición, comparativo y evolución. */
 export function ConsumoMaterialPanel({ panel, a, push }: { panel: Extract<Panel, { type: 'consumoMaterial' }>; a: Analytics; push: (p: Panel) => void }) {
   const { rf, enrich, result } = a;
-  const r = result?.consumo.find((x) => norm(x.destinatario) === norm(panel.dest) && norm(x.material) === norm(panel.material));
+  const r = useMemo(
+    () => result?.consumo.find((x) => norm(x.destinatario) === norm(panel.dest) && norm(x.material) === norm(panel.material)),
+    [result, panel.dest, panel.material],
+  );
   if (!r) return <p>Registro de consumo no encontrado.</p>;
   const serie = consumoSerie(rf, r);
   const st = consumoStatus(rf, r);

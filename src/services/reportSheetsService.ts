@@ -2,7 +2,9 @@ import { reportRepository } from '@/repositories';
 import { buildFromSheetsInWorker } from '@/services/analysisService';
 import type { TabRows } from '@/workers/analysisWorker';
 import { getCachedTab, putCachedTab, clearCachedTabs } from '@/repositories/sheetsCache';
+import { fetchSnapshotManifest, fetchTabSnapshot, type SnapshotManifest } from '@/services/reportSnapshotService';
 import { logInfo, logWarn } from '@/lib/logError';
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import { ROLE_LABEL } from '@/core/roleDetection';
 import { useReportSheetsSyncStore } from '@/store/reportSheetsSyncStore';
 import { getConnector, CONNECTOR_KEYS } from '@/services/connectorsService';
@@ -48,6 +50,27 @@ function byPriority(roles: SheetRole[]): SheetRole[] {
   });
 }
 
+/** Pedido del usuario (2026-08-14): "Todas las Sugerencias"/"Resumen Sin
+ * Sugerencias" (y, aparte de esta tubería, InvDetalle/InvConsolidado del
+ * catálogo) deben verse al instante — siguen por Apps Script en vivo. Pero
+ * "Reporte de Consumo" y "Resumen_Fac" toleran sincronizarse una vez al día
+ * por la noche: para esas dos, `processTabInner` intenta PRIMERO el snapshot
+ * nocturno (ver `reportSnapshotService.ts` + `docs/apps-script-report-sheets.md`
+ * §8) antes de caer a la descarga en vivo — que sigue existiendo íntegra,
+ * como respaldo automático y como override manual ("Actualizar en vivo" en
+ * Carga, `SyncReportSheetsParams.liveOverride`). El equipo apagado durante la
+ * noche no importa: el snapshot lo genera un disparador de tiempo en la nube
+ * de Google, no el navegador del usuario — al abrir en la mañana solo se
+ * compara el manifiesto (~1 KB) contra la versión ya en caché. */
+export const SNAPSHOT_ROLES: SheetRole[] = ['reporteConsumo', 'resumenFac'];
+
+/** Un snapshot más viejo que esto se considera obsoleto (el disparador
+ * nocturno falló, o nunca corrió) y se ignora en favor de la vía en vivo —
+ * mejor una espera larga ocasional que datos de ayer sin que nadie lo note.
+ * 30h da margen a que el disparador de las 3 a.m. corra tarde un día sin
+ * disparar el fallback de inmediato. */
+const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 60 * 1000;
+
 /** Las 4 pestañas son salida de fórmulas vivas (QUERY/FILTER) o de valores
  * que se actualizan in-place: un registro puede desaparecer o cambiar de
  * valor sin que el `rowCount` total baje — entran otros al mismo tiempo. Se
@@ -74,7 +97,7 @@ async function requireUrl(): Promise<string> {
  * reading involved — what "revisar al abrir/enfocar" polls before deciding
  * whether a full tab fetch is worth it. */
 export async function fetchReportSheetsMeta(): Promise<{ modifiedTime: string }> {
-  const res = await fetch(`${await requireUrl()}?meta=1`);
+  const res = await fetchWithTimeout(`${await requireUrl()}?meta=1`, {}, 10_000);
   if (!res.ok) throw new Error(`HTTP ${res.status} al consultar el estado del Sheet de reportes.`);
   const data = await res.json();
   if (data && typeof data === 'object' && 'error' in data) throw new Error(String((data as { error: unknown }).error));
@@ -94,13 +117,22 @@ export async function fetchReportSheetsMeta(): Promise<{ modifiedTime: string }>
  * Web App, y el frontend de Google corta la conexión devolviendo un HTTP 404
  * genérico (no el `{error: ...}` propio del script) en vez de la respuesta.
  * Es transitorio: reintentar la MISMA página (offset/limit) suele bastar, sin
- * necesidad de reiniciar todo el tab. Backoff simple, no exponencial — el
- * tiempo de cómputo del lado del script no cambia entre intentos. */
+ * necesidad de reiniciar todo el tab. Backoff exponencial con jitter — desde
+ * que las páginas se piden en paralelo (`PAGE_FETCH_CONCURRENCY`), un backoff
+ * lineal fijo hace que varias páginas que fallaron a la vez reintenten
+ * exactamente al mismo tiempo, lo que vuelve a saturar Apps Script justo
+ * cuando se le está dando margen para recuperarse. */
 const TAB_FETCH_RETRIES = 3;
-const TAB_FETCH_RETRY_DELAY_MS = 2000;
+const TAB_FETCH_RETRY_BASE_MS = 1500;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function backoffDelay(attempt: number): number {
+  const exp = TAB_FETCH_RETRY_BASE_MS * 2 ** (attempt - 1);
+  const jitter = Math.random() * TAB_FETCH_RETRY_BASE_MS;
+  return exp + jitter;
 }
 
 async function fetchReportSheetTab(tab: string, offset?: number, limit?: number): Promise<TabRows> {
@@ -111,8 +143,9 @@ async function fetchReportSheetTab(tab: string, offset?: number, limit?: number)
     } catch (e) {
       lastError = e;
       if (attempt < TAB_FETCH_RETRIES) {
-        logWarn(`Reintentando pestaña "${tab}" (intento ${attempt + 1}/${TAB_FETCH_RETRIES}): ${e instanceof Error ? e.message : String(e)}`);
-        await sleep(TAB_FETCH_RETRY_DELAY_MS);
+        const delay = backoffDelay(attempt);
+        logWarn(`Reintentando pestaña "${tab}" offset=${offset ?? 0} (intento ${attempt + 1}/${TAB_FETCH_RETRIES}, espera ${Math.round(delay)}ms): ${e instanceof Error ? e.message : String(e)}`);
+        await sleep(delay);
       }
     }
   }
@@ -125,7 +158,7 @@ async function fetchReportSheetTabOnce(tab: string, offset?: number, limit?: num
   if (offset && offset > 0) params.set('offset', String(offset));
   if (limit && limit > 0) params.set('limit', String(limit));
   const url = `${base}?${params.toString()}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, {}, 30_000);
   if (!res.ok) throw new Error(`HTTP ${res.status} al leer la pestaña "${tab}".`);
   const data = await res.json();
   if (data && typeof data === 'object' && 'error' in data) throw new Error(String((data as { error: unknown }).error));
@@ -169,37 +202,131 @@ function pageSizeFor(tab: string): number {
   return tab === REPORT_TABS.resumenFac ? RESUMEN_FAC_TAB_PAGE_SIZE : TAB_PAGE_SIZE;
 }
 
+/** Cheap equality key for a dense row (array of primitives) — a ``-joined
+ * string is collision-safe for these rows (spreadsheet cells never contain a
+ * SOH control character) and avoids JSON.stringify's per-value quoting/escaping
+ * cost at Resumen_Fac's row counts. See the dedup comment in `processTabInner`. */
+function dedupKey(row: unknown[]): string {
+  return row.join('');
+}
+
+/** How many pages of the SAME tab can be in flight at once. The first page is
+ * always fetched alone (it's what reveals `rowCount`, which is what turns the
+ * rest into a known list of offsets); once known, the remaining pages fan out
+ * with this much concurrency instead of the old one-at-a-time `for(;;)` loop.
+ * That's what took "Resumen_Fac" (~488k rows / ~98 pages of 5k) from ~98
+ * sequential round-trips to Apps Script down to ~25 concurrent batches — each
+ * page still costs Apps Script the same `getRange().getValues()`, but the
+ * WAIT for all of them shrinks by roughly this factor. Kept modest (not, say,
+ * 10) because Apps Script Web Apps have their own per-script concurrent
+ * execution ceiling — too much parallelism just trades "slow" for "more 429s
+ * and 404s", which defeats the point. */
+const PAGE_FETCH_CONCURRENCY = 4;
+
+/** Thrown by `fetchReportSheetTabPaginated` when some pages landed but at
+ * least one exhausted its retries — carries whatever DID land so the caller
+ * can still cache it instead of discarding a tab that was 95% downloaded.
+ * `rows` is in page order (gaps from failed pages are simply absent, not
+ * padded), so it under-represents the tab but never corrupts row order for
+ * what it does contain. */
+export class PartialTabFetchError extends Error {
+  constructor(
+    public readonly tab: string,
+    public readonly partial: TabRows,
+    public readonly pagesOk: number,
+    public readonly pagesTotal: number,
+    cause: unknown,
+  ) {
+    super(`Pestaña "${tab}": ${pagesOk}/${pagesTotal} páginas descargadas antes de fallar — ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.name = 'PartialTabFetchError';
+  }
+}
+
 /** Fetches every row of a tab starting at `offset`, in pages of
- * `TAB_PAGE_SIZE`, calling `onPage` after each page lands so the caller can
- * report finer-grained progress than "waiting on the whole tab" for the
+ * `pageSizeFor(tab)`, calling `onPage` after each page lands so the caller
+ * can report finer-grained progress than "waiting on the whole tab" for the
  * large ones. Returns the same `{ headers, rows, rowCount }` shape as a
  * single `fetchReportSheetTab` call would, with `rows` being everything
- * collected across all pages. */
+ * collected across all pages, IN ORDER (page N's rows always precede page
+ * N+1's in the result, even though pages complete out of order under
+ * concurrency).
+ *
+ * If a page ultimately fails (after `fetchReportSheetTab`'s own per-page
+ * retries), the pages still in flight are allowed to finish — no point
+ * discarding work already underway — and then `PartialTabFetchError` is
+ * thrown carrying whatever succeeded, so the caller can persist that partial
+ * coverage to `sheetsCache` instead of losing it outright (see
+ * `processTabInner`'s catch below). */
 async function fetchReportSheetTabPaginated(
   tab: string,
   offset: number,
   onPage?: (rowsSoFar: number, rowCount: number | undefined) => void,
 ): Promise<TabRows> {
-  let cursor = offset;
-  let headers: string[] = [];
-  const rows: unknown[][] = [];
-  let rowCount: number | undefined;
-
   const pageSize = pageSizeFor(tab);
-  for (;;) {
-    const page = await fetchReportSheetTab(tab, cursor, pageSize);
-    headers = page.headers;
-    rowCount = page.rowCount;
-    rows.push(...page.rows);
-    onPage?.(rows.length, rowCount);
 
-    if (page.rows.length === 0) break; // nothing more, or an unpaginated deployment already returned everything on page 1
-    cursor += page.rows.length;
-    if (typeof rowCount === 'number' && cursor - offset >= rowCount - offset) break; // caught up to the reported total
-    if (page.rows.length < pageSize) break; // short page with no rowCount to check against — nothing left
+  // First page alone: it's what reveals rowCount (or, for an unpaginated/old
+  // deployment, the whole tab in one shot — the two early-exit checks below
+  // still apply to it like any other page).
+  const first = await fetchReportSheetTab(tab, offset, pageSize);
+  const headers = first.headers;
+  const rowCount = first.rowCount;
+  const pageRows: unknown[][][] = [first.rows];
+  let rowsSoFar = first.rows.length;
+  onPage?.(rowsSoFar, rowCount);
+
+  const doneAlready =
+    first.rows.length === 0 || // nothing more, or an unpaginated deployment already returned everything on page 1
+    (typeof rowCount === 'number' && offset + first.rows.length >= rowCount) || // caught up to the reported total
+    first.rows.length < pageSize; // short page with no rowCount to check against — nothing left
+
+  if (!doneAlready && typeof rowCount === 'number') {
+    // Remaining offsets are now fully known upfront — fan them out with
+    // bounded concurrency instead of discovering them one `for(;;)` step at a
+    // time. `pageRows[i]` reserves this page's slot so results land in order
+    // regardless of completion order.
+    const offsets: number[] = [];
+    for (let o = offset + first.rows.length; o < rowCount; o += pageSize) offsets.push(o);
+    for (let i = 0; i < offsets.length; i++) pageRows.push([]);
+
+    let pagesOk = 1;
+    let firstError: unknown = null;
+    let nextIdx = 0;
+    const worker = async () => {
+      for (;;) {
+        const i = nextIdx++;
+        if (i >= offsets.length || firstError) return;
+        try {
+          const page = await fetchReportSheetTab(tab, offsets[i], pageSize);
+          pageRows[i + 1] = page.rows;
+          pagesOk += 1;
+          rowsSoFar += page.rows.length;
+          onPage?.(rowsSoFar, rowCount);
+        } catch (e) {
+          firstError = e;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PAGE_FETCH_CONCURRENCY, offsets.length) }, worker));
+
+    if (firstError) {
+      const rows = pageRows.flat();
+      throw new PartialTabFetchError(tab, { headers, rows, rowCount }, pagesOk, offsets.length + 1, firstError);
+    }
+  } else if (!doneAlready) {
+    // No rowCount to plan offsets against (old deployment) — fall back to the
+    // original sequential walk, one page revealing the next.
+    let cursor = offset + first.rows.length;
+    for (;;) {
+      const page = await fetchReportSheetTab(tab, cursor, pageSize);
+      pageRows.push(page.rows);
+      rowsSoFar += page.rows.length;
+      onPage?.(rowsSoFar, page.rowCount);
+      if (page.rows.length === 0 || page.rows.length < pageSize) break;
+      cursor += page.rows.length;
+    }
   }
 
-  return { headers, rows, rowCount };
+  return { headers, rows: pageRows.flat(), rowCount };
 }
 
 export interface SyncReportSheetsParams {
@@ -234,6 +361,13 @@ export interface SyncReportSheetsParams {
    * wipes the dense-rows IndexedDB cache (`sheetsCache`), which is otherwise
    * used to fill in roles the caller didn't select this time. */
   forceFull?: boolean;
+  /** Roles that must skip the nightly snapshot and go straight to live Apps
+   * Script even if a fresh-enough snapshot is available — the "Actualizar en
+   * vivo" override in Carga for `SNAPSHOT_ROLES` (Consumo/Resumen_Fac), for
+   * when a user needs this-instant data mid-day instead of waiting for
+   * tonight's snapshot. No effect on roles outside `SNAPSHOT_ROLES`, which
+   * never use the snapshot path to begin with. */
+  liveOverride?: SheetRole[];
 }
 
 // Module-level guard: at most one Sheets sync in flight at a time, shared
@@ -315,10 +449,57 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
     const failedRoles: { role: SheetRole; message: string }[] = [];
     let partialChain = Promise.resolve();
 
+    // Fetched at most once per sync (both SNAPSHOT_ROLES share it), and only
+    // if at least one of them will actually consult it — a sync that only
+    // selected `sugerencias`/`resumenSinSugerencias`, or one where the user
+    // hit "Actualizar en vivo" for both heavy tabs, shouldn't pay for a
+    // manifest round-trip it will never use.
+    let manifestPromise: Promise<SnapshotManifest | null> | null = null;
+    function getManifestOnce(): Promise<SnapshotManifest | null> {
+      if (!manifestPromise) manifestPromise = fetchSnapshotManifest();
+      return manifestPromise;
+    }
+
+    /** Tries the nightly snapshot for a `SNAPSHOT_ROLES` tab; returns `null`
+     * (never throws) if there's no snapshot, it's stale, or it's overridden
+     * — any of which means "fall back to the live Apps Script path below". */
+    async function tryFetchFromSnapshot(role: SheetRole, tab: string): Promise<TabRows | null> {
+      if (!SNAPSHOT_ROLES.includes(role) || params.liveOverride?.includes(role)) return null;
+      const manifest = await getManifestOnce();
+      const entry = manifest?.tabs.find((t) => t.tab === tab);
+      if (!entry) return null;
+      const age = Date.now() - new Date(entry.generatedAt).getTime();
+      if (!(age >= 0) || age > SNAPSHOT_MAX_AGE_MS) return null;
+      try {
+        return await fetchTabSnapshot(entry);
+      } catch (e) {
+        logWarn(`Snapshot de "${tab}" falló, se usará la vía en vivo: ${e instanceof Error ? e.message : String(e)}`);
+        return null;
+      }
+    }
+
     async function processTab(role: SheetRole, tab: string, index: number): Promise<void> {
       try {
         await processTabInner(role, tab, index);
       } catch (e) {
+        // A tab that fails partway through (e.g. Resumen_Fac's 404 after 90 of
+        // 98 pages) still had most of its pages land successfully — persist
+        // that partial coverage to sheetsCache instead of throwing it all
+        // away, so the NEXT sync attempt (or a role-filling sync that skips
+        // this role) has something better than nothing to fall back to. The
+        // role is still reported as failed for THIS sync (buildAnalysisResult
+        // falls back to `previous` for it, same as any other failure) — this
+        // only improves what's sitting in the cache for later.
+        if (e instanceof PartialTabFetchError) {
+          await putCachedTab({
+            tab,
+            headers: e.partial.headers,
+            rows: e.partial.rows,
+            rowCount: e.partial.rowCount ?? e.partial.rows.length,
+            syncedAt: new Date().toISOString(),
+          }).catch(() => {});
+          logWarn(`Pestaña "${tab}" quedó parcial en caché (${e.pagesOk}/${e.pagesTotal} páginas) tras el fallo.`);
+        }
         const message = e instanceof Error ? e.message : String(e);
         failedRoles.push({ role, message });
         done += 1;
@@ -331,39 +512,58 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
     }
 
     async function processTabInner(role: SheetRole, tab: string, index: number): Promise<void> {
-      // Todas las pestañas se traen completas (offset 0) — ver el comentario
-      // de arriba. `forceFull` ya no cambia nada aquí (se deja el parámetro
-      // por compatibilidad con la UI existente); el caché delta
-      // (`sheetsCache`) solo sirve ahora para rellenar roles NO seleccionados
-      // en una sync parcial (ver más abajo, fuera de este loop).
-      const offset = 0;
+      const fromSnapshot = await tryFetchFromSnapshot(role, tab);
+      let tabRows: TabRows;
+      let viaSnapshot = false;
 
-      // Per-PAGE progress (not just per-tab): a cold "Reporte de Consumo"
-      // sync (~80k rows) solía quedarse en el mismo porcentaje todo el tiempo
-      // que tardaba esa sola petición. Ahora son varias peticiones más
-      // chicas, así que se reporta progreso fraccional dentro del slot de
-      // cada pestaña también.
-      const reportPage = (rowsSoFar: number, rowCount: number | undefined) => {
-        const remaining = typeof rowCount === 'number' ? Math.max(1, rowCount - offset) : null;
-        const tabFrac = remaining ? Math.min(1, rowsSoFar / remaining) : 0;
+      if (fromSnapshot) {
+        tabRows = fromSnapshot;
+        viaSnapshot = true;
         emit({
           phase: 'parsing',
-          percent: Math.round(10 + (60 * (done + tabFrac)) / tabs.length),
-          message: remaining && remaining > pageSizeFor(tab)
-            ? `${ROLE_LABEL[role]}: ${rowsSoFar.toLocaleString('es-MX')} de ${remaining.toLocaleString('es-MX')} filas…`
-            : `${ROLE_LABEL[role]} (${done} de ${tabs.length})`,
+          percent: Math.round(10 + (60 * done) / tabs.length),
+          message: `${ROLE_LABEL[role]}: snapshot nocturno (${tabRows.rows.length.toLocaleString('es-MX')} filas)`,
         });
-      };
+      } else {
+        // Todas las pestañas se traen completas (offset 0) — ver el comentario
+        // de arriba. `forceFull` ya no cambia nada aquí (se deja el parámetro
+        // por compatibilidad con la UI existente); el caché delta
+        // (`sheetsCache`) solo sirve ahora para rellenar roles NO seleccionados
+        // en una sync parcial (ver más abajo, fuera de este loop).
+        const offset = 0;
 
-      const tabRows = await fetchReportSheetTabPaginated(tab, offset, reportPage);
+        // Per-PAGE progress (not just per-tab): a cold "Reporte de Consumo"
+        // sync (~80k rows) solía quedarse en el mismo porcentaje todo el tiempo
+        // que tardaba esa sola petición. Ahora son varias peticiones más
+        // chicas, así que se reporta progreso fraccional dentro del slot de
+        // cada pestaña también.
+        const reportPage = (rowsSoFar: number, rowCount: number | undefined) => {
+          const remaining = typeof rowCount === 'number' ? Math.max(1, rowCount - offset) : null;
+          const tabFrac = remaining ? Math.min(1, rowsSoFar / remaining) : 0;
+          emit({
+            phase: 'parsing',
+            percent: Math.round(10 + (60 * (done + tabFrac)) / tabs.length),
+            message: remaining && remaining > pageSizeFor(tab)
+              ? `${ROLE_LABEL[role]}: ${rowsSoFar.toLocaleString('es-MX')} de ${remaining.toLocaleString('es-MX')} filas…`
+              : `${ROLE_LABEL[role]} (${done} de ${tabs.length})`,
+          });
+        };
+
+        tabRows = await fetchReportSheetTabPaginated(tab, offset, reportPage);
+      }
 
       // Defensive dedup: "Todas las Sugerencias"/"Reporte de Consumo" son
       // salida de fórmulas vivas (QUERY/FILTER) o traen claves repetidas
       // legítimas en origen. Colapsar filas exactamente duplicadas (mismos
       // valores en el mismo orden), quedándose con la primera ocurrencia.
+      // `dedupKey` (join, not JSON.stringify) is the same equality test for
+      // these flat arrays-of-primitives rows but noticeably cheaper at
+      // Resumen_Fac's ~488k-row scale — JSON.stringify re-walks each value
+      // through its stringify machinery (quoting/escaping every string,
+      // formatting every number) where a plain join just concatenates.
       const dedupSeen = new Set<string>();
       const dedupedRows = tabRows.rows.filter((row) => {
-        const key = JSON.stringify(row);
+        const key = dedupKey(row);
         if (dedupSeen.has(key)) return false;
         dedupSeen.add(key);
         return true;
@@ -394,10 +594,20 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
       emit({
         phase: 'parsing',
         percent: Math.round(10 + (60 * done) / tabs.length),
-        message: `${ROLE_LABEL[role]} (${done} de ${tabs.length})`,
+        message: `${ROLE_LABEL[role]}${viaSnapshot ? ' (snapshot)' : ''} (${done} de ${tabs.length})`,
       });
 
-      if (params.onPartialResult) {
+      // `resumenFac` never gets its own partial build: it's the sole member
+      // of the "pesada" wave (see below), so it always arrives last and the
+      // real, final build runs immediately after via `await partialChain` —
+      // a partial build here would just be a ~488k-row build thrown away a
+      // few lines later. Combined with the other tabs, this caps a sync at 3
+      // partial builds (one per tab in the "liviana" wave) instead of up to
+      // 4, each of which re-runs `buildRF`/`buildAbc`/`buildPrecioDispersion`
+      // over whatever's arrived so far AND re-renders `AnalyticsContext`'s
+      // `useMemo` (invalidated by every `setActiveAnalysis`) — see
+      // `AnalyticsContext.tsx`.
+      if (params.onPartialResult && role !== 'resumenFac') {
         // Snapshot what's arrived so far BEFORE chaining — `sheets`/
         // `sheetsDetected`/`arrivedRoles` keep mutating as other tabs land
         // concurrently, so the build must close over a copy, not the live

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StatePill, EvolChart, DetailChevron } from '../ui';
 import { Section, SubFilter } from './_shared';
 import { formatCurrency } from '@/lib/utils';
@@ -13,31 +13,35 @@ type Estado = ReturnType<typeof clasificarEstado>;
 /** Panel — Detalle por grupo de artículo: solicitantes con estado actual y del trimestre anterior, y evolución del grupo. */
 export function GrupoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 'grupo' }>; a: Analytics; push: (p: Panel) => void }) {
   const { rf, enrich } = a;
-  if (!rf) return <p>Sin datos.</p>;
   const g = panel.grupo;
-  const rows: { solic: string; razon: string; st: Estado; stPrev: Estado; imp: number; ult: string }[] = [];
-  const gbucket = new Map<string, { imp: number; cant: number; mes: string }>();
-  const refPrev = mesRefQAnterior(rf.curmes);
-  rf.solicMats.forEach((mats, s) => {
-    const bucket = new Map<string, { imp: number; cant: number; mes: string }>();
-    mats.forEach((serie, mat) => {
-      if ((enrich.matGrupo(mat) || '(sin grupo)') !== g) return;
-      serie.forEach((p) => {
-        const c = bucket.get(p.mes) || { imp: 0, cant: 0, mes: p.mes };
-        c.imp += p.imp; c.cant += p.cant; bucket.set(p.mes, c);
-        const gb = gbucket.get(p.mes) || { imp: 0, cant: 0, mes: p.mes };
-        gb.imp += p.imp; gbucket.set(p.mes, gb);
+  const { rows, serie } = useMemo(() => {
+    if (!rf) return { rows: [] as { solic: string; razon: string; st: Estado; stPrev: Estado; imp: number; ult: string }[], serie: [] as Serie };
+    const rows: { solic: string; razon: string; st: Estado; stPrev: Estado; imp: number; ult: string }[] = [];
+    const gbucket = new Map<string, { imp: number; cant: number; mes: string }>();
+    const refPrev = mesRefQAnterior(rf.curmes);
+    rf.solicMats.forEach((mats, s) => {
+      const bucket = new Map<string, { imp: number; cant: number; mes: string }>();
+      mats.forEach((serie, mat) => {
+        if ((enrich.matGrupo(mat) || '(sin grupo)') !== g) return;
+        serie.forEach((p) => {
+          const c = bucket.get(p.mes) || { imp: 0, cant: 0, mes: p.mes };
+          c.imp += p.imp; c.cant += p.cant; bucket.set(p.mes, c);
+          const gb = gbucket.get(p.mes) || { imp: 0, cant: 0, mes: p.mes };
+          gb.imp += p.imp; gbucket.set(p.mes, gb);
+        });
       });
+      if (!bucket.size) return;
+      const serie = [...bucket.values()].map((v) => ({ mes: v.mes, cant: v.cant, imp: v.imp })).sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
+      const st = clasificarEstado(serie, false);
+      const stPrev = clasificarEstado(serie, false, refPrev);
+      const imp = serie.reduce((acc, x) => acc + x.imp, 0);
+      rows.push({ solic: s, razon: rf.solicRazon.get(s) || '', st, stPrev, imp, ult: serie[serie.length - 1]?.mes || '' });
     });
-    if (!bucket.size) return;
-    const serie = [...bucket.values()].map((v) => ({ mes: v.mes, cant: v.cant, imp: v.imp })).sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
-    const st = clasificarEstado(serie, false);
-    const stPrev = clasificarEstado(serie, false, refPrev);
-    const imp = serie.reduce((acc, x) => acc + x.imp, 0);
-    rows.push({ solic: s, razon: rf.solicRazon.get(s) || '', st, stPrev, imp, ult: serie[serie.length - 1]?.mes || '' });
-  });
-  rows.sort((x, y) => y.imp - x.imp);
-  const serie = [...gbucket.values()].map((v) => ({ mes: v.mes, cant: v.cant, imp: v.imp })).sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
+    rows.sort((x, y) => y.imp - x.imp);
+    const serie = [...gbucket.values()].map((v) => ({ mes: v.mes, cant: v.cant, imp: v.imp })).sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
+    return { rows, serie };
+  }, [rf, enrich, g]);
+  if (!rf) return <p>Sin datos.</p>;
   return <GrupoPanelBody g={g} rows={rows} serie={serie} push={push} />;
 }
 

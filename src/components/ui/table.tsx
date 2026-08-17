@@ -97,9 +97,23 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(({ className, wrapp
     setManualWidths(next);
   }, [manualWidths, setManualWidths]);
 
+  const onResizeSet = React.useCallback((col: number, w: number) => {
+    setManualWidths({ ...manualWidths, [col]: Math.max(MIN_COL_WIDTH, w) });
+  }, [manualWidths, setManualWidths]);
+
+  const onResizePeek = React.useCallback(
+    (col: number): number => {
+      const table = localRef.current;
+      if (!table) return MIN_COL_WIDTH;
+      const th = table.querySelectorAll<HTMLTableCellElement>(':scope > thead > tr > *')[col];
+      return manualWidths[col] ?? (th ? Math.ceil(th.getBoundingClientRect().width) : MIN_COL_WIDTH);
+    },
+    [manualWidths],
+  );
+
   const widths = widthsRef.current;
   return (
-    <TableResizeContext.Provider value={resizableKey ? { onResizeStart, onResizeReset } : null}>
+    <TableResizeContext.Provider value={resizableKey ? { onResizeStart, onResizeSet, onResizePeek, onResizeReset } : null}>
       <div className={cn('relative w-full overflow-auto', wrapperClassName)}>
         <table ref={localRef} className={cn('w-full caption-bottom text-sm', className)} {...props}>
           {(widths.length > 0 || Object.keys(manualWidths).length > 0) && (
@@ -116,22 +130,43 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(({ className, wrapp
   );
 });
 
-interface TableResizeCtx { onResizeStart: (col: number, startX: number) => void; onResizeReset: (col: number) => void }
+interface TableResizeCtx {
+  onResizeStart: (col: number, startX: number) => void;
+  onResizeSet: (col: number, w: number) => void;
+  onResizePeek: (col: number) => number;
+  onResizeReset: (col: number) => void;
+}
 const TableResizeContext = React.createContext<TableResizeCtx | null>(null);
 
 /** Manija de arrastre para el borde derecho de un <th> — solo se renderiza
  * cuando la tabla contenedora trae `resizableKey`. `stopPropagation` evita
- * que el arrastre dispare el `onSort` de `SortableTableHead`. */
+ * que el arrastre dispare el `onSort` de `SortableTableHead`. Accesible por
+ * teclado: flechas Izq/Der ajustan ±16px, Borrar/Retroceso restablece. */
 function ResizeHandle({ col }: { col: () => number }) {
   const ctx = React.useContext(TableResizeContext);
   if (!ctx) return null;
+  const onKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      e.stopPropagation();
+      const w = Math.max(MIN_COL_WIDTH, (ctx.onResizePeek?.(col()) ?? 0) + (e.key === 'ArrowRight' ? 16 : -16));
+      ctx.onResizeSet(col(), w);
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      e.stopPropagation();
+      ctx.onResizeReset(col());
+    }
+  };
   return (
-    <span
+    <button
+      type="button"
+      tabIndex={0}
+      aria-label="Ajustar ancho de columna. Flechas izquierda y derecha cambian el ancho, borrar lo restablece."
       onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); ctx.onResizeStart(col(), e.clientX); }}
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => { e.stopPropagation(); ctx.onResizeReset(col()); }}
-      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-accent/40"
-      title="Arrastrar para ajustar ancho · doble clic para restablecer"
+      onKeyDown={onKeyDown}
+      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none border-0 bg-transparent p-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent"
     />
   );
 }
@@ -185,14 +220,22 @@ const SortableTableHead = React.forwardRef<HTMLTableCellElement, SortableTableHe
     const resize = React.useContext(TableResizeContext);
     const active = activeKey === sortKey;
     const Icon = active && dir === 'asc' ? ChevronUp : active && dir === 'desc' ? ChevronDown : ChevronsUpDown;
+    const onKeyDown = (e: React.KeyboardEvent<HTMLTableCellElement>) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onSort(sortKey);
+      }
+    };
     return (
       <th
         ref={localRef}
         role="columnheader"
         aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+        tabIndex={0}
         onClick={() => onSort(sortKey)}
+        onKeyDown={onKeyDown}
         className={cn(
-          'relative h-9 select-none px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-text-faint whitespace-nowrap cursor-pointer hover:text-text-muted',
+          'relative h-9 select-none px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-text-faint whitespace-nowrap cursor-pointer hover:text-text-muted focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent',
           className,
         )}
         {...props}

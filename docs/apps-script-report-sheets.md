@@ -232,3 +232,157 @@ equivalente, documentarlo aparte junto al script del catálogo.
 llega otro reporte tan pesado como Resumen_Fac, o más liviano) debe agregarse
 a `ROLE_PRIORITY` **antes** de `resumenFac` — Resumen_Fac (o su equivalente
 más pesado) se queda al final por definición.
+
+## 8. Snapshot nocturno para "Reporte de Consumo" y "Resumen_Fac"
+
+Pedido del usuario (2026-08-14): "Todas las Sugerencias" y "Resumen Sin
+Sugerencias" deben verse **al instante** (siguen por la vía de este doc, en
+vivo). "Reporte de Consumo" y "Resumen_Fac" toleran sincronizarse **una vez
+al día por la noche** — son las dos pestañas pesadas (~80k y ~488k filas) y
+la razón de los ~98 requests en serie que documenta §5-§7.
+
+En vez de que el navegador de cada usuario baje esas 488k filas por Apps
+Script cada vez que abre el portal, un **disparador de tiempo de Apps
+Script** (corre en la nube de Google, sin depender de que ningún equipo esté
+encendido) exporta ambas pestañas a CSV comprimido y las sube a Cloudflare
+R2 cada madrugada. El portal (`src/services/reportSnapshotService.ts`) baja
+primero un manifiesto de ~1 KB (`snapshots/manifest.json`); si hay una
+versión fresca (menos de `SNAPSHOT_MAX_AGE_MS` = 30 h,
+`reportSheetsService.ts`), descarga el `.csv.gz` (unos pocos MB) en vez de
+hacer las ~98 páginas en vivo. Si no hay snapshot, está viejo, o falla la
+descarga, cae automáticamente a la vía en vivo de este documento — **nunca
+se pierde funcionalidad**, solo se pierde la ganancia de velocidad ese día.
+Un botón "Actualizar Consumo/Resumen_Fac en vivo" en Carga fuerza la vía en
+vivo aunque el snapshot esté fresco (`SyncReportSheetsParams.liveOverride`).
+
+### 8.1 Variables de entorno / secrets nuevos
+
+En el proyecto de **Supabase** (Edge Function `r2-presign`), agrega un
+secret:
+
+```
+supabase secrets set SNAPSHOT_UPLOAD_SECRET=<genera-un-valor-largo-al-azar>
+```
+
+Ese mismo valor va también en el Apps Script (`SNAPSHOT_SECRET` en el paso
+8.2) y en ningún otro lado — es lo que le permite a Apps Script subir
+archivos a R2 sin tener una sesión de usuario de Supabase. `R2_ENDPOINT` /
+`R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` ya existían para
+`r2Service.ts`; el snapshot los reutiliza, solo bajo el prefijo `snapshots/`.
+
+### 8.2 Apps Script — función de exportación + disparador
+
+En el **mismo proyecto de Apps Script** del paso 1 (mismo Sheet, mismo
+`SHEET_ID`), agrega esto al final del script:
+
+```javascript
+// --- Snapshot nocturno: Reporte de Consumo + Resumen_Fac -> R2 (CSV.gz) ---
+const SNAPSHOT_FN_URL = 'https://<tu-proyecto>.supabase.co/functions/v1/r2-presign';
+const SNAPSHOT_SECRET = '<el-mismo-valor-de-SNAPSHOT_UPLOAD_SECRET>';
+const SNAPSHOT_TABS = ['Reporte de Consumo', 'Resumen_Fac'];
+// Filas por parte ANTES de comprimir. Resumen_Fac (~488k filas) sale en ~5
+// partes de 100k — evita acercarse al límite de memoria/tiempo de ejecución
+// de una sola llamada de Apps Script (mismo problema que motivó la
+// paginación de §6, aplicado aquí a la exportación en vez de a la lectura).
+const SNAPSHOT_CHUNK_ROWS = 100000;
+
+function exportSnapshot() {
+  const version = Utilities.formatDate(new Date(), 'America/Mexico_City', "yyyyMMdd'T'HHmmss");
+  const manifestTabs = [];
+  SNAPSHOT_TABS.forEach(function (tabName) {
+    const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(tabName);
+    if (!sheet) return;
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    const totalDataRows = Math.max(0, lastRow - 1);
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    const safeTab = tabName.replace(/[^\w.-]+/g, '_');
+    const parts = [];
+    if (totalDataRows > 0) {
+      for (let start = 0; start < totalDataRows; start += SNAPSHOT_CHUNK_ROWS) {
+        const numRows = Math.min(SNAPSHOT_CHUNK_ROWS, totalDataRows - start);
+        const values = sheet.getRange(start + 2, 1, numRows, lastCol).getValues();
+        const csv = toCsv(headers, values);
+        const key = 'snapshots/' + safeTab + '/' + version + '/part-' + String(parts.length).padStart(3, '0') + '.csv.gz';
+        uploadSnapshotPart(key, csv, true);
+        parts.push(key);
+      }
+    }
+    manifestTabs.push({ tab: tabName, version: version, rowCount: totalDataRows, generatedAt: new Date().toISOString(), parts: parts });
+  });
+  uploadSnapshotPart('snapshots/manifest.json', JSON.stringify({ tabs: manifestTabs }), false);
+}
+
+function toCsv(headers, values) {
+  function esc(v) {
+    if (v instanceof Date) v = v.toISOString();
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  const lines = [headers.map(esc).join(',')];
+  values.forEach(function (row) { lines.push(row.map(esc).join(',')); });
+  return lines.join('\n');
+}
+
+function uploadSnapshotPart(key, text, gzip) {
+  const blob = Utilities.newBlob(text, gzip ? 'text/csv' : 'application/json');
+  const payload = gzip ? Utilities.gzip(blob) : blob;
+  const contentType = gzip ? 'application/gzip' : 'application/json';
+  const presignRes = UrlFetchApp.fetch(SNAPSHOT_FN_URL, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'x-snapshot-secret': SNAPSHOT_SECRET },
+    payload: JSON.stringify({ mode: 'snapshot-upload', key: key, contentType: contentType }),
+    muteHttpExceptions: true,
+  });
+  const presign = JSON.parse(presignRes.getContentText());
+  if (!presign.url) throw new Error('No se pudo presignar ' + key + ': ' + presignRes.getContentText());
+  const putRes = UrlFetchApp.fetch(presign.url, {
+    method: 'put',
+    contentType: contentType,
+    payload: payload.getBytes(),
+    muteHttpExceptions: true,
+  });
+  if (putRes.getResponseCode() >= 300) throw new Error('Falló la subida de ' + key + ': ' + putRes.getResponseCode());
+}
+```
+
+Reemplaza `SNAPSHOT_FN_URL` con la URL real de tu Edge Function (Supabase →
+Project Settings → Edge Functions, o simplemente
+`https://<project-ref>.supabase.co/functions/v1/r2-presign`) y `SNAPSHOT_SECRET`
+con el mismo valor de `SNAPSHOT_UPLOAD_SECRET` del paso 8.1. **No requiere
+volver a desplegar el Web App** (`doGet`) — esta función corre por
+disparador, no por HTTP.
+
+**Prueba manual antes de programar el disparador:** en el editor de Apps
+Script, selecciona `exportSnapshot` en el menú de funciones y dale "Ejecutar".
+Revisa el bucket de R2: deben aparecer `snapshots/Reporte_de_Consumo/.../part-000.csv.gz`
+(y siguientes), `snapshots/Resumen_Fac/.../part-000.csv.gz` (varias partes), y
+`snapshots/manifest.json`.
+
+**Programar el disparador:**
+1. En el editor de Apps Script → ícono de reloj (Disparadores) en la barra
+   lateral izquierda.
+2. "+ Añadir disparador".
+3. Función: `exportSnapshot` · Fuente del evento: "Basado en tiempo" ·
+   Tipo de disparador: "Temporizador diario" · horario: **2 – 3 a. m.**
+   (antes de que el equipo empiece a abrir el portal en la mañana).
+4. Guardar.
+
+Un fallo del disparador (cuota de Apps Script, R2 caído, etc.) no requiere
+intervención inmediata: el portal detecta que el manifiesto no se refrescó
+(pasadas las `SNAPSHOT_MAX_AGE_MS` = 30 h) y cae solo a la vía en vivo al
+día siguiente. Revisa **Ejecuciones** en el editor de Apps Script si quieres
+confirmar que corrió bien.
+
+### 8.3 Qué NO cambia
+
+- `getTabRows`/`getMeta` (§1) siguen exactamente igual — la vía en vivo
+  sigue existiendo íntegra, como respaldo y como override manual.
+- El formato que llega al worker (`{ headers, rows, rowCount }`) es idéntico
+  venga de donde venga — `src/services/duckdbService.ts` (`csvGzToTabRows`)
+  decodifica el CSV a esa misma forma, así que `buildFromSheetsInWorker`,
+  `sheetsCache` y `buildAnalysisResult` no distinguen la fuente.
+- `sheetsCache` (IndexedDB) sigue recibiendo lo que llegue, sea por snapshot
+  o en vivo — sigue sirviendo para rellenar roles no seleccionados en una
+  sync parcial.

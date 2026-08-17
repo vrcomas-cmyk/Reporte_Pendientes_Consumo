@@ -1,4 +1,5 @@
 import { toDrpRow } from '@/lib/drpColumns';
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import type { SolicitudDRP } from '@/core/types';
 
 /** Apps Script Web App endpoint that appends a row to the "DRP" tab of the
@@ -25,7 +26,7 @@ export async function enviarSolicitudDRP(sol: SolicitudDRP): Promise<void> {
   if (!DRP_SHEET_ID) {
     throw new Error('Falta configurar VITE_DRP_SHEET_ID en .env.local.');
   }
-  const res = await fetch(DRP_WEBHOOK_URL, {
+  const res = await fetchWithTimeout(DRP_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({
@@ -34,7 +35,7 @@ export async function enviarSolicitudDRP(sol: SolicitudDRP): Promise<void> {
       tab: DRP_TAB,
       row: toDrpRow(sol),
     }),
-  });
+  }, 15_000);
   if (!res.ok) throw new Error(`HTTP ${res.status} al enviar la solicitud al Sheet DRP.`);
   const data = await res.json().catch(() => null);
   if (data && typeof data === 'object' && 'error' in data) {

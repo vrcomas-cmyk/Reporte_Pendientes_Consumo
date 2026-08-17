@@ -2,6 +2,7 @@ import { catalogRepository } from '@/repositories';
 import { parseCatalog } from './analysisService';
 import { mapEjecutivo, mapMaterial, mapInvConsolidado, mapInvDetalle } from '@/core/mappers';
 import { logInfo } from '@/lib/logError';
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import { getConnector, CONNECTOR_KEYS } from '@/services/connectorsService';
 import type { CatalogSnapshot, ProcessingProgress } from '@/core/types';
 
@@ -24,7 +25,7 @@ async function fetchAppScriptTab(tab: string): Promise<Record<string, unknown>[]
     throw new Error('Falta configurar el conector "Apps Script · Catálogo" (Admin) o VITE_APPSCRIPT_URL.');
   }
   const url = `${appscriptUrl}?tab=${encodeURIComponent(tab)}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, {}, 15_000);
   if (!res.ok) throw new Error(`HTTP ${res.status} al leer la pestaña "${tab}" del catálogo.`);
   const data = await res.json();
   if (data && typeof data === 'object' && 'error' in data) throw new Error(String((data as { error: unknown }).error));

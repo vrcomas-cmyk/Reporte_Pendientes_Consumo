@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "src/core/analysis.ts": {
-    "mtime": 1785802618.6413736,
-    "ast_hash": "3b02f3c1f18dc996fbd96cf89c183d73",
+    "mtime": 1786458160.0415244,
+    "ast_hash": "07106f2c47021d91d9e348b722cda769",
     "semantic_hash": ""
   },
   "src/core/buildBO.ts": {
@@ -150,8 +150,8 @@
     "semantic_hash": ""
   },
   "src/modules/analisis/AnalisisPage.tsx": {
-    "mtime": 1786117030.6838913,
-    "ast_hash": "5f8f0efd1af0cfbdc1ab6b8d086a2c68",
+    "mtime": 1786458393.720542,
+    "ast_hash": "b5507cbd4f7f20a57519edb9bece6e96",
     "semantic_hash": ""
   },
   "src/modules/analytics/AnalyticsContext.tsx": {
@@ -170,13 +170,13 @@
     "semantic_hash": ""
   },
   "src/modules/consumo/ConsumoPage.tsx": {
-    "mtime": 1786147365.6355414,
-    "ast_hash": "9a013f8b3347cd3b0190f434df07b914",
+    "mtime": 1786458104.9891863,
+    "ast_hash": "566a75ad33af7723e607cd27a1089e6f",
     "semantic_hash": ""
   },
   "src/modules/dashboard/DashboardPage.tsx": {
-    "mtime": 1785802762.1068008,
-    "ast_hash": "bb2a217ab2b3eac2433671d558facce5",
+    "mtime": 1786458220.0516443,
+    "ast_hash": "b0db3230529221531c46fd9c5f05b042",
     "semantic_hash": ""
   },
   "src/modules/dashboard/Heatmap.tsx": {
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "src/modules/inventario/InventarioPage.tsx": {
-    "mtime": 1786116869.7527146,
-    "ast_hash": "73542b30308831df4f235a7e6f5406c5",
+    "mtime": 1786458311.2181413,
+    "ast_hash": "55e3fbe00f09edb53805c555d2841f89",
     "semantic_hash": ""
   },
   "src/modules/results/ResultsPage.tsx": {
@@ -205,8 +205,8 @@
     "semantic_hash": ""
   },
   "src/modules/resumenSin/ResumenSinPage.tsx": {
-    "mtime": 1786117044.9489872,
-    "ast_hash": "ab8ee3c1c310a99919e01533959620b9",
+    "mtime": 1786458352.6741238,
+    "ast_hash": "22d6a55f210140cf8d9daf11e7dd4569",
     "semantic_hash": ""
   },
   "src/modules/settings/SettingsPage.tsx": {
@@ -215,8 +215,8 @@
     "semantic_hash": ""
   },
   "src/modules/sugerencias/SugerenciasPage.tsx": {
-    "mtime": 1786147429.9290044,
-    "ast_hash": "b0c1050be43e1f4de0939050e5410dec",
+    "mtime": 1786458270.8953135,
+    "ast_hash": "97124911f1adf3f7f297e53dded2cdb9",
     "semantic_hash": ""
   },
   "src/modules/upload/UploadPage.tsx": {
@@ -470,8 +470,8 @@
     "semantic_hash": ""
   },
   "src/modules/solicitudes/SolicitudesPage.tsx": {
-    "mtime": 1786147381.435487,
-    "ast_hash": "23b956440a21bd42b00adbbbf50709a9",
+    "mtime": 1786458412.7937362,
+    "ast_hash": "da0160070109b2be4d979bdf3e8e4061",
     "semantic_hash": ""
   },
   "src/modules/solicitudes/useSolicitarDialog.ts": {
@@ -625,8 +625,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/DebouncedSearch.tsx": {
-    "mtime": 1784878915.1863415,
-    "ast_hash": "38b71d6cd01aa1f25184329b7dcd523d",
+    "mtime": 1786457875.3234138,
+    "ast_hash": "31c1f005ae3b6d5646fa3e3e383082b2",
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/DetailChevron.tsx": {
@@ -665,8 +665,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/index.ts": {
-    "mtime": 1786147324.1828055,
-    "ast_hash": "8e3f8e7e5f227c2a7a4bbb8e9de354b6",
+    "mtime": 1786457921.322606,
+    "ast_hash": "779238d23d5b7ec4a43f65f6b6058510",
     "semantic_hash": ""
   },
   "src/components/navigation/CheatsheetDialog.tsx": {
@@ -760,8 +760,8 @@
     "semantic_hash": ""
   },
   "src/core/buildAnalysisResult.ts": {
-    "mtime": 1785257224.8141105,
-    "ast_hash": "5f04e8c3efbc39d402240ccd62c2a0a5",
+    "mtime": 1786458185.9908552,
+    "ast_hash": "b45dcad0453c6938e2d5ef652c6afeb3",
     "semantic_hash": ""
   },
   "src/services/reportSheetsService.ts": {
@@ -2520,13 +2520,13 @@
     "semantic_hash": ""
   },
   "src/hooks/usePersistedState.ts": {
-    "mtime": 1786116748.543549,
-    "ast_hash": "edab4983c4528716f7ea121acbf1d482",
+    "mtime": 1786457864.5226686,
+    "ast_hash": "471c66439c484b3b334f6981ad07462b",
     "semantic_hash": ""
   },
   "src/lib/fechas.ts": {
-    "mtime": 1786147282.873488,
-    "ast_hash": "3db8527fc80e35810e4c1b2774eef469",
+    "mtime": 1786458004.9828892,
+    "ast_hash": "a15861bb7995b1e2a412e67e1a6dccce",
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/DateRangeFilter.tsx": {
@@ -2582,6 +2582,11 @@
   "docs/TechnicalDebt.md": {
     "mtime": 1786114191.388543,
     "ast_hash": "bb887dafa12aa1417f2a3977320a50ad",
+    "semantic_hash": ""
+  },
+  "src/modules/analytics/ui/ClearFiltersButton.tsx": {
+    "mtime": 1786457916.4839022,
+    "ast_hash": "970ccab5c7eba23d876cac734b43103a",
     "semantic_hash": ""
   }
 }

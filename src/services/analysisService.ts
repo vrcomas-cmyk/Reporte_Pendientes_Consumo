@@ -5,11 +5,26 @@ import type { CatalogSnapshot, AnalysisResult, AppSettings, DetectedSheet, Proce
 // to the UI/store, and coordinates repositories are handled by callers
 // (this module never touches IndexedDB directly).
 
+let worker: Worker | null = null;
+
+/** Jobs currently awaiting a response from the live worker. If the worker
+ * crashes (e.g. V8 OOM parsing a ~38MB report — plausible at the "Resumen_Fac"
+ * 488k-row sheet), its `error` event rejects every entry here so no `runJob`
+ * promise hangs forever; the next `getWorker()` then spins up a fresh worker
+ * automatically. */
+const pendingJobs = new Map<string, () => void>();
+
 function makeWorker(): Worker {
-  return new Worker(new URL('../workers/analysisWorker.ts', import.meta.url), { type: 'module' });
+  const w = new Worker(new URL('../workers/analysisWorker.ts', import.meta.url), { type: 'module' });
+  w.addEventListener('error', (ev) => {
+    pendingJobs.forEach((reject) => reject());
+    pendingJobs.clear();
+    if (worker === w) worker = null;
+    if (ev.preventDefault) ev.preventDefault();
+  });
+  return w;
 }
 
-let worker: Worker | null = null;
 function getWorker(): Worker {
   if (!worker) worker = makeWorker();
   return worker;
@@ -61,7 +76,14 @@ function runJob<TResult>(
     }
   };
 
-  const cleanup = () => w.removeEventListener('message', onMessage);
+  const cleanup = () => {
+    w.removeEventListener('message', onMessage);
+    pendingJobs.delete(req.id);
+  };
+  pendingJobs.set(req.id, () => {
+    cleanup();
+    settle?.reject(new Error('El worker de análisis se detuvo. Intenta de nuevo.'));
+  });
   w.addEventListener('message', onMessage);
   // Only the xlsx-buffer requests have a `.buffer` to transfer; the
   // Sheets-sync request is plain JSON and has none.

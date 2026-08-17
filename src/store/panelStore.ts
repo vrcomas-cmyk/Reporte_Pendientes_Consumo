@@ -6,7 +6,7 @@ import { create } from 'zustand';
 // level, `open` resets the stack, `close` clears it.
 export type Panel =
   | { type: 'sugDetalle'; boKey: string }
-  | { type: 'pedido'; pedido: string }
+  | { type: 'pedido'; pedido: string; boKey?: string }
   | { type: 'evol'; kind: 'solic' | 'dest'; key: string }
   | { type: 'codigoEvol'; kind: 'solic' | 'dest'; key: string; material: string }
   | { type: 'material'; material: string }

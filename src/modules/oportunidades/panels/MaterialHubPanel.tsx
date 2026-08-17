@@ -70,7 +70,7 @@ export function MaterialHubPanel({ panel, a }: { panel: Extract<Panel, { type: '
   // Condición/caducidad/precio de referencia para el score: prioriza la
   // Oportunidad abierta (datos reales del lote); si no hay, infiere del
   // inventario por condición — igual criterio que core/oportunidad.ts.
-  const invCondRow = a.invCondicion.find((r) => norm(r.material) === norm(mat) && r.condicion);
+  const invCondRow = useMemo(() => a.invCondicion.find((r) => norm(r.material) === norm(mat) && r.condicion), [a.invCondicion, mat]);
   const condicion = oportunidadAbierta?.condicion ?? (invCondRow ? normalizeCondicion(invCondRow.condicion) : 'normal');
   const diasVigencia = oportunidadAbierta ? diasHasta(oportunidadAbierta.fechaCaducidad) : diasHasta(lotesF[0]?.fechaCaducidad ?? null);
   const precioOferta = oportunidadAbierta?.precioOferta || enrich.matPrecioOferta(mat);

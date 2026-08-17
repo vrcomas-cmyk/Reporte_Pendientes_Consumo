@@ -341,5 +341,20 @@
   "339": "@radix-ui/react-slot",
   "340": "@radix-ui/react-tooltip",
   "341": "@tailwindcss/vite",
-  "342": "@tanstack/react-query"
+  "342": "@tanstack/react-query",
+  "343": "usePersistedState.ts",
+  "344": "@radix-ui/react-dialog",
+  "345": "AbcBadge.tsx",
+  "346": "SolicitarContextMenu.tsx",
+  "347": "SolicitudesPage.tsx",
+  "348": "clsx",
+  "349": "@duckdb/duckdb-wasm",
+  "350": "lucide-react",
+  "351": "@radix-ui/react-scroll-area",
+  "352": "@radix-ui/react-separator",
+  "353": "@radix-ui/react-tabs",
+  "354": "react",
+  "355": "react-router-dom",
+  "356": "@supabase/supabase-js",
+  "357": "@tanstack/react-virtual"
 }

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Section } from './_shared';
 import { formatCurrency } from '@/lib/utils';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
@@ -13,7 +14,7 @@ function pct(a: number, b: number) {
 /** Panel — Grupos de artículo de un sector, misma ventana 3m previos / últ. 3m / 12m que la tabla de sectores. */
 export function SectorPanel({ panel, a, push: _push }: { panel: Extract<Panel, { type: 'sector' }>; a: Analytics; push: (p: Panel) => void }) {
   void _push;
-  const A = analisisVentas(a.rf, a.bo, a.enrich);
+  const A = useMemo(() => analisisVentas(a.rf, a.bo, a.enrich), [a.rf, a.bo, a.enrich]);
   if (!A) return <p>Sin datos.</p>;
   const sectorData = A.sectores.find((s) => s.sector === panel.sector);
   const list = sectorData ? [...sectorData.grupos.values()].sort((x, y) => y.i12 - x.i12) : [];

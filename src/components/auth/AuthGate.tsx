@@ -2,11 +2,11 @@ import type { ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 
-// TEMP: login desactivado para diagnosticar la pantalla negra post-login en
-// Vercel — deja pasar directo sin pedir Google. Toggle via
-// `VITE_AUTH_DISABLED` (cualquier valor != "false" lo deja desactivado).
-// Borrar este flag de `.env` en cuanto se confirme que el login funciona.
-const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED !== 'false';
+// Fallback fail-closed: el login está ACTIVO por defecto. Solo se desactiva
+// explícitamente con `VITE_AUTH_DISABLED=true` (uso temporal de diagnóstico,
+// por ej. para inspeccionar una pantalla negra post-login en Vercel).
+// Retirar el flag de `.env` cuando el login esté confirmado.
+const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
 
 /** Blocks the whole app behind Google login + invite list until signed in. */
 export function AuthGate({ children }: { children: ReactNode }) {

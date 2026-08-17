@@ -1,5 +1,5 @@
 import { Plus, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 /** `get` is for columns with one clean value per row (equality match).
  * `getMany` is for rows that can belong to several values at once (e.g. a
@@ -42,6 +42,7 @@ export function ColumnFilterBar<T>({ columns, rows, active, onChange }: {
   const [adding, setAdding] = useState(false);
   const [pickCol, setPickCol] = useState('');
   const [typed, setTyped] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const distinctForCol = useMemo(() => {
     if (!pickCol) return [] as string[];
@@ -54,8 +55,11 @@ export function ColumnFilterBar<T>({ columns, rows, active, onChange }: {
 
   const activeValuesForCol = useMemo(() => new Set(active.filter((f) => f.col === pickCol).map((f) => f.value)), [active, pickCol]);
 
-  const options = pickCol && typed.trim()
-    ? distinctForCol.filter((v) => v.toLowerCase().includes(typed.toLowerCase()) && !activeValuesForCol.has(v)).slice(0, 25)
+  const options = pickCol
+    ? (typed.trim()
+        ? distinctForCol.filter((v) => v.toLowerCase().includes(typed.toLowerCase()) && !activeValuesForCol.has(v))
+        : distinctForCol.filter((v) => !activeValuesForCol.has(v))
+      ).slice(0, 25)
     : [];
 
   const addFilter = (col: string, value: string) => {
@@ -64,6 +68,10 @@ export function ColumnFilterBar<T>({ columns, rows, active, onChange }: {
       onChange([...active, { col, value }]);
     }
     setTyped('');
+    // Elegir una sugerencia (clic o Enter) desmonta ese botón y el foco se
+    // pierde a document.body — sin esto, el siguiente material tecleado no
+    // llegaba a ningún input y no había forma de agregar un segundo filtro.
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   return (
@@ -89,6 +97,7 @@ export function ColumnFilterBar<T>({ columns, rows, active, onChange }: {
           {pickCol && (
             <div className="relative">
               <input
+                ref={inputRef}
                 autoFocus
                 autoComplete="off"
                 value={typed}

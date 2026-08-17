@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { EvolChart, TrendBadge } from '../ui';
 import { Section, SugTable, ConsumoTable, LotesTable, PrecioCondicionBox } from './_shared';
@@ -11,11 +12,14 @@ import type { Analytics } from '../AnalyticsContext';
 export function MaterialPanel({ panel, a, push }: { panel: Extract<Panel, { type: 'material' }>; a: Analytics; push: (p: Panel) => void }) {
   const { bo, enrich, lotes, rf, result } = a;
   const mat = panel.material;
-  const lotesF = lotes.filter((l) => norm(l.material) === norm(mat));
-  const totalUni = lotesF.reduce((s, l) => s + l.cantidadDisp, 0);
-  const sug = sugFor(bo, mat);
-  const cons = consFor(result?.consumo ?? [], mat);
-  const serie = serieMaterial(rf, mat);
+  const { lotesF, totalUni, sug, cons, serie } = useMemo(() => {
+    const lotesF = lotes.filter((l) => norm(l.material) === norm(mat));
+    const totalUni = lotesF.reduce((s, l) => s + l.cantidadDisp, 0);
+    const sug = sugFor(bo, mat);
+    const cons = consFor(result?.consumo ?? [], mat);
+    const serie = serieMaterial(rf, mat);
+    return { lotesF, totalUni, sug, cons, serie };
+  }, [lotes, mat, bo, result, rf]);
   return (
     <div>
       <h2 className="font-display text-lg font-semibold">{mat}</h2>

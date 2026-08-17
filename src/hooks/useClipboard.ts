@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { toast } from '@/store/toastStore';
 
 // ---------------------------------------------------------------------------
@@ -13,7 +13,7 @@ import { toast } from '@/store/toastStore';
 
 export function useClipboard(copiedDurationMs = 1800) {
   const [copied, setCopied] = useState(false);
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const copy = useCallback(
     async (value: string, successMsg = 'Copiado'): Promise<boolean> => {
@@ -34,8 +34,8 @@ export function useClipboard(copiedDurationMs = 1800) {
           if (!ok) throw new Error('execCommand copy failed');
         }
         setCopied(true);
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => setCopied(false), copiedDurationMs);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => setCopied(false), copiedDurationMs);
         if (successMsg) toast.success(successMsg);
         return true;
       } catch {

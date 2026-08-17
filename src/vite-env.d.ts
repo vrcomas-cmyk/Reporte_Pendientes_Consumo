@@ -12,8 +12,8 @@ interface ImportMetaEnv {
   /** Google Sheet id the DRP webhook writes into — ver drpService.ts. Kept env so
    *  rotating the target sheet doesn't require a redeploy. */
   readonly VITE_DRP_SHEET_ID?: string;
-  /** Skip Google login (AuthGate). Defaults to true while the post-login Vercel
-   *  regression is being diagnosed; set to "false" in production. */
+  /** Skip Google login (AuthGate). Fail-closed: only "true" disables login;
+   *  any other value (or missing) keeps Google auth enforced. */
   readonly VITE_AUTH_DISABLED?: string;
   /** hard-coded GitHub release URL for the SugeridorAPI .exe launcher card.
    *  Optional — defaults to the maintainers' published release. */

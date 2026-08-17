@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 
 const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -8,15 +9,15 @@ const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreads
 export async function uploadFileToR2(file: File): Promise<string> {
   const { data: presign, error: presignError } = await supabase.functions.invoke<{ url: string; key: string }>(
     'r2-presign',
-    { body: { mode: 'upload', fileName: file.name, contentType: file.type || XLSX_CONTENT_TYPE } },
+    { body: { mode: 'upload', fileName: file.name, contentType: file.type || XLSX_CONTENT_TYPE, size: file.size } },
   );
   if (presignError || !presign) throw presignError ?? new Error('No se pudo obtener la URL de subida a R2');
 
-  const putRes = await fetch(presign.url, {
+  const putRes = await fetchWithTimeout(presign.url, {
     method: 'PUT',
     headers: { 'Content-Type': file.type || XLSX_CONTENT_TYPE },
     body: file,
-  });
+  }, 120_000);
   if (!putRes.ok) throw new Error(`Falló la subida a R2: ${putRes.status}`);
 
   return presign.key;

@@ -100,11 +100,12 @@ export function SugerenciasPage() {
   const [fuente, setFuente] = usePersistedState('sugerencias.fuente', '');
   const [centroValido, setCentroValido] = usePersistedState('sugerencias.centroValido', false);
   const [soloAccionables, setSoloAccionables] = usePersistedState('sugerencias.soloAccionables', false);
+  const [ocultarPend0, setOcultarPend0] = usePersistedState('sugerencias.ocultarPend0', false);
   const [quick, setQuick] = usePersistedState<ActiveFilter[]>('sugerencias.quick', []);
   const [rango, setRango] = usePersistedState<{ desde: string; hasta: string }>('sugerencias.rango', { desde: '', hasta: '' });
   const [clearTick, setClearTick] = useState(0);
   const clearFilters = () => {
-    setQ(''); setEstado(''); setFuente(''); setCentroValido(false); setSoloAccionables(false); setQuick([]); setRango({ desde: '', hasta: '' });
+    setQ(''); setEstado(''); setFuente(''); setCentroValido(false); setSoloAccionables(false); setOcultarPend0(false); setQuick([]); setRango({ desde: '', hasta: '' });
     setClearTick((n) => n + 1);
   };
   const [sectorOpen, setSectorOpen] = useState(false);
@@ -163,6 +164,7 @@ export function SugerenciasPage() {
       // al menos una fuente en centro válido — lo que realmente se puede
       // resolver hoy, sin tener que combinar Fuentes + Centro válido a mano.
       if (soloAccionables && (num(b.cantidadPendiente) <= 0 || !it.fuentes.length || b.bloqueado || !it.fuentes.some((f) => centroPasa(b, f)))) return false;
+      if (ocultarPend0 && num(b.cantidadPendiente) <= 0) return false;
       if (!passesFilters(it, filterCols, quick)) return false;
       if (!enRango(b.fecha, rango.desde, rango.hasta)) return false;
       if (q) {
@@ -171,7 +173,7 @@ export function SugerenciasPage() {
       }
       return true;
     });
-  }, [a.bo, q, estado, fuente, centroValido, soloAccionables, quick, rango, filterCols]);
+  }, [a.bo, q, estado, fuente, centroValido, soloAccionables, ocultarPend0, quick, rango, filterCols]);
 
   const kpis = useMemo(() => {
     const isBloq = (it: (typeof filtered)[number]) => it.bo.bloqueado !== '';
@@ -514,6 +516,14 @@ export function SugerenciasPage() {
             Solo accionables
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => setOcultarPend0((v) => !v)}
+          title="Excluye los renglones ya surtidos (Pendiente = 0)"
+          className={`flex h-9 items-center gap-1.5 rounded-md border px-2 text-sm ${ocultarPend0 ? 'border-accent bg-accent-soft text-accent' : 'border-border bg-bg-elevated text-text-muted hover:text-text'}`}
+        >
+          Ocultar pendiente 0
+        </button>
         <DateRangeFilter desde={rango.desde} hasta={rango.hasta} onChange={setRango} />
         <ClearFiltersButton onClear={clearFilters} />
       </div>
@@ -596,10 +606,10 @@ export function SugerenciasPage() {
                     onSolicitar={onSolicitar}
                     solicitado={sugSolicitadas.has(it.k)}
                     label={b.materialBase}
-                    onVerDetalle={() => open({ type: 'sugDetalle', boKey: it.k })}
+                    onVerDetalle={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k })}
                     copyItems={copyItems}
                   >
-                  <TableRow ref={measureElement} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
+                  <TableRow ref={measureElement} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k })}>
                     {!fuenteOculto && (
                       <TableCell onClick={(ev) => ev.stopPropagation()}>
                         {it.fuentes.length > 0 && (
@@ -722,10 +732,10 @@ export function SugerenciasPage() {
                     onSolicitar={onSolicitar}
                     solicitado={rawSolicitadas.has(sourceKey)}
                     label={b.materialBase}
-                    onVerDetalle={() => open({ type: 'sugDetalle', boKey: it.k })}
+                    onVerDetalle={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k })}
                     copyItems={copyItems}
                   >
-                  <TableRow ref={measureElementRaw} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
+                  <TableRow ref={measureElementRaw} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k })}>
                     {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
                     {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}

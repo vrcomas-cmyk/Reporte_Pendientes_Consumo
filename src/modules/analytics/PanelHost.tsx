@@ -1,5 +1,5 @@
 import { ArrowLeft } from 'lucide-react';
-import type { FC } from 'react';
+import { lazy, Suspense, type FC } from 'react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { usePanelStore, type Panel } from '@/store/panelStore';
 import { useAnalytics, type Analytics } from './AnalyticsContext';
@@ -16,9 +16,13 @@ import { GrupoPanel } from './panels/GrupoPanel';
 import { CeldaPanel } from './panels/CeldaPanel';
 import { MaterialTotalesPanel } from './panels/MaterialTotalesPanel';
 import { ClienteDetallePanel } from './panels/ClienteDetallePanel';
-import { MaterialHubPanel } from '@/modules/oportunidades/panels/MaterialHubPanel';
-import { OportunidadPanel } from '@/modules/oportunidades/panels/OportunidadPanel';
-import { ClienteConocimientoPanel } from '@/modules/oportunidades/panels/ClienteConocimientoPanel';
+
+// Los paneles de Oportunidades se cargan con lazy para no arrastrar el módulo
+// (scoring, HubLinks, conocimientoStore) al chunk inicial — PanelHost es eager
+// en App.tsx, así que imports estáticos aquí anulaban el code-splitting.
+const MaterialHubPanel = lazy(() => import('@/modules/oportunidades/panels/MaterialHubPanel').then((m) => ({ default: m.MaterialHubPanel })));
+const OportunidadPanel = lazy(() => import('@/modules/oportunidades/panels/OportunidadPanel').then((m) => ({ default: m.OportunidadPanel })));
+const ClienteConocimientoPanel = lazy(() => import('@/modules/oportunidades/panels/ClienteConocimientoPanel').then((m) => ({ default: m.ClienteConocimientoPanel })));
 
 // oxlint-disable-next-line typescript/no-explicit-any -- el discrim `panel.type` ya tipa panel; el dispatcher usa `any` para que cada rama acepte su Extract<Panel,...> sin sobrecargar la signatura.
 const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
@@ -52,7 +56,11 @@ const WIDE = new Set<Panel['type']>([
 function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: Panel) => void }) {
   const Cmp = PANELS[panel.type];
   if (!Cmp) return null;
-  return <Cmp panel={panel} a={a} push={push} />;
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-text-muted">Cargando panel…</div>}>
+      <Cmp panel={panel} a={a} push={push} />
+    </Suspense>
+  );
 }
 
 export function PanelHost() {

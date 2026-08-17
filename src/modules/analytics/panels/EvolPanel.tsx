@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { TrendBadge, ComparativaDual, EvolChart, DetailChevron } from '../ui';
 import { Section } from './_shared';
 import { formatCurrency } from '@/lib/utils';
@@ -10,8 +11,11 @@ import type { Analytics } from '../AnalyticsContext';
 export function EvolPanel({ panel, a, push }: { panel: Extract<Panel, { type: 'evol' }>; a: Analytics; push: (p: Panel) => void }) {
   const { rf, enrich } = a;
   if (!rf) return <p>No hay Resumen_Fac cargado.</p>;
-  const serie = panel.kind === 'solic' ? serieSolic(rf, panel.key) : serieDest(rf, panel.key);
-  const mats = materialesDe(rf, panel.kind, panel.key).map((m) => ({ ...m, sector: enrich.matSector(m.material), grupo: enrich.matGrupo(m.material) }));
+  const serie = useMemo(() => (panel.kind === 'solic' ? serieSolic(rf, panel.key) : serieDest(rf, panel.key)), [rf, panel.kind, panel.key]);
+  const mats = useMemo(
+    () => materialesDe(rf, panel.kind, panel.key).map((m) => ({ ...m, sector: enrich.matSector(m.material), grupo: enrich.matGrupo(m.material) })),
+    [rf, panel.kind, panel.key, enrich],
+  );
   const titulo = panel.kind === 'solic' ? 'Facturación general del Solicitante' : 'Facturación general del Destinatario';
   return (
     <div>

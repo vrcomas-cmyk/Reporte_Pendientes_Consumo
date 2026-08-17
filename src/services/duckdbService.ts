@@ -190,3 +190,33 @@ export async function parquetToRows<T = Record<string, unknown>>(buf: Uint8Array
     await db.dropFile(file).catch(() => {});
   }
 }
+
+/** Reads gzip-compressed CSV bytes (as exported by the nightly Apps Script
+ * snapshot — see `docs/apps-script-report-sheets.md` §8) into the same dense
+ * `{ headers, rows }` shape `fetchReportSheetTab` produces from the live
+ * Apps Script JSON path, so `reportSnapshotService.ts` is a drop-in
+ * alternative source for `reportSheetsService.ts` — nothing downstream
+ * (the worker's `zipRows`, `buildAnalysisResult`, `sheetsCache`) needs to
+ * know which path a tab came from.
+ *
+ * DuckDB's CSV reader auto-detects gzip from the `.gz` extension and
+ * decompresses internally — no `DecompressionStream` needed on our end. The
+ * query result comes back as one object per row (column name -> value); we
+ * flatten each to a plain array in header order to match the dense shape. */
+export async function csvGzToTabRows(buf: Uint8Array): Promise<{ headers: string[]; rows: unknown[][] }> {
+  if (!buf.length) return { headers: [], rows: [] };
+  const db = await getDb();
+  const conn = await db.connect();
+  const file = `${tableSeq++}.csv.gz`;
+  try {
+    await db.registerFileBuffer(file, buf);
+    const res = await conn.query(`SELECT * FROM read_csv_auto('${file}', ALL_VARCHAR=TRUE)`);
+    const headers = res.schema.fields.map((f) => f.name);
+    const objRows = arrowRowsToPlain<Record<string, unknown>>(res);
+    const rows = objRows.map((o) => headers.map((h) => o[h]));
+    return { headers, rows };
+  } finally {
+    await conn.close();
+    await db.dropFile(file).catch(() => {});
+  }
+}
