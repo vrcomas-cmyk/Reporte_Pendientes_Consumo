@@ -386,3 +386,122 @@ confirmar que corrió bien.
 - `sheetsCache` (IndexedDB) sigue recibiendo lo que llegue, sea por snapshot
   o en vivo — sigue sirviendo para rellenar roles no seleccionados en una
   sync parcial.
+
+## 9. Respaldo "solo mes corriente" para Resumen_Fac (sin desplegar el snapshot)
+
+Pedido del usuario (2026-08-17): mientras el snapshot nocturno (§8) no esté
+desplegado — o si un día falla — "Resumen_Fac" seguía yéndose por la
+descarga completa de §1/§6 (~488k filas, ~99 páginas), que en la práctica
+sigue topando con el 404 intermitente de Google incluso con reintentos
+(§ comentario de `TAB_FETCH_RETRIES` en `reportSheetsService.ts`).
+
+**La idea:** en vez de traer las 488k filas, traer solo las del mes en curso
+(columna **"Mes y año"**, formato `MM/AAAA` — la misma que usa
+`mesKey()` en `src/core/resumenFac.ts`) y fusionarlas, del lado del portal,
+sobre lo último que ya haya en `sheetsCache` de ese equipo (de una sync
+completa anterior, un snapshot, o incluso una sync parcial que quedó
+guardada tras un 404 — ver §"Reanudación por página" en
+`reportSheetsService.ts`). Con ~488k filas repartidas en ~12 meses, eso son
+del orden de 30-45 mil filas por request — bien por debajo de lo que
+dispara el 404, y exactamente lo que de negocio importa mantener al día
+(las filas de meses cerrados no cambian).
+
+**Esto NO es el esquema delta que §5 documenta como abandonado.** Aquél
+filtraba por *posición* (offset/fila) asumiendo que lo nuevo se concentra al
+final — falso, medido. Esto filtra por *valor* de una columna de fecha real
+(el mes de la factura), sin importar en qué posición de la hoja esté esa
+fila.
+
+**Filtrado del lado de Apps Script vía `QUERY`**, para no leer la hoja
+completa tampoco ahí: se escribe la fórmula en una hoja auxiliar oculta, se
+fuerza el recálculo con `SpreadsheetApp.flush()`, se lee el resultado ya
+filtrado, y se limpia la hoja auxiliar.
+
+Agrega esto al **mismo script del paso 1** (no al del snapshot §8):
+
+```javascript
+// --- Filtro server-side por columna=valor (usado por "Resumen_Fac" / mes corriente) ---
+function getTabRowsFiltered(tabName, filterCol, filterVal) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ss.getSheetByName(tabName);
+  if (!sheet) return { error: `No existe la pestaña "${tabName}"` };
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const colIdx = headers.indexOf(filterCol);
+  if (colIdx === -1) return { error: `No existe la columna "${filterCol}" en "${tabName}"` };
+  if (lastRow < 2) return { headers: headers, rows: [], rowCount: 0 };
+
+  const colLetter = columnToLetter(colIdx + 1);
+  const srcRange = "'" + tabName + "'!A2:" + columnToLetter(lastCol) + lastRow;
+  const escapedVal = String(filterVal).replace(/'/g, "\\'");
+  const formula = '=QUERY(' + srcRange + ', "select * where ' + colLetter + " = '" + escapedVal + '\'", 0)';
+
+  const scratchName = '__filter_scratch__';
+  let scratch = ss.getSheetByName(scratchName);
+  if (!scratch) scratch = ss.insertSheet(scratchName);
+  scratch.hideSheet();
+  scratch.clearContents();
+  scratch.getRange(1, 1).setFormula(formula);
+  SpreadsheetApp.flush(); // fuerza el recálculo antes de leer
+  const numRows = scratch.getLastRow();
+  const numCols = scratch.getLastColumn();
+  const rows = numRows > 0 ? scratch.getRange(1, 1, numRows, numCols).getValues() : [];
+  scratch.clearContents();
+
+  return { headers: headers, rows: rows, rowCount: rows.length };
+}
+
+function columnToLetter(col) {
+  let letter = '';
+  while (col > 0) {
+    const rem = (col - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    col = Math.floor((col - 1) / 26);
+  }
+  return letter;
+}
+```
+
+Y modifica el `doGet` del paso 1 para enrutar hacia ahí cuando vienen
+`filterCol`/`filterVal`:
+
+```javascript
+function doGet(e) {
+  try {
+    if (e.parameter.meta) return respond(getMeta());
+    if (e.parameter.tab) {
+      if (e.parameter.filterCol && e.parameter.filterVal) {
+        return respond(getTabRowsFiltered(e.parameter.tab, e.parameter.filterCol, e.parameter.filterVal));
+      }
+      const offset = e.parameter.offset ? Math.max(0, parseInt(e.parameter.offset, 10) || 0) : 0;
+      const limit = e.parameter.limit ? Math.max(1, parseInt(e.parameter.limit, 10) || 0) : 0;
+      return respond(getTabRows(e.parameter.tab, offset, limit));
+    }
+    return respond({ error: 'Falta el parámetro ?tab= o ?meta=1' });
+  } catch (err) {
+    return respond({ error: String(err) });
+  }
+}
+```
+
+**Sí requiere volver a desplegar una nueva versión** (a diferencia de §6):
+Implementar → Gestionar implementaciones → lápiz → Versión: Nueva versión →
+Implementar. La URL `/exec` no cambia.
+
+**Cómo lo usa el portal:** `processTabInner` en `reportSheetsService.ts`
+intenta, en este orden, para `resumenFac`: (1) el snapshot nocturno si
+existe y está fresco (§8); (2) si no, y si ya hay algo en `sheetsCache` de
+ese equipo, pide solo el mes corriente vía `getTabRowsFiltered` y lo
+fusiona (reemplazando las filas de ese mes, dejando el resto tal cual);
+(3) si tampoco hay nada en caché para fusionar, cae a la descarga completa
+de siempre (§1/§6) — que sigue existiendo, para el primer sync en un equipo
+nuevo o tras "Sincronización completa".
+
+**Limitación conocida:** la primera vez que un equipo sincroniza
+"Resumen_Fac" (caché vacía) no hay nada sobre qué fusionar, así que ese
+primer sync sigue siendo la descarga completa y puede toparse con el mismo
+404. Una vez que un sync completo (aunque sea parcial, vía la reanudación
+por página) deja algo en caché, los siguientes sync ya usan la vía rápida.
+Desplegar el snapshot nocturno (§8) resuelve esto de raíz, incluso para un
+equipo que nunca ha sincronizado.

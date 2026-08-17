@@ -71,6 +71,27 @@ export const SNAPSHOT_ROLES: SheetRole[] = ['reporteConsumo', 'resumenFac'];
  * disparar el fallback de inmediato. */
 const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 60 * 1000;
 
+/** Respaldo cuando NI el snapshot ni la vía en vivo completa de "Resumen_Fac"
+ * funcionan (pedido del usuario, 2026-08-17, tras un 404 a media descarga con
+ * ~488k filas): si ya hay una copia previa en `sheetsCache` (de una sync
+ * completa o de un snapshot anteriores), pedir SOLO el mes corriente —
+ * columna "Mes y año", formato "MM/AAAA" (ver `mesKey` en `core/resumenFac.ts`
+ * y `mapResumenFac` en `core/mappers.ts`) — y fusionarlo sobre esa copia en
+ * vez de repetir la descarga completa. Con ~488k filas repartidas en ~12
+ * meses eso son unas ~40k filas por request, muy por debajo del límite de
+ * tiempo de respuesta que causaba el 404. Los meses viejos, que ya no
+ * cambian, se quedan tal cual estaban en caché — solo el mes en curso se
+ * refresca. NO reintroduce el esquema delta de §5 (que fallaba porque los
+ * cambios no se concentran en ninguna posición de la hoja): esto filtra por
+ * VALOR de una columna de fecha real, no por posición/offset. */
+const RESUMEN_FAC_MONTH_COL = 'Mes y año';
+
+function currentMonthValue(): string {
+  const now = new Date();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  return `${mm}/${now.getFullYear()}`;
+}
+
 /** Las 4 pestañas son salida de fórmulas vivas (QUERY/FILTER) o de valores
  * que se actualizan in-place: un registro puede desaparecer o cambiar de
  * valor sin que el `rowCount` total baje — entran otros al mismo tiempo. Se
@@ -135,16 +156,19 @@ function backoffDelay(attempt: number): number {
   return exp + jitter;
 }
 
-async function fetchReportSheetTab(tab: string, offset?: number, limit?: number): Promise<TabRows> {
+/** Shared retry wrapper — both a normal paginated fetch and the filtered
+ * (recent-month) fetch below hit the same flaky Apps Script Web App, so they
+ * share the same backoff. `label` is just what shows up in the warning log. */
+async function withRetries<T>(label: string, fn: () => Promise<T>): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= TAB_FETCH_RETRIES; attempt++) {
     try {
-      return await fetchReportSheetTabOnce(tab, offset, limit);
+      return await fn();
     } catch (e) {
       lastError = e;
       if (attempt < TAB_FETCH_RETRIES) {
         const delay = backoffDelay(attempt);
-        logWarn(`Reintentando pestaña "${tab}" offset=${offset ?? 0} (intento ${attempt + 1}/${TAB_FETCH_RETRIES}, espera ${Math.round(delay)}ms): ${e instanceof Error ? e.message : String(e)}`);
+        logWarn(`Reintentando ${label} (intento ${attempt + 1}/${TAB_FETCH_RETRIES}, espera ${Math.round(delay)}ms): ${e instanceof Error ? e.message : String(e)}`);
         await sleep(delay);
       }
     }
@@ -152,17 +176,13 @@ async function fetchReportSheetTab(tab: string, offset?: number, limit?: number)
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
-async function fetchReportSheetTabOnce(tab: string, offset?: number, limit?: number): Promise<TabRows> {
-  const base = await requireUrl();
-  const params = new URLSearchParams({ tab });
-  if (offset && offset > 0) params.set('offset', String(offset));
-  if (limit && limit > 0) params.set('limit', String(limit));
-  const url = `${base}?${params.toString()}`;
-  const res = await fetchWithTimeout(url, {}, 30_000);
-  if (!res.ok) throw new Error(`HTTP ${res.status} al leer la pestaña "${tab}".`);
-  const data = await res.json();
+async function fetchReportSheetTab(tab: string, offset?: number, limit?: number): Promise<TabRows> {
+  return withRetries(`pestaña "${tab}" offset=${offset ?? 0}`, () => fetchReportSheetTabOnce(tab, offset, limit));
+}
+
+function assertTabRowsShape(tab: string, data: unknown): TabRows {
   if (data && typeof data === 'object' && 'error' in data) throw new Error(String((data as { error: unknown }).error));
-  const { headers, rows, rowCount } = data as TabRows;
+  const { headers, rows, rowCount } = (data ?? {}) as TabRows;
   if (!Array.isArray(headers) || !Array.isArray(rows)) {
     // NEVER silently treat an unrecognized shape as "no rows" — that's how a
     // stale Apps Script deployment (still on the old array-of-objects format,
@@ -174,6 +194,36 @@ async function fetchReportSheetTabOnce(tab: string, offset?: number, limit?: num
     );
   }
   return { headers, rows, rowCount };
+}
+
+async function fetchReportSheetTabOnce(tab: string, offset?: number, limit?: number): Promise<TabRows> {
+  const base = await requireUrl();
+  const params = new URLSearchParams({ tab });
+  if (offset && offset > 0) params.set('offset', String(offset));
+  if (limit && limit > 0) params.set('limit', String(limit));
+  const url = `${base}?${params.toString()}`;
+  const res = await fetchWithTimeout(url, {}, 30_000);
+  if (!res.ok) throw new Error(`HTTP ${res.status} al leer la pestaña "${tab}".`);
+  return assertTabRowsShape(tab, await res.json());
+}
+
+/** Pide solo los renglones de `tab` donde `filterCol` (encabezado exacto)
+ * vale `filterVal` — el `doGet` filtra server-side con una fórmula QUERY
+ * nativa de Sheets en vez de leer toda la hoja del lado de Apps Script (ver
+ * `getTabRowsFiltered` en docs/apps-script-report-sheets.md §9). Usado hoy
+ * solo para "Resumen_Fac" (columna "Mes y año" = mes corriente), pero el
+ * parámetro es genérico por si otra pestaña grande lo necesita después. */
+async function fetchReportSheetTabFilteredOnce(tab: string, filterCol: string, filterVal: string): Promise<TabRows> {
+  const base = await requireUrl();
+  const params = new URLSearchParams({ tab, filterCol, filterVal });
+  const url = `${base}?${params.toString()}`;
+  const res = await fetchWithTimeout(url, {}, 45_000);
+  if (!res.ok) throw new Error(`HTTP ${res.status} al leer "${tab}" filtrada por ${filterCol}="${filterVal}".`);
+  return assertTabRowsShape(tab, await res.json());
+}
+
+async function fetchReportSheetTabFiltered(tab: string, filterCol: string, filterVal: string): Promise<TabRows> {
+  return withRetries(`pestaña "${tab}" filtrada (${filterCol}="${filterVal}")`, () => fetchReportSheetTabFilteredOnce(tab, filterCol, filterVal));
 }
 
 /** Rows per Apps Script request once a tab needs more than one page (i.e. the
@@ -481,6 +531,34 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
       }
     }
 
+    /** Respaldo para "Resumen_Fac" cuando no hay snapshot (o falló): si ya
+     * hay una copia previa en `sheetsCache` (de una sync completa, un
+     * snapshot, o incluso una sync PARCIAL guardada por
+     * `PartialTabFetchError` más abajo), pide solo el mes corriente vía
+     * `fetchReportSheetTabFiltered` y lo fusiona sobre esa copia — ver el
+     * comentario de `RESUMEN_FAC_MONTH_COL` arriba. Devuelve `null` (nunca
+     * lanza) si no hay nada que fusionar o si el filtro mismo falla, lo que
+     * hace que `processTabInner` caiga a la descarga completa de siempre. */
+    async function tryFetchRecentMonthMerged(role: SheetRole, tab: string): Promise<TabRows | null> {
+      if (role !== 'resumenFac') return null;
+      const cached = await getCachedTab(tab);
+      if (!cached || !cached.rows.length) return null;
+      const monthColIdx = cached.headers.indexOf(RESUMEN_FAC_MONTH_COL);
+      if (monthColIdx === -1) return null;
+
+      const monthVal = currentMonthValue();
+      let fresh: TabRows;
+      try {
+        fresh = await fetchReportSheetTabFiltered(tab, RESUMEN_FAC_MONTH_COL, monthVal);
+      } catch (e) {
+        logWarn(`Mes corriente de "${tab}" falló, se intentará la descarga completa: ${e instanceof Error ? e.message : String(e)}`);
+        return null;
+      }
+      const keptRows = cached.rows.filter((r) => String(r[monthColIdx] ?? '').trim() !== monthVal);
+      logInfo('report-sheets-sync-recent-month', `${tab}: ${fresh.rows.length} filas de ${monthVal} + ${keptRows.length} históricas en caché`);
+      return { headers: cached.headers, rows: [...keptRows, ...fresh.rows], rowCount: keptRows.length + fresh.rows.length };
+    }
+
     async function processTab(role: SheetRole, tab: string, index: number): Promise<void> {
       try {
         await processTabInner(role, tab, index);
@@ -516,8 +594,10 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
 
     async function processTabInner(role: SheetRole, tab: string, index: number): Promise<void> {
       const fromSnapshot = await tryFetchFromSnapshot(role, tab);
+      const fromRecentMonth = fromSnapshot ? null : await tryFetchRecentMonthMerged(role, tab);
       let tabRows: TabRows;
       let viaSnapshot = false;
+      let viaRecentMonth = false;
 
       if (fromSnapshot) {
         tabRows = fromSnapshot;
@@ -526,6 +606,14 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
           phase: 'parsing',
           percent: Math.round(10 + (60 * done) / tabs.length),
           message: `${ROLE_LABEL[role]}: snapshot nocturno (${tabRows.rows.length.toLocaleString('es-MX')} filas)`,
+        });
+      } else if (fromRecentMonth) {
+        tabRows = fromRecentMonth;
+        viaRecentMonth = true;
+        emit({
+          phase: 'parsing',
+          percent: Math.round(10 + (60 * done) / tabs.length),
+          message: `${ROLE_LABEL[role]}: mes corriente + histórico en caché (${tabRows.rows.length.toLocaleString('es-MX')} filas)`,
         });
       } else {
         // Todas las pestañas se traen completas (offset 0) — ver el comentario
@@ -597,7 +685,7 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
       emit({
         phase: 'parsing',
         percent: Math.round(10 + (60 * done) / tabs.length),
-        message: `${ROLE_LABEL[role]}${viaSnapshot ? ' (snapshot)' : ''} (${done} de ${tabs.length})`,
+        message: `${ROLE_LABEL[role]}${viaSnapshot ? ' (snapshot)' : viaRecentMonth ? ' (mes corriente)' : ''} (${done} de ${tabs.length})`,
       });
 
       // `resumenFac` never gets its own partial build: it's the sole member
