@@ -230,15 +230,18 @@ const PAGE_FETCH_CONCURRENCY = 4;
  * padded), so it under-represents the tab but never corrupts row order for
  * what it does contain. */
 export class PartialTabFetchError extends Error {
-  constructor(
-    public readonly tab: string,
-    public readonly partial: TabRows,
-    public readonly pagesOk: number,
-    public readonly pagesTotal: number,
-    cause: unknown,
-  ) {
+  tab: string;
+  partial: TabRows;
+  pagesOk: number;
+  pagesTotal: number;
+
+  constructor(tab: string, partial: TabRows, pagesOk: number, pagesTotal: number, cause: unknown) {
     super(`Pestaña "${tab}": ${pagesOk}/${pagesTotal} páginas descargadas antes de fallar — ${cause instanceof Error ? cause.message : String(cause)}`);
     this.name = 'PartialTabFetchError';
+    this.tab = tab;
+    this.partial = partial;
+    this.pagesOk = pagesOk;
+    this.pagesTotal = pagesTotal;
   }
 }
 
