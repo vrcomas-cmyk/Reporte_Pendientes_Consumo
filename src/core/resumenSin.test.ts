@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildRSS, coberturaEstado, coberturaDeAlmacen, peorCobertura, summarizeCobertura,
-  quiebreMitigadoPorTransito, summarizeCoberturaConTransito,
+  quiebreMitigadoPorTransito, summarizeCoberturaConTransito, esCentroDistribucion, esLento,
   type RSSAlmacen, type RSSCentro,
 } from './resumenSin';
 import type { ResumenSinSugerenciaRow } from './types';
@@ -100,6 +100,35 @@ describe('coberturaDeAlmacen / peorCobertura', () => {
     const co: RSSCentro = { centro: '1001', invAlm: { '1030': 0, '1031': 0, '1032': 0, '1060': 0 }, pend: 0, transito: 0, impPend: 0, pedidos: 0, ultMesK: 0, status: new Set(), alm: new Map() };
     expect(peorCobertura(co)).toBeUndefined();
     expect(peorCobertura(undefined)).toBeUndefined();
+  });
+
+  it('centro 1031 (hub de distribución) queda excluido aunque tenga almacenes en quiebre', () => {
+    const co: RSSCentro = {
+      centro: '1031', invAlm: { '1030': 0, '1031': 0, '1032': 0, '1060': 0 }, pend: 0, transito: 0, impPend: 0,
+      pedidos: 0, ultMesK: 0, status: new Set(), alm: new Map([
+        ['1031', alm({ alm: '1031', meses: 0.1, prom: 5, inv: 1 })], // sería quiebre en cualquier otro centro
+      ]),
+    };
+    expect(esCentroDistribucion('1031')).toBe(true);
+    expect(peorCobertura(co)).toBeUndefined();
+  });
+});
+
+describe('esLento — excluye el centro 1031', () => {
+  it('no marca lento un centro 1031 sin movimiento, aunque cumpla el resto de condiciones', () => {
+    const co: RSSCentro = {
+      centro: '1031', invAlm: { '1030': 10, '1031': 0, '1032': 0, '1060': 0 }, pend: 0, transito: 0, impPend: 0,
+      pedidos: 0, ultMesK: 0, status: new Set(), alm: new Map(),
+    };
+    expect(esLento(co, 100)).toBe(false);
+  });
+
+  it('sí marca lento el mismo escenario en un centro normal', () => {
+    const co: RSSCentro = {
+      centro: '1001', invAlm: { '1030': 10, '1031': 0, '1032': 0, '1060': 0 }, pend: 0, transito: 0, impPend: 0,
+      pedidos: 0, ultMesK: 0, status: new Set(), alm: new Map(),
+    };
+    expect(esLento(co, 100)).toBe(true);
   });
 });
 

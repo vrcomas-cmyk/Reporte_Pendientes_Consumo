@@ -34,9 +34,12 @@ export type Panel =
   // `prefill*` (fase 3): contexto opcional de un material/oportunidad concreta
   // desde donde se abrió la ficha — precarga el formulario de la pestaña
   // Ofertas sin tener que volver a buscar el material.
-  | { type: 'clienteConocimiento'; dest: string; razonSocial?: string; tab?: 'ficha' | 'timeline' | 'ofertas'; prefillMaterial?: string; prefillOportunidadId?: number };
+  | { type: 'clienteConocimiento'; dest: string; razonSocial?: string; tab?: 'ficha' | 'timeline' | 'ofertas'; prefillMaterial?: string; prefillOportunidadId?: number }
+  // Módulo "Ofertas por Cliente": reglas de aceptación (global + overrides por
+  // material) de un Destinatario — editadas desde OfertasClientePage.
+  | { type: 'reglasAceptacion'; dest: string; razonSocial?: string };
 
-export type MaterialHubTab = 'resumen' | 'inventario' | 'pedidos' | 'consumo' | 'ventas' | 'notas' | 'historial' | 'compatibilidad';
+export type MaterialHubTab = 'resumen' | 'inventario' | 'pedidos' | 'consumo' | 'ventas' | 'notas' | 'historial' | 'compatibilidad' | 'ofrecer';
 
 interface PanelState {
   stack: Panel[];

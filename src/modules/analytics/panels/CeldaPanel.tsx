@@ -4,7 +4,7 @@ import { StatTile, EvolChart, StatePill } from '../ui';
 import { Section, SugTable, ConsumoTable, PrecioCondicionBox } from './_shared';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { invGen } from '@/core/resumenSin';
-import { serieMaterial } from '@/core/resumenFac';
+import { serieMaterial, serieMatCentro } from '@/core/resumenFac';
 import { sugFor, consFor, norm } from '../helpers';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import type { Panel } from '@/store/panelStore';
@@ -50,7 +50,15 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
           </Table>
         </div>
       </Section>
-      <Section title="Tendencia del material"><EvolChart serie={serieMaterial(rf, panel.material)} height={180} /></Section>
+      {(() => {
+        const serieCentro = serieMatCentro(rf, panel.material, panel.centro);
+        const usaCentro = serieCentro.length > 0;
+        return (
+          <Section title={usaCentro ? `Tendencia del material · Centro ${panel.centro}` : 'Tendencia del material (general — sin historia en este centro)'}>
+            <EvolChart serie={usaCentro ? serieCentro : serieMaterial(rf, panel.material)} height={180} />
+          </Section>
+        );
+      })()}
       <Section title="Sugerencias / Consumo en este centro">
         <Tabs defaultValue="sug">
           <TabsList><TabsTrigger value="sug">Sugerencias ({sug.length})</TabsTrigger><TabsTrigger value="cons">Consumo ({cons.length})</TabsTrigger></TabsList>

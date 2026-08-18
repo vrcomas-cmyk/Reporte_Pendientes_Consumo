@@ -1,8 +1,9 @@
 export { DebouncedSearch } from './DebouncedSearch';
 export { useZoom, ZoomControl } from './ZoomControl';
 export { DetailChevron } from './DetailChevron';
-export { ColumnFilterBar, passesFilters } from './ColumnFilterBar';
+export { ColumnFilterBar, passesFilters, valuesOf } from './ColumnFilterBar';
 export type { FilterColumn, ActiveFilter } from './ColumnFilterBar';
+export { ColumnFilterMenu } from './ColumnFilterMenu';
 export { StatePill, TrendBadge } from './StatePill';
 export { AbcBadge } from './AbcBadge';
 export { Chip } from './Chip';

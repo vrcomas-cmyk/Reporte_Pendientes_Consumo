@@ -8,12 +8,15 @@ import { LocalClienteConocimientoRepository } from './LocalClienteConocimientoRe
 import { SupabaseClienteConocimientoRepository } from './SupabaseClienteConocimientoRepository';
 import { LocalOfertaRepository } from './LocalOfertaRepository';
 import { SupabaseOfertaRepository } from './SupabaseOfertaRepository';
+import { LocalReglaAceptacionRepository } from './LocalReglaAceptacionRepository';
+import { SupabaseReglaAceptacionRepository } from './SupabaseReglaAceptacionRepository';
 import type { CatalogRepository } from './CatalogRepository';
 import type { ReportRepository } from './ReportRepository';
 import type { SolicitudRepository } from './SolicitudRepository';
 import type { OportunidadRepository } from './OportunidadRepository';
 import type { ClienteConocimientoRepository } from './ClienteConocimientoRepository';
 import type { OfertaRepository } from './OfertaRepository';
+import type { ReglaAceptacionRepository } from './ReglaAceptacionRepository';
 
 export type { CatalogRepository } from './CatalogRepository';
 export type { ReportRepository } from './ReportRepository';
@@ -21,6 +24,7 @@ export type { SolicitudRepository } from './SolicitudRepository';
 export type { OportunidadRepository } from './OportunidadRepository';
 export type { ClienteConocimientoRepository } from './ClienteConocimientoRepository';
 export type { OfertaRepository } from './OfertaRepository';
+export type { ReglaAceptacionRepository } from './ReglaAceptacionRepository';
 
 /** Simple factory: swap backends without touching services/UI code.
  * 'supabase' moves history/settings/logs to Supabase (per-user, RLS-scoped)
@@ -88,9 +92,21 @@ export function createOfertaRepository(backend: RepositoryBackend = 'supabase'):
   }
 }
 
+/** Reglas de aceptación (módulo "Ofertas por Cliente"): mismo criterio — conocimiento del equipo. */
+export function createReglaAceptacionRepository(backend: RepositoryBackend = 'supabase'): ReglaAceptacionRepository {
+  switch (backend) {
+    case 'supabase':
+      return new SupabaseReglaAceptacionRepository();
+    case 'local':
+    default:
+      return new LocalReglaAceptacionRepository();
+  }
+}
+
 export const catalogRepository = createCatalogRepository();
 export const reportRepository = createReportRepository();
 export const solicitudRepository = createSolicitudRepository();
 export const oportunidadRepository = createOportunidadRepository();
 export const clienteConocimientoRepository = createClienteConocimientoRepository();
 export const ofertaRepository = createOfertaRepository();
+export const reglaAceptacionRepository = createReglaAceptacionRepository();

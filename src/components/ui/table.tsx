@@ -186,13 +186,18 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
 ));
 TableRow.displayName = 'TableRow';
 
-const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<HTMLTableCellElement>>(({ className, children, ...props }, ref) => {
+interface TableHeadProps extends React.ThHTMLAttributes<HTMLTableCellElement> {
+  /** Icono de embudo (p. ej. `ColumnFilterMenu`) mostrado junto al contenido del header. */
+  filter?: React.ReactNode;
+}
+
+const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(({ className, children, filter, ...props }, ref) => {
   const localRef = React.useRef<HTMLTableCellElement>(null);
   React.useImperativeHandle(ref, () => localRef.current as HTMLTableCellElement, []);
   const resize = React.useContext(TableResizeContext);
   return (
     <th ref={localRef} className={cn('relative h-9 px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-text-faint whitespace-nowrap', className)} {...props}>
-      {children}
+      {filter ? <span className="inline-flex items-center gap-1">{children}{filter}</span> : children}
       {resize && <ResizeHandle col={() => localRef.current?.cellIndex ?? 0} />}
     </th>
   );
@@ -211,10 +216,12 @@ interface SortableTableHeadProps extends Omit<React.ThHTMLAttributes<HTMLTableCe
   activeKey: string | null;
   dir: SortDir;
   onSort: (key: string) => void;
+  /** Icono de embudo (p. ej. `ColumnFilterMenu`) mostrado junto al chevron de orden. */
+  filter?: React.ReactNode;
 }
 
 const SortableTableHead = React.forwardRef<HTMLTableCellElement, SortableTableHeadProps>(
-  ({ className, sortKey, activeKey, dir, onSort, children, ...props }, ref) => {
+  ({ className, sortKey, activeKey, dir, onSort, children, filter, ...props }, ref) => {
     const localRef = React.useRef<HTMLTableCellElement>(null);
     React.useImperativeHandle(ref, () => localRef.current as HTMLTableCellElement, []);
     const resize = React.useContext(TableResizeContext);
@@ -243,6 +250,7 @@ const SortableTableHead = React.forwardRef<HTMLTableCellElement, SortableTableHe
         <span className="inline-flex items-center gap-1">
           {children}
           <Icon className={cn('size-3', active ? 'opacity-100 text-accent' : 'opacity-40')} />
+          {filter}
         </span>
         {resize && <ResizeHandle col={() => localRef.current?.cellIndex ?? 0} />}
       </th>

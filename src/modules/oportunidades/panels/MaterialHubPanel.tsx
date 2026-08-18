@@ -10,6 +10,7 @@ import { serieMaterial, tendenciaTexto } from '@/core/resumenFac';
 import { sugFor, consFor, norm } from '@/modules/analytics/helpers';
 import { rankClientes } from '@/core/scoring';
 import { normalizeCondicion, materialesRelacionados } from '@/core/oportunidad';
+import { destinatariosParaMaterial, type ContextoMaterial } from '@/core/matchingOfertas';
 import { HubLinks } from '../components/HubLinks';
 import { ScoreBar } from '../components/ScoreBar';
 import { ScoreExplain } from '../components/ScoreExplain';
@@ -35,6 +36,7 @@ const TABS: { key: MaterialHubTab; label: string }[] = [
   { key: 'pedidos', label: 'Pedidos' }, { key: 'consumo', label: 'Consumo' },
   { key: 'ventas', label: 'Ventas' }, { key: 'notas', label: 'Notas' },
   { key: 'historial', label: 'Historial' }, { key: 'compatibilidad', label: 'Compatibilidad' },
+  { key: 'ofrecer', label: 'A quién ofrecer' },
 ];
 
 /** Vista 360 de un material (req. 6): inventario, pedidos, consumo, ventas,
@@ -88,6 +90,32 @@ export function MaterialHubPanel({ panel, a }: { panel: Extract<Panel, { type: '
   const descartados = useMemo(() => ranking.filter((r) => r.bloqueantes.length > 0), [ranking]);
   const relacionados = useMemo(() => materialesRelacionados(rf, mat, 8), [rf, mat]);
 
+  // Contexto real del lote para el matching de "A quién ofrecer" (módulo
+  // Ofertas por Cliente): misma condición/vigencia ya resueltas arriba para
+  // el score, reescritas al vocabulario del motor de reglas.
+  const reglas = useConocimientoStore((s) => s.reglas);
+  const ctxOfrecer: ContextoMaterial = useMemo(() => ({
+    condicion, mesesCaducidad: diasVigencia != null ? diasVigencia / 30 : null, danado: condicion === 'danado',
+  }), [condicion, diasVigencia]);
+  const razonSocialDe = useMemo(() => {
+    const m = new Map<string, string>();
+    cons.forEach((r) => { if (!m.has(norm(r.destinatario))) m.set(norm(r.destinatario), r.razonSocial); });
+    return m;
+  }, [cons]);
+  const consumoDe = useMemo(() => {
+    const m = new Map<string, number>();
+    cons.forEach((r) => m.set(norm(r.destinatario), (m.get(norm(r.destinatario)) ?? 0) + r.consumoActual));
+    return m;
+  }, [cons]);
+  const matches = useMemo(
+    () => destinatariosParaMaterial(reglas, mat, ctxOfrecer, {
+      razonSocialDe: (d) => clientesByDest.get(d)?.razonSocial || razonSocialDe.get(d) || d,
+      consumoDe: (d) => consumoDe.get(d) ?? 0,
+    }),
+    [reglas, mat, ctxOfrecer, clientesByDest, razonSocialDe, consumoDe],
+  );
+  const matchesAceptan = useMemo(() => matches.filter((m) => m.evaluacion.acepta), [matches]);
+
   function exportarCompatibles() {
     void exportXlsx(`oportunidad_${mat}_${stamp()}.xlsx`, aceptados.map((r) => ({
       Cliente: r.razonSocial || r.dest,
@@ -115,6 +143,7 @@ export function MaterialHubPanel({ panel, a }: { panel: Extract<Panel, { type: '
             <StatTile label="Sugerencias" value={String(sug.length)} />
             <StatTile label="Consumo (clientes)" value={String(cons.length)} />
             {oportunidadAbierta && <StatTile label="Oportunidad" value={oportunidadAbierta.estado} />}
+            <StatTile label="Destinatarios que aceptan" value={String(matchesAceptan.length)} tone={matchesAceptan.length === 0 ? 'text-danger' : undefined} />
           </div>
           <PrecioCondicionBox a={a} material={mat} />
         </TabsContent>
@@ -194,6 +223,29 @@ export function MaterialHubPanel({ panel, a }: { panel: Extract<Panel, { type: '
               </div>
             </details>
           )}
+        </TabsContent>
+        <TabsContent value="ofrecer">
+          <p className="mb-2 text-xs text-text-muted">Destinatarios con una regla de aceptación configurada para este material, evaluados contra la condición/caducidad real del lote — sin salir de este panel.</p>
+          {matches.length === 0 && (
+            <p className="text-sm text-text-muted">Ningún destinatario tiene reglas de aceptación configuradas todavía para este material (ni una regla global). Configúralas en Ofertas por Cliente.</p>
+          )}
+          <div className="flex flex-col gap-2">
+            {matches.map((m) => (
+              <div key={m.dest} className={`flex items-center justify-between gap-3 rounded-lg border p-2.5 ${m.evaluacion.acepta ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-border border-dashed'}`}>
+                <div className="min-w-0 flex-1">
+                  <button className="truncate text-left text-sm font-medium text-text hover:text-accent" onClick={() => push({ type: 'clienteDetalle', dest: m.dest })}>{m.razonSocial}</button>
+                  <p className={`mt-0.5 text-xs ${m.evaluacion.acepta ? 'text-emerald-600 dark:text-emerald-400' : 'text-text-faint'}`}>
+                    {m.evaluacion.acepta ? 'Acepta' : 'No acepta'} · {m.evaluacion.motivos.join(' · ')}
+                  </p>
+                </div>
+                {m.evaluacion.acepta && (
+                  <Button size="sm" onClick={() => push({ type: 'clienteConocimiento', dest: m.dest, razonSocial: m.razonSocial, tab: 'ofertas', prefillMaterial: mat, prefillOportunidadId: oportunidadAbierta?.id })}>
+                    Ofertar
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
         </TabsContent>
       </Tabs>
 

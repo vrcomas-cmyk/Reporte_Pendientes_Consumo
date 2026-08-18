@@ -177,6 +177,30 @@ export const serieMatDest = (rf: RFIndex | null, dest: unknown, mat: unknown): S
 export const serieSolic = (rf: RFIndex | null, s: unknown): Serie => (rf ? rf.solic.get(norm(s)) || [] : []);
 export const serieDest = (rf: RFIndex | null, d: unknown): Serie => (rf ? rf.dest.get(norm(d)) || [] : []);
 export const serieMaterial = (rf: RFIndex | null, m: unknown): Serie => (rf ? rf.mat.get(norm(m)) || [] : []);
+
+/** Serie de un material acotada a un centro — a diferencia de `serieMaterial`
+ * (todos los centros), usada por el panel de tendencia cuando el clic viene
+ * de una celda de centro específica. No hay índice precomputado por centro
+ * (poco usado frente al resto), así que se agrega on-demand filtrando
+ * `rf.rows`, algo aceptable porque solo corre al abrir un panel, no en cada
+ * render de la tabla. */
+export const serieMatCentro = (rf: RFIndex | null, m: unknown, centro: unknown): Serie => {
+  if (!rf) return [];
+  const mat = norm(m);
+  const c = norm(centro);
+  if (!mat || !c) return [];
+  const byMes = new Map<string, SeriePoint>();
+  for (const r of rf.rows) {
+    if (norm(r[RFC.material]) !== mat || norm(r[RFC.centro]) !== c) continue;
+    const mes = norm(r[RFC.mes]);
+    if (!mes) continue;
+    const cur = byMes.get(mes) || { mes, cant: 0, imp: 0 };
+    cur.cant += num(r[RFC.cant]);
+    cur.imp += num(r[RFC.imp]);
+    byMes.set(mes, cur);
+  }
+  return [...byMes.values()].sort((a, b) => mesKey(a.mes) - mesKey(b.mes));
+};
 export const precioMinAnioMaterial = (rf: RFIndex | null, m: unknown): number | null =>
   rf ? rf.matMinYr.get(norm(m)) ?? null : null;
 

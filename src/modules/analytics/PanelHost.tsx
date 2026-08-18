@@ -23,6 +23,7 @@ import { ClienteDetallePanel } from './panels/ClienteDetallePanel';
 const MaterialHubPanel = lazy(() => import('@/modules/oportunidades/panels/MaterialHubPanel').then((m) => ({ default: m.MaterialHubPanel })));
 const OportunidadPanel = lazy(() => import('@/modules/oportunidades/panels/OportunidadPanel').then((m) => ({ default: m.OportunidadPanel })));
 const ClienteConocimientoPanel = lazy(() => import('@/modules/oportunidades/panels/ClienteConocimientoPanel').then((m) => ({ default: m.ClienteConocimientoPanel })));
+const ReglasAceptacionPanel = lazy(() => import('@/modules/oportunidades/panels/ReglasAceptacionPanel').then((m) => ({ default: m.ReglasAceptacionPanel })));
 
 // oxlint-disable-next-line typescript/no-explicit-any -- el discrim `panel.type` ya tipa panel; el dispatcher usa `any` para que cada rama acepte su Extract<Panel,...> sin sobrecargar la signatura.
 const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
@@ -42,6 +43,7 @@ const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
   materialHub: MaterialHubPanel,
   oportunidad: OportunidadPanel,
   clienteConocimiento: ClienteConocimientoPanel,
+  reglasAceptacion: ReglasAceptacionPanel,
 };
 
 // Paneles que pueden renderizar `SugTable`/`ConsumoTable` con todas sus
@@ -49,7 +51,7 @@ const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
 // ancho que un panel de detalle simple — si no, la tabla queda apretada con
 // scroll horizontal interno para casi cualquier cosa.
 const WIDE = new Set<Panel['type']>([
-  'materialHub', 'material', 'sugDetalle', 'consumoMaterial', 'clienteDetalle', 'celda', 'sector', 'grupo', 'materialTotales', 'pedido',
+  'materialHub', 'material', 'sugDetalle', 'consumoMaterial', 'clienteDetalle', 'celda', 'sector', 'grupo', 'materialTotales', 'pedido', 'reglasAceptacion',
 ]);
 
 /** Dispatcher de paneles: dado el discrim `panel.type` delega al componente de la rama correspondiente en `./panels/`. */

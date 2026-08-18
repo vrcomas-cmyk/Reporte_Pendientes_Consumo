@@ -9,12 +9,15 @@ import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { buildLotesSheet, loteKey } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, Chip, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, ClearFiltersButton, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, Chip, StatTile, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, ClearFiltersButton, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
+import { TooltipHint } from '@/components/ui/tooltip';
 import {
-  invGen, esLento, peorCobertura, summarizeCoberturaConTransito, quiebreMitigadoPorTransito, COBERTURA_LABEL, COBERTURA_CLS,
+  invGen, esLento, esCentroDistribucion, peorCobertura, summarizeCoberturaConTransito, quiebreMitigadoPorTransito,
+  COBERTURA_LABEL, COBERTURA_CLS, COBERTURA_HELP, COBERTURA_HELP_TRANSITO,
   type RSSMaterial, type RSSCentro, type CoberturaEstado,
 } from '@/core/resumenSin';
 import { serieMaterial, tendenciaTexto } from '@/core/resumenFac';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { matchesQuery, norm } from '@/modules/analytics/helpers';
@@ -36,6 +39,7 @@ export function ResumenSinPage() {
   const [q, setQ] = usePersistedState('resumenSin.q', '');
   const [centroFiltro, setCentroFiltro] = usePersistedState('resumenSin.centro', '');
   const [quick, setQuick] = usePersistedState<ActiveFilter[]>('resumenSin.quick', []);
+  useUrlFilters(quick, setQuick);
   const [pendFiltro, setPendFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.pend', '');
   const [lentoFiltro, setLentoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.lento', '');
   const [transitoFiltro, setTransitoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.transito', '');
@@ -128,6 +132,19 @@ export function ResumenSinPage() {
   const { sorted, sortKey, dir, toggleSort } = useSort(list, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
 
+  const colVis = useColumnVisibility('resumenSin_columnas');
+  const columnDefs: ColDef[] = useMemo(
+    () => (rss ? rss.centros.map((c) => ({ key: `centro_${c}`, label: `Centro ${c}` })) : []),
+    [rss],
+  );
+  const savedViews = useSavedViews<{ quick: ActiveFilter[]; centroFiltro: string; pendFiltro: typeof pendFiltro; lentoFiltro: typeof lentoFiltro; transitoFiltro: typeof transitoFiltro; coberturaFiltro: typeof coberturaFiltro; hidden: string[] }>('resumenSin_vistas');
+  const applyView = (state: { quick: ActiveFilter[]; centroFiltro: string; pendFiltro: typeof pendFiltro; lentoFiltro: typeof lentoFiltro; transitoFiltro: typeof transitoFiltro; coberturaFiltro: typeof coberturaFiltro; hidden: string[] }) => {
+    setQuick(state.quick); setCentroFiltro(state.centroFiltro); setPendFiltro(state.pendFiltro);
+    setLentoFiltro(state.lentoFiltro); setTransitoFiltro(state.transitoFiltro); setCoberturaFiltro(state.coberturaFiltro);
+    colVis.apply(state.hidden);
+  };
+  const saveCurrentView = (name: string) => savedViews.save(name, { quick, centroFiltro, pendFiltro, lentoFiltro, transitoFiltro, coberturaFiltro, hidden: [...colVis.hidden] });
+
   if (!rss) {
     if (!bootstrapped) return <TableSkeleton />;
     return <EmptyState title={'No se cargó la hoja "Resumen Sin Sugerencias".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
@@ -135,7 +152,8 @@ export function ResumenSinPage() {
 
   const centrosAll = rss.centros;
   // Always-visible: 1031 stays regardless of the toggle; toggle picks which other centro(s) show.
-  const centros = centroFiltro ? centrosAll.filter((c) => c === '1031' || c === centroFiltro) : centrosAll;
+  const centros = (centroFiltro ? centrosAll.filter((c) => c === '1031' || c === centroFiltro) : centrosAll)
+    .filter((c) => colVis.isVisible(`centro_${c}`));
   const colCount = 6 + centros.length;
 
   const exportar = () => {
@@ -172,7 +190,11 @@ export function ResumenSinPage() {
       <div className="flex items-start justify-between gap-2">
         <div><h2 className="font-display text-2xl font-semibold">Inventario</h2>
           <p className="text-sm text-text-muted">Pivote material × centro · inventario general (1030+1031+1060)</p></div>
-        <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
+        <div className="flex items-center gap-2">
+          <ColumnVisibilityControl columns={columnDefs} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
+          <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
+          <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -183,10 +205,18 @@ export function ResumenSinPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <StatTile compact label="Quiebre urgente (sin tránsito)" value={formatNumber(coberturaSummary.quiebreUrgente)} tone="text-danger" />
-        <StatTile compact label="Quiebre con tránsito en camino" value={formatNumber(coberturaSummary.quiebreMitigado)} tone="text-warning" />
-        <StatTile compact label="Inmovilizado (sin consumo, con inv.)" value={formatNumber(coberturaCount('inmovilizado'))} tone="text-violet-500" />
-        <StatTile compact label="Exceso (> 12 meses cobertura)" value={formatNumber(coberturaCount('exceso'))} tone="text-warning" />
+        <TooltipHint text={`${COBERTURA_HELP.quiebre} No incluye Centro 1031 (hub de distribución).`}>
+          <div><StatTile compact label="Quiebre urgente (sin tránsito)" value={formatNumber(coberturaSummary.quiebreUrgente)} tone="text-danger" /></div>
+        </TooltipHint>
+        <TooltipHint text={`${COBERTURA_HELP_TRANSITO} No incluye Centro 1031 (hub de distribución).`}>
+          <div><StatTile compact label="Quiebre con tránsito en camino" value={formatNumber(coberturaSummary.quiebreMitigado)} tone="text-warning" /></div>
+        </TooltipHint>
+        <TooltipHint text={`${COBERTURA_HELP.inmovilizado} No incluye Centro 1031 (hub de distribución).`}>
+          <div><StatTile compact label="Inmovilizado (sin consumo, con inv.)" value={formatNumber(coberturaCount('inmovilizado'))} tone="text-violet-500" /></div>
+        </TooltipHint>
+        <TooltipHint text={`${COBERTURA_HELP.exceso} No incluye Centro 1031 (hub de distribución).`}>
+          <div><StatTile compact label="Exceso (> 12 meses cobertura)" value={formatNumber(coberturaCount('exceso'))} tone="text-warning" /></div>
+        </TooltipHint>
       </div>
 
       <div className="flex items-center gap-2">
@@ -218,13 +248,16 @@ export function ResumenSinPage() {
           <option value="con">Con tránsito</option>
           <option value="sin">Sin tránsito</option>
         </select>
-        <select value={coberturaFiltro} onChange={(e) => setCoberturaFiltro(e.target.value as typeof coberturaFiltro)} className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs" title="Peor cobertura entre los almacenes de cada centro">
+        <select value={coberturaFiltro} onChange={(e) => setCoberturaFiltro(e.target.value as typeof coberturaFiltro)} className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs" title="Peor cobertura entre los almacenes de cada centro (no incluye Centro 1031)">
           <option value="">Cobertura: todas</option>
           <option value="quiebre">{COBERTURA_LABEL.quiebre}</option>
           <option value="inmovilizado">{COBERTURA_LABEL.inmovilizado}</option>
           <option value="exceso">{COBERTURA_LABEL.exceso}</option>
           <option value="sano">{COBERTURA_LABEL.sano}</option>
         </select>
+        <TooltipHint text={`${COBERTURA_HELP.quiebre} · ${COBERTURA_HELP.inmovilizado} · ${COBERTURA_HELP.exceso} · ${COBERTURA_HELP.sano} · ${COBERTURA_HELP.aceptable} · Centro 1031 (hub de distribución) queda excluido de estos estados.`}>
+          <button type="button" className="text-xs text-text-faint underline decoration-dotted underline-offset-2 hover:text-text">¿Qué significa cada estado?</button>
+        </TooltipHint>
       </div>
 
       <Card className="min-h-0 flex-1 overflow-hidden">
@@ -232,10 +265,10 @@ export function ResumenSinPage() {
           <Table className={zoom.className} wrapperClassName="overflow-visible">
             <TableHeader>
               <TableRow>
-                <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort}>Material</SortableTableHead>
-                <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort}>Sector/Grupo</SortableTableHead>
+                <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort} filter={<ColumnFilterMenu column={filterCols[0]} rows={list} active={quick} onChange={setQuick} />}>Material</SortableTableHead>
+                <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort} filter={<ColumnFilterMenu column={filterCols[2]} rows={list} active={quick} onChange={setQuick} />}>Sector/Grupo</SortableTableHead>
                 <TableHead>Tendencia</TableHead>
-                <SortableTableHead sortKey="status" activeKey={sortKey} dir={dir} onSort={toggleSort}>Status Revisión</SortableTableHead>
+                <SortableTableHead sortKey="status" activeKey={sortKey} dir={dir} onSort={toggleSort} filter={<ColumnFilterMenu column={filterCols[5]} rows={list} active={quick} onChange={setQuick} />}>Status Revisión</SortableTableHead>
                 {centros.map((c) => <TableHead key={c} className="text-right">C {c}</TableHead>)}
                 <SortableTableHead sortKey="invtot" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Inv. total</SortableTableHead>
                 <SortableTableHead sortKey="pendtot" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Pend. total</SortableTableHead>
@@ -295,7 +328,12 @@ export function ResumenSinPage() {
                           {co.transito > 0 && <span className="text-emerald-500"> +{formatNumber(co.transito)}</span>}
                           {esLento(co, rss.curMes) && <AlertTriangle className="ml-1 inline size-3 text-warning" />}
                           {co.pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(co.pend)}</div>}
-                          {showCoberturaBadge && <div className="mt-0.5"><StatePill label={coberturaLabel} cls={coberturaCls} /></div>}
+                          {showCoberturaBadge && (
+                            <TooltipHint text={mitigado ? COBERTURA_HELP_TRANSITO : peor ? COBERTURA_HELP[peor] : ''}>
+                              <div className="mt-0.5 inline-block"><StatePill label={coberturaLabel} cls={coberturaCls} /></div>
+                            </TooltipHint>
+                          )}
+                          {esCentroDistribucion(c) && <div className="text-[10px] text-text-faint">Distribución</div>}
                         </TableCell>
                         </SolicitarContextMenu>
                       );

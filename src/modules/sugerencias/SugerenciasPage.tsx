@@ -23,6 +23,7 @@ import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu
 import { useSolicitudStore } from '@/store/solicitudStore';
 import { useMaterialPrefiltro } from '@/hooks/useMaterialPrefiltro';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
 import { Select } from '@/components/ui/select';
 import { usePermissionsStore } from '@/store/permissionsStore';
@@ -102,6 +103,7 @@ export function SugerenciasPage() {
   const [soloAccionables, setSoloAccionables] = usePersistedState('sugerencias.soloAccionables', false);
   const [ocultarPend0, setOcultarPend0] = usePersistedState('sugerencias.ocultarPend0', false);
   const [quick, setQuick] = usePersistedState<ActiveFilter[]>('sugerencias.quick', []);
+  useUrlFilters(quick, setQuick);
   const [rango, setRango] = usePersistedState<{ desde: string; hasta: string }>('sugerencias.rango', { desde: '', hasta: '' });
   const [clearTick, setClearTick] = useState(0);
   const clearFilters = () => {

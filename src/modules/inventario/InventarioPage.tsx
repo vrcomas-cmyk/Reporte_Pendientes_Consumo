@@ -9,7 +9,7 @@ import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { buildLotesSheet } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, ClearFiltersButton, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, ClearFiltersButton, useColumnVisibility, ColumnVisibilityControl, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { norm, matchesQuery } from '@/modules/analytics/helpers';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { TableSkeleton } from '@/components/ui/skeleton';
@@ -25,6 +25,7 @@ import { useSolicitudStore } from '@/store/solicitudStore';
 import { useMaterialPrefiltro } from '@/hooks/useMaterialPrefiltro';
 import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 
 const CENTERS = ['1001', '1003', '1004', '1017', '1018', '1022', '1036'];
 
@@ -60,15 +61,26 @@ export function InventarioPage() {
   const [isAdmin, setIsAdmin] = useState(readAdmin);
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
   const [quick, setQuick] = usePersistedState<ActiveFilter[]>('inventario.quick', []);
+  useUrlFilters(quick, setQuick);
   const zoom = useZoom('inventario_zoom');
   const clearFilters = () => { setQ(''); setCond(''); setSector(''); setCentro(''); setQuick([]); };
 
-  // Vistas guardadas: snapshot de filtros (condicion/sector/centro/quick), persistido entre sesiones.
-  const savedViews = useSavedViews<{ cond: string; sector: string; centro: string; quick: ActiveFilter[] }>('inventario_vistas');
-  const applyView = (state: { cond: string; sector: string; centro: string; quick: ActiveFilter[] }) => {
+  const colVis = useColumnVisibility('inventario_columnas');
+  const columnDefs: ColDef[] = useMemo(() => [
+    { key: 'disp3130', label: 'Disp 31·30' },
+    { key: 'disp3132', label: 'Disp 31·32' },
+    ...CENTERS.map((c) => ({ key: `centro_${c}`, label: `Inv ${c}` })),
+    { key: 'invsuma', label: 'Inv Suma' },
+    { key: 'importe', label: 'Importe $' },
+  ], []);
+
+  // Vistas guardadas: snapshot de filtros (condicion/sector/centro/quick) + columnas ocultas, persistido entre sesiones.
+  const savedViews = useSavedViews<{ cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[] }>('inventario_vistas');
+  const applyView = (state: { cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[] }) => {
     setCond(state.cond); setSector(state.sector); setCentro(state.centro); setQuick(state.quick);
+    if (state.hidden) colVis.apply(state.hidden);
   };
-  const saveCurrentView = (name: string) => savedViews.save(name, { cond, sector, centro, quick });
+  const saveCurrentView = (name: string) => savedViews.save(name, { cond, sector, centro, quick, hidden: [...colVis.hidden] });
   const qd = useDebouncedValue(q, 200);
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
@@ -177,7 +189,11 @@ export function InventarioPage() {
   }), [a.enrich]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
-  const colCount = (isAdmin ? 1 : 0) + 5 + 2 + CENTERS.length + 1 + 1;
+  const visibleCenters = useMemo(() => CENTERS.filter((c) => colVis.isVisible(`centro_${c}`)), [colVis]);
+  const colCount = (isAdmin ? 1 : 0) + 4
+    + (colVis.isVisible('disp3130') ? 1 : 0) + (colVis.isVisible('disp3132') ? 1 : 0)
+    + visibleCenters.length
+    + (colVis.isVisible('invsuma') ? 1 : 0) + (colVis.isVisible('importe') ? 1 : 0);
 
   // Fixed pixel widths for the sticky (frozen) columns — the previous
   // hardcoded `left-[Npx]` offsets assumed specific column widths, but those
@@ -225,16 +241,17 @@ export function InventarioPage() {
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden p-5">
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex shrink-0 items-start justify-between gap-2">
         <div><h2 className="font-display text-2xl font-semibold">Inv Condición</h2>
           <p className="text-sm text-text-muted">{formatNumber(filtered.length)} renglones · clic en cantidad = lotes del material</p></div>
         <div className="flex items-center gap-2">
+          <ColumnVisibilityControl columns={columnDefs} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
           <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
           <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-start gap-3">
+      <div className="flex shrink-0 flex-wrap items-start gap-3">
         <div className="inline-grid grid-cols-3 content-start gap-2">
           <StatTile compact label="Materiales" value={formatNumber(kpis.mats)} />
           <StatTile compact label="Stock" value={formatNumber(kpis.stock)} />
@@ -244,7 +261,7 @@ export function InventarioPage() {
       </div>
 
       {lotesPorVencer.length > 0 && (
-        <Card className="p-3">
+        <Card className="shrink-0 p-3">
           <h4 className="mb-2 text-xs font-semibold text-text-muted">
             Lotes por vencer (≤90 días) con demanda activa · {lotesPorVencer.length}
           </h4>
@@ -290,7 +307,7 @@ export function InventarioPage() {
 
       {prefiltro && <PrefiltroBanner material={prefiltro} onClear={clearPrefiltro} />}
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         <div className="relative w-64"><Search className="absolute left-2.5 top-2.5 size-3.5 text-text-faint" />
           <Input placeholder="Buscar material…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" /></div>
         <select value={cond} onChange={(e) => setCond(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
@@ -317,21 +334,21 @@ export function InventarioPage() {
 
       <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
 
-      <Card className="min-h-0 flex-1 overflow-hidden">
+      <Card className="min-h-[24rem] flex-1 overflow-hidden">
         <div ref={scrollRef} className="h-full overflow-auto">
           <Table className={zoom.className} wrapperClassName="overflow-visible">
             <TableHeader>
               <TableRow>
                 {isAdmin && <TableHead className="sticky z-20 bg-bg-elevated" style={{ left: adminLeft, width: ADMIN_W, minWidth: ADMIN_W }}></TableHead>}
-                <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: materialLeft, width: MATERIAL_W, minWidth: MATERIAL_W }}>Material</SortableTableHead>
+                <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: materialLeft, width: MATERIAL_W, minWidth: MATERIAL_W }} filter={<ColumnFilterMenu column={filterCols[0]} rows={rows} active={quick} onChange={setQuick} />}>Material</SortableTableHead>
                 <SortableTableHead sortKey="condicion" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: condicionLeft, width: CONDICION_W, minWidth: CONDICION_W }}>Condición</SortableTableHead>
-                <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: sectorLeft, width: SECTOR_W, minWidth: SECTOR_W }}>Sector/Grupo</SortableTableHead>
+                <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: sectorLeft, width: SECTOR_W, minWidth: SECTOR_W }} filter={<ColumnFilterMenu column={filterCols[2]} rows={rows} active={quick} onChange={setQuick} />}>Sector/Grupo</SortableTableHead>
                 <SortableTableHead sortKey="precio" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated text-right" style={{ left: precioLeft, width: PRECIO_W, minWidth: PRECIO_W }}>Precio</SortableTableHead>
-                <SortableTableHead sortKey="disp3130" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Disp 31·30</SortableTableHead>
-                <SortableTableHead sortKey="disp3132" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Disp 31·32</SortableTableHead>
-                {CENTERS.map((c) => <TableHead key={c} className="text-right">Inv {c}</TableHead>)}
-                <SortableTableHead sortKey="invsuma" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Inv Suma</SortableTableHead>
-                <SortableTableHead sortKey="importe" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Importe $</SortableTableHead>
+                {colVis.isVisible('disp3130') && <SortableTableHead sortKey="disp3130" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Disp 31·30</SortableTableHead>}
+                {colVis.isVisible('disp3132') && <SortableTableHead sortKey="disp3132" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Disp 31·32</SortableTableHead>}
+                {visibleCenters.map((c) => <TableHead key={c} className="text-right">Inv {c}</TableHead>)}
+                {colVis.isVisible('invsuma') && <SortableTableHead sortKey="invsuma" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Inv Suma</SortableTableHead>}
+                {colVis.isVisible('importe') && <SortableTableHead sortKey="importe" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Importe $</SortableTableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -386,15 +403,15 @@ export function InventarioPage() {
                     <TableCell className="sticky z-10 bg-bg-elevated" style={{ left: condicionLeft, width: CONDICION_W, minWidth: CONDICION_W }}><StatePill label={r.condicion || '—'} cls={corta ? 'rojo' : 'gris'} /></TableCell>
                     <TableCell className="sticky z-10 truncate bg-bg-elevated" style={{ left: sectorLeft, width: SECTOR_W, minWidth: SECTOR_W }}>{a.enrich.matSector(r.material) || r.sector || '—'}<div className="truncate text-[11px] text-text-faint">{a.enrich.matGrupo(r.material) || r.grupo}</div></TableCell>
                     <TableCell className="sticky z-10 bg-bg-elevated text-right" style={{ left: precioLeft, width: PRECIO_W, minWidth: PRECIO_W }}>{r.precioOferta ? formatCurrency(r.precioOferta) : '—'}</TableCell>
-                    <TableCell className="text-right">{formatNumber(r.disponible31_30)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(r.disponible31_32)}</TableCell>
-                    {CENTERS.map((c) => (
+                    {colVis.isVisible('disp3130') && <TableCell className="text-right">{formatNumber(r.disponible31_30)}</TableCell>}
+                    {colVis.isVisible('disp3132') && <TableCell className="text-right">{formatNumber(r.disponible31_32)}</TableCell>}
+                    {visibleCenters.map((c) => (
                       <TableCell key={c} className="text-right">
                         <Chip onClick={() => open({ type: 'material', material: r.material })}>{formatNumber(r.invByCenter[c] || 0)}</Chip>
                       </TableCell>
                     ))}
-                    <TableCell className="text-right font-medium">{formatNumber(r.invSuma)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(r.importeInventario)}</TableCell>
+                    {colVis.isVisible('invsuma') && <TableCell className="text-right font-medium">{formatNumber(r.invSuma)}</TableCell>}
+                    {colVis.isVisible('importe') && <TableCell className="text-right">{formatCurrency(r.importeInventario)}</TableCell>}
                   </TableRow>
                   </SolicitarContextMenu>
                 );

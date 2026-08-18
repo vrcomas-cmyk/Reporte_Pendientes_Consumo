@@ -1,8 +1,8 @@
 import { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { LayoutGrid, List, Plus, Users } from 'lucide-react';
+import { LayoutGrid, List, Plus, Users, Handshake } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { StatTile, useSavedViews, SavedViewsControl } from '@/modules/analytics/ui';
+import { StatTile, useSavedViews, SavedViewsControl, ColumnFilterBar, passesFilters, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
@@ -11,6 +11,7 @@ import { useConocimientoStore } from '@/store/conocimientoStore';
 import { buildOportunidadesCandidatas } from '@/core/oportunidad';
 import { norm } from '@/lib/text';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { MaterialSearch } from './components/MaterialSearch';
 import { OportunidadTray } from './components/OportunidadTray';
 import { OportunidadListView } from './components/OportunidadListView';
@@ -39,8 +40,17 @@ export function OportunidadesPage() {
 
   const [condicion, setCondicion] = usePersistedState<CondicionEspecial | ''>('oportunidades.condicion', '');
   const [vista, setVista] = usePersistedState<'tablero' | 'lista'>('oportunidades.vista', 'tablero');
+  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('oportunidades.quick', []);
+  useUrlFilters(quick, setQuick);
   const savedViews = useSavedViews<ViewState>('oportunidades_vistas');
   const applyView = (state: ViewState) => { setCondicion(state.condicion); setVista(state.vista); };
+
+  const filterCols: FilterColumn<Oportunidad>[] = useMemo(() => [
+    { key: 'material', label: 'Material', get: (o) => o.material },
+    { key: 'estado', label: 'Estado', get: (o) => o.estado },
+    { key: 'responsable', label: 'Responsable', get: (o) => o.responsable },
+    { key: 'prioridad', label: 'Prioridad', get: (o) => o.prioridad },
+  ], []);
 
   useEffect(() => { void hydrate(); }, [hydrate]);
 
@@ -53,7 +63,10 @@ export function OportunidadesPage() {
     [lotes, invCondicion, settings, existingKeys],
   );
 
-  const filtradas = condicion ? oportunidades.filter((o) => o.condicion === condicion) : oportunidades;
+  const filtradas = useMemo(
+    () => oportunidades.filter((o) => (!condicion || o.condicion === condicion) && passesFilters(o, filterCols, quick)),
+    [oportunidades, condicion, filterCols, quick],
+  );
   const abiertas = filtradas.filter((o) => !['colocada-total', 'sin-interesados'].includes(o.estado));
   const riesgo = candidatas.reduce((acc, c) => acc + c.cantidadDisponible * c.precioOferta, 0);
   const venceProximo = candidatas.filter((c) => c.diasVigencia != null && c.diasVigencia <= 60).length;
@@ -89,6 +102,9 @@ export function OportunidadesPage() {
           <MaterialSearch />
           <Button asChild variant="outline" size="sm">
             <Link to="/oportunidades/clientes"><Users className="size-3.5" /> Clientes</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/oportunidades/ofertas-cliente"><Handshake className="size-3.5" /> Ofertas por Cliente</Link>
           </Button>
         </div>
       </div>
@@ -127,6 +143,8 @@ export function OportunidadesPage() {
           </div>
         </div>
       </div>
+
+      <ColumnFilterBar columns={filterCols} rows={oportunidades} active={quick} onChange={setQuick} />
 
       {candidatas.length > 0 && (
         <div>

@@ -10,6 +10,8 @@ import { runComodatoAnalysis, type ComodatoResult, type SeguimientoRow } from '@
 import { useDataStore } from '@/store/dataStore';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { ColumnFilterBar, passesFilters, RowContextMenu, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { usePersistedState } from '@/hooks/usePersistedState';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 
 export function ComodatoPage() {
   const catalog = useDataStore((s) => s.catalog);
@@ -17,7 +19,8 @@ export function ComodatoPage() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ComodatoResult | null>(null);
-  const [quick, setQuick] = useState<ActiveFilter[]>([]);
+  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('comodato.quick', []);
+  useUrlFilters(quick, setQuick);
 
   const filterCols: FilterColumn<SeguimientoRow>[] = useMemo(() => [
     { key: 'cliente', label: 'Cliente', get: (r) => String(r.razon_social ?? r.cliente ?? '') },

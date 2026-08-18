@@ -39,11 +39,18 @@ export const invGen = (co: RSSCentro | undefined): number =>
   co ? co.invAlm['1030'] + co.invAlm['1031'] + co.invAlm['1060'] : 0;
 
 const MESES_LENTO = 6;
+
+/** Centro 1031 es el hub de abasto/distribución (casi no factura directo,
+ * distribuye a otros intercentros): "sin movimiento", "quiebre", "exceso" e
+ * "inmovilizado" son falsos positivos ahí — se excluye de esos estados en
+ * vez de intentar leerlos con las mismas reglas que un centro normal. */
+export function esCentroDistribucion(centro: string): boolean {
+  return centro === '1031';
+}
+
 export function esLento(co: RSSCentro | undefined, curMes: number): boolean {
   if (!co) return false;
-  // Centro 1031 is the supply/distribution hub and rarely has direct invoicing;
-  // "no movement >= 6 months" is a false positive there, so suppress the flag.
-  if (co.centro === '1031') return false;
+  if (esCentroDistribucion(co.centro)) return false;
   if (invGen(co) <= 0 || co.pend > 0) return false;
   if (!co.ultMesK) return true;
   return curMes - co.ultMesK >= MESES_LENTO;
@@ -100,6 +107,7 @@ export function coberturaDeAlmacen(al: RSSAlmacen, thresholds?: CoberturaThresho
  * centro esté sano. `undefined` cuando el centro no tiene almacenes. */
 export function peorCobertura(co: RSSCentro | undefined, thresholds?: CoberturaThresholds): CoberturaEstado | undefined {
   if (!co || !co.alm.size) return undefined;
+  if (esCentroDistribucion(co.centro)) return undefined;
   let peor: CoberturaEstado | undefined;
   co.alm.forEach((al) => {
     const e = coberturaDeAlmacen(al, thresholds);
@@ -153,6 +161,19 @@ export const COBERTURA_LABEL: Record<CoberturaEstado, string> = {
 export const COBERTURA_CLS: Record<CoberturaEstado, string> = {
   quiebre: 'rojo', sano: 'verde', aceptable: 'gris', exceso: 'amb', inmovilizado: 'vio', sinDatos: 'gris',
 };
+
+/** Definición corta de cada estado de cobertura, para tooltip en el badge de
+ * celda, en las tarjetas de resumen y en la leyenda del filtro. */
+export const COBERTURA_HELP: Record<CoberturaEstado, string> = {
+  quiebre: `Cobertura menor a ${DEFAULT_COBERTURA_THRESHOLDS.quiebreMeses} mes(es): riesgo de desabasto con el consumo actual.`,
+  sano: 'Cobertura entre 1 y 6 meses de consumo: nivel saludable.',
+  aceptable: `Cobertura entre 6 y ${DEFAULT_COBERTURA_THRESHOLDS.excesoMeses} meses: por encima de lo ideal, sin ser exceso.`,
+  exceso: `Cobertura mayor a ${DEFAULT_COBERTURA_THRESHOLDS.excesoMeses} meses: capital inmovilizado por exceso de inventario.`,
+  inmovilizado: 'Hay inventario pero sin consumo registrado: no rota.',
+  sinDatos: 'Sin inventario ni consumo suficiente para clasificar.',
+};
+/** Igual que arriba pero para el caso "quiebre mitigado" (`quiebreMitigadoPorTransito`), que en UI se etiqueta distinto ("Quiebre (en tránsito)"). */
+export const COBERTURA_HELP_TRANSITO = 'Cobertura baja, pero ya hay mercancía en tránsito hacia este centro: monitorear, no es tan urgente como un quiebre sin nada en camino.';
 
 export function buildRSS(rows: ResumenSinSugerenciaRow[]): RSSIndex {
   const mats = new Map<string, RSSMaterial>();

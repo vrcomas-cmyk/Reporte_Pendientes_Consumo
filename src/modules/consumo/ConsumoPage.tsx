@@ -27,6 +27,7 @@ import { useSolicitudStore } from '@/store/solicitudStore';
 import { useMaterialPrefiltro } from '@/hooks/useMaterialPrefiltro';
 import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 
 // #2: combined date+qty cell, same pattern as the existing "Última" column.
 function fechaCantCell(fecha: string, cant: number) {
@@ -50,6 +51,7 @@ export function ConsumoPage() {
   const [clase, setClase] = usePersistedState('consumo.clase', '');
   const claseDe = (r: ConsumoRow) => a.abc.classByMaterial.get(norm(r.material)) || '';
   const [quick, setQuick] = usePersistedState<ActiveFilter[]>('consumo.quick', []);
+  useUrlFilters(quick, setQuick);
   const [periodoRango, setPeriodoRango] = usePersistedState<{ desde: string; hasta: string }>('consumo.periodoRango', { desde: '', hasta: '' });
   const [gruposOpen, setGruposOpen] = useState(false);
   const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>('consumo.periodo', 'corriente');

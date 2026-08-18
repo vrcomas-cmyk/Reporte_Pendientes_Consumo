@@ -3,13 +3,15 @@ import { Inbox, Download, RefreshCw, Trash2, CheckCheck, Undo2 } from 'lucide-re
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { StatePill, DateRangeFilter, ClearFiltersButton } from '@/modules/analytics/ui';
+import { StatePill, DateRangeFilter, ClearFiltersButton, ColumnFilterBar, passesFilters, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { formatNumber, formatDateTime } from '@/lib/utils';
 import { enRango } from '@/lib/fechas';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { toDrpRow } from '@/lib/drpColumns';
 import { reenviar, eliminar, marcarEstado } from '@/services/solicitudService';
 import { useSolicitudStore } from '@/store/solicitudStore';
+import { usePersistedState } from '@/hooks/usePersistedState';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import type { SolicitudDRP, SolicitudSync } from '@/core/types';
 
 // El envío directo al Sheet DRP está pausado (ver solicitudService.ts,
@@ -36,9 +38,21 @@ export function SolicitudesPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [marking, setMarking] = useState(false);
   const [rango, setRango] = useState<{ desde: string; hasta: string }>({ desde: '', hasta: '' });
-  const clearFilters = () => { setSync(''); setRango({ desde: '', hasta: '' }); };
+  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('solicitudes.quick', []);
+  useUrlFilters(quick, setQuick);
+  const clearFilters = () => { setSync(''); setRango({ desde: '', hasta: '' }); setQuick([]); };
 
-  const filtered = useMemo(() => list.filter((s) => (!sync || s.sync === sync) && enRango(s.fechaSolicitud, rango.desde, rango.hasta)), [list, sync, rango]);
+  const filterCols: FilterColumn<SolicitudDRP>[] = useMemo(() => [
+    { key: 'origen', label: 'Origen', get: (s) => ORIGEN_LABEL[s.origen] },
+    { key: 'codigo', label: 'Código', get: (s) => s.codigo },
+    { key: 'descripcion', label: 'Descripción', get: (s) => s.descripcion },
+    { key: 'centroDestino', label: 'Centro destino', get: (s) => s.centroDestino },
+  ], []);
+
+  const filtered = useMemo(
+    () => list.filter((s) => (!sync || s.sync === sync) && enRango(s.fechaSolicitud, rango.desde, rango.hasta) && passesFilters(s, filterCols, quick)),
+    [list, sync, rango, filterCols, quick],
+  );
   const filteredIds = useMemo(() => filtered.map((s) => s.id).filter((id): id is number => id != null), [filtered]);
   const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
 
@@ -128,6 +142,8 @@ export function SolicitudesPage() {
           </div>
         )}
       </div>
+
+      <ColumnFilterBar columns={filterCols} rows={list} active={quick} onChange={setQuick} />
 
       <Card className="overflow-hidden">
         <div className="max-h-[70vh] overflow-auto">

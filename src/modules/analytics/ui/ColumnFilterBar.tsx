@@ -1,5 +1,6 @@
 import { Plus, X } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { ColumnFilterMenu } from './ColumnFilterMenu';
 
 /** `get` is for columns with one clean value per row (equality match).
  * `getMany` is for rows that can belong to several values at once (e.g. a
@@ -10,7 +11,7 @@ import { useMemo, useRef, useState } from 'react';
 export interface FilterColumn<T> { key: string; label: string; get?: (row: T) => string; getMany?: (row: T) => string[] }
 export interface ActiveFilter { col: string; value: string }
 
-function valuesOf<T>(col: FilterColumn<T>, row: T): string[] {
+export function valuesOf<T>(col: FilterColumn<T>, row: T): string[] {
   if (col.getMany) return col.getMany(row);
   return col.get ? [col.get(row)] : [];
 }
@@ -41,38 +42,8 @@ export function ColumnFilterBar<T>({ columns, rows, active, onChange }: {
 }) {
   const [adding, setAdding] = useState(false);
   const [pickCol, setPickCol] = useState('');
-  const [typed, setTyped] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  const distinctForCol = useMemo(() => {
-    if (!pickCol) return [] as string[];
-    const col = columns.find((c) => c.key === pickCol);
-    if (!col) return [] as string[];
-    const s = new Set<string>();
-    rows.forEach((r) => { valuesOf(col, r).forEach((v) => { if (v) s.add(v); }); });
-    return [...s].sort((a, b) => a.localeCompare(b));
-  }, [pickCol, columns, rows]);
-
-  const activeValuesForCol = useMemo(() => new Set(active.filter((f) => f.col === pickCol).map((f) => f.value)), [active, pickCol]);
-
-  const options = pickCol
-    ? (typed.trim()
-        ? distinctForCol.filter((v) => v.toLowerCase().includes(typed.toLowerCase()) && !activeValuesForCol.has(v))
-        : distinctForCol.filter((v) => !activeValuesForCol.has(v))
-      ).slice(0, 25)
-    : [];
-
-  const addFilter = (col: string, value: string) => {
-    if (!value) return;
-    if (!active.some((f) => f.col === col && f.value === value)) {
-      onChange([...active, { col, value }]);
-    }
-    setTyped('');
-    // Elegir una sugerencia (clic o Enter) desmonta ese botón y el foco se
-    // pierde a document.body — sin esto, el siguiente material tecleado no
-    // llegaba a ningún input y no había forma de agregar un segundo filtro.
-    requestAnimationFrame(() => inputRef.current?.focus());
-  };
+  const pickedColumn = useMemo(() => columns.find((c) => c.key === pickCol) ?? null, [columns, pickCol]);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -90,33 +61,20 @@ export function ColumnFilterBar<T>({ columns, rows, active, onChange }: {
         </button>
       ) : (
         <div className="flex items-center gap-1">
-          <select value={pickCol} onChange={(ev) => { setPickCol(ev.target.value); setTyped(''); }} className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs" autoFocus>
+          <select value={pickCol} onChange={(ev) => setPickCol(ev.target.value)} className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs" autoFocus>
             <option value="">Columna…</option>
             {columns.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
           </select>
-          {pickCol && (
-            <div className="relative">
-              <input
-                ref={inputRef}
-                autoFocus
-                autoComplete="off"
-                value={typed}
-                onChange={(ev) => setTyped(ev.target.value)}
-                placeholder="Buscar valor…"
-                className="h-8 w-40 rounded-md border border-border bg-bg-elevated px-2 text-xs"
-                onKeyDown={(ev) => {
-                  if (ev.key === 'Enter' && options[0]) addFilter(pickCol, options[0]);
-                  if (ev.key === 'Escape') { setAdding(false); setPickCol(''); }
-                }}
-              />
-              {options.length > 0 && (
-                <div className="absolute z-20 mt-1 max-h-48 w-56 overflow-auto rounded-md border border-border bg-bg-elevated shadow-lg">
-                  {options.map((o) => (
-                    <button key={o} type="button" onClick={() => addFilter(pickCol, o)} className="block w-full truncate px-2 py-1 text-left text-xs hover:bg-bg-inset">{o}</button>
-                  ))}
-                </div>
-              )}
-            </div>
+          {pickedColumn && (
+            <ColumnFilterMenu
+              column={pickedColumn}
+              rows={rows}
+              active={active}
+              onChange={onChange}
+              open
+              onOpenChange={(v) => { if (!v) { setAdding(false); setPickCol(''); } }}
+              trigger={<button type="button" className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs">Valores…</button>}
+            />
           )}
           <button type="button" onClick={() => { setAdding(false); setPickCol(''); }} className="text-text-faint hover:text-text"><X className="size-3.5" /></button>
         </div>

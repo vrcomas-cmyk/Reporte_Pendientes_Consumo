@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { oportunidadRepository, clienteConocimientoRepository, ofertaRepository } from '@/repositories';
+import { oportunidadRepository, clienteConocimientoRepository, ofertaRepository, reglaAceptacionRepository } from '@/repositories';
 import { toast } from '@/store/toastStore';
 import { norm } from '@/lib/text';
-import type { Oportunidad, Interaccion, EstadoOportunidad, ClienteConocimiento, Observacion, Oferta } from '@/core/types';
+import type { Oportunidad, Interaccion, EstadoOportunidad, ClienteConocimiento, Observacion, Oferta, ReglaAceptacion } from '@/core/types';
 
 interface ConocimientoState {
   oportunidades: Oportunidad[];
@@ -14,6 +14,7 @@ interface ConocimientoState {
   clientesByDest: Map<string, ClienteConocimiento>;
   observaciones: Observacion[];
   ofertas: Oferta[];
+  reglas: ReglaAceptacion[];
   hydrated: boolean;
   hydrate: () => Promise<void>;
   addOportunidad: (o: Oportunidad) => Promise<void>;
@@ -24,6 +25,9 @@ interface ConocimientoState {
   removeObservacion: (id: number) => Promise<void>;
   addOferta: (o: Oferta) => Promise<void>;
   registrarResultado: (id: number, patch: Pick<Oferta, 'resultado'> & Partial<Oferta>) => Promise<void>;
+  upsertRegla: (r: ReglaAceptacion) => Promise<void>;
+  upsertReglasBulk: (dests: string[], r: Omit<ReglaAceptacion, 'id' | 'dest'>) => Promise<void>;
+  removeRegla: (id: number) => Promise<void>;
 }
 
 /** Métricas derivadas del historial de ofertas de un cliente (req. 3: campos
@@ -61,18 +65,20 @@ export const useConocimientoStore = create<ConocimientoState>()((set, get) => ({
   clientesByDest: new Map(),
   observaciones: [],
   ofertas: [],
+  reglas: [],
   hydrated: false,
 
   hydrate: async () => {
     if (get().hydrated) return;
-    const [oportunidades, interacciones, clientes, observaciones, ofertas] = await Promise.all([
+    const [oportunidades, interacciones, clientes, observaciones, ofertas, reglas] = await Promise.all([
       oportunidadRepository.listOportunidades(),
       oportunidadRepository.listInteracciones(),
       clienteConocimientoRepository.listClientes(),
       clienteConocimientoRepository.listObservaciones(),
       ofertaRepository.listOfertas(),
+      reglaAceptacionRepository.listReglas(),
     ]);
-    set({ oportunidades, interacciones, clientes, clientesByDest: byDest(clientes, ofertas), observaciones, ofertas, hydrated: true });
+    set({ oportunidades, interacciones, clientes, clientesByDest: byDest(clientes, ofertas), observaciones, ofertas, reglas, hydrated: true });
   },
 
   addOportunidad: async (o) => {
@@ -204,6 +210,52 @@ export const useConocimientoStore = create<ConocimientoState>()((set, get) => ({
     } catch (err) {
       set({ ofertas: prevOfertas, clientesByDest: byDest(clientes, prevOfertas) });
       toast.fromError(err, 'No se pudo actualizar el resultado de la oferta');
+    }
+  },
+
+  upsertRegla: async (r) => {
+    const prev = get().reglas;
+    const optimistic = prev.some((x) => norm(x.dest) === norm(r.dest) && (x.material ?? null) === (r.material ?? null))
+      ? prev.map((x) => (norm(x.dest) === norm(r.dest) && (x.material ?? null) === (r.material ?? null) ? r : x))
+      : [r, ...prev];
+    set({ reglas: optimistic });
+    try {
+      const id = await reglaAceptacionRepository.upsertRegla(r);
+      set((s) => ({ reglas: s.reglas.map((x) => (x === r ? { ...x, id } : x)) }));
+    } catch (err) {
+      set({ reglas: prev });
+      toast.fromError(err, 'No se pudo guardar la regla de aceptación');
+    }
+  },
+
+  upsertReglasBulk: async (dests, r) => {
+    const prev = get().reglas;
+    const now = new Date().toISOString();
+    const optimistic = [...prev];
+    for (const dest of dests) {
+      const nueva: ReglaAceptacion = { ...r, dest, actualizadoEn: now };
+      const idx = optimistic.findIndex((x) => norm(x.dest) === norm(dest) && (x.material ?? null) === (r.material ?? null));
+      if (idx >= 0) optimistic[idx] = nueva; else optimistic.unshift(nueva);
+    }
+    set({ reglas: optimistic });
+    try {
+      await reglaAceptacionRepository.upsertReglasBulk(dests, r);
+      const reglas = await reglaAceptacionRepository.listReglas();
+      set({ reglas });
+    } catch (err) {
+      set({ reglas: prev });
+      toast.fromError(err, 'No se pudo aplicar la regla en lote');
+    }
+  },
+
+  removeRegla: async (id) => {
+    const prev = get().reglas;
+    set({ reglas: prev.filter((r) => r.id !== id) });
+    try {
+      await reglaAceptacionRepository.removeRegla(id);
+    } catch (err) {
+      set({ reglas: prev });
+      toast.fromError(err, 'No se pudo eliminar la regla');
     }
   },
 }));

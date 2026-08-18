@@ -22,6 +22,8 @@ import { useDataStore } from '@/store/dataStore';
 import type { Sugerencia } from '@/core/types';
 import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
 import { ZoomControl, useZoom, ColumnFilterBar, passesFilters, RowContextMenu, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { usePersistedState } from '@/hooks/usePersistedState';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 
 const columns: ColumnDef<Sugerencia>[] = [
   { accessorKey: 'materialBase', header: 'Material' },
@@ -42,7 +44,8 @@ export function ResultsPage() {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'cantidadPendiente', desc: true }]);
   const [fuenteFilter, setFuenteFilter] = useState<string>('todas');
   const [bloqueadoFilter, setBloqueadoFilter] = useState<string>('todos');
-  const [quick, setQuick] = useState<ActiveFilter[]>([]);
+  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('resultados.quick', []);
+  useUrlFilters(quick, setQuick);
   const [selected, setSelected] = useState<Sugerencia | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const zoom = useZoom('resultados_zoom');

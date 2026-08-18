@@ -487,6 +487,32 @@ export interface Oferta {
   creadoPor: string;
 }
 
+export type EstadoMaterialAceptado = 'buen-estado' | 'danado' | 'indistinto';
+
+export const ESTADOS_MATERIAL_ACEPTADO: { key: EstadoMaterialAceptado; label: string }[] = [
+  { key: 'buen-estado', label: 'Solo buen estado' },
+  { key: 'danado', label: 'Acepta dañado' },
+  { key: 'indistinto', label: 'Indistinto' },
+];
+
+/** Regla de aceptación de un Destinatario — módulo "Ofertas por Cliente".
+ * `material === null` es la regla global del destinatario (aplica a
+ * cualquier material que no tenga un override propio); una regla con
+ * `material` fijo la sobrescribe. Ver `src/core/matchingOfertas.ts` para la
+ * precedencia y el matching contra un lote/material real. */
+export interface ReglaAceptacion {
+  id?: number;
+  dest: string;
+  material: string | null;
+  condiciones: CondicionEspecial[];
+  estadoMaterial: EstadoMaterialAceptado;
+  caducidadMinimaMeses: number | null;
+  activa: boolean;
+  notas: string;
+  actualizadoEn: string;
+  actualizadoPor: string;
+}
+
 /** One row of the "DRP" Google Sheet the portal is allowed to write:
  * the 13 data columns, always sent, plus local tracking metadata.
  * Estatus, No. UD and Delivery are intentionally absent — they are filled

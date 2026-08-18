@@ -41,6 +41,7 @@ const AdminPage = lazy(() => import('@/modules/admin/AdminPage').then((m) => ({ 
 const OportunidadesPage = lazy(() => import('@/modules/oportunidades/OportunidadesPage').then((m) => ({ default: m.OportunidadesPage })));
 const Material360Page = lazy(() => import('@/modules/oportunidades/Material360Page').then((m) => ({ default: m.Material360Page })));
 const ClientesPage = lazy(() => import('@/modules/oportunidades/ClientesPage').then((m) => ({ default: m.ClientesPage })));
+const OfertasClientePage = lazy(() => import('@/modules/oportunidades/OfertasClientePage').then((m) => ({ default: m.OfertasClientePage })));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, refetchOnWindowFocus: false } },
@@ -85,6 +86,7 @@ function App() {
                   <Route path="/oportunidades" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><OportunidadesPage /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades/material/:material" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><Material360Page /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades/clientes" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><ClientesPage /></Suspense></ModuleGuard>} />
+                  <Route path="/oportunidades/ofertas-cliente" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><OfertasClientePage /></Suspense></ModuleGuard>} />
                   <Route path="/solicitudes" element={<ModuleGuard moduleKey="solicitudes"><Suspense fallback={<RouteFallback />}><SolicitudesPage /></Suspense></ModuleGuard>} />
                   <Route path="/comodato" element={<ModuleGuard moduleKey="comodato"><Suspense fallback={<RouteFallback />}><ComodatoPage /></Suspense></ModuleGuard>} />
                   <Route path="/historial" element={<ModuleGuard moduleKey="historial"><Suspense fallback={<RouteFallback />}><HistoryPage /></Suspense></ModuleGuard>} />
