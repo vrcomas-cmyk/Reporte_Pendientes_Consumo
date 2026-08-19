@@ -4,7 +4,9 @@ import type { ClienteConocimiento, Observacion } from '@/core/types';
 
 export class LocalClienteConocimientoRepository implements ClienteConocimientoRepository {
   async listClientes(): Promise<ClienteConocimiento[]> {
-    return db.clientesConocimiento.toArray();
+    const rows = await db.clientesConocimiento.toArray();
+    // Normaliza registros anteriores a la fusión ficha=regla global.
+    return rows.map((c) => ({ ...c, estadoMaterial: c.estadoMaterial ?? 'indistinto', activa: c.activa !== false }));
   }
   async upsertCliente(c: ClienteConocimiento): Promise<number> {
     const existing = await db.clientesConocimiento.where('dest').equals(c.dest).first();

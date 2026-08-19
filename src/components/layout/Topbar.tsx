@@ -21,8 +21,8 @@ const TITLE_OVERRIDES: Record<string, string> = {
   '/resultados': 'Resultados del análisis',
   '/historial': 'Historial de análisis',
   '/registros': 'Registros del sistema',
-  '/oportunidades/clientes': 'Clientes — fichas comerciales',
-  '/oportunidades/ofertas-cliente': 'Ofertas por Cliente — reglas de aceptación',
+  '/oportunidades/clientes': 'Oportunidades — clientes',
+  '/oportunidades/ofertas-cliente': 'Oportunidades — clientes',
 };
 
 // Prefijo — /oportunidades/material/:material no está en NAV (es un

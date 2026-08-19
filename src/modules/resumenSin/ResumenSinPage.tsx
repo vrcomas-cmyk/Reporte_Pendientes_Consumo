@@ -186,7 +186,7 @@ export function ResumenSinPage() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-hidden p-5">
+    <div className="flex h-full flex-col gap-3 overflow-y-auto p-5">
       <div className="flex items-start justify-between gap-2">
         <div><h2 className="font-display text-2xl font-semibold">Inventario</h2>
           <p className="text-sm text-text-muted">Pivote material × centro · inventario general (1030+1031+1060)</p></div>
@@ -260,18 +260,18 @@ export function ResumenSinPage() {
         </TooltipHint>
       </div>
 
-      <Card className="min-h-0 flex-1 overflow-hidden">
+      <Card className="h-[36rem] shrink-0 overflow-hidden">
         <div ref={scrollRef} className="h-full overflow-auto">
           <Table className={zoom.className} wrapperClassName="overflow-visible">
             <TableHeader>
               <TableRow>
                 <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort} filter={<ColumnFilterMenu column={filterCols[0]} rows={list} active={quick} onChange={setQuick} />}>Material</SortableTableHead>
                 <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort} filter={<ColumnFilterMenu column={filterCols[2]} rows={list} active={quick} onChange={setQuick} />}>Sector/Grupo</SortableTableHead>
-                <TableHead>Tendencia</TableHead>
-                <SortableTableHead sortKey="status" activeKey={sortKey} dir={dir} onSort={toggleSort} filter={<ColumnFilterMenu column={filterCols[5]} rows={list} active={quick} onChange={setQuick} />}>Status Revisión</SortableTableHead>
-                {centros.map((c) => <TableHead key={c} className="text-right">C {c}</TableHead>)}
-                <SortableTableHead sortKey="invtot" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Inv. total</SortableTableHead>
-                <SortableTableHead sortKey="pendtot" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Pend. total</SortableTableHead>
+                <TableHead title="Compara la facturación de los últimos 3 meses completos vs. los 3 anteriores: En aumento (+10%), En decremento (-10%) o Estable.">Tendencia</TableHead>
+                <SortableTableHead sortKey="status" activeKey={sortKey} dir={dir} onSort={toggleSort} filter={<ColumnFilterMenu column={filterCols[5]} rows={list} active={quick} onChange={setQuick} />} title="Estatus de revisión reportado por el centro para este material.">Status Revisión</SortableTableHead>
+                {centros.map((c) => <TableHead key={c} className="text-right" title={`Inventario general (1030+1031+1060) de este material en el centro ${c}. El ícono ⚠ indica "lento" (≥6 meses sin movimiento) y "+N" indica cantidad en tránsito.`}>C {c}</TableHead>)}
+                <SortableTableHead sortKey="invtot" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Suma del inventario general de este material en todos los centros.">Inv. total</SortableTableHead>
+                <SortableTableHead sortKey="pendtot" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Suma de la cantidad pendiente de este material en todos los centros.">Pend. total</SortableTableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -326,7 +326,7 @@ export function ResumenSinPage() {
                         <TableCell className="text-right">
                           <Chip onClick={() => open({ type: 'celda', material: mo.material, centro: c })}>{formatNumber(ig)}</Chip>
                           {co.transito > 0 && <span className="text-emerald-500"> +{formatNumber(co.transito)}</span>}
-                          {esLento(co, rss.curMes) && <AlertTriangle className="ml-1 inline size-3 text-warning" />}
+                          {esLento(co, rss.curMes) && <span title="Lento: sin movimiento hace ≥6 meses y sin pendiente en este centro."><AlertTriangle className="ml-1 inline size-3 text-warning" /></span>}
                           {co.pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(co.pend)}</div>}
                           {showCoberturaBadge && (
                             <TooltipHint text={mitigado ? COBERTURA_HELP_TRANSITO : peor ? COBERTURA_HELP[peor] : ''}>

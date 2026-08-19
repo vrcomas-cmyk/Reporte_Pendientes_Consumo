@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { oportunidadRepository, clienteConocimientoRepository, ofertaRepository, reglaAceptacionRepository } from '@/repositories';
 import { toast } from '@/store/toastStore';
 import { norm } from '@/lib/text';
-import type { Oportunidad, Interaccion, EstadoOportunidad, ClienteConocimiento, Observacion, Oferta, ReglaAceptacion } from '@/core/types';
+import { ESTADOS_OPORTUNIDAD, PROXIMO_PASO, type Oportunidad, type Interaccion, type EstadoOportunidad, type ClienteConocimiento, type Observacion, type Oferta, type ReglaAceptacion } from '@/core/types';
 
 interface ConocimientoState {
   oportunidades: Oportunidad[];
@@ -18,6 +18,7 @@ interface ConocimientoState {
   hydrated: boolean;
   hydrate: () => Promise<void>;
   addOportunidad: (o: Oportunidad) => Promise<void>;
+  updateOportunidad: (id: number, patch: Partial<Oportunidad>) => Promise<void>;
   setEstado: (id: number, estado: EstadoOportunidad, resumen?: string) => Promise<void>;
   addInteraccion: (i: Interaccion) => Promise<void>;
   upsertCliente: (c: ClienteConocimiento) => Promise<void>;
@@ -26,7 +27,7 @@ interface ConocimientoState {
   addOferta: (o: Oferta) => Promise<void>;
   registrarResultado: (id: number, patch: Pick<Oferta, 'resultado'> & Partial<Oferta>) => Promise<void>;
   upsertRegla: (r: ReglaAceptacion) => Promise<void>;
-  upsertReglasBulk: (dests: string[], r: Omit<ReglaAceptacion, 'id' | 'dest'>) => Promise<void>;
+  upsertClientesBulk: (clientes: ClienteConocimiento[]) => Promise<void>;
   removeRegla: (id: number) => Promise<void>;
 }
 
@@ -78,7 +79,41 @@ export const useConocimientoStore = create<ConocimientoState>()((set, get) => ({
       ofertaRepository.listOfertas(),
       reglaAceptacionRepository.listReglas(),
     ]);
-    set({ oportunidades, interacciones, clientes, clientesByDest: byDest(clientes, ofertas), observaciones, ofertas, reglas, hydrated: true });
+
+    // Migración única (fusión "ficha = regla global"): las reglas globales que
+    // vivían en `reglasAceptacion` (material === null) se fusionan en la ficha
+    // del cliente y se eliminan. Las excepciones por material se quedan como
+    // overrides. Si un día no queda ninguna global, este bloque no hace nada.
+    const globales = reglas.filter((r) => r.material == null);
+    let clientesFinal = clientes;
+    let reglasFinal = reglas;
+    if (globales.length) {
+      const porDest = new Map(clientes.map((c) => [norm(c.dest), c]));
+      for (const g of globales) {
+        const base = porDest.get(norm(g.dest));
+        const migrada: ClienteConocimiento = base ? { ...base } : {
+          dest: g.dest, razonSocial: g.dest, condicionesAceptadas: [], estadoMaterial: 'indistinto',
+          caducidadMinimaDias: null, activa: true, descuentoHabitualPct: null,
+          contactoNombre: '', contactoTelefono: '', contactoCorreo: '', canalPreferido: '', notasComerciales: '',
+          actualizadoEn: '', actualizadoPor: '',
+        };
+        if (g.condiciones.length) migrada.condicionesAceptadas = g.condiciones;
+        if (g.estadoMaterial !== 'indistinto') migrada.estadoMaterial = g.estadoMaterial;
+        if (g.caducidadMinimaMeses != null) migrada.caducidadMinimaDias = Math.round(g.caducidadMinimaMeses * 30);
+        migrada.activa = g.activa !== false;
+        migrada.actualizadoEn = new Date().toISOString();
+        migrada.actualizadoPor = 'migracion-global';
+        try { await clienteConocimientoRepository.upsertCliente(migrada); } catch { /* la ficha previa gana */ }
+        if (g.id != null) {
+          try { await reglaAceptacionRepository.removeRegla(g.id); } catch { /* se reintenta en el próximo hydrate */ }
+        }
+        porDest.set(norm(g.dest), migrada);
+      }
+      clientesFinal = [...porDest.values()];
+      reglasFinal = reglas.filter((r) => r.material != null);
+    }
+
+    set({ oportunidades, interacciones, clientes: clientesFinal, clientesByDest: byDest(clientesFinal, ofertas), observaciones, ofertas, reglas: reglasFinal, hydrated: true });
   },
 
   addOportunidad: async (o) => {
@@ -87,9 +122,24 @@ export const useConocimientoStore = create<ConocimientoState>()((set, get) => ({
     try {
       const id = await oportunidadRepository.addOportunidad(o);
       set((s) => ({ oportunidades: s.oportunidades.map((x) => (x === o ? { ...x, id } : x)) }));
+      toast.success('Oportunidad creada', `${o.material} — ahora puedes ofertarla.`);
     } catch (err) {
       set({ oportunidades: prev });
       toast.fromError(err, 'No se pudo crear la oportunidad');
+    }
+  },
+
+  updateOportunidad: async (id, patch) => {
+    const prev = get().oportunidades;
+    const now = new Date().toISOString();
+    const fullPatch = { ...patch, actualizadaEn: now };
+    set({ oportunidades: prev.map((o) => (o.id === id ? { ...o, ...fullPatch } : o)) });
+    try {
+      await oportunidadRepository.updateOportunidad(id, fullPatch);
+      toast.success('Oportunidad actualizada', undefined, 2000);
+    } catch (err) {
+      set({ oportunidades: prev });
+      toast.fromError(err, 'No se pudo guardar la oportunidad');
     }
   },
 
@@ -110,6 +160,8 @@ export const useConocimientoStore = create<ConocimientoState>()((set, get) => ({
         dest: '', oportunidadId: id, material: target.material, tipo: 'cambio-estado',
         resumen: resumen ?? `Estado cambiado a "${estado}".`, fecha: now, creadoPor: '',
       });
+      const label = ESTADOS_OPORTUNIDAD.find((e) => e.key === estado)?.label ?? estado;
+      toast.success(`${target.material} → ${label}`, PROXIMO_PASO[estado], 5000);
     } catch (err) {
       set({ oportunidades: prev });
       toast.fromError(err, 'No se pudo actualizar el estado');
@@ -214,6 +266,10 @@ export const useConocimientoStore = create<ConocimientoState>()((set, get) => ({
   },
 
   upsertRegla: async (r) => {
+    // La regla GLOBAL de un cliente vive en su ficha (upsertCliente); aquí
+    // solo se guardan excepciones por material. Filas globales nuevas se
+    // ignoran — la ficha es la única fuente de la regla global.
+    if (r.material == null) return;
     const prev = get().reglas;
     const optimistic = prev.some((x) => norm(x.dest) === norm(r.dest) && (x.material ?? null) === (r.material ?? null))
       ? prev.map((x) => (norm(x.dest) === norm(r.dest) && (x.material ?? null) === (r.material ?? null) ? r : x))
@@ -224,28 +280,12 @@ export const useConocimientoStore = create<ConocimientoState>()((set, get) => ({
       set((s) => ({ reglas: s.reglas.map((x) => (x === r ? { ...x, id } : x)) }));
     } catch (err) {
       set({ reglas: prev });
-      toast.fromError(err, 'No se pudo guardar la regla de aceptación');
+      toast.fromError(err, 'No se pudo guardar la excepción por material');
     }
   },
 
-  upsertReglasBulk: async (dests, r) => {
-    const prev = get().reglas;
-    const now = new Date().toISOString();
-    const optimistic = [...prev];
-    for (const dest of dests) {
-      const nueva: ReglaAceptacion = { ...r, dest, actualizadoEn: now };
-      const idx = optimistic.findIndex((x) => norm(x.dest) === norm(dest) && (x.material ?? null) === (r.material ?? null));
-      if (idx >= 0) optimistic[idx] = nueva; else optimistic.unshift(nueva);
-    }
-    set({ reglas: optimistic });
-    try {
-      await reglaAceptacionRepository.upsertReglasBulk(dests, r);
-      const reglas = await reglaAceptacionRepository.listReglas();
-      set({ reglas });
-    } catch (err) {
-      set({ reglas: prev });
-      toast.fromError(err, 'No se pudo aplicar la regla en lote');
-    }
+  upsertClientesBulk: async (clientes) => {
+    for (const c of clientes) await get().upsertCliente(c);
   },
 
   removeRegla: async (id) => {

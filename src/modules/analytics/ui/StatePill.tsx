@@ -1,6 +1,7 @@
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
+import { TooltipHint } from '@/components/ui/tooltip';
 import type { Tendencia } from '@/core/resumenFac';
 
 // Maps the legacy semantic color classes to Tailwind utility combos.
@@ -22,13 +23,18 @@ export const StatePill = memo(function StatePill({ label, cls }: { label: string
   );
 });
 
-/** Badge de tendencia (▲/▼/—) con color y texto. */
+/** Badge de tendencia (▲/▼/—) con color y texto. Compara la facturación
+ * (importe) de los últimos 3 meses completos contra los 3 anteriores a
+ * esos: +10% o más = En aumento, -10% o más = En decremento, en medio =
+ * Estable — mismo criterio en toda la app (`tendenciaTexto`, TREND_MESES). */
 export const TrendBadge = memo(function TrendBadge({ t }: { t: Tendencia }) {
   const Icon = t.dir === 'up' ? TrendingUp : t.dir === 'down' ? TrendingDown : Minus;
   const color = t.dir === 'up' ? 'text-emerald-500' : t.dir === 'down' ? 'text-danger' : 'text-text-faint';
   return (
-    <span className={cn('inline-flex items-center gap-1 text-xs font-medium', color)}>
-      <Icon className="size-3" /> {t.txt}
-    </span>
+    <TooltipHint text="Compara el importe facturado de los últimos 3 meses completos vs. los 3 meses anteriores a esos: ▲ En aumento (+10% o más), ▼ En decremento (-10% o más), — Estable.">
+      <span tabIndex={0} className={cn('inline-flex items-center gap-1 text-xs font-medium outline-none', color)}>
+        <Icon className="size-3" /> {t.txt}
+      </span>
+    </TooltipHint>
   );
 });

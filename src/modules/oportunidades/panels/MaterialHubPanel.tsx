@@ -9,7 +9,7 @@ import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { serieMaterial, tendenciaTexto } from '@/core/resumenFac';
 import { sugFor, consFor, norm } from '@/modules/analytics/helpers';
 import { rankClientes } from '@/core/scoring';
-import { normalizeCondicion, materialesRelacionados } from '@/core/oportunidad';
+import { condicionEfectivaMaterial, condicionTextoEfectivo, materialesRelacionados } from '@/core/oportunidad';
 import { destinatariosParaMaterial, type ContextoMaterial } from '@/core/matchingOfertas';
 import { HubLinks } from '../components/HubLinks';
 import { ScoreBar } from '../components/ScoreBar';
@@ -61,6 +61,7 @@ export function MaterialHubPanel({ panel, a }: { panel: Extract<Panel, { type: '
   const cons = useMemo(() => consFor(result?.consumo ?? [], mat), [result, mat]);
   const serie = useMemo(() => serieMaterial(rf, mat), [rf, mat]);
   const oportunidades = useConocimientoStore((s) => s.oportunidades);
+  const fichas = useConocimientoStore((s) => s.clientes);
   const clientesByDest = useConocimientoStore((s) => s.clientesByDest);
   const ofertas = useConocimientoStore((s) => s.ofertas);
   const ofertasMaterial = useMemo(() => ofertas.filter((o) => norm(o.material) === norm(mat)), [ofertas, mat]);
@@ -69,13 +70,26 @@ export function MaterialHubPanel({ panel, a }: { panel: Extract<Panel, { type: '
     [oportunidades, mat, panel.lote],
   );
 
+  // El lote EXACTO que trajo `panel.lote` (p. ej. al entrar desde una
+  // Oportunidad o una Card con lote propio) — antes, sin Oportunidad
+  // abierta, la caducidad/precio de referencia caían en `lotesF[0]`
+  // (el primero de la lista, arbitrario), ignorando `panel.lote` casi
+  // siempre. Sin `panel.lote`, se mantiene el mismo fallback de antes.
+  const loteReal = useMemo(
+    () => (panel.lote ? lotesF.find((l) => norm(l.lote) === norm(panel.lote)) : undefined),
+    [lotesF, panel.lote],
+  );
+
   // Condición/caducidad/precio de referencia para el score: prioriza la
-  // Oportunidad abierta (datos reales del lote); si no hay, infiere del
-  // inventario por condición — igual criterio que core/oportunidad.ts.
-  const invCondRow = useMemo(() => a.invCondicion.find((r) => norm(r.material) === norm(mat) && r.condicion), [a.invCondicion, mat]);
-  const condicion = oportunidadAbierta?.condicion ?? (invCondRow ? normalizeCondicion(invCondRow.condicion) : 'normal');
-  const diasVigencia = oportunidadAbierta ? diasHasta(oportunidadAbierta.fechaCaducidad) : diasHasta(lotesF[0]?.fechaCaducidad ?? null);
-  const precioOferta = oportunidadAbierta?.precioOferta || enrich.matPrecioOferta(mat);
+  // Oportunidad abierta (datos reales del lote); si no hay pero sí un lote
+  // concreto (`loteReal`), usa el suyo; si no hay ninguno de los dos, cae a
+  // la condición efectiva del material — Fuentes de Pedidos primero, Inv
+  // Condición como respaldo (ver `condicionEfectivaMaterial`).
+  const condicion = oportunidadAbierta?.condicion ?? condicionEfectivaMaterial(mat, sug, a.invCondicion);
+  const diasVigencia = oportunidadAbierta
+    ? diasHasta(oportunidadAbierta.fechaCaducidad)
+    : diasHasta(loteReal?.fechaCaducidad ?? lotesF[0]?.fechaCaducidad ?? null);
+  const precioOferta = oportunidadAbierta?.precioOferta || loteReal?.precioOferta || enrich.matPrecioOferta(mat);
   const precioLista = enrich.matPrecioOferta(mat);
   const pesos = useScoringWeightsStore((s) => s.pesos);
   const perms = usePermissionsStore((s) => s.perms);
@@ -90,13 +104,14 @@ export function MaterialHubPanel({ panel, a }: { panel: Extract<Panel, { type: '
   const descartados = useMemo(() => ranking.filter((r) => r.bloqueantes.length > 0), [ranking]);
   const relacionados = useMemo(() => materialesRelacionados(rf, mat, 8), [rf, mat]);
 
-  // Contexto real del lote para el matching de "A quién ofrecer" (módulo
-  // Ofertas por Cliente): misma condición/vigencia ya resueltas arriba para
-  // el score, reescritas al vocabulario del motor de reglas.
+  // Contexto real del lote para el matching de "A quién ofrecer": misma
+  // condición/vigencia ya resueltas arriba para el score, reescritas al
+  // vocabulario del motor de reglas (días restantes de vigencia).
   const reglas = useConocimientoStore((s) => s.reglas);
+  const condicionTexto = useMemo(() => condicionTextoEfectivo(mat, sug, a.invCondicion), [mat, sug, a.invCondicion]);
   const ctxOfrecer: ContextoMaterial = useMemo(() => ({
-    condicion, mesesCaducidad: diasVigencia != null ? diasVigencia / 30 : null, danado: condicion === 'danado',
-  }), [condicion, diasVigencia]);
+    condicion, condicionTexto, diasCaducidad: diasVigencia, danado: condicion === 'danado',
+  }), [condicion, condicionTexto, diasVigencia]);
   const razonSocialDe = useMemo(() => {
     const m = new Map<string, string>();
     cons.forEach((r) => { if (!m.has(norm(r.destinatario))) m.set(norm(r.destinatario), r.razonSocial); });
@@ -108,11 +123,11 @@ export function MaterialHubPanel({ panel, a }: { panel: Extract<Panel, { type: '
     return m;
   }, [cons]);
   const matches = useMemo(
-    () => destinatariosParaMaterial(reglas, mat, ctxOfrecer, {
+    () => destinatariosParaMaterial(fichas, reglas, mat, ctxOfrecer, {
       razonSocialDe: (d) => clientesByDest.get(d)?.razonSocial || razonSocialDe.get(d) || d,
       consumoDe: (d) => consumoDe.get(d) ?? 0,
     }),
-    [reglas, mat, ctxOfrecer, clientesByDest, razonSocialDe, consumoDe],
+    [fichas, reglas, mat, ctxOfrecer, clientesByDest, razonSocialDe, consumoDe],
   );
   const matchesAceptan = useMemo(() => matches.filter((m) => m.evaluacion.acepta), [matches]);
 
@@ -225,9 +240,13 @@ export function MaterialHubPanel({ panel, a }: { panel: Extract<Panel, { type: '
           )}
         </TabsContent>
         <TabsContent value="ofrecer">
-          <p className="mb-2 text-xs text-text-muted">Destinatarios con una regla de aceptación configurada para este material, evaluados contra la condición/caducidad real del lote — sin salir de este panel.</p>
+          <p className="mb-2 text-xs text-text-muted">
+            Clientes con ficha (qué aceptan) o con una excepción por material, evaluados contra
+            {oportunidadAbierta ? ' la Oportunidad abierta de este lote' : loteReal ? ` el lote ${loteReal.lote}` : ' la condición general del material (sin un lote específico)'}
+            {' '}— sin salir de este panel.
+          </p>
           {matches.length === 0 && (
-            <p className="text-sm text-text-muted">Ningún destinatario tiene reglas de aceptación configuradas todavía para este material (ni una regla global). Configúralas en Ofertas por Cliente.</p>
+            <p className="text-sm text-text-muted">Ningún cliente tiene ficha ni excepción por material configurada todavía. Crea o edita fichas en la pestaña Clientes de Oportunidades.</p>
           )}
           <div className="flex flex-col gap-2">
             {matches.map((m) => (

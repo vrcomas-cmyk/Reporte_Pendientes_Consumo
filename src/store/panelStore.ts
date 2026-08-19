@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import type { AlertaColocacion, LoteOfertable } from '@/core/matchingOfertas';
+import type { CondicionEspecial } from '@/core/types';
 
 // Cross-report navigation modeled as a simple stack of panel descriptors,
 // replacing the legacy navOpen/navPush/backBtn modal history. The top of the
@@ -29,15 +31,24 @@ export type Panel =
   // "Atrás" reabre exactamente el mismo tab.
   | { type: 'materialHub'; material: string; tab?: MaterialHubTab; lote?: string; condicion?: string }
   | { type: 'oportunidad'; id: number }
+  // Enfoque "código A tiene 3 lotes, N clientes califican" de las alertas de
+  // colocación (agrupadas por material en vez de por cliente↔material) —
+  // snapshot de los clientes candidatos ya resueltos, igual que
+  // `mesClientesFiltro` lleva sus `rows` precomputadas.
+  | { type: 'materialColocacion'; material: string; descripcion: string; clientes: AlertaColocacion[]; lotes: LoteOfertable[] }
   // Fase 2: ficha de conocimiento de un cliente (mini-CRM) — mismo criterio de
   // tab-en-el-descriptor que materialHub, así "Atrás" no pierde la pestaña.
   // `prefill*` (fase 3): contexto opcional de un material/oportunidad concreta
   // desde donde se abrió la ficha — precarga el formulario de la pestaña
-  // Ofertas sin tener que volver a buscar el material.
-  | { type: 'clienteConocimiento'; dest: string; razonSocial?: string; tab?: 'ficha' | 'timeline' | 'ofertas'; prefillMaterial?: string; prefillOportunidadId?: number }
-  // Módulo "Ofertas por Cliente": reglas de aceptación (global + overrides por
-  // material) de un Destinatario — editadas desde OfertasClientePage.
-  | { type: 'reglasAceptacion'; dest: string; razonSocial?: string };
+  // Ofertas sin tener que volver a buscar el material. `prefillCondicion*`
+  // (ronda 4): el lote concreto que ESE cliente aceptaría, calculado en
+  // MaterialColocacionPanel — conecta el "Ofertar" con la condición real del
+  // material en vez de que el usuario la escriba de cero en OfertaForm.
+  | {
+      type: 'clienteConocimiento'; dest: string; razonSocial?: string; tab?: 'resumen' | 'ficha' | 'timeline' | 'ofertas';
+      prefillMaterial?: string; prefillOportunidadId?: number; prefillLote?: string;
+      prefillCondicion?: CondicionEspecial; prefillCondicionTexto?: string; prefillFechaCaducidad?: string | null;
+    };
 
 export type MaterialHubTab = 'resumen' | 'inventario' | 'pedidos' | 'consumo' | 'ventas' | 'notas' | 'historial' | 'compatibilidad' | 'ofrecer';
 

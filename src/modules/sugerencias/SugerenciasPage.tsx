@@ -11,7 +11,7 @@ import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils'
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { enRango } from '@/lib/fechas';
 import { ESTADOS } from '@/core/resumenFac';
 import { norm, num, matchesQuery } from '@/modules/analytics/helpers';
@@ -35,6 +35,25 @@ import type { Sugerencia } from '@/core/types';
 
 const INV_COLS = ['1030', '1031', '1032'] as const;
 const INV_ALL = ['1030', '1031', '1032', '1060'] as const;
+
+/** Explicaciones breves para el tooltip nativo de cada encabezado — se
+ * generan por `.map()` desde tuplas `[key, label]`, así que van aparte en
+ * vez de en línea como en otras páginas. */
+const HEADER_HINTS: Record<string, string> = {
+  cantped: 'Cantidad total pedida originalmente.',
+  pend: 'Cantidad que aún falta por surtir de este pedido.',
+  precio: 'Precio unitario de lista para este material.',
+  consumo: 'Consumo promedio mensual reciente de este material para este cliente.',
+  invtotal: 'Inventario disponible sumando todos los almacenes.',
+  '1030': 'Inventario disponible en el almacén 1030.',
+  '1031': 'Inventario disponible en el almacén 1031 (hub de distribución).',
+  '1032': 'Inventario disponible en el almacén 1032.',
+  '1060': 'Inventario disponible en el almacén 1060.',
+  estado: 'Estatus general calculado del pedido (a tiempo, en riesgo, etc.).',
+  tendencia: 'Compara la facturación de los últimos 3 meses completos vs. los 3 anteriores: En aumento (+10%), En decremento (-10%) o Estable.',
+  sector: 'Sector y grupo de artículo del catálogo.',
+  ejecutivo: 'Ejecutivo de ventas y grupo de cliente asignados.',
+};
 
 /** Días transcurridos desde la fecha del pedido — misma tolerancia de formato
  * (dd/mm/yyyy, yyyy-mm-dd…) que el resto de la app, ya que el campo llega
@@ -182,6 +201,7 @@ export function SugerenciasPage() {
     const pendTot = filtered.reduce((s, it) => s + num(it.bo.cantidadPendiente), 0);
     const pendBloq = filtered.filter(isBloq).reduce((s, it) => s + num(it.bo.cantidadPendiente), 0);
     const impTot = filtered.reduce((s, it) => s + num(it.bo.cantidadPendiente) * num(it.bo.precio), 0);
+    const impBloq = filtered.filter(isBloq).reduce((s, it) => s + num(it.bo.cantidadPendiente) * num(it.bo.precio), 0);
     const conF = filtered.filter((it) => it.fuentes.length).length;
     const rkMap = new Map<string, { code: string; desc: string; val: number }>();
     filtered.forEach((it) => {
@@ -192,7 +212,7 @@ export function SugerenciasPage() {
       rkMap.set(m, cur);
     });
     const rk = [...rkMap.values()].filter((x) => x.val > 0).sort((x, y) => y.val - x.val).slice(0, 10);
-    return { pendTot, pendBloq, impTot, conF, rk };
+    return { pendTot, pendBloq, impTot, impBloq, conF, rk };
   }, [filtered]);
 
   // #11 Pendiente por sector, drilldown a grupo de artículo. Based on the deduplicated
@@ -446,7 +466,7 @@ export function SugerenciasPage() {
         <div className="inline-grid grid-cols-2 content-start gap-2">
           <StatTile compact label="Renglones BO" value={formatNumber(filtered.length)} />
           <StatTile compact label="Cant. pendiente" value={formatNumber(kpis.pendTot)} sub={<>🟢 {formatNumber(kpis.pendTot - kpis.pendBloq)} · 🟡 {formatNumber(kpis.pendBloq)}</>} />
-          <StatTile compact label="Importe pendiente" value={formatCurrency(kpis.impTot)} />
+          <StatTile compact label="Importe pendiente" value={formatCurrency(kpis.impTot)} sub={<>🟢 {formatCurrency(kpis.impTot - kpis.impBloq)} · 🟡 {formatCurrency(kpis.impBloq)}</>} />
           {!fuenteOculto && <StatTile compact label="Con fuentes" value={formatNumber(kpis.conF)} />}
         </div>
         <Ranking title="Top 10 material por importe pendiente" items={kpis.rk} money wide onRow={(m) => open({ type: 'material', material: m })} className="min-w-[420px] flex-1" />
@@ -553,15 +573,15 @@ export function SugerenciasPage() {
                 {([
                   ['ejecutivo', 'Ejecutivo / Grupo cli.'], ['pedido', 'Pedido/OC'], ['fecha', 'Fecha'], ['cliente', 'Cliente'],
                   ['centro', 'Centro/Alm'], ['material', 'Material'], ['sector', 'Sector/Grupo'],
-                ] as const).filter(([k]) => vis(k)).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKey} dir={dir} onSort={toggleSort}>{l}</SortableTableHead>)}
+                ] as const).filter(([k]) => vis(k)).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKey} dir={dir} onSort={toggleSort} title={HEADER_HINTS[k]}>{l}</SortableTableHead>)}
                 {([
                   ['cantped', 'Cant.ped.'], ['pend', 'Pend.'], ...(precioOculto ? [] : [['precio', 'Precio'] as const]), ['consumo', 'Consumo'],
                   ...(unificarInv ? [['invtotal', 'Inv. total'] as const] : [['inv1030', '1030'] as const, ['inv1031', '1031'] as const, ['inv1032', '1032'] as const, ['inv1060', '1060'] as const]),
-                ] as const).filter(([k]) => vis(k)).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right justify-end">{l}</SortableTableHead>)}
+                ] as const).filter(([k]) => vis(k)).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right justify-end" title={HEADER_HINTS[k]}>{l}</SortableTableHead>)}
                 {([
                   ['bloq', 'Bloq.'], ['estado', 'Estado'], ['tendencia', 'Tendencia'],
-                ] as const).filter(([k]) => vis(k)).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKey} dir={dir} onSort={toggleSort}>{l}</SortableTableHead>)}
-                {!fuenteOculto && vis('fuentes') && <SortableTableHead sortKey="fuentes" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Fuentes</SortableTableHead>}
+                ] as const).filter(([k]) => vis(k)).map(([k, l]) => <SortableTableHead key={k} sortKey={k} activeKey={sortKey} dir={dir} onSort={toggleSort} title={HEADER_HINTS[k]}>{l}</SortableTableHead>)}
+                {!fuenteOculto && vis('fuentes') && <SortableTableHead sortKey="fuentes" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Cuántas fuentes alternas de abasto tiene este pedido (otros centros/lotes que podrían surtirlo).">Fuentes</SortableTableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -622,7 +642,7 @@ export function SugerenciasPage() {
                     {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
                     {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}
-                    {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial}<div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
+                    {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial} <ClienteOportunidadBadge dest={b.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
                     {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
                     {vis('sector') && <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>}
@@ -741,7 +761,7 @@ export function SugerenciasPage() {
                     {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
                     {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}
-                    {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial}<div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
+                    {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial} <ClienteOportunidadBadge dest={b.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
                     {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
                     {vis('sector') && <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>}

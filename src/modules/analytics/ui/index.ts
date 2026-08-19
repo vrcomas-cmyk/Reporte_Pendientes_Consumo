@@ -6,6 +6,7 @@ export type { FilterColumn, ActiveFilter } from './ColumnFilterBar';
 export { ColumnFilterMenu } from './ColumnFilterMenu';
 export { StatePill, TrendBadge } from './StatePill';
 export { AbcBadge } from './AbcBadge';
+export { ClienteOportunidadBadge } from './ClienteOportunidadBadge';
 export { Chip } from './Chip';
 export { EvolChart } from './EvolChart';
 export { ComparativaDual } from './ComparativaDual';

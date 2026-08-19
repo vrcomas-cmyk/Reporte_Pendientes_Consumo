@@ -14,7 +14,9 @@ function rowToCliente(r: Record<string, unknown>): ClienteConocimiento {
     dest: r.dest as string,
     razonSocial: (r.razon_social as string) ?? '',
     condicionesAceptadas: (r.condiciones_aceptadas as ClienteConocimiento['condicionesAceptadas']) ?? [],
+    estadoMaterial: (r.estado_material as ClienteConocimiento['estadoMaterial']) ?? 'indistinto',
     caducidadMinimaDias: (r.caducidad_minima_dias as number) ?? null,
+    activa: (r.activa as boolean) ?? true,
     descuentoHabitualPct: (r.descuento_habitual_pct as number) ?? null,
     contactoNombre: (r.contacto_nombre as string) ?? '',
     contactoTelefono: (r.contacto_telefono as string) ?? '',
@@ -43,7 +45,8 @@ export class SupabaseClienteConocimientoRepository implements ClienteConocimient
     const actualizadoEn = new Date().toISOString();
     const payload = {
       dest: c.dest, razon_social: c.razonSocial, condiciones_aceptadas: c.condicionesAceptadas,
-      caducidad_minima_dias: c.caducidadMinimaDias, descuento_habitual_pct: c.descuentoHabitualPct,
+      estado_material: c.estadoMaterial ?? 'indistinto', caducidad_minima_dias: c.caducidadMinimaDias,
+      activa: c.activa !== false, descuento_habitual_pct: c.descuentoHabitualPct,
       contacto_nombre: c.contactoNombre, contacto_telefono: c.contactoTelefono, contacto_correo: c.contactoCorreo,
       canal_preferido: c.canalPreferido, notas_comerciales: c.notasComerciales,
       actualizado_en: actualizadoEn, actualizado_por: actualizadoPor,

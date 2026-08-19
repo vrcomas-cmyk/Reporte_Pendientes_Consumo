@@ -4,13 +4,30 @@ import { useConocimientoStore } from '@/store/conocimientoStore';
 import { ESTADOS_OPORTUNIDAD, type EstadoOportunidad, type Oportunidad } from '@/core/types';
 import { OportunidadCard } from './OportunidadCard';
 
-// 8 estados no caben cómodamente en pantalla: las 5 "activas" tienen columna
-// propia; las 3 de cierre se agrupan bajo "Cerradas" (wireframe §4.1 del plan).
-const COLUMNAS: EstadoOportunidad[] = ['nueva', 'en-analisis', 'contactando', 'negociacion', 'colocada-parcial'];
-const CERRADAS: EstadoOportunidad[] = ['colocada-total', 'sin-interesados', 'campana-agresiva'];
+// 8 estados no caben cómodamente en pantalla: las 6 "activas" (incluye
+// campana-agresiva, que sigue siendo trabajo en curso — así el tablero
+// coincide con el KPI "Abiertas" de OportunidadesPage, que también la
+// cuenta como abierta) tienen columna propia; las 2 de cierre real se
+// agrupan bajo "Cerradas".
+const COLUMNAS: EstadoOportunidad[] = ['nueva', 'en-analisis', 'contactando', 'negociacion', 'campana-agresiva', 'colocada-parcial'];
+const CERRADAS: EstadoOportunidad[] = ['colocada-total', 'sin-interesados'];
 
 function labelOf(key: EstadoOportunidad) {
   return ESTADOS_OPORTUNIDAD.find((e) => e.key === key)?.label ?? key;
+}
+
+const PRIORIDAD_RANGO: Record<Oportunidad['prioridad'], number> = { alta: 0, media: 1, baja: 2 };
+
+/** Orden de atención dentro de una columna: prioridad (alta primero) y, en
+ * empate, caducidad más próxima primero — así lo primero que se ve arriba de
+ * cada columna es siempre lo más urgente, no lo último que se creó. */
+function porUrgencia(a: Oportunidad, b: Oportunidad): number {
+  const p = PRIORIDAD_RANGO[a.prioridad] - PRIORIDAD_RANGO[b.prioridad];
+  if (p !== 0) return p;
+  if (a.fechaCaducidad && b.fechaCaducidad) return a.fechaCaducidad.localeCompare(b.fechaCaducidad);
+  if (a.fechaCaducidad) return -1;
+  if (b.fechaCaducidad) return 1;
+  return 0;
 }
 
 /** Una columna del tablero: además de listar tarjetas, es zona de destino de
@@ -55,11 +72,11 @@ export function OportunidadTray({ oportunidades }: { oportunidades: Oportunidad[
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 overflow-x-auto pb-2 sm:grid-cols-2 lg:grid-cols-6">
+    <div className="grid grid-cols-1 gap-3 overflow-x-auto pb-2 sm:grid-cols-2 lg:grid-cols-7">
       {COLUMNAS.map((estado) => (
-        <Columna key={estado} label={labelOf(estado)} items={oportunidades.filter((o) => o.estado === estado)} onDropId={onDropEstado(estado)} />
+        <Columna key={estado} label={labelOf(estado)} items={oportunidades.filter((o) => o.estado === estado).sort(porUrgencia)} onDropId={onDropEstado(estado)} />
       ))}
-      <Columna label="Cerradas" items={cerradas} onDropId={onDropEstado('colocada-total')} />
+      <Columna label="Cerradas" items={cerradas.sort(porUrgencia)} onDropId={onDropEstado('colocada-total')} />
     </div>
   );
 }

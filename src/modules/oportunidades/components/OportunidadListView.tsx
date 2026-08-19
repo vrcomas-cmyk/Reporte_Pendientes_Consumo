@@ -37,13 +37,13 @@ export function OportunidadListView({ oportunidades }: { oportunidades: Oportuni
       <Table wrapperClassName="max-h-[65vh] rounded-lg border border-border">
         <TableHeader>
           <TableRow>
-            {isVisible('material') && <TableHead>Material</TableHead>}
-            {isVisible('condicion') && <TableHead>Condición</TableHead>}
-            {isVisible('cantidad') && <TableHead className="text-right">Disponible</TableHead>}
-            {isVisible('caducidad') && <TableHead>Caducidad</TableHead>}
-            {isVisible('precio') && <TableHead className="text-right">Precio oferta</TableHead>}
-            {isVisible('estado') && <TableHead>Estado</TableHead>}
-            {isVisible('actualizada') && <TableHead>Actualizada</TableHead>}
+            {isVisible('material') && <TableHead title="Material del lote que buscamos colocar.">Material</TableHead>}
+            {isVisible('condicion') && <TableHead title="Fuente de pedido/condición del material: corta-caducidad, lento-movimiento, calidad, dañado o normal.">Condición</TableHead>}
+            {isVisible('cantidad') && <TableHead className="text-right" title="Cantidad disponible de este lote.">Disponible</TableHead>}
+            {isVisible('caducidad') && <TableHead title="Fecha de caducidad del lote, si aplica.">Caducidad</TableHead>}
+            {isVisible('precio') && <TableHead className="text-right" title="Precio de oferta propuesto para colocar este lote.">Precio oferta</TableHead>}
+            {isVisible('estado') && <TableHead title="Avance de esta Oportunidad en el flujo (nueva, en análisis, contactando, negociación, colocada, sin interesados).">Estado</TableHead>}
+            {isVisible('actualizada') && <TableHead title="Última vez que se actualizó el estado o los datos de esta Oportunidad.">Actualizada</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>

@@ -73,6 +73,7 @@ export class SupabaseOportunidadRepository implements OportunidadRepository {
     if (patch.cantidadColocada !== undefined) payload.cantidad_colocada = patch.cantidadColocada;
     if (patch.notas !== undefined) payload.notas = patch.notas;
     if (patch.prioridad !== undefined) payload.prioridad = patch.prioridad;
+    if (patch.responsable !== undefined) payload.responsable = patch.responsable;
     if (patch.cerradaEn !== undefined) payload.cerrada_en = patch.cerradaEn;
     const { error } = await supabase.from('degasa_oportunidades').update(payload).eq('local_id', id);
     if (error) throw error;

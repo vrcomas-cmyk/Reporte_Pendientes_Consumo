@@ -15,30 +15,44 @@ const CONDICIONES: { key: CondicionEspecial; label: string }[] = [
 
 /** Formulario de registro de ofertas (req. 4): fecha, material, cantidad,
  * condición, caducidad, precio ofertado. El resultado (aceptó/rechazó/
- * pendiente) se marca después, sobre la oferta ya creada. */
-export function OfertaForm({ dest, razonSocial, prefillMaterial, prefillOportunidadId, precioLista }: {
+ * pendiente) se marca después, sobre la oferta ya creada.
+ *
+ * `prefillCondicion*` (ronda 4): cuando se abre desde "Materiales por
+ * colocar", ya se sabe exactamente qué lote calificaría para este cliente —
+ * la condición/lote/caducidad llegan precargados en vez de que el usuario
+ * los adivine. `degasa_ofertas.condicion` sigue restringido a las 4
+ * categorías (constraint en Supabase), así que el texto real (p. ej.
+ * "Cosmopark") no se fuerza ahí — se antepone al comentario para no
+ * perderlo. */
+export function OfertaForm({
+  dest, razonSocial, prefillMaterial, prefillOportunidadId, precioLista,
+  prefillLote, prefillCondicion, prefillCondicionTexto, prefillFechaCaducidad,
+}: {
   dest: string; razonSocial: string; prefillMaterial?: string; prefillOportunidadId?: number; precioLista?: number;
+  prefillLote?: string; prefillCondicion?: CondicionEspecial; prefillCondicionTexto?: string; prefillFechaCaducidad?: string | null;
 }) {
   const addOferta = useConocimientoStore((s) => s.addOferta);
   const [material, setMaterial] = useState(prefillMaterial ?? '');
-  const [lote, setLote] = useState('');
-  const [condicion, setCondicion] = useState<CondicionEspecial>('normal');
-  const [fechaCaducidad, setFechaCaducidad] = useState('');
+  const [lote, setLote] = useState(prefillLote ?? '');
+  const [condicion, setCondicion] = useState<CondicionEspecial>(prefillCondicion ?? 'normal');
+  const [fechaCaducidad, setFechaCaducidad] = useState(prefillFechaCaducidad ?? '');
   const [cantidad, setCantidad] = useState('');
   const [precio, setPrecio] = useState('');
   const [comentario, setComentario] = useState('');
   const [saving, setSaving] = useState(false);
+  const condicionRealDistinta = !!prefillCondicionTexto && prefillCondicionTexto.toLowerCase() !== condicion.toLowerCase();
 
   async function registrar() {
     if (!material.trim() || !cantidad || !precio) return;
     setSaving(true);
+    const comentarioFinal = condicionRealDistinta ? `Condición real: ${prefillCondicionTexto}.${comentario ? ` ${comentario}` : ''}` : comentario;
     const oferta: Oferta = {
       oportunidadId: prefillOportunidadId, dest, razonSocial, material: material.trim(), lote: lote || undefined,
       condicion, fechaCaducidad: fechaCaducidad || null, cantidadOfertada: Number(cantidad), precioOfertado: Number(precio),
-      precioLista, fechaOferta: new Date().toISOString(), resultado: 'pendiente' as ResultadoOferta, comentario, creadoPor: '',
+      precioLista, fechaOferta: new Date().toISOString(), resultado: 'pendiente' as ResultadoOferta, comentario: comentarioFinal, creadoPor: '',
     };
     await addOferta(oferta);
-    setMaterial(prefillMaterial ?? ''); setLote(''); setCantidad(''); setPrecio(''); setComentario('');
+    setMaterial(prefillMaterial ?? ''); setLote(prefillLote ?? ''); setCantidad(''); setPrecio(''); setComentario('');
     setSaving(false);
   }
 
@@ -55,6 +69,9 @@ export function OfertaForm({ dest, razonSocial, prefillMaterial, prefillOportuni
         </Select>
         <Input type="date" value={fechaCaducidad} onChange={(e) => setFechaCaducidad(e.target.value)} />
       </div>
+      {condicionRealDistinta && (
+        <p className="text-[11px] text-text-faint">Condición real del lote: <span className="font-medium text-text">{prefillCondicionTexto}</span> — se agrega al comentario, no cabe en la lista de arriba.</p>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <Input type="number" min={0} placeholder="Cantidad ofertada" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
         <Input type="number" min={0} step="0.01" placeholder="Precio ofertado" value={precio} onChange={(e) => setPrecio(e.target.value)} />

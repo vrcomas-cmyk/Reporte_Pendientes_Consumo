@@ -364,6 +364,24 @@ export const ESTADOS_OPORTUNIDAD: { key: EstadoOportunidad; label: string }[] = 
   { key: 'campana-agresiva', label: 'En campaña agresiva' },
 ];
 
+/** Ciclo de vida "principal" de una Oportunidad — usado para el progreso
+ * visual (stepper). `sin-interesados` y `campana-agresiva` son ramas fuera
+ * de esta línea recta (no un paso más avanzado), así que no aparecen aquí. */
+export const CICLO_OPORTUNIDAD: EstadoOportunidad[] = ['nueva', 'en-analisis', 'contactando', 'negociacion', 'colocada-total'];
+
+/** Qué hacer a continuación tras dejar una Oportunidad en cada estado — el
+ * "flujo guiado" que evita que el usuario se pregunte qué sigue. */
+export const PROXIMO_PASO: Record<EstadoOportunidad, string> = {
+  nueva: 'Revisa a qué clientes ofrecerlo (Materiales por colocar) y pásala a "En análisis".',
+  'en-analisis': 'Decide con quién arrancar y pásala a "Contactando clientes".',
+  contactando: 'Registra la oferta a cada cliente contactado desde su ficha; cuando responda alguno, pásala a "En negociación".',
+  negociacion: 'Cierra condiciones y marca "Colocada parcialmente" o "Colocada totalmente" según lo acordado.',
+  'colocada-parcial': 'Sigue ofertando el resto del lote a otros clientes candidatos.',
+  'colocada-total': 'Nada más que hacer — se colocó por completo.',
+  'sin-interesados': 'Considera bajar el precio o ampliar a más clientes antes de descartarla del todo.',
+  'campana-agresiva': 'Mantén el contacto activo con varios clientes a la vez; pásala a "En negociación" en cuanto alguno muerda.',
+};
+
 /** "Oportunidad Comercial": la unidad de trabajo del módulo — material + lote
  * + condición + inventario disponible, con un estado que avanza a medida que
  * se contacta a clientes. Ver bandeja en modules/oportunidades. */
@@ -413,13 +431,28 @@ export interface Interaccion {
 
 /** Ficha de conocimiento de un cliente — editable por el usuario, salvo los
  * dos campos derivados (tiempoRespuestaPromDias/tasaAceptacion), que se
- * recalculan de Oferta/Interaccion en fase 3 y aquí solo se muestran. */
+ * recalculan de Oferta/Interaccion en fase 3 y aquí solo se muestran.
+ *
+ * Tras la fusión de "ficha" y "reglas de aceptación", la ficha ES la regla
+ * global del cliente: `condicionesAceptadas` + `estadoMaterial` +
+ * `caducidadMinimaDias` + `activa` dicen, en un solo lugar, qué acepta. Las
+ * excepciones por material quedan en `ReglaAceptacion` (siempre con `material`
+ * fijo); `core/matchingOfertas.ts` las combina al ofertar. */
 export interface ClienteConocimiento {
   id?: number;
   dest: string;
   razonSocial: string;
-  condicionesAceptadas: CondicionEspecial[];
+  /** Valores REALES que el cliente acepta — no solo las 4 categorías fijas
+   * (`CondicionEspecial`): puede ser cualquier texto tal como aparece en la
+   * columna "Condición" de Inv Condición o "Fuente" de Pedidos (p. ej.
+   * "Cosmopark", "PNC"), además de las categorías conocidas. Ver
+   * `matchingOfertas.evaluarAceptacion` para cómo se cruza contra el lote. */
+  condicionesAceptadas: string[];
+  /** Regla global: solo buen estado / acepta dañado / indistinto. */
+  estadoMaterial: EstadoMaterialAceptado;
   caducidadMinimaDias: number | null;
+  /** La ficha como regla global se puede apagar sin borrar el conocimiento. */
+  activa: boolean;
   descuentoHabitualPct: number | null;
   contactoNombre: string;
   contactoTelefono: string;
@@ -495,16 +528,19 @@ export const ESTADOS_MATERIAL_ACEPTADO: { key: EstadoMaterialAceptado; label: st
   { key: 'indistinto', label: 'Indistinto' },
 ];
 
-/** Regla de aceptación de un Destinatario — módulo "Ofertas por Cliente".
- * `material === null` es la regla global del destinatario (aplica a
- * cualquier material que no tenga un override propio); una regla con
- * `material` fijo la sobrescribe. Ver `src/core/matchingOfertas.ts` para la
- * precedencia y el matching contra un lote/material real. */
+/** Excepción de aceptación por material de un Destinatario. La regla GLOBAL
+ * de un cliente vive en su ficha (`ClienteConocimiento`); esta tabla guarda
+ * solo los overrides: una regla con `material` fijo sobrescribe la ficha para
+ * ese material. Filas históricas con `material === null` (reglas globales de
+ * antes de la fusión) se migran a la ficha en `conocimientoStore.hydrate` y se
+ * eliminan. Ver `src/core/matchingOfertas.ts` para la precedencia. */
 export interface ReglaAceptacion {
   id?: number;
   dest: string;
   material: string | null;
-  condiciones: CondicionEspecial[];
+  /** Mismo criterio que `ClienteConocimiento.condicionesAceptadas`: valores
+   * reales (categoría conocida o texto libre), no solo las 4 fijas. */
+  condiciones: string[];
   estadoMaterial: EstadoMaterialAceptado;
   caducidadMinimaMeses: number | null;
   activa: boolean;

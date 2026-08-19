@@ -5,28 +5,20 @@ import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { useConocimientoStore } from '@/store/conocimientoStore';
 import { toast } from '@/store/toastStore';
-import type { CondicionEspecial, EstadoMaterialAceptado } from '@/core/types';
-
-const CONDICIONES: { key: CondicionEspecial; label: string }[] = [
-  { key: 'corta-caducidad', label: 'Corta caducidad' },
-  { key: 'lento-movimiento', label: 'Lento movimiento' },
-  { key: 'calidad', label: 'Calidad' },
-  { key: 'danado', label: 'Dañado' },
-  { key: 'normal', label: 'Normal' },
-];
+import { CondicionSelector } from './CondicionSelector';
+import type { ClienteConocimiento, EstadoMaterialAceptado } from '@/core/types';
 
 interface DestinatarioLite { dest: string; razonSocial: string; ejecutivo: string }
 
-/** Carga masiva por ejecutivo (punto 1.2 del pedido): la mayoría de los
- * clientes de un mismo ejecutivo aceptan la misma condición, así que en vez
- * de ir cliente por cliente, se trae todo el listado de ese ejecutivo
- * preseleccionado, se descartan los que no aplican, y se guarda UNA regla
- * global para todos los que quedan marcados en una sola llamada. */
+/** Importación por ejecutivo: los clientes de un mismo ejecutivo suelen
+ * aceptar lo mismo, así que en vez de ficharlos uno a uno se trae su listado
+ * preseleccionado, se descartan los que no aplican y se crean las FICHAS de
+ * los marcados con la misma regla global (condiciones + estado + caducidad). */
 export function CargaMasivaDialog({ open, onClose, destinatarios }: { open: boolean; onClose: () => void; destinatarios: DestinatarioLite[] }) {
-  const upsertReglasBulk = useConocimientoStore((s) => s.upsertReglasBulk);
+  const upsertClientesBulk = useConocimientoStore((s) => s.upsertClientesBulk);
   const [ejecutivo, setEjecutivo] = useState('');
   const [descartados, setDescartados] = useState<Set<string>>(new Set());
-  const [condiciones, setCondiciones] = useState<CondicionEspecial[]>([]);
+  const [condiciones, setCondiciones] = useState<string[]>([]);
   const [estadoMaterial, setEstadoMaterial] = useState<EstadoMaterialAceptado>('indistinto');
   const [caducidad, setCaducidad] = useState('');
   const [saving, setSaving] = useState(false);
@@ -35,7 +27,6 @@ export function CargaMasivaDialog({ open, onClose, destinatarios }: { open: bool
   const delEjecutivo = useMemo(() => destinatarios.filter((d) => d.ejecutivo === ejecutivo), [destinatarios, ejecutivo]);
   const incluidos = delEjecutivo.filter((d) => !descartados.has(d.dest));
 
-  const toggleCondicion = (c: CondicionEspecial) => setCondiciones((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
   const toggleDescartado = (dest: string) => setDescartados((prev) => {
     const next = new Set(prev);
     if (next.has(dest)) next.delete(dest); else next.add(dest);
@@ -48,14 +39,17 @@ export function CargaMasivaDialog({ open, onClose, destinatarios }: { open: bool
   const aplicar = async () => {
     if (!incluidos.length) return;
     setSaving(true);
+    const ahora = new Date().toISOString();
+    const caducidadMinimaDias = caducidad.trim() ? Math.round(Number(caducidad) * 30) : null;
+    const fichas: ClienteConocimiento[] = incluidos.map((d) => ({
+      dest: d.dest, razonSocial: d.razonSocial, condicionesAceptadas: condiciones,
+      estadoMaterial, caducidadMinimaDias, activa: true,
+      descuentoHabitualPct: null, contactoNombre: '', contactoTelefono: '', contactoCorreo: '', canalPreferido: '',
+      notasComerciales: `Importado del ejecutivo ${ejecutivo}.`, actualizadoEn: ahora, actualizadoPor: '',
+    }));
     try {
-      await upsertReglasBulk(incluidos.map((d) => d.dest), {
-        material: null, condiciones, estadoMaterial,
-        caducidadMinimaMeses: caducidad.trim() ? Number(caducidad) : null,
-        activa: true, notas: `Carga masiva por ejecutivo (${ejecutivo}).`,
-        actualizadoEn: new Date().toISOString(), actualizadoPor: '',
-      });
-      toast.success(`Regla global aplicada a ${incluidos.length} destinatario(s) de ${ejecutivo}.`);
+      await upsertClientesBulk(fichas);
+      toast.success(`Ficha creada/actualizada para ${incluidos.length} cliente(s) de ${ejecutivo}.`);
       close();
     } finally {
       setSaving(false);
@@ -66,8 +60,8 @@ export function CargaMasivaDialog({ open, onClose, destinatarios }: { open: bool
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Traer clientes del ejecutivo</DialogTitle>
-          <DialogDescription>Aplica una regla global (condiciones que acepta) a todos los destinatarios del ejecutivo elegido, salvo los que descartes.</DialogDescription>
+          <DialogTitle>Importar clientes del ejecutivo</DialogTitle>
+          <DialogDescription>Crea las fichas (regla global de aceptación) de los destinatarios del ejecutivo elegido, salvo los que descartes.</DialogDescription>
         </DialogHeader>
 
         <Select value={ejecutivo} onChange={(e) => { setEjecutivo(e.target.value); setDescartados(new Set()); }} className="w-full">
@@ -88,18 +82,7 @@ export function CargaMasivaDialog({ open, onClose, destinatarios }: { open: bool
             </div>
             <p className="mt-1 text-xs text-text-faint">{incluidos.length} de {delEjecutivo.length} incluidos</p>
 
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {CONDICIONES.map((c) => (
-                <button
-                  key={c.key}
-                  type="button"
-                  onClick={() => toggleCondicion(c.key)}
-                  className={`rounded-full border px-2.5 py-1 text-xs ${condiciones.includes(c.key) ? 'border-accent bg-accent-soft text-accent' : 'border-border text-text-muted hover:border-accent/50'}`}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
+            <CondicionSelector value={condiciones} onChange={setCondiciones} />
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Select value={estadoMaterial} onChange={(e) => setEstadoMaterial(e.target.value as EstadoMaterialAceptado)} className="w-44">
                 <option value="indistinto">Indistinto</option>
@@ -112,9 +95,12 @@ export function CargaMasivaDialog({ open, onClose, destinatarios }: { open: bool
               </div>
             </div>
 
+            {condiciones.length === 0 && estadoMaterial === 'indistinto' && !caducidad.trim() && (
+              <p className="mt-2 text-xs text-warning">Sin ningún criterio marcado, estas fichas quedarán "sin configurar" y no aceptarán nada hasta que las edites.</p>
+            )}
             <div className="mt-4 flex justify-end gap-2">
               <Button variant="outline" onClick={close}>Cancelar</Button>
-              <Button onClick={() => void aplicar()} disabled={!incluidos.length || saving}>Aplicar a {incluidos.length}</Button>
+              <Button onClick={() => void aplicar()} disabled={!incluidos.length || saving}>Importar a {incluidos.length}</Button>
             </div>
           </>
         )}

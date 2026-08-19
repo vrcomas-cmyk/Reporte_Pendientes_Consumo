@@ -69,6 +69,34 @@ export function consumoEnrich(enrich: EnrichIndex) {
   };
 }
 
+/** Ejecutivo de un cliente con cadena de respaldo — sin esto, un cliente que
+ * nunca compró EL MATERIAL exacto que se le quiere ofertar (el caso más
+ * común al mirar "quién no lo compra aún") sale con el ejecutivo en blanco.
+ * Orden: Consumo del cliente para ese material → Consumo del cliente en
+ * cualquier material → Pedido/Sugerencia del cliente (BO) → si nada mapea a
+ * un nombre, el código crudo (nunca vacío del todo si hay algún dato). */
+export function ejecutivoDeCliente(destN: string, matN: string, consumo: ConsumoRow[], bo: BOItem[], enrich: EnrichIndex): string {
+  const ce = consumoEnrich(enrich);
+  const rowMaterial = consumo.find((r) => norm(r.destinatario) === destN && norm(r.material) === matN);
+  if (rowMaterial) {
+    const e = ce.ejec(rowMaterial);
+    if (e) return e;
+  }
+  const rowCliente = consumo.find((r) => norm(r.destinatario) === destN);
+  if (rowCliente) {
+    const e = ce.ejec(rowCliente);
+    if (e) return e;
+  }
+  const boRow = bo.find((it) => norm(it.bo.destinatario) === destN);
+  if (boRow) {
+    const e = enrich.ejecutivoNombre(boRow.bo.gpoVdor);
+    if (e) return e;
+    if (boRow.bo.gpoVdor) return String(boRow.bo.gpoVdor);
+    if (boRow.bo.solicitante) return boRow.bo.solicitante;
+  }
+  return '';
+}
+
 export function consumoSerie(rf: RFIndex | null, r: ConsumoRow): Serie {
   const s = serieMatDest(rf, r.destinatario, r.material);
   return s.length ? s : serieDeConsumo(r.raw, RC_SERIE);

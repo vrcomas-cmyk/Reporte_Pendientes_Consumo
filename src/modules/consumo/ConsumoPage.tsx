@@ -13,7 +13,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, AbcBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, AbcBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { enRango, dateSortValue, isoToMesKey } from '@/lib/fechas';
 import { COLS_CONSUMO } from './columns';
 import { ESTADOS, mesKey, mesLabel, clasificarEstado, tendenciaTexto, mesRefQAnterior, mesAnterior, hoyMes, type Serie, type Estado, type Tendencia } from '@/core/resumenFac';
@@ -530,7 +530,7 @@ export function ConsumoPage() {
             {vis('material') && <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort}>Material</SortableTableHead>}
             {vis('abc') && <SortableTableHead sortKey="abc" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Clase ABC — importe facturado en los últimos 12 meses">ABC</SortableTableHead>}
             {vis('sector') && <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort}>Sector/Grupo</SortableTableHead>}
-            {vis('consumo') && <SortableTableHead sortKey="consumo" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Consumo</SortableTableHead>}
+            {vis('consumo') && <SortableTableHead sortKey="consumo" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Consumo promedio mensual de este cliente para este material.">Consumo</SortableTableHead>}
             {vis('ultima') && <SortableTableHead
               sortKey="ultima"
               activeKey={sortKey === 'ultimaFecha' ? 'ultima' : sortKey}
@@ -549,9 +549,9 @@ export function ConsumoPage() {
               className="text-right"
               title="Clic: ordenar por cantidad · Clic derecho: ordenar por fecha"
             >Penúltima</SortableTableHead>}
-            {vis('impultima') && <SortableTableHead sortKey="impultima" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right">Imp. últ.</SortableTableHead>}
-            {vis('estado') && <SortableTableHead sortKey="estado" activeKey={sortKey} dir={dir} onSort={toggleSort}>Estado</SortableTableHead>}
-            {vis('tendencia') && <SortableTableHead sortKey="tendencia" activeKey={sortKey} dir={dir} onSort={toggleSort}>Tendencia</SortableTableHead>}
+            {vis('impultima') && <SortableTableHead sortKey="impultima" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Importe facturado en el último mes con movimiento.">Imp. últ.</SortableTableHead>}
+            {vis('estado') && <SortableTableHead sortKey="estado" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Actividad reciente del cliente para este material (activo, inactivo, etc.) según meses desde la última compra.">Estado</SortableTableHead>}
+            {vis('tendencia') && <SortableTableHead sortKey="tendencia" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Compara la facturación de los últimos 3 meses completos vs. los 3 anteriores: En aumento (+10%), En decremento (-10%) o Estable.">Tendencia</SortableTableHead>}
           </TableRow></TableHeader>
           <TableBody>
             {paddingTop > 0 && (<tr><td style={{ height: paddingTop }} colSpan={COLS_CONSUMO.filter((c) => vis(c.key)).length} /></tr>)}
@@ -574,7 +574,7 @@ export function ConsumoPage() {
                 copyItems={copyItems}
               >
               <TableRow className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'clienteDetalle', dest: r.destinatario })}>
-                {vis('cliente') && <TableCell className="max-w-64 truncate">{r.razonSocial}<div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: r.solicitante })}>S {r.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: r.destinatario })}>D {r.destinatario}</Chip></div></TableCell>}
+                {vis('cliente') && <TableCell className="max-w-64 truncate">{r.razonSocial} <ClienteOportunidadBadge dest={r.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: r.solicitante })}>S {r.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: r.destinatario })}>D {r.destinatario}</Chip></div></TableCell>}
                 {vis('ejecutivo') && <TableCell>
                   <Chip onClick={() => addQuick('ejecutivo', ce.ejec(r))}>{ce.ejec(r) || '—'}</Chip>
                   <div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', ce.grupoCli(r))}>{ce.grupoCli(r) || '—'}</Chip></div>
