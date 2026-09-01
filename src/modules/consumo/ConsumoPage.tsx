@@ -570,10 +570,10 @@ export function ConsumoPage() {
                 onSolicitar={onSolicitar}
                 solicitado={solicitado}
                 label={r.material}
-                onVerDetalle={() => open({ type: 'clienteDetalle', dest: r.destinatario })}
+                onVerDetalle={() => open({ type: 'clienteDetalle', dest: r.destinatario, material: r.material })}
                 copyItems={copyItems}
               >
-              <TableRow className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'clienteDetalle', dest: r.destinatario })}>
+              <TableRow className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'clienteDetalle', dest: r.destinatario, material: r.material })}>
                 {vis('cliente') && <TableCell className="max-w-64 truncate">{r.razonSocial} <ClienteOportunidadBadge dest={r.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: r.solicitante })}>S {r.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: r.destinatario })}>D {r.destinatario}</Chip></div></TableCell>}
                 {vis('ejecutivo') && <TableCell>
                   <Chip onClick={() => addQuick('ejecutivo', ce.ejec(r))}>{ce.ejec(r) || '—'}</Chip>

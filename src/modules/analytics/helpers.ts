@@ -7,6 +7,9 @@ import {
 } from '@/core/resumenFac';
 import type { BOItem } from '@/core/buildBO';
 import { norm, num } from '@/lib/text';
+import { invPorCondicion, type RSSIndex } from '@/core/resumenSin';
+import { almacenesDeCondicion } from '@/core/inventoryRules';
+import type { InvDetalleRow } from '@/core/types';
 
 // `norm` and `num` are re-exported from the single source of truth in
 // `@/lib/text` for historical callers that imported them from here.
@@ -122,3 +125,45 @@ export function consFor(rows: ConsumoRow[], material: string, centro?: string | 
 }
 
 export { mesKey };
+
+// ---------------------------------------------------------------------------
+// RN-INV-002 (ver core/inventoryRules.ts): inventario de un centro leído
+// solo de los almacenes aplicables a la condición del material. `rss` (de
+// Resumen Sin Sugerencias) es la fuente canónica con desglose por almacén;
+// si no está disponible se cae a sumar los lotes de `InvDetalle`/`lotesCortaCaducidad`
+// cuyo almacén aplique; en último caso se devuelve el total del centro tal
+// cual (sin desglose), marcado como `exacto: false`.
+// ---------------------------------------------------------------------------
+export function invCentroPorCondicion(
+  rss: RSSIndex | null,
+  lotes: InvDetalleRow[],
+  material: string,
+  centro: string,
+  condicion: string,
+  totalCentroFallback: number,
+): { valor: number; exacto: boolean } {
+  if (rss) {
+    const mo = rss.mats.get(norm(material));
+    const co = mo?.centros.get(norm(centro));
+    if (co) return { valor: invPorCondicion(co, condicion), exacto: true };
+  }
+  const almacenes = new Set(almacenesDeCondicion(condicion).map(norm));
+  const lotesMat = lotes.filter((l) => norm(l.material) === norm(material) && norm(l.centro) === norm(centro));
+  if (lotesMat.length) {
+    const valor = lotesMat.filter((l) => almacenes.has(norm(l.almacen))).reduce((s, l) => s + l.cantidadDisp, 0);
+    return { valor, exacto: true };
+  }
+  return { valor: totalCentroFallback, exacto: false };
+}
+
+/** Cantidad en tránsito de un material hacia un (centro, almacén), leída del
+ * índice de Resumen Sin Sugerencias — mismo cálculo que se repetía en
+ * `SugerenciasPage.tsx` y `_shared.tsx` (patrón "↻+N"). */
+export function transitoFor(rss: RSSIndex | null, centro: string, alm: string, material: string): number {
+  if (!rss) return 0;
+  const mo = rss.mats.get(norm(material));
+  if (!mo) return 0;
+  const co = mo.centros.get(norm(centro));
+  if (!co) return 0;
+  return co.alm.get(alm)?.transito || 0;
+}

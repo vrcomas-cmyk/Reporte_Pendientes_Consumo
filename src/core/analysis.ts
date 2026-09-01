@@ -15,6 +15,7 @@ import type {
   AppSettings,
 } from './types';
 import { normCode, buildEnrich, type EnrichIndex } from './enrich';
+import { evaluarCortaCaducidad } from './inventoryRules';
 
 /** Normalizes a "Condición" value for matching between the daily report and
  *  the catalog (trim, deaccent, uppercase). */
@@ -102,14 +103,12 @@ export function computeKpis(params: {
 
   const productosSinConsumo = consumo.filter((c) => c.consumoActual <= 0 && c.consumoPromedioMensual <= 0).length;
 
+  // RN-INV-001: <=12 meses O almacén 1032 — regla fija, no usa
+  // settings.shortExpiryDays (legado, ver inventoryRules.ts).
   const today = new Date();
-  const thresholdMs = settings.shortExpiryDays * 86400 * 1000;
-  const productosCortaCaducidad = lotesCortaCaducidad.filter((l) => {
-    if (!l.fechaCaducidad) return false;
-    const d = new Date(l.fechaCaducidad);
-    if (Number.isNaN(d.getTime())) return false;
-    return d.getTime() - today.getTime() <= thresholdMs;
-  }).length;
+  const productosCortaCaducidad = lotesCortaCaducidad.filter(
+    (l) => evaluarCortaCaducidad(l.fechaCaducidad, l.almacen, today).esCortaCaducidad,
+  ).length;
 
   const productosLentoMovimiento = consumo.filter(
     (c) => c.consumoPromedioMensual > 0 && c.consumoPromedioMensual < settings.lowStockThreshold,

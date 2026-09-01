@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildRSS, coberturaEstado, coberturaDeAlmacen, peorCobertura, summarizeCobertura,
   quiebreMitigadoPorTransito, summarizeCoberturaConTransito, esCentroDistribucion, esLento,
+  invGen, invPorCondicion,
   type RSSAlmacen, type RSSCentro,
 } from './resumenSin';
 import type { ResumenSinSugerenciaRow } from './types';
@@ -187,5 +188,28 @@ describe('integración con buildRSS (fila real -> almacén -> cobertura)', () =>
     const mo = rss.mats.get('M-QUIEBRE')!;
     const co = mo.centros.get('1001')!;
     expect(peorCobertura(co)).toBe('quiebre');
+  });
+});
+
+describe('invPorCondicion (RN-INV-002)', () => {
+  const rss = buildRSS([mkRow({
+    Centro: '1001', Almacen: '1030', Material: 'M1', Descripcion: 'Material Uno',
+    'Inv 1030': 10, 'Inv 1031': 20, 'Inv 1032': 5, 'Inv 1060': 3,
+    'Cantidad_Pendiente': 0, 'Importe_Pendiente': 0, 'Ultimo_Mes_Consumo': '', 'Cantidad_Ultimo_Mes': 0,
+    'Penultimo_Mes_Consumo': '', 'Cantidad_Penultimo_Mes': 0, 'Cant. en Tránsito': 0,
+    'Disponible 1031-1030': 0, 'Disponible 1031-1032': 0, 'Suma pendiente': 0, 'Status Revisión': '', Fuente: '', Pedidos: 0,
+    'Meses_Inventario': 0, 'Promedio_Consumo_12M': 0, 'Suma inventario': 38,
+  })]);
+  const co = rss.mats.get('M1')!.centros.get('1001')!;
+
+  it('condición de caducidad: solo almacén 1032', () => {
+    expect(invPorCondicion(co, 'Corta caducidad')).toBe(5);
+  });
+  it('condición normal: suma 1030+1031+1060, ignora 1032 (= invGen)', () => {
+    expect(invPorCondicion(co, 'Normal')).toBe(33);
+    expect(invPorCondicion(co, 'Normal')).toBe(invGen(co));
+  });
+  it('centro inexistente devuelve 0', () => {
+    expect(invPorCondicion(undefined, 'Normal')).toBe(0);
   });
 });

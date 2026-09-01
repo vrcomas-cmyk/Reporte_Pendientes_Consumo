@@ -2345,8 +2345,8 @@
     "semantic_hash": ""
   },
   "src/modules/oportunidades/OportunidadesPage.tsx": {
-    "mtime": 1787119737.6547253,
-    "ast_hash": "f2adc7156b4ea0c617ed97766ed01747",
+    "mtime": 1787121628.2201052,
+    "ast_hash": "6ccf236878c6a8509eb234a09881a7c3",
     "semantic_hash": ""
   },
   "src/modules/oportunidades/components/ClienteFicha.tsx": {
@@ -2420,8 +2420,8 @@
     "semantic_hash": ""
   },
   "src/modules/oportunidades/panels/MaterialHubPanel.tsx": {
-    "mtime": 1787116970.503954,
-    "ast_hash": "55792122a76ac61cf8cf9f7bb3544bbb",
+    "mtime": 1787121547.2946274,
+    "ast_hash": "71593ff0e5380c068630b2f9653f07df",
     "semantic_hash": ""
   },
   "src/modules/oportunidades/panels/OportunidadPanel.tsx": {
@@ -2675,8 +2675,8 @@
     "semantic_hash": ""
   },
   "src/modules/oportunidades/panels/MaterialColocacionPanel.tsx": {
-    "mtime": 1787119545.4286344,
-    "ast_hash": "b76c54ae12111b4d1cdd682be0044b0f",
+    "mtime": 1787121683.7188723,
+    "ast_hash": "3e8267903426b35f8117d1360fd9b2a3",
     "semantic_hash": ""
   },
   "src/modules/oportunidades/components/EstadoProgreso.tsx": {

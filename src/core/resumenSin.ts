@@ -6,6 +6,7 @@
 import type { ResumenSinSugerenciaRow } from './types';
 import { norm, num } from '@/lib/text';
 import { mesKey } from './resumenFac';
+import { almacenesDeCondicion } from './inventoryRules';
 
 const RSS = {
   centro: 'Centro', alm: 'Almacen', pedidos: 'Pedidos', material: 'Material', desc: 'Descripcion',
@@ -37,6 +38,15 @@ export interface RSSIndex {
 
 export const invGen = (co: RSSCentro | undefined): number =>
   co ? co.invAlm['1030'] + co.invAlm['1031'] + co.invAlm['1060'] : 0;
+
+/** RN-INV-002 — inventario de un centro restringido a los almacenes
+ * aplicables según el texto de `condicion` (ver `core/inventoryRules.ts`):
+ * solo 1032 si es corta caducidad, o la suma general (1030+1031+1060, igual
+ * que `invGen`) en cualquier otro caso. */
+export const invPorCondicion = (co: RSSCentro | undefined, condicion: string): number => {
+  if (!co) return 0;
+  return almacenesDeCondicion(condicion).reduce((s, alm) => s + (co.invAlm[alm] || 0), 0);
+};
 
 const MESES_LENTO = 6;
 

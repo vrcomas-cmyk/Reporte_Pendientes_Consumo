@@ -350,5 +350,9 @@
   "348": "react-router-dom",
   "349": ".claude/skills/impeccable/scripts/live/source-lock.mjs",
   "350": "lucide-react",
-  "356": "@supabase/supabase-js"
+  "351": "LocalClienteConocimientoRepository",
+  "352": "/impeccable hooks",
+  "353": "Visualize: Direction Comps & Asset Production",
+  "356": "@supabase/supabase-js",
+  "363": "clsx"
 }

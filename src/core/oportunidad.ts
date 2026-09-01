@@ -9,6 +9,7 @@ import type { InvDetalleRow, InvConsolidadoRow, CondicionEspecial } from './type
 import type { RFIndex } from './resumenFac';
 import type { BOItem } from './buildBO';
 import { norm } from '@/lib/text';
+import { evaluarCortaCaducidad } from './inventoryRules';
 
 /** `norm()` solo recorta espacios — para texto libre de negocio (Cosmopark,
  * PNC…) hace falta ignorar también mayúsculas/minúsculas. */
@@ -194,14 +195,13 @@ function precioDeMaterial(material: string, invCondicion: InvConsolidadoRow[]): 
   return row?.precioOferta ?? 0;
 }
 
-/** Candidatas: lotes cuya caducidad cae dentro de `shortExpiryDays`, o cuyo
- * material está clasificado con una condición especial en el inventario por
- * condición — excluye las que ya tienen `Oportunidad` con el mismo (material,
- * lote) vía `existingKeys`. */
+/** Candidatas: lotes que cumplen RN-INV-001 (corta caducidad: <=12 meses o
+ * almacén 1032, ver inventoryRules.ts), o cuyo material está clasificado con
+ * una condición especial en el inventario por condición — excluye las que ya
+ * tienen `Oportunidad` con el mismo (material, lote) vía `existingKeys`. */
 export function buildOportunidadesCandidatas(
   lotes: InvDetalleRow[],
   invCondicion: InvConsolidadoRow[],
-  shortExpiryDays: number,
   existingKeys: Set<string>,
 ): OportunidadCandidata[] {
   const out: OportunidadCandidata[] = [];
@@ -210,7 +210,7 @@ export function buildOportunidadesCandidatas(
     if (!l.cantidadDisp || l.cantidadDisp <= 0) continue;
     const dias = diasHasta(l.fechaCaducidad);
     const condMaterial = condicionDeMaterial(l.material, invCondicion);
-    const esCortaCaducidad = dias != null && dias <= shortExpiryDays;
+    const esCortaCaducidad = evaluarCortaCaducidad(l.fechaCaducidad, l.almacen).esCortaCaducidad;
     const condicion: CondicionEspecial = esCortaCaducidad ? 'corta-caducidad' : condMaterial;
     if (condicion === 'normal') continue;
     const key = `${norm(l.material)}|${norm(l.lote)}`;

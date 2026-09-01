@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { AlertaColocacion, LoteOfertable } from '@/core/matchingOfertas';
 import type { CondicionEspecial } from '@/core/types';
+import type { Estado } from '@/core/resumenFac';
 
 // Cross-report navigation modeled as a simple stack of panel descriptors,
 // replacing the legacy navOpen/navPush/backBtn modal history. The top of the
@@ -8,8 +9,17 @@ import type { CondicionEspecial } from '@/core/types';
 // level, `open` resets the stack, `close` clears it.
 export type Panel =
   | { type: 'sugDetalle'; boKey: string }
-  | { type: 'pedido'; pedido: string; boKey?: string }
+  // `lista` (opcional): pedidos distintos en el orden/filtro de la tabla al
+  // abrir el detalle — habilita ◀/▶ para recorrerlos sin perder ese orden
+  // (ver PedidoPanel). Ausente cuando se abre desde un lugar que no tiene
+  // una lista clara (p.ej. AnalisisPage) — los controles simplemente no aparecen.
+  | { type: 'pedido'; pedido: string; boKey?: string; lista?: string[] }
   | { type: 'evol'; kind: 'solic' | 'dest'; key: string }
+  // Todos los pedidos pendientes (BO) de un ejecutivo — destino del chip
+  // "Ejecutivo" en PedidoPanel, análogo a `evol` para solicitante/destinatario
+  // pero sobre pedidos en vez de facturación (no hay índice de facturación
+  // por ejecutivo).
+  | { type: 'ejecutivoPedidos'; gpoVdor: string }
   | { type: 'codigoEvol'; kind: 'solic' | 'dest'; key: string; material: string }
   | { type: 'material'; material: string }
   | { type: 'consumoMaterial'; dest: string; material: string }
@@ -24,7 +34,10 @@ export type Panel =
   | { type: 'materialTotales'; material: string }
   // Client-centric detail (Consumo row click): open orders + consumption history for one
   // destinatario, as opposed to the material-centric 'material' panel.
-  | { type: 'clienteDetalle'; dest: string }
+  // `material` (opcional): cuando se abre desde una fila de Consumo, precarga
+  // la tarjeta de contexto del material de esa fila (último/penúltimo mes,
+  // importe, precio, tendencia) además del resumen 360 del cliente.
+  | { type: 'clienteDetalle'; dest: string; material?: string }
   // Módulo Oportunidades Comerciales (fase 1): vista 360 de un material dentro
   // del panel lateral persistente, con pestañas (req. 7 del plan) en vez de
   // navegar a otra página — el tab activo viaja en el propio descriptor, así
@@ -36,6 +49,14 @@ export type Panel =
   // snapshot de los clientes candidatos ya resueltos, igual que
   // `mesClientesFiltro` lleva sus `rows` precomputadas.
   | { type: 'materialColocacion'; material: string; descripcion: string; clientes: AlertaColocacion[]; lotes: LoteOfertable[] }
+  // "Clientes que compran pero no cumplen su regla" (ronda 6): la fila de la
+  // bandeja es compacta (1 línea por material); el detalle completo de
+  // clientes candidatos por rotación vive aquí, igual que `materialColocacion`
+  // lleva su propio snapshot precomputado.
+  | {
+      type: 'materialSinRegla'; material: string; descripcion: string;
+      clientes: { dest: string; razonSocial: string; estado: Estado; ultimoMesFacturacion: string }[];
+    }
   // Fase 2: ficha de conocimiento de un cliente (mini-CRM) — mismo criterio de
   // tab-en-el-descriptor que materialHub, así "Atrás" no pierde la pestaña.
   // `prefill*` (fase 3): contexto opcional de un material/oportunidad concreta

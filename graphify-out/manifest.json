@@ -160,8 +160,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/PanelHost.tsx": {
-    "mtime": 1787111682.5426185,
-    "ast_hash": "587a4549ba27c38d31ebbd3112114b89",
+    "mtime": 1787123318.0923615,
+    "ast_hash": "fd8f86626703179dfe7836b1469bb059",
     "semantic_hash": ""
   },
   "src/modules/analytics/helpers.ts": {
@@ -275,8 +275,8 @@
     "semantic_hash": ""
   },
   "src/store/panelStore.ts": {
-    "mtime": 1787119440.2565951,
-    "ast_hash": "f6019a31e1d32fd3b09d6dbd3f4bf8f3",
+    "mtime": 1787123291.344169,
+    "ast_hash": "f323adec48ddd7fd7fd2712074c848cb",
     "semantic_hash": ""
   },
   "src/store/uiStore.ts": {
@@ -2345,8 +2345,8 @@
     "semantic_hash": ""
   },
   "src/modules/oportunidades/OportunidadesPage.tsx": {
-    "mtime": 1787121628.2201052,
-    "ast_hash": "6ccf236878c6a8509eb234a09881a7c3",
+    "mtime": 1787123336.6827152,
+    "ast_hash": "fe2ff89be4f970baab38bf13a0c5c28f",
     "semantic_hash": ""
   },
   "src/modules/oportunidades/components/ClienteFicha.tsx": {
@@ -2687,6 +2687,11 @@
   "src/modules/oportunidades/components/CondicionSelector.tsx": {
     "mtime": 1787116748.6372263,
     "ast_hash": "a4cba27d9308fa808a2f019405df552b",
+    "semantic_hash": ""
+  },
+  "src/modules/oportunidades/panels/ClientesSinReglaPanel.tsx": {
+    "mtime": 1787123302.1253903,
+    "ast_hash": "b7181adbdb35cad5d6583447ca131601",
     "semantic_hash": ""
   }
 }

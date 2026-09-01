@@ -307,6 +307,11 @@ export interface LogEntry {
 
 export interface AppSettings {
   id: 'current';
+  /** @deprecated No controla ningún cálculo — RN-INV-001 (corta caducidad)
+   *  es un umbral fijo de negocio (<=12 meses o almacén 1032), ver
+   *  src/core/inventoryRules.ts. Se conserva el campo solo por compatibilidad
+   *  del esquema persistido (Dexie/Supabase); no editar ni leer para lógica
+   *  nueva. Ver business-rules/10-divergencias.md D1. */
   shortExpiryDays: number;
   lowStockThreshold: number;
 }

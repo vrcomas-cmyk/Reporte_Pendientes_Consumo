@@ -14,7 +14,7 @@ import { usePanelStore } from '@/store/panelStore';
 import { StatePill, TrendBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { enRango } from '@/lib/fechas';
 import { ESTADOS } from '@/core/resumenFac';
-import { norm, num, matchesQuery } from '@/modules/analytics/helpers';
+import { norm, num, matchesQuery, transitoFor } from '@/modules/analytics/helpers';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
 import { buildFromSugerencia, buildFromInventarioCentro, crear } from '@/services/solicitudService';
 import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSolicitarDialog';
@@ -236,16 +236,6 @@ export function SugerenciasPage() {
     return [...secMap.values()].sort((x, y) => y.imp - x.imp);
   }, [filtered, e]);
 
-  // #12 Tránsito sub-index: join ResumenSin's RSSCentro.alm by Centro + almacén + material.
-  const transitoFor = (centro: string, alm: string, material: string): number => {
-    const rss = a.rss;
-    if (!rss) return 0;
-    const mo = rss.mats.get(norm(material));
-    if (!mo) return 0;
-    const co = mo.centros.get(norm(centro));
-    if (!co) return 0;
-    return co.alm.get(alm)?.transito || 0;
-  };
 
   const addQuick = (field: string, value: string) => {
     if (!value || quick.some((f) => f.col === field && f.value === value)) return;
@@ -287,7 +277,8 @@ export function SugerenciasPage() {
   const vis = colVis.isVisible;
   const [unificarInv, setUnificarInv] = usePersistedState('sugerencias.unificarInv', false);
   const invTotal = (b: BORow['bo']) => INV_ALL.reduce((s, c) => s + num(b.invByCenter[c] || 0), 0);
-  const invTransitoTotal = (b: BORow['bo']) => INV_COLS.reduce((s, c) => s + transitoFor(b.centroPedido, c, b.materialBase), 0);
+  // #12 Tránsito sub-index: join ResumenSin's RSSCentro.alm by Centro + almacén + material.
+  const invTransitoTotal = (b: BORow['bo']) => INV_COLS.reduce((s, c) => s + transitoFor(a.rss, b.centroPedido, c, b.materialBase), 0);
 
   // Vistas guardadas: snapshot de columnas ocultas + unificar inventario, persistido entre sesiones.
   const savedViews = useSavedViews<{ hidden: string[]; unificarInv: boolean }>('sugerencias_vistas');
@@ -332,6 +323,14 @@ export function SugerenciasPage() {
   }), [e, grupoCli, ejec]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom, measureElement } = useRowVirtualizer(sorted.length);
+  // Pedidos distintos en el orden/filtro visible de esta tabla — viaja en el
+  // descriptor del panel `pedido` para que ◀/▶ recorran exactamente esto.
+  const pedidosLista = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const it of sorted) { if (!seen.has(it.bo.pedido)) { seen.add(it.bo.pedido); out.push(it.bo.pedido); } }
+    return out;
+  }, [sorted]);
 
   // "Desagrupado": mirrors the raw sheet 1-to-1 — the origin row (no fuente,
   // the actual pending order) PLUS one row per fuente (alternate supply
@@ -374,6 +373,12 @@ export function SugerenciasPage() {
   }), [e, ejec]);
   const { sorted: sortedRaw, sortKey: sortKeyRaw, dir: dirRaw, toggleSort: toggleSortRaw } = useSort(flatRaw, sortAccRaw);
   const { scrollRef: scrollRefRaw, items: itemsRaw, paddingTop: paddingTopRaw, paddingBottom: paddingBottomRaw, measureElement: measureElementRaw } = useRowVirtualizer(sortedRaw.length);
+  const pedidosListaRaw = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const r of sortedRaw) { if (!seen.has(r.it.bo.pedido)) { seen.add(r.it.bo.pedido); out.push(r.it.bo.pedido); } }
+    return out;
+  }, [sortedRaw]);
   // Matches `buildFromSugerencia`'s own `sourceKey` convention exactly, so
   // "ya solicitado" reflects this specific fuente, not just the parent BO.
   const rawSolicitadas = useMemo(() => {
@@ -628,10 +633,10 @@ export function SugerenciasPage() {
                     onSolicitar={onSolicitar}
                     solicitado={sugSolicitadas.has(it.k)}
                     label={b.materialBase}
-                    onVerDetalle={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k })}
+                    onVerDetalle={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosLista })}
                     copyItems={copyItems}
                   >
-                  <TableRow ref={measureElement} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k })}>
+                  <TableRow ref={measureElement} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosLista })}>
                     {!fuenteOculto && (
                       <TableCell onClick={(ev) => ev.stopPropagation()}>
                         {it.fuentes.length > 0 && (
@@ -640,7 +645,7 @@ export function SugerenciasPage() {
                       </TableCell>
                     )}
                     {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
-                    {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
+                    {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido, lista: pedidosLista })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}
                     {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial} <ClienteOportunidadBadge dest={b.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
@@ -661,7 +666,7 @@ export function SugerenciasPage() {
                       <>
                         {INV_COLS.filter((alm) => vis(`inv${alm}`)).map((alm) => {
                           const invVal = num(b.invByCenter[alm] || 0);
-                          const tr = transitoFor(b.centroPedido, alm, b.materialBase);
+                          const tr = transitoFor(a.rss, b.centroPedido, alm, b.materialBase);
                           return (
                             <TableCell key={alm} className="text-right">
                               {formatNumber(invVal)}
@@ -754,12 +759,12 @@ export function SugerenciasPage() {
                     onSolicitar={onSolicitar}
                     solicitado={rawSolicitadas.has(sourceKey)}
                     label={b.materialBase}
-                    onVerDetalle={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k })}
+                    onVerDetalle={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosListaRaw })}
                     copyItems={copyItems}
                   >
-                  <TableRow ref={measureElementRaw} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k })}>
+                  <TableRow ref={measureElementRaw} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosListaRaw })}>
                     {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
-                    {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
+                    {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido, lista: pedidosListaRaw })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}
                     {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial} <ClienteOportunidadBadge dest={b.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
@@ -780,7 +785,7 @@ export function SugerenciasPage() {
                       <>
                         {INV_COLS.filter((alm) => vis(`inv${alm}`)).map((alm) => {
                           const invVal = num(b.invByCenter[alm] || 0);
-                          const tr = transitoFor(b.centroPedido, alm, b.materialBase);
+                          const tr = transitoFor(a.rss, b.centroPedido, alm, b.materialBase);
                           return (
                             <TableCell key={alm} className="text-right">
                               {formatNumber(invVal)}

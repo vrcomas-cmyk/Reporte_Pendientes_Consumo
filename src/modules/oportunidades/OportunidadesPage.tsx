@@ -9,7 +9,6 @@ import { StatTile, StatePill, useSavedViews, SavedViewsControl, ColumnFilterBar,
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { cn, formatCurrency, formatNumber } from '@/lib/utils';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
-import { useDataStore } from '@/store/dataStore';
 import { usePanelStore } from '@/store/panelStore';
 import { useConocimientoStore } from '@/store/conocimientoStore';
 import { buildOportunidadesCandidatas, condicionPorMaterialIndex, lotesParaAlertas, candidatasSinCobertura, condicionesDisponibles, type OportunidadCandidata } from '@/core/oportunidad';
@@ -119,7 +118,6 @@ interface ViewState { condicion: CondicionEspecial | ''; vista: 'tablero' | 'lis
 export function OportunidadesPage() {
   const a = useAnalytics();
   const { lotes, invCondicion, bo, result } = a;
-  const settings = useDataStore((s) => s.settings);
   const oportunidades = useConocimientoStore((s) => s.oportunidades);
   const hydrate = useConocimientoStore((s) => s.hydrate);
   const addOportunidad = useConocimientoStore((s) => s.addOportunidad);
@@ -160,8 +158,8 @@ export function OportunidadesPage() {
     [oportunidades],
   );
   const candidatas = useMemo(
-    () => buildOportunidadesCandidatas(lotes, invCondicion, settings?.shortExpiryDays ?? 90, existingKeys),
-    [lotes, invCondicion, settings, existingKeys],
+    () => buildOportunidadesCandidatas(lotes, invCondicion, existingKeys),
+    [lotes, invCondicion, existingKeys],
   );
 
   // Alertas de colocación: cruza TODO el inventario disponible contra TODAS
@@ -390,30 +388,30 @@ export function OportunidadesPage() {
 
           {sinCobertura.length > 0 && (
             <div>
-              <h2 className="mb-2 text-sm font-semibold text-text" title="De los materiales sin ningún cliente configurado, estos SÍ tienen clientes que los compran activamente (menos de un año sin comprar) — su regla actual no cubre la condición, o no tienen regla, pero la rotación dice que vale la pena ofertarles.">
+              <h2 className="mb-2 text-sm font-semibold text-text" title="De los materiales sin ningún cliente configurado, estos SÍ tienen clientes que los compran activamente (menos de un año sin comprar) — su regla actual no cubre la condición, o no tienen regla, pero la rotación dice que vale la pena ofertarles. Clic en un material para ver el detalle.">
                 Clientes que compran pero no cumplen su regla ({clientesSinReglaPorMaterial.length} material{clientesSinReglaPorMaterial.length === 1 ? '' : 'es'})
               </h2>
-              <div className="flex flex-col gap-3">
-                {clientesSinReglaPorMaterial.map((g) => (
-                  <div key={g.material} className="rounded-lg border border-border bg-bg-elevated p-3 text-xs">
-                    <div className="mb-1.5 flex items-center gap-2">
-                      <span className="font-mono text-accent">{g.material}</span>
-                      <span className="text-text-faint">{g.descripcion}</span>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      {g.clientesRotacion.slice(0, 8).map(({ row, estado }) => (
-                        <div key={row.destinatario} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-bg-inset px-2.5 py-1.5">
-                          <div className="min-w-0">
-                            <button className="text-left font-medium text-text hover:text-accent hover:underline" onClick={() => openPanel({ type: 'clienteConocimiento', dest: row.destinatario, razonSocial: row.razonSocial, tab: 'ficha' })}>{row.razonSocial || row.destinatario}</button>
-                            <span className="ml-1.5"><StatePill label={estado.label} cls={estado.cls} /></span>
-                            <span className="ml-1.5 text-text-faint">última compra {row.ultimoMesFacturacion || '—'}</span>
-                          </div>
-                          <Button size="sm" variant="outline" onClick={() => openPanel({ type: 'clienteConocimiento', dest: row.destinatario, razonSocial: row.razonSocial, tab: 'ofertas', prefillMaterial: g.material })}>Ofertar</Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+              <div className="flex max-h-72 flex-col gap-1.5 overflow-y-auto pr-1">
+                {clientesSinReglaPorMaterial.map((g) => {
+                  const mejor = g.clientesRotacion[0];
+                  return (
+                    <button
+                      key={g.material}
+                      onClick={() => openPanel({
+                        type: 'materialSinRegla', material: g.material, descripcion: g.descripcion,
+                        clientes: g.clientesRotacion.map(({ row, estado }) => ({ dest: row.destinatario, razonSocial: row.razonSocial, estado, ultimoMesFacturacion: row.ultimoMesFacturacion })),
+                      })}
+                      className="flex w-full flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-bg-elevated px-3 py-2 text-left text-xs hover:bg-bg-inset"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-mono text-accent">{g.material}</span>
+                        <span className="ml-1.5 text-text-faint">{g.descripcion}</span>
+                        {mejor && <span className="ml-1.5"><StatePill label={mejor.estado.label} cls={mejor.estado.cls} /></span>}
+                      </div>
+                      <span className="shrink-0 rounded-full bg-accent-soft px-2.5 py-1 font-medium text-accent">{g.clientesRotacion.length} cliente{g.clientesRotacion.length === 1 ? '' : 's'}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

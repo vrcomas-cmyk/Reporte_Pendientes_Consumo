@@ -20,3 +20,4 @@ export type { SavedView } from './SavedViews';
 export { RowContextMenu } from './RowContextMenu';
 export { DateRangeFilter } from './DateRangeFilter';
 export { ClearFiltersButton } from './ClearFiltersButton';
+export { SuggestInput } from './SuggestInput';

@@ -1,5 +1,6 @@
 import { Chip } from '../ui';
 import { ClienteResumen360 } from './ClienteResumen360';
+import { ConsumoMaterialCard } from './_shared';
 import { norm } from '../helpers';
 import type { Panel } from '@/store/panelStore';
 import type { Analytics } from '../AnalyticsContext';
@@ -25,6 +26,7 @@ export function ClienteDetallePanel({ panel, a, push }: { panel: Extract<Panel, 
           Ver ficha comercial (Oportunidades) →
         </button>
       </p>
+      {panel.material && <ConsumoMaterialCard a={a} dest={panel.dest} material={panel.material} />}
       <div className="mt-3">
         <ClienteResumen360 dest={panel.dest} a={a} push={push} />
       </div>

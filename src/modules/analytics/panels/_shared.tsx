@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { StatePill, Chip, TrendBadge, AbcBadge, DetailChevron, useColumnVisibility, ColumnVisibilityControl } from '../ui';
+import { StatePill, Chip, TrendBadge, AbcBadge, DetailChevron, StatTile, SuggestInput, useColumnVisibility, ColumnVisibilityControl } from '../ui';
 import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
-import { matchesQuery, RC, pickField, num, norm, consumoStatus, consumoTend, consumoEnrich } from '../helpers';
+import { matchesQuery, RC, pickField, num, norm, consumoSerie, consumoStatus, consumoTend, consumoEnrich, transitoFor } from '../helpers';
+import { consumoDe } from '@/core/resumenFac';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import type { RFIndex } from '@/core/resumenFac';
 import { preciosPorCondicion } from '@/core/enrich';
@@ -60,15 +61,6 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
   const colVis = useColumnVisibility('sugerencias_columnas');
   const vis = colVis.isVisible;
   const cols = useMemo(() => buildSugerenciasColsAgrupado({ precioOculto, unificarInv: false, fuenteOculto }), [precioOculto, fuenteOculto]);
-  const transitoFor = (centro: string, alm: string, material: string): number => {
-    const rss = a.rss;
-    if (!rss) return 0;
-    const mo = rss.mats.get(norm(material));
-    if (!mo) return 0;
-    const co = mo.centros.get(norm(centro));
-    if (!co) return 0;
-    return co.alm.get(alm)?.transito || 0;
-  };
   if (!list.length) return <p className="text-sm text-text-muted">Sin sugerencias.</p>;
   const shown = f ? list.filter((it) => matchesQuery(f, `${it.bo.pedido} ${it.bo.razonSocial} ${it.bo.centroPedido}`)) : list;
   return (
@@ -123,7 +115,7 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
                   {(['1030', '1031', '1032', '1060'] as const).map((alm) => vis(`inv${alm}`) && (
                     <TableCell key={alm} className="text-right">
                       {formatNumber(num(b.invByCenter[alm] || 0))}
-                      {transitoFor(b.centroPedido, alm, b.materialBase) > 0 && <div className="text-[10px] text-emerald-500">↻+{formatNumber(transitoFor(b.centroPedido, alm, b.materialBase))}</div>}
+                      {transitoFor(a.rss, b.centroPedido, alm, b.materialBase) > 0 && <div className="text-[10px] text-emerald-500">↻+{formatNumber(transitoFor(a.rss, b.centroPedido, alm, b.materialBase))}</div>}
                     </TableCell>
                   ))}
                   {vis('bloq') && <TableCell>{b.bloqueado ? <StatePill label={b.bloqueado} cls="amb" /> : '—'}</TableCell>}
@@ -241,21 +233,99 @@ export function ClienteConsumoTable({ rows, rf, push }: {
   );
 }
 
-/** Subtabla de fuentes/materiales ofertables para un BO, con caducidad y drill hacia material. */
-export function FuentesTable({ fuentes, push }: { fuentes: BOItem['fuentes']; push: (p: Panel) => void }) {
-  const [f, setF] = useState('');
-  const shown = f ? fuentes.filter((x) => matchesQuery(f, `${x.fuente} ${x.materialSugerido} ${x.descripcionSugerida} ${x.centroSugerido} ${x.lote}`)) : fuentes;
+/** Tarjeta de contexto de consumo de UN material para UN cliente: material +
+ * descripción, último/penúltimo mes de compra (cant. + importe), precio de
+ * la última venta y tendencia — lo que un analista busca justo después de
+ * ver una fila de Consumo o de seleccionar un material dentro de un pedido.
+ * Reutilizada desde `ClienteDetallePanel` (doble clic en Consumo) y
+ * `PedidoPanel` (columna izquierda, se actualiza al cambiar de material). */
+export function ConsumoMaterialCard({ a, dest, material }: { a: Analytics; dest: string; material: string }) {
+  const destN = norm(dest);
+  const matN = norm(material);
+  const row = (a.result?.consumo ?? []).find((r) => norm(r.destinatario) === destN && norm(r.material) === matN);
+  if (!row) {
+    return (
+      <Section title="Consumo del material">
+        <p className="text-sm text-text-muted">Sin historial de compra de {material} para este cliente.</p>
+      </Section>
+    );
+  }
+  const serie = consumoSerie(a.rf, row);
+  const info = consumoDe(serie, a.curmes);
+  const ultimo = info.tipo === 'actual' ? { mes: info.mes!, cant: info.cant!, imp: info.imp! } : info.ultimo;
+  const penultimo = info.tipo === 'actual' ? serie[serie.length - 2] || null : info.penultimo;
+  const precioPenultimo = num(row.raw[RC.precioPenUni]);
+  return (
+    <Section title="Consumo del material">
+      <div className="rounded-lg border border-border bg-bg-elevated p-2.5">
+        <p className="font-mono text-xs font-medium">{row.material}</p>
+        <p className="truncate text-[11px] text-text-faint">{row.textoMaterial}</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <StatTile compact label="Última compra" value={ultimo ? formatNumber(ultimo.cant) : '—'} sub={ultimo?.mes || '—'} />
+          <StatTile compact label="Importe última" value={ultimo ? formatCurrency(ultimo.imp) : '—'} />
+          <StatTile compact label="Penúltima compra" value={penultimo ? formatNumber(penultimo.cant) : '—'} sub={penultimo?.mes || '—'} />
+          <StatTile compact label="Precio última" value={row.precioUnitarioUltima ? formatCurrency(row.precioUnitarioUltima) : '—'} sub={precioPenultimo ? `Penúlt. ${formatCurrency(precioPenultimo)}` : undefined} />
+        </div>
+        <div className="mt-2 flex items-center gap-1.5 text-xs text-text-muted">
+          Tendencia <TrendBadge t={consumoTend(a.rf, row)} />
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+/** Selección de hasta `maxSelect` fuentes (lotes) para armar el mensaje de
+ * oferta al ejecutivo (ver `PedidoPanel`) — opcional; sin esta prop la tabla
+ * no muestra casillas. */
+export interface FuentesSelection {
+  isSelected: (f: BOItem['fuentes'][number]) => boolean;
+  onToggle: (f: BOItem['fuentes'][number]) => void;
+  full: boolean;
+}
+
+/** Subtabla de fuentes/materiales ofertables para un BO, con caducidad y drill hacia material.
+ * Filtros independientes con autosugerencias por Centro, Lote y Material —
+ * combinables con AND — en vez de un único texto libre. */
+export function FuentesTable({ fuentes, push, selection }: { fuentes: BOItem['fuentes']; push: (p: Panel) => void; selection?: FuentesSelection }) {
+  const [fCentro, setFCentro] = useState('');
+  const [fLote, setFLote] = useState('');
+  const [fMaterial, setFMaterial] = useState('');
+  const centros = useMemo(() => [...new Set(fuentes.map((x) => x.centroSugerido).filter(Boolean))].sort(), [fuentes]);
+  const lotes = useMemo(() => [...new Set(fuentes.map((x) => x.lote).filter(Boolean))].sort(), [fuentes]);
+  const materiales = useMemo(() => [...new Set(fuentes.map((x) => x.materialSugerido).filter(Boolean))].sort(), [fuentes]);
+  const shown = fuentes.filter((x) =>
+    (!fCentro || matchesQuery(fCentro, x.centroSugerido)) &&
+    (!fLote || matchesQuery(fLote, x.lote)) &&
+    (!fMaterial || matchesQuery(fMaterial, `${x.materialSugerido} ${x.descripcionSugerida}`)),
+  );
   return (
     <div>
-      <SubFilter value={f} onChange={setF} placeholder="Filtrar fuente, material, lote…" />
+      <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <SuggestInput value={fCentro} onChange={setFCentro} options={centros} placeholder="Centro…" />
+        <SuggestInput value={fLote} onChange={setFLote} options={lotes} placeholder="Lote…" />
+        <SuggestInput value={fMaterial} onChange={setFMaterial} options={materiales} placeholder="Material…" />
+      </div>
       <div>
         <Table wrapperClassName="max-h-72 rounded-lg border border-border">
-          <TableHeader><TableRow><TableHead>Fuente</TableHead><TableHead>Material sug.</TableHead><TableHead>Centro/Alm</TableHead><TableHead className="text-right">Disp.</TableHead><TableHead>Lote</TableHead><TableHead>Caducidad</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow>{selection && <TableHead className="w-8" />}<TableHead>Fuente</TableHead><TableHead>Material sug.</TableHead><TableHead>Centro/Alm</TableHead><TableHead className="text-right">Disp.</TableHead><TableHead>Lote</TableHead><TableHead>Caducidad</TableHead></TableRow></TableHeader>
           <TableBody>
             {shown.map((f2, i) => {
               const vg = vigenciaTxt(f2.fechaCaducidad);
+              const sel = selection?.isSelected(f2) ?? false;
               return (
-                <TableRow key={i}>
+                <TableRow key={i} className={sel ? 'bg-emerald-500/10' : undefined}>
+                  {selection && (
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={sel}
+                        disabled={!sel && selection.full}
+                        onChange={() => selection.onToggle(f2)}
+                        title={!sel && selection.full ? 'Máximo 2 lotes seleccionados para este material' : 'Seleccionar para la oferta'}
+                        className="size-3.5 accent-emerald-600"
+                      />
+                    </TableCell>
+                  )}
                   <TableCell><StatePill label={f2.fuente} cls={/corta/i.test(f2.fuente) ? 'rojo' : 'azul'} /></TableCell>
                   <TableCell><Chip onClick={() => push({ type: 'material', material: f2.materialSugerido })}>{f2.materialSugerido}</Chip><div className="text-[11px] text-text-faint">{f2.descripcionSugerida}</div></TableCell>
                   <TableCell>{f2.centroSugerido}{f2.almacenSugerido ? ` / ${f2.almacenSugerido}` : ''}</TableCell>

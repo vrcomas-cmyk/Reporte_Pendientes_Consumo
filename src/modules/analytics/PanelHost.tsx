@@ -16,6 +16,7 @@ import { GrupoPanel } from './panels/GrupoPanel';
 import { CeldaPanel } from './panels/CeldaPanel';
 import { MaterialTotalesPanel } from './panels/MaterialTotalesPanel';
 import { ClienteDetallePanel } from './panels/ClienteDetallePanel';
+import { EjecutivoPedidosPanel } from './panels/EjecutivoPedidosPanel';
 
 // Los paneles de Oportunidades se cargan con lazy para no arrastrar el módulo
 // (scoring, HubLinks, conocimientoStore) al chunk inicial — PanelHost es eager
@@ -24,12 +25,14 @@ const MaterialHubPanel = lazy(() => import('@/modules/oportunidades/panels/Mater
 const OportunidadPanel = lazy(() => import('@/modules/oportunidades/panels/OportunidadPanel').then((m) => ({ default: m.OportunidadPanel })));
 const ClienteConocimientoPanel = lazy(() => import('@/modules/oportunidades/panels/ClienteConocimientoPanel').then((m) => ({ default: m.ClienteConocimientoPanel })));
 const MaterialColocacionPanel = lazy(() => import('@/modules/oportunidades/panels/MaterialColocacionPanel').then((m) => ({ default: m.MaterialColocacionPanel })));
+const ClientesSinReglaPanel = lazy(() => import('@/modules/oportunidades/panels/ClientesSinReglaPanel').then((m) => ({ default: m.ClientesSinReglaPanel })));
 
 // oxlint-disable-next-line typescript/no-explicit-any -- el discrim `panel.type` ya tipa panel; el dispatcher usa `any` para que cada rama acepte su Extract<Panel,...> sin sobrecargar la signatura.
 const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
   sugDetalle: SugDetallePanel,
   pedido: PedidoPanel,
   evol: EvolPanel,
+  ejecutivoPedidos: EjecutivoPedidosPanel,
   codigoEvol: CodigoEvolPanel,
   material: MaterialPanel,
   consumoMaterial: ConsumoMaterialPanel,
@@ -44,6 +47,7 @@ const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
   oportunidad: OportunidadPanel,
   clienteConocimiento: ClienteConocimientoPanel,
   materialColocacion: MaterialColocacionPanel,
+  materialSinRegla: ClientesSinReglaPanel,
 };
 
 // Paneles que pueden renderizar `SugTable`/`ConsumoTable` con todas sus
@@ -51,8 +55,13 @@ const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
 // ancho que un panel de detalle simple — si no, la tabla queda apretada con
 // scroll horizontal interno para casi cualquier cosa.
 const WIDE = new Set<Panel['type']>([
-  'materialHub', 'material', 'sugDetalle', 'consumoMaterial', 'clienteDetalle', 'celda', 'sector', 'grupo', 'materialTotales', 'pedido', 'materialColocacion',
+  'materialHub', 'material', 'sugDetalle', 'consumoMaterial', 'clienteDetalle', 'celda', 'sector', 'grupo', 'materialTotales', 'materialColocacion', 'ejecutivoPedidos',
 ]);
+
+// `pedido` es el único panel de 3 columnas (detalle + inventario + BO) — con
+// el ancho de WIDE (7xl) cada columna queda apretada, así que usa un ancho
+// mayor propio en vez de compartir el set de arriba.
+const EXTRA_WIDE = new Set<Panel['type']>(['pedido']);
 
 /** Dispatcher de paneles: dado el discrim `panel.type` delega al componente de la rama correspondiente en `./panels/`. */
 function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: Panel) => void }) {
@@ -75,7 +84,7 @@ export function PanelHost() {
 
   return (
     <Sheet open={!!panel} onOpenChange={(o) => !o && close()}>
-      <SheetContent className={`w-full max-w-4xl ${panel && WIDE.has(panel.type) ? 'sm:max-w-7xl' : 'sm:max-w-4xl'}`}>
+      <SheetContent className={`w-full max-w-4xl ${panel && EXTRA_WIDE.has(panel.type) ? 'sm:max-w-[100rem]' : panel && WIDE.has(panel.type) ? 'sm:max-w-7xl' : 'sm:max-w-4xl'}`}>
         {stack.length > 1 && (
           <button onClick={back} className="mb-3 inline-flex items-center gap-1 text-sm text-text-muted hover:text-text">
             <ArrowLeft className="size-4" /> Atrás

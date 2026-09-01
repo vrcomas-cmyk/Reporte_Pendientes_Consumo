@@ -59,11 +59,10 @@ export function SettingsPage() {
     // Lo que realmente hace efecto (computeKpis) lee de useDataStore en
     // memoria, no de Supabase — si guardar remoto falla (sin sesión activa,
     // red caída), el ajuste igual debe aplicar en esta sesión.
-    const { shortExpiryDays, lowStockThreshold } = draft;
-    if (shortExpiryDays <= 0 || shortExpiryDays > 365) {
-      toast.warning('Días de caducidad corta: 1–365');
-      return;
-    }
+    // shortExpiryDays ya no controla el cálculo (RN-INV-001 es un umbral fijo
+    // de negocio, ver src/core/inventoryRules.ts); se conserva en el objeto
+    // de settings solo por compatibilidad de esquema, no se valida ni se edita.
+    const { lowStockThreshold } = draft;
     if (lowStockThreshold < 0 || lowStockThreshold > 10000) {
       toast.warning('Umbral stock bajo: 0–10000');
       return;
@@ -91,16 +90,12 @@ export function SettingsPage() {
           <CardDescription>Se guardan localmente y aplican al próximo cálculo de KPIs.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="text-text-muted">Días para considerar "corta caducidad"</span>
-            <Input
-              type="number"
-              min={1}
-              max={365}
-              value={draft.shortExpiryDays}
-              onChange={(e) => setDraft((d) => ({ ...d, shortExpiryDays: Number(e.target.value) || 0 }))}
-            />
-          </label>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="text-text-muted">
+              "Corta caducidad" es una regla de negocio fija (RN-INV-001): vigencia restante ≤ 12 meses, o material
+              en almacén 1032 — ya no es un umbral configurable por usuario.
+            </span>
+          </div>
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="text-text-muted">Umbral de consumo mensual para "lento movimiento"</span>
             <Input
