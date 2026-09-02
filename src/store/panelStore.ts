@@ -31,6 +31,12 @@ export type Panel =
   | { type: 'sector'; sector: string }
   | { type: 'grupo'; grupo: string }
   | { type: 'celda'; material: string; centro: string }
+  // Detalle de una celda del reporte "Inv Condición" (InvConsolidado): a
+  // diferencia de `celda` (que prioriza el desglose de Resumen Sin
+  // Sugerencias), este SIEMPRE muestra el desglose por lote desde
+  // "InvDetalle" — misma fuente/sincronización que el reporte, sin mezclar
+  // con RSS que puede venir de otro spreadsheet desfasado en el tiempo.
+  | { type: 'invCondCelda'; material: string; centro: string }
   | { type: 'materialTotales'; material: string }
   // Client-centric detail (Consumo row click): open orders + consumption history for one
   // destinatario, as opposed to the material-centric 'material' panel.

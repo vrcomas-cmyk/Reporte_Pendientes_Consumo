@@ -14,6 +14,7 @@ import { ClientesMesPanel, MesClientesFiltroPanel } from './panels/ClientesMesPa
 import { SectorPanel } from './panels/SectorPanel';
 import { GrupoPanel } from './panels/GrupoPanel';
 import { CeldaPanel } from './panels/CeldaPanel';
+import { InvCondCeldaPanel } from './panels/InvCondCeldaPanel';
 import { MaterialTotalesPanel } from './panels/MaterialTotalesPanel';
 import { ClienteDetallePanel } from './panels/ClienteDetallePanel';
 import { EjecutivoPedidosPanel } from './panels/EjecutivoPedidosPanel';
@@ -41,6 +42,7 @@ const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
   sector: SectorPanel,
   grupo: GrupoPanel,
   celda: CeldaPanel,
+  invCondCelda: InvCondCeldaPanel,
   materialTotales: MaterialTotalesPanel,
   clienteDetalle: ClienteDetallePanel,
   materialHub: MaterialHubPanel,
@@ -55,7 +57,7 @@ const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
 // ancho que un panel de detalle simple — si no, la tabla queda apretada con
 // scroll horizontal interno para casi cualquier cosa.
 const WIDE = new Set<Panel['type']>([
-  'materialHub', 'material', 'sugDetalle', 'consumoMaterial', 'clienteDetalle', 'celda', 'sector', 'grupo', 'materialTotales', 'materialColocacion', 'ejecutivoPedidos',
+  'materialHub', 'material', 'sugDetalle', 'consumoMaterial', 'clienteDetalle', 'celda', 'invCondCelda', 'sector', 'grupo', 'materialTotales', 'materialColocacion', 'ejecutivoPedidos',
 ]);
 
 // `pedido` es el único panel de 3 columnas (detalle + inventario + BO) — con

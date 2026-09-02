@@ -10,7 +10,7 @@ import { buildLotesSheet } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
 import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, ClearFiltersButton, useColumnVisibility, ColumnVisibilityControl, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
-import { norm, matchesQuery, invCentroPorCondicion } from '@/modules/analytics/helpers';
+import { norm, matchesQuery } from '@/modules/analytics/helpers';
 import { esCondicionCortaCaducidad } from '@/core/inventoryRules';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { TableSkeleton } from '@/components/ui/skeleton';
@@ -145,25 +145,13 @@ export function InventarioPage() {
     });
   };
 
-  // RN-INV-002: inventario por centro leído SOLO de los almacenes que aplican
-  // a la condición del material (1032 si es corta caducidad; 1030+1031+1060
-  // en cualquier otro caso) — ver `core/inventoryRules.ts` e
-  // `invCentroPorCondicion`. Precomputado una sola vez por (material,
-  // condición, centro) para no recalcular por celda en la tabla virtualizada.
-  const invCondMap = useMemo(() => {
-    const map = new Map<string, { valor: number; exacto: boolean }>();
-    for (const r of rows) {
-      for (const c of CENTERS) {
-        const key = `${norm(r.material)}|${norm(r.condicion)}|${c}`;
-        if (map.has(key)) continue;
-        map.set(key, invCentroPorCondicion(a.rss, a.lotes, r.material, c, r.condicion, r.invByCenter[c] || 0));
-      }
-    }
-    return map;
-  }, [rows, a.rss, a.lotes]);
-  const invCond = (r: (typeof rows)[number], c: string) =>
-    invCondMap.get(`${norm(r.material)}|${norm(r.condicion)}|${c}`) ?? { valor: r.invByCenter[c] || 0, exacto: false };
-  const invSumaCond = (r: (typeof rows)[number]) => CENTERS.reduce((s, c) => s + invCond(r, c).valor, 0);
+  // El valor mostrado por centro es SIEMPRE el del reporte "InvConsolidado"
+  // (`r.invByCenter[c]`, ya viene por condición desde la hoja), sin
+  // recalcular contra RSS/InvDetalle — así la tabla nunca muestra un número
+  // que no venga literal del reporte. El desglose por almacén (InvDetalle)
+  // se ve al hacer clic en la celda, vía el panel `invCondCelda`.
+  const invCond = (r: (typeof rows)[number], c: string) => r.invByCenter[c] || 0;
+  const invSumaCond = (r: (typeof rows)[number]) => CENTERS.reduce((s, c) => s + invCond(r, c), 0);
 
   const conds = useMemo(() => [...new Set(rows.map((r) => r.condicion).filter(Boolean))].sort(), [rows]);
   const sectores = useMemo(() => [...new Set(rows.map((r) => a.enrich.matSector(r.material) || r.sector).filter(Boolean))].sort(), [rows, a.enrich]);
@@ -181,13 +169,13 @@ export function InventarioPage() {
     return rows.filter((r) => {
       if (cond && norm(r.condicion) !== cond) return false;
       if (sector && (a.enrich.matSector(r.material) || r.sector) !== sector) return false;
-      if (centro && !(invCond(r, centro).valor > 0)) return false;
+      if (centro && !(invCond(r, centro) > 0)) return false;
       if (!passesFilters(r, filterCols, quick)) return false;
       if (qd && !matchesQuery(qd, `${r.material} ${r.textoBreve}`)) return false;
       if (!isAdmin && hidden.has(rowKey(r.material, r.condicion))) return false;
       return true;
     });
-  }, [rows, qd, cond, sector, centro, a.enrich, isAdmin, hidden, filterCols, quick, invCondMap]);
+  }, [rows, qd, cond, sector, centro, a.enrich, isAdmin, hidden, filterCols, quick]);
 
   const kpis = useMemo(() => {
     const mats = new Set(filtered.map((r) => norm(r.material)));
@@ -196,8 +184,7 @@ export function InventarioPage() {
     const rk = filtered.map((r) => ({ code: r.material, desc: r.textoBreve, val: invSumaCond(r) * r.precioOferta }))
       .filter((x) => x.val > 0).sort((x, y) => y.val - x.val).slice(0, 10);
     return { mats: mats.size, imp, stock, rk };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, invCondMap]);
+  }, [filtered]);
 
   const sortAcc = useMemo(() => ({
     material: (r: (typeof filtered)[number]) => r.material,
@@ -208,8 +195,7 @@ export function InventarioPage() {
     disp3132: (r: (typeof filtered)[number]) => r.disponible31_32,
     invsuma: (r: (typeof filtered)[number]) => invSumaCond(r),
     importe: (r: (typeof filtered)[number]) => invSumaCond(r) * r.precioOferta,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [a.enrich, invCondMap]);
+  }), [a.enrich]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
   const visibleCenters = useMemo(() => CENTERS.filter((c) => colVis.isVisible(`centro_${c}`)), [colVis]);
@@ -245,7 +231,7 @@ export function InventarioPage() {
         Sector: a.enrich.matSector(r.material) || r.sector, 'Grupo art.': a.enrich.matGrupo(r.material) || r.grupo,
         Precio: r.precioOferta, 'Disp 1031-1030': r.disponible31_30, 'Disp 1031-1032': r.disponible31_32,
       };
-      CENTERS.forEach((c) => { o['Inv ' + c] = invCond(r, c).valor; });
+      CENTERS.forEach((c) => { o['Inv ' + c] = invCond(r, c); });
       o['Inv Suma'] = invSumaCond(r); o['Importe $'] = invSumaCond(r) * r.precioOferta;
       return o;
     });
@@ -369,7 +355,7 @@ export function InventarioPage() {
                 <SortableTableHead sortKey="precio" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated text-right" style={{ left: precioLeft, width: PRECIO_W, minWidth: PRECIO_W }} title="Precio de oferta vigente para este material.">Precio</SortableTableHead>
                 {colVis.isVisible('disp3130') && <SortableTableHead sortKey="disp3130" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Cantidad disponible para mover del centro 1031 (hub de distribución) al almacén 1030.">Disp 31·30</SortableTableHead>}
                 {colVis.isVisible('disp3132') && <SortableTableHead sortKey="disp3132" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Cantidad disponible para mover del centro 1031 (hub de distribución) al almacén 1032.">Disp 31·32</SortableTableHead>}
-                {visibleCenters.map((c) => <TableHead key={c} className="text-right" title={`Inventario de este material en el centro ${c}, según su condición: solo almacén 1032 si es corta caducidad; suma de 1030+1031+1060 en cualquier otro caso. Clic = detalle del centro.`}>Inv {c}</TableHead>)}
+                {visibleCenters.map((c) => <TableHead key={c} className="text-right" title={`Inventario de este material en el centro ${c}, tal como viene en el reporte "InvConsolidado". Clic = desglose por lote (InvDetalle).`}>Inv {c}</TableHead>)}
                 {colVis.isVisible('invsuma') && <SortableTableHead sortKey="invsuma" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Suma del inventario (por condición) de este material en todos los centros.">Inv Suma</SortableTableHead>}
                 {colVis.isVisible('importe') && <SortableTableHead sortKey="importe" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Valor del inventario por condición (cantidad × precio de oferta).">Importe $</SortableTableHead>}
               </TableRow>
@@ -428,14 +414,11 @@ export function InventarioPage() {
                     <TableCell className="sticky z-10 bg-bg-elevated text-right" style={{ left: precioLeft, width: PRECIO_W, minWidth: PRECIO_W }}>{r.precioOferta ? formatCurrency(r.precioOferta) : '—'}</TableCell>
                     {colVis.isVisible('disp3130') && <TableCell className="text-right">{formatNumber(r.disponible31_30)}</TableCell>}
                     {colVis.isVisible('disp3132') && <TableCell className="text-right">{formatNumber(r.disponible31_32)}</TableCell>}
-                    {visibleCenters.map((c) => {
-                      const { valor, exacto } = invCond(r, c);
-                      return (
-                        <TableCell key={c} className="text-right" title={!exacto ? 'Sin desglose por almacén disponible — se muestra el total del centro.' : undefined}>
-                          <Chip onClick={() => open({ type: 'celda', material: r.material, centro: c })}>{formatNumber(valor)}</Chip>
-                        </TableCell>
-                      );
-                    })}
+                    {visibleCenters.map((c) => (
+                      <TableCell key={c} className="text-right">
+                        <Chip onClick={() => open({ type: 'invCondCelda', material: r.material, centro: c })}>{formatNumber(invCond(r, c))}</Chip>
+                      </TableCell>
+                    ))}
                     {colVis.isVisible('invsuma') && <TableCell className="text-right font-medium">{formatNumber(invSumaCond(r))}</TableCell>}
                     {colVis.isVisible('importe') && <TableCell className="text-right">{formatCurrency(invSumaCond(r) * r.precioOferta)}</TableCell>}
                   </TableRow>
