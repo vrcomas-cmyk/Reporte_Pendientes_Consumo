@@ -25,6 +25,20 @@ const s3 = new S3Client({
   credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
 });
 
+// Sin esto, supabase.functions.invoke() dispara un preflight OPTIONS (manda
+// Authorization/apikey/x-client-info + Content-Type: json) que el navegador
+// bloquea si la respuesta no trae estos headers — ver google-calendar/index.ts,
+// que usa el mismo patrón.
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-snapshot-secret",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+}
+
 // Valida el JWT contra Supabase Auth (verifica firma y expiración server-side)
 // en vez de decodificar el payload con atob — decodificar sin verificar dejaba
 // todo el control de acceso al flag verify_jwt de la Edge Function.
@@ -46,8 +60,9 @@ async function getUserId(req: Request): Promise<string | null> {
 }
 
 Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return json({ error: "Method not allowed" }, 405);
   }
 
   const body = await req.json().catch(() => null) as
@@ -57,7 +72,7 @@ Deno.serve(async (req: Request) => {
     | { mode: "snapshot-download"; key: string }
     | null;
   if (!body) {
-    return new Response(JSON.stringify({ error: "Body inválido" }), { status: 400 });
+    return json({ error: "Body inválido" }, 400);
   }
 
   // "snapshot-upload" es la ÚNICA rama que NO pide sesión de Supabase: la
@@ -66,19 +81,19 @@ Deno.serve(async (req: Request) => {
   // Todo lo demás (incluido "snapshot-download") sigue requiriendo sesión.
   if (body.mode === "snapshot-upload") {
     if (!SNAPSHOT_UPLOAD_SECRET || req.headers.get("x-snapshot-secret") !== SNAPSHOT_UPLOAD_SECRET) {
-      return new Response(JSON.stringify({ error: "No autorizado" }), { status: 401 });
+      return json({ error: "No autorizado" }, 401);
     }
     if (!body.key.startsWith(SNAPSHOT_PREFIX)) {
-      return new Response(JSON.stringify({ error: "Key inválida" }), { status: 400 });
+      return json({ error: "Key inválida" }, 400);
     }
     const cmd = new PutObjectCommand({ Bucket: R2_BUCKET, Key: body.key, ContentType: body.contentType ?? "application/octet-stream" });
     const url = await getSignedUrl(s3, cmd, { expiresIn: 300 });
-    return new Response(JSON.stringify({ url }), { headers: { "Content-Type": "application/json" } });
+    return json({ url });
   }
 
   const userId = await getUserId(req);
   if (!userId) {
-    return new Response(JSON.stringify({ error: "No autorizado" }), { status: 401 });
+    return json({ error: "No autorizado" }, 401);
   }
 
   if (body.mode === "snapshot-download") {
@@ -86,35 +101,35 @@ Deno.serve(async (req: Request) => {
     // exige que la key empiece con el propio userId (el snapshot es
     // compartido por todo el equipo, no un archivo subido por un usuario).
     if (!body.key.startsWith(SNAPSHOT_PREFIX)) {
-      return new Response(JSON.stringify({ error: "Key fuera de snapshots/" }), { status: 403 });
+      return json({ error: "Key fuera de snapshots/" }, 403);
     }
     const cmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: body.key });
     const url = await getSignedUrl(s3, cmd, { expiresIn: 300 });
-    return new Response(JSON.stringify({ url }), { headers: { "Content-Type": "application/json" } });
+    return json({ url });
   }
 
   if (body.mode === "upload") {
     // Limite de tamaño del archivo (cota del cliente; R2 no aplica Content-Length).
     if (body.size && body.size > MAX_UPLOAD_BYTES) {
-      return new Response(JSON.stringify({ error: "Archivo demasiado grande" }), { status: 413 });
+      return json({ error: "Archivo demasiado grande" }, 413);
     }
     // Cada usuario sube solo bajo su propio prefijo: userId/timestamp-nombre.xlsx
     const safeName = body.fileName.replace(/[^\w.\-]+/g, "_").slice(0, 100);
     const key = `${userId}/${Date.now()}-${safeName}`;
     const cmd = new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, ContentType: body.contentType });
     const url = await getSignedUrl(s3, cmd, { expiresIn: 300 });
-    return new Response(JSON.stringify({ url, key }), { headers: { "Content-Type": "application/json" } });
+    return json({ url, key });
   }
 
   if (body.mode === "download") {
     // Solo puede pedir descargas de objetos bajo su propio prefijo.
     if (!body.key.startsWith(`${userId}/`)) {
-      return new Response(JSON.stringify({ error: "No autorizado para este archivo" }), { status: 403 });
+      return json({ error: "No autorizado para este archivo" }, 403);
     }
     const cmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: body.key });
     const url = await getSignedUrl(s3, cmd, { expiresIn: 300 });
-    return new Response(JSON.stringify({ url }), { headers: { "Content-Type": "application/json" } });
+    return json({ url });
   }
 
-  return new Response(JSON.stringify({ error: "mode inválido" }), { status: 400 });
+  return json({ error: "mode inválido" }, 400);
 });

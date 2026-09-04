@@ -9,6 +9,7 @@ export function KpiTile({
   icon: Icon,
   tone = 'default',
   sub,
+  size = 'lg',
 }: {
   label: string;
   value: string;
@@ -16,24 +17,29 @@ export function KpiTile({
   tone?: 'default' | 'warning' | 'danger';
   /** Optional second line under the value (e.g. a breakdown) — same pattern as `StatTile.sub`. */
   sub?: ReactNode;
+  /** 'lg' (default) for the primary "needs attention" row; 'sm' for the
+   * secondary context row — same card, smaller type/padding, so the two
+   * rows read as a hierarchy instead of 8 equal-weight tiles competing. */
+  size?: 'lg' | 'sm';
 }) {
   return (
     <Card>
-      <CardContent className="flex items-start justify-between gap-3 p-4">
+      <CardContent className={cn('flex items-start justify-between gap-3', size === 'lg' ? 'p-4' : 'p-3')}>
         <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-text-faint">{label}</p>
-          <p className="mt-1 truncate font-mono text-xl font-medium text-text">{value}</p>
+          <p className={cn('font-medium uppercase tracking-wide text-text-faint', size === 'lg' ? 'text-[11px]' : 'text-[10px]')}>{label}</p>
+          <p className={cn('mt-1 truncate font-mono font-medium text-text', size === 'lg' ? 'text-xl' : 'text-base')}>{value}</p>
           {sub && <p className="mt-0.5 truncate text-[11px] text-text-faint">{sub}</p>}
         </div>
         <div
           className={cn(
-            'flex size-8 shrink-0 items-center justify-center rounded-md',
+            'flex shrink-0 items-center justify-center rounded-md',
+            size === 'lg' ? 'size-8' : 'size-6',
             tone === 'warning' && 'bg-warning/15 text-warning',
             tone === 'danger' && 'bg-danger/15 text-danger',
             tone === 'default' && 'bg-accent-soft text-accent',
           )}
         >
-          <Icon className="size-4" />
+          <Icon className={size === 'lg' ? 'size-4' : 'size-3.5'} />
         </div>
       </CardContent>
     </Card>

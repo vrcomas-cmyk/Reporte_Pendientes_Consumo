@@ -37,7 +37,6 @@ import { useUiStore } from '@/store/uiStore';
 import { categorical } from '@/lib/chartColors';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { topEjecutivos as computeTopEjecutivos } from '@/core/analysis';
-import { Ranking } from '@/modules/analytics/ui';
 
 export function DashboardPage() {
   const activeAnalysis = useDataStore((s) => s.activeAnalysis);
@@ -71,8 +70,11 @@ export function DashboardPage() {
             <Skeleton className="h-4 w-64" />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-8">
-          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-[72px]" />)}
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[72px]" />)}
+        </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
         </div>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Skeleton className="h-72" />
@@ -135,16 +137,10 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-8">
-        <KpiTile label="Materiales analizados" value={formatNumber(kpis?.materialesAnalizados ?? 0)} icon={Boxes} />
-        {/* Ejecutivos comes from the catalog directly (topEjecutivos.length), not kpis —
-            it must show real numbers the instant the catalog syncs, before any daily report. */}
-        <KpiTile label="Ejecutivos" value={formatNumber(topEjecutivos.length)} icon={Users} />
-        <KpiTile label="Sin consumo" value={formatNumber(kpis?.productosSinConsumo ?? 0)} icon={PackageX} tone="warning" />
-        <KpiTile label="Corta caducidad" value={formatNumber(kpis?.productosCortaCaducidad ?? 0)} icon={Clock4} tone="danger" />
-        <KpiTile label="Lento movimiento" value={formatNumber(kpis?.productosLentoMovimiento ?? 0)} icon={TrendingDown} tone="warning" />
-        <KpiTile label="Inventario total" value={formatNumber(kpis?.inventarioTotal ?? 0)} icon={Warehouse} />
-        <KpiTile label="Valor económico" value={formatCurrency(kpis?.valorEconomico ?? 0)} icon={CircleDollarSign} />
+      {/* Two-tier KPI hierarchy instead of 8 equal-weight tiles in one row:
+          the 4 "needs attention" numbers (what to act on today) lead, larger;
+          the 4 context numbers (what the analysis covers) follow, smaller. */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <KpiTile
           label="Bloqueado"
           value={formatCurrency(kpis?.bloqueadosImportePendiente ?? 0)}
@@ -156,6 +152,17 @@ export function DashboardPage() {
               : undefined
           }
         />
+        <KpiTile label="Corta caducidad" value={formatNumber(kpis?.productosCortaCaducidad ?? 0)} icon={Clock4} tone="danger" />
+        <KpiTile label="Sin consumo" value={formatNumber(kpis?.productosSinConsumo ?? 0)} icon={PackageX} tone="warning" />
+        <KpiTile label="Lento movimiento" value={formatNumber(kpis?.productosLentoMovimiento ?? 0)} icon={TrendingDown} tone="warning" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <KpiTile label="Materiales analizados" value={formatNumber(kpis?.materialesAnalizados ?? 0)} icon={Boxes} size="sm" />
+        {/* Ejecutivos comes from the catalog directly (topEjecutivos.length), not kpis —
+            it must show real numbers the instant the catalog syncs, before any daily report. */}
+        <KpiTile label="Ejecutivos" value={formatNumber(topEjecutivos.length)} icon={Users} size="sm" />
+        <KpiTile label="Inventario total" value={formatNumber(kpis?.inventarioTotal ?? 0)} icon={Warehouse} size="sm" />
+        <KpiTile label="Valor económico" value={formatCurrency(kpis?.valorEconomico ?? 0)} icon={CircleDollarSign} size="sm" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -241,24 +248,10 @@ export function DashboardPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Top 5 materiales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!activeAnalysis ? (
-              <div className="text-xs text-text-faint">Sin datos — carga el reporte diario.</div>
-            ) : (
-              <Ranking
-                title=""
-                wide
-                items={topMateriales.map((m) => ({ code: m.material, desc: m.descripcion, val: m.importePendiente }))}
-                money
-              />
-            )}
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {/* No separate "Top 5 materiales" list here — it duplicated the bar
+            chart above (same topMateriales dataset, just as text) and only
+            added visual weight without new information. */}
         <Card>
           <CardHeader>
             <CardTitle>Ejecutivos</CardTitle>
@@ -273,7 +266,7 @@ export function DashboardPage() {
             ))}
           </CardContent>
         </Card>
-        <Card className="xl:col-span-1">
+        <Card>
           <CardHeader>
             <CardTitle>Inventario por sector × centro</CardTitle>
             <CardDescription>Mapa de calor</CardDescription>

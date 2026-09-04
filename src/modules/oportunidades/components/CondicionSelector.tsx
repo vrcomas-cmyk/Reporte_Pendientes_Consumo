@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { FilterChip } from '@/components/ui/filter-chip';
 import { cn } from '@/lib/utils';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { condicionesDisponibles } from '@/core/oportunidad';
@@ -42,14 +43,9 @@ export function CondicionSelector({ value, onChange }: { value: string[]; onChan
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar otro valor real (Cosmopark, PNC…)" className="h-7 max-w-xs text-xs" />
           <div className="mt-1.5 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
             {shown.map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => toggle(v)}
-                className={cn('rounded-full border px-2.5 py-1 text-xs', value.includes(v) ? 'border-accent bg-accent-soft text-accent' : 'border-border text-text-muted hover:border-accent/50')}
-              >
+              <FilterChip key={v} active={value.includes(v)} onClick={() => toggle(v)} className="px-2.5 py-1">
                 {v}
-              </button>
+              </FilterChip>
             ))}
             {shown.length === 0 && <p className="text-[11px] text-text-faint">Sin coincidencias.</p>}
           </div>

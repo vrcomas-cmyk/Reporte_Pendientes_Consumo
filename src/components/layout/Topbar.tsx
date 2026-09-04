@@ -4,11 +4,11 @@ import { useDataStore } from '@/store/dataStore';
 import { useReportSheetsSyncStore } from '@/store/reportSheetsSyncStore';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { formatDateTime } from '@/lib/utils';
+import { cn, formatDateTime } from '@/lib/utils';
 import { isMac } from '@/hooks/useKeybindings';
 import { NAV, ADMIN_NAV_ITEM } from '@/components/layout/Sidebar';
-import { TooltipHint } from '@/components/ui/tooltip';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import type { AnalysisResult, CatalogSnapshot, ProcessingProgress } from '@/core/types';
 
 // A few routes read better with fuller copy than the Sidebar's short nav
 // label ("Panel" -> "Panel general"). Anything NOT listed here falls back to
@@ -81,54 +81,98 @@ export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNa
             for every route), not gated by ModuleGuard: a role restricted to a
             single module (e.g. only Consumo) has no access to /carga and would
             otherwise have zero visibility into whether the daily report is
-            still loading, done, or failed — especially on mobile, where the
-            tooltip on the old spinner-only badge was never reachable. */}
-        {sheetsSyncing ? (
-          <TooltipHint text={sheetsProgress?.message ?? 'Sincronizando reporte…'}>
-            <Badge variant="warning" className="gap-1">
-              <RefreshCcw className="size-3 shrink-0 animate-spin" />
-              <span className="hidden sm:inline">{sheetsProgress?.message ?? 'Sincronizando reporte…'}</span>
-              <span className="sm:hidden">Sync {sheetsProgress ? `${sheetsProgress.percent}%` : '…'}</span>
-            </Badge>
-          </TooltipHint>
-        ) : sheetsError ? (
-          <TooltipHint text={sheetsError}>
-            <Badge variant="danger" className="gap-1">
-              <AlertCircle className="size-3 shrink-0" />
-              <span className="hidden sm:inline">Reporte: falló la sincronización</span>
-              <span className="sm:hidden">Reporte: error</span>
-            </Badge>
-          </TooltipHint>
-        ) : activeAnalysis ? (
-          <Badge variant="success" className="gap-1">
-            <CheckCircle2 className="size-3 shrink-0" />
-            <span className="hidden sm:inline">Reporte actualizado · {formatDateTime(activeAnalysis.processedAt)}</span>
-            <span className="sm:hidden">Reporte</span>
-          </Badge>
-        ) : (
-          <Badge variant="warning" className="gap-1">
-            <AlertCircle className="size-3 shrink-0" />
-            <span className="hidden sm:inline">Reporte no cargado</span>
-            <span className="sm:hidden">Sin reporte</span>
-          </Badge>
-        )}
-        {catalog ? (
-          <Badge variant="success" className="gap-1">
-            <CheckCircle2 className="size-3 shrink-0" />
-            <span className="hidden sm:inline">Catálogo sincronizado · {formatDateTime(catalog.loadedAt)}</span>
-            <span className="sm:hidden">Catálogo</span>
-          </Badge>
-        ) : (
-          <Badge variant="warning" className="gap-1">
-            <AlertCircle className="size-3 shrink-0" />
-            <span className="hidden sm:inline">Catálogo no cargado</span>
-            <span className="sm:hidden">Sin catálogo</span>
-          </Badge>
-        )}
+            still loading, done, or failed. Collapsed into ONE indicator
+            (instead of two always-expanded badges) so it doesn't compete with
+            the page title on every screen — detail lives in the popover. */}
+        <SyncStatus
+          sheetsSyncing={sheetsSyncing}
+          sheetsProgress={sheetsProgress}
+          sheetsError={sheetsError}
+          activeAnalysis={activeAnalysis}
+          catalog={catalog}
+        />
         <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Cambiar tema">
           {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </Button>
       </div>
     </header>
+  );
+}
+
+const TONE_CLS = {
+  danger: 'border-danger/30 bg-danger/10 text-danger',
+  warning: 'border-warning/30 bg-warning/10 text-warning',
+  success: 'border-success/30 bg-success/10 text-success',
+} as const;
+
+interface SyncStatusProps {
+  sheetsSyncing: boolean;
+  sheetsProgress: ProcessingProgress | null;
+  sheetsError: string | null;
+  activeAnalysis: AnalysisResult | null;
+  catalog: CatalogSnapshot | null;
+}
+
+/** Single collapsed indicator for report + catalog sync state — replaces two
+ * always-expanded badges that competed with the page title on every screen.
+ * Worst-of-both tone/label up front; both lines of detail (with timestamps)
+ * live in the popover, opened on demand instead of always on. */
+function SyncStatus({ sheetsSyncing, sheetsProgress, sheetsError, activeAnalysis, catalog }: SyncStatusProps) {
+  const tone = sheetsError ? 'danger' : sheetsSyncing || !activeAnalysis || !catalog ? 'warning' : 'success';
+  const summary = sheetsSyncing
+    ? (sheetsProgress?.message ?? 'Sincronizando…')
+    : sheetsError
+      ? 'Reporte: error de sync'
+      : !activeAnalysis && !catalog
+        ? 'Sin datos cargados'
+        : !activeAnalysis
+          ? 'Reporte no cargado'
+          : !catalog
+            ? 'Catálogo no cargado'
+            : 'Todo sincronizado';
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+            TONE_CLS[tone],
+          )}
+        >
+          {sheetsSyncing ? (
+            <RefreshCcw className="size-3 shrink-0 animate-spin" />
+          ) : tone === 'success' ? (
+            <CheckCircle2 className="size-3 shrink-0" />
+          ) : (
+            <AlertCircle className="size-3 shrink-0" />
+          )}
+          <span className="hidden sm:inline">{summary}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3 text-xs">
+        <div className="flex flex-col gap-2.5">
+          <div>
+            <p className="font-medium text-text">Reporte diario</p>
+            {sheetsSyncing ? (
+              <p className="text-text-muted">{sheetsProgress?.message ?? 'Sincronizando…'}{sheetsProgress ? ` · ${sheetsProgress.percent}%` : ''}</p>
+            ) : sheetsError ? (
+              <p className="text-danger">{sheetsError}</p>
+            ) : activeAnalysis ? (
+              <p className="text-text-muted">Actualizado · {formatDateTime(activeAnalysis.processedAt)}</p>
+            ) : (
+              <p className="text-text-muted">Aún no cargado</p>
+            )}
+          </div>
+          <div>
+            <p className="font-medium text-text">Catálogo</p>
+            <p className="text-text-muted">
+              {catalog ? <>Sincronizado · {formatDateTime(catalog.loadedAt)}</> : 'Aún no cargado'}
+            </p>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

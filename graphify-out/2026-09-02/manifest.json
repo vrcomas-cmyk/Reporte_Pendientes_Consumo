@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "src/core/analysis.ts": {
-    "mtime": 1787322587.7585602,
-    "ast_hash": "8709d2adc67d9a34cf0d4f890f08598e",
+    "mtime": 1788370601.582556,
+    "ast_hash": "6815a06563264823c679f1aceaa5f9b1",
     "semantic_hash": ""
   },
   "src/core/buildBO.ts": {

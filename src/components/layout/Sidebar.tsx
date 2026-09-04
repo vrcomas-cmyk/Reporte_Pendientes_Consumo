@@ -30,27 +30,47 @@ import { canViewModule } from '@/core/permissions';
 
 // `moduleKey` matches the route path minus the leading slash ('/' -> 'dashboard')
 // and `degasa_modules.key` — see supabase/migrations/0002_permissions_and_connectors.sql.
-// Exported as the single source of truth for route labels: Topbar derives its
-// header title from this (with its own nicer-copy overrides) instead of
-// keeping a second, easily-stale label map — that duplication is exactly how
-// 7 of 15 routes ended up silently falling back to the bare "DEGASA" wordmark.
-export const NAV = [
-  { to: '/', moduleKey: 'dashboard', label: 'Panel', icon: LayoutDashboard, end: true },
-  { to: '/hoy', moduleKey: 'hoy', label: 'Hoy', icon: Sunrise },
-  { to: '/carga', moduleKey: 'carga', label: 'Carga', icon: UploadCloud },
-  { to: '/resultados', moduleKey: 'resultados', label: 'Resultados', icon: Table2 },
-  { to: '/sugerencias', moduleKey: 'sugerencias', label: 'Pedidos', icon: ClipboardList },
-  { to: '/consumo', moduleKey: 'consumo', label: 'Consumo', icon: Activity },
-  { to: '/resumen-sin', moduleKey: 'resumen-sin', label: 'Inventario', icon: Grid3x3 },
-  { to: '/inventario', moduleKey: 'inventario', label: 'Inv Condición', icon: Boxes },
-  { to: '/analisis', moduleKey: 'analisis', label: 'Análisis', icon: LineChart },
-  { to: '/oportunidades', moduleKey: 'oportunidades', label: 'Oportunidades', icon: Target },
-  { to: '/comodato', moduleKey: 'comodato', label: 'Comodato vs. Fac.', icon: HandCoins },
-  { to: '/solicitudes', moduleKey: 'solicitudes', label: 'Solicitudes DRP', icon: Truck },
-  { to: '/historial', moduleKey: 'historial', label: 'Historial', icon: History },
-  { to: '/registros', moduleKey: 'registros', label: 'Registros', icon: ScrollText },
-  { to: '/ajustes', moduleKey: 'ajustes', label: 'Ajustes', icon: Settings },
+// Grouped (instead of one flat 15-item list) so the rail reads as 3 short
+// sections instead of a wall of icons — group labels are visual-only, they
+// don't affect routing/permissions. `NAV` (flat) stays exported as the single
+// source of truth for route labels: Topbar derives its header title from it
+// (with its own nicer-copy overrides) instead of keeping a second, easily-stale
+// label map — that duplication is exactly how 7 of 15 routes ended up silently
+// falling back to the bare "DEGASA" wordmark.
+export const NAV_GROUPS = [
+  {
+    label: 'Operación diaria',
+    items: [
+      { to: '/', moduleKey: 'dashboard', label: 'Panel', icon: LayoutDashboard, end: true },
+      { to: '/hoy', moduleKey: 'hoy', label: 'Hoy', icon: Sunrise },
+      { to: '/carga', moduleKey: 'carga', label: 'Carga', icon: UploadCloud },
+      { to: '/resultados', moduleKey: 'resultados', label: 'Resultados', icon: Table2 },
+      { to: '/sugerencias', moduleKey: 'sugerencias', label: 'Pedidos', icon: ClipboardList },
+    ],
+  },
+  {
+    label: 'Análisis y oportunidades',
+    items: [
+      { to: '/consumo', moduleKey: 'consumo', label: 'Consumo', icon: Activity },
+      { to: '/resumen-sin', moduleKey: 'resumen-sin', label: 'Inventario', icon: Grid3x3 },
+      { to: '/inventario', moduleKey: 'inventario', label: 'Inv Condición', icon: Boxes },
+      { to: '/analisis', moduleKey: 'analisis', label: 'Análisis', icon: LineChart },
+      { to: '/oportunidades', moduleKey: 'oportunidades', label: 'Oportunidades', icon: Target },
+      { to: '/comodato', moduleKey: 'comodato', label: 'Comodato vs. Fac.', icon: HandCoins },
+    ],
+  },
+  {
+    label: 'Gestión',
+    items: [
+      { to: '/solicitudes', moduleKey: 'solicitudes', label: 'Solicitudes DRP', icon: Truck },
+      { to: '/historial', moduleKey: 'historial', label: 'Historial', icon: History },
+      { to: '/registros', moduleKey: 'registros', label: 'Registros', icon: ScrollText },
+      { to: '/ajustes', moduleKey: 'ajustes', label: 'Ajustes', icon: Settings },
+    ],
+  },
 ];
+
+export const NAV = NAV_GROUPS.flatMap((g) => g.items);
 
 // Not module-gated by permission (see ModuleGuard/AdminGuard), so it isn't
 // part of NAV — but the Topbar still needs its label for the header title.
@@ -67,7 +87,9 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const perms = usePermissionsStore((s) => s.perms);
-  const visibleNav = NAV.filter((item) => canViewModule(perms, item.moduleKey));
+  const visibleGroups = NAV_GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((item) => canViewModule(perms, item.moduleKey)) }))
+    .filter((g) => g.items.length > 0);
   // Hover-to-peek: when the sidebar is pinned collapsed, hovering it briefly
   // (after a short hover-intent delay, so a quick cursor pass doesn't
   // trigger it) visually expands it without changing the pinned state.
@@ -126,34 +148,43 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
           )}
         </div>
 
-        <nav className="flex flex-1 flex-col gap-0.5 px-2 pt-2">
-          {visibleNav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              onClick={() => onCloseMobile?.()}
-              className={({ isActive }) =>
-                cn(
-                  'group relative flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors',
-                  isActive ? 'text-text' : 'text-text-muted hover:text-text hover:bg-bg-inset',
-                )
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  {isActive && (
-                    <motion.span
-                      layoutId="sidebar-active"
-                      className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-accent"
-                      transition={{ type: 'spring', stiffness: 400, damping: 34 }}
-                    />
-                  )}
-                  <item.icon className={cn('size-4 shrink-0', isActive && 'text-accent')} />
-                  {expanded && <span className="truncate">{item.label}</span>}
-                </>
+        <nav className="flex flex-1 flex-col gap-3 overflow-y-auto px-2 pt-2">
+          {visibleGroups.map((group) => (
+            <div key={group.label} className="flex flex-col gap-0.5">
+              {expanded && (
+                <span className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-faint">
+                  {group.label}
+                </span>
               )}
-            </NavLink>
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  onClick={() => onCloseMobile?.()}
+                  className={({ isActive }) =>
+                    cn(
+                      'group relative flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors',
+                      isActive ? 'text-text' : 'text-text-muted hover:text-text hover:bg-bg-inset',
+                    )
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      {isActive && (
+                        <motion.span
+                          layoutId="sidebar-active"
+                          className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-accent"
+                          transition={{ type: 'spring', stiffness: 400, damping: 34 }}
+                        />
+                      )}
+                      <item.icon className={cn('size-4 shrink-0', isActive && 'text-accent')} />
+                      {expanded && <span className="truncate">{item.label}</span>}
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </div>
           ))}
           {perms.isAdmin && (
             <NavLink

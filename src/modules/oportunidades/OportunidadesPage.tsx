@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { LayoutGrid, List, Plus, Bell, X, AlertTriangle } from 'lucide-react';
+import { LayoutGrid, List, Plus, Bell, AlertTriangle, Info } from 'lucide-react';
+import { TooltipHint } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { FilterChip } from '@/components/ui/filter-chip';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { StatTile, StatePill, useSavedViews, SavedViewsControl, ColumnFilterBar, passesFilters, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { EmptyState } from '@/components/feedback/EmptyState';
@@ -320,14 +322,22 @@ export function OportunidadesPage() {
 
         <TabsContent value="bandeja" className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-text-muted" title="Materiales con inventario de condición especial que se necesita colocar antes de que venza o pierda valor.">Qué colocar y a quién ofrecérselo — lo primero, siempre.</p>
+            <p className="flex items-center gap-1.5 text-sm text-text-muted">
+              Qué colocar y a quién ofrecérselo — lo primero, siempre.
+              <TooltipHint text="Materiales con inventario de condición especial que se necesita colocar antes de que venza o pierda valor.">
+                <Info className="size-3.5 shrink-0 text-text-faint" />
+              </TooltipHint>
+            </p>
             <MaterialSearch />
           </div>
 
           <div className="rounded-lg border border-accent/30 bg-accent-soft/40 p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="flex items-center gap-1.5 text-base font-semibold text-text" title="Por material: cuántos lotes hay disponibles y cuántos clientes ya configurados los aceptarían — clic en un material para ver esos clientes con ejecutivo, última compra, precio y tendencia.">
+              <h2 className="flex items-center gap-1.5 text-base font-semibold text-text">
                 <Bell className="size-4 text-accent" /> Materiales por colocar ({materialesColocacion.length})
+                <TooltipHint text="Por material: cuántos lotes hay disponibles y cuántos clientes ya configurados los aceptarían — clic en un material para ver esos clientes con ejecutivo, última compra, precio y tendencia.">
+                  <Info className="size-3.5 shrink-0 text-text-faint" />
+                </TooltipHint>
               </h2>
               <Select value={ordenMateriales} onChange={(e) => setOrdenMateriales(e.target.value as typeof ordenMateriales)} className="h-7 w-auto text-xs">
                 <option value="clientes">Más clientes primero</option>
@@ -339,21 +349,10 @@ export function OportunidadesPage() {
             {condicionesReales.length > 0 && (
               <div className="mb-2 flex flex-wrap items-center gap-1.5">
                 {condicionMaterial ? (
-                  <button
-                    onClick={() => setCondicionMaterial('')}
-                    className="flex items-center gap-1 rounded-full border border-accent bg-accent-soft px-3 py-1 text-xs text-accent transition-colors hover:bg-accent-soft/70"
-                  >
-                    {condicionMaterial} <X className="size-3" />
-                  </button>
+                  <FilterChip active onClear={() => setCondicionMaterial('')}>{condicionMaterial}</FilterChip>
                 ) : (
                   condicionesReales.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setCondicionMaterial(c)}
-                      className="rounded-full border border-border bg-bg-elevated px-3 py-1 text-xs text-text-muted transition-colors hover:bg-bg-inset"
-                    >
-                      {c}
-                    </button>
+                    <FilterChip key={c} onClick={() => setCondicionMaterial(c)}>{c}</FilterChip>
                   ))
                 )}
               </div>
@@ -388,8 +387,11 @@ export function OportunidadesPage() {
 
           {sinCobertura.length > 0 && (
             <div>
-              <h2 className="mb-2 text-sm font-semibold text-text" title="De los materiales sin ningún cliente configurado, estos SÍ tienen clientes que los compran activamente (menos de un año sin comprar) — su regla actual no cubre la condición, o no tienen regla, pero la rotación dice que vale la pena ofertarles. Clic en un material para ver el detalle.">
+              <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-text">
                 Clientes que compran pero no cumplen su regla ({clientesSinReglaPorMaterial.length} material{clientesSinReglaPorMaterial.length === 1 ? '' : 'es'})
+                <TooltipHint text="De los materiales sin ningún cliente configurado, estos SÍ tienen clientes que los compran activamente (menos de un año sin comprar) — su regla actual no cubre la condición, o no tienen regla, pero la rotación dice que vale la pena ofertarles. Clic en un material para ver el detalle.">
+                  <Info className="size-3.5 shrink-0 text-text-faint" />
+                </TooltipHint>
               </h2>
               <div className="flex max-h-72 flex-col gap-1.5 overflow-y-auto pr-1">
                 {clientesSinReglaPorMaterial.map((g) => {
@@ -443,37 +445,25 @@ export function OportunidadesPage() {
 
                 <div className="flex flex-wrap items-center gap-1.5">
                   {QUICK_FILTROS.map((f) => (
-                    <button
+                    <FilterChip
                       key={f.key}
+                      active={quickFiltro === f.key}
                       onClick={() => setQuickFiltro(quickFiltro === f.key ? 'todas' : f.key)}
-                      className={cn(
-                        'rounded-full border px-3 py-1 text-xs transition-colors',
-                        quickFiltro === f.key ? 'border-accent bg-accent-soft text-accent' : 'border-border text-text-muted hover:bg-bg-inset',
-                      )}
                     >
                       {f.label}
-                    </button>
+                    </FilterChip>
                   ))}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
                     {condicion ? (
-                      <button
-                        onClick={() => setCondicion('')}
-                        className="flex items-center gap-1 rounded-full border border-accent bg-accent-soft px-3 py-1 text-xs text-accent transition-colors hover:bg-accent-soft/70"
-                      >
-                        {CONDICION_FILTROS.find((f) => f.key === condicion)?.label} <X className="size-3" />
-                      </button>
+                      <FilterChip active onClear={() => setCondicion('')}>
+                        {CONDICION_FILTROS.find((f) => f.key === condicion)?.label}
+                      </FilterChip>
                     ) : (
                       CONDICION_FILTROS.filter((f) => f.key !== '').map((f) => (
-                        <button
-                          key={f.key}
-                          onClick={() => setCondicion(f.key)}
-                          className="rounded-full border border-border px-3 py-1 text-xs text-text-muted transition-colors hover:bg-bg-inset"
-                        >
-                          {f.label}
-                        </button>
+                        <FilterChip key={f.key} onClick={() => setCondicion(f.key)}>{f.label}</FilterChip>
                       ))
                     )}
                   </div>
