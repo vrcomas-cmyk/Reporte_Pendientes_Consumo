@@ -86,25 +86,36 @@ function classify(raw: { key: string; label: string; imp: number; cant: number }
   return { entries, total };
 }
 
+/** Predicados opcionales de material/cliente — los mismos filtros de página
+ * (ejecutivo/grupo cliente/sector/grupo artículo) que `analisisVentas` ya
+ * aplica, vía `buildAnalisisPredicates` en `comercial.ts`. Sin esto, el
+ * comportamiento es idéntico al de siempre (todo el universo). */
+export interface AbcPredicates {
+  matPasa?: (material: string) => boolean;
+  clientePasa?: (solicitante: string) => boolean;
+}
+
 /**
  * Clasifica materiales y clientes (por código de solicitante — el mismo eje
  * de negocio que usa `analisisVentas` para clientes, no destinatario/punto
  * de entrega) según el importe facturado en los últimos 12 meses completos.
  * Pura — no I/O — para poder correr en un `useMemo` o en un test.
  */
-export function buildAbc(rf: RFIndex | null): AbcResult {
+export function buildAbc(rf: RFIndex | null, predicates?: AbcPredicates): AbcResult {
   if (!rf) return EMPTY;
 
   const refK = mesKey(mesAnterior(hoyMes()));
 
   const matRaw: { key: string; label: string; imp: number; cant: number }[] = [];
   rf.mat.forEach((serie, material) => {
+    if (predicates?.matPasa && !predicates.matPasa(material)) return;
     const { cant, imp } = sum12m(serie, refK);
     if (imp > 0) matRaw.push({ key: material, label: rf.matTexto.get(material) || material, imp, cant });
   });
 
   const clienteRaw: { key: string; label: string; imp: number; cant: number }[] = [];
   rf.solic.forEach((serie, solicitante) => {
+    if (predicates?.clientePasa && !predicates.clientePasa(solicitante)) return;
     const { cant, imp } = sum12m(serie, refK);
     if (imp > 0) clienteRaw.push({ key: solicitante, label: rf.solicRazon.get(solicitante) || solicitante, imp, cant });
   });

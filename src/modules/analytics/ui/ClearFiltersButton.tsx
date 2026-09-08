@@ -10,7 +10,7 @@ export function ClearFiltersButton({ onClear }: { onClear: () => void }) {
     <button
       type="button"
       onClick={onClear}
-      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-dashed border-border px-2 text-sm text-text-faint hover:border-accent hover:text-accent"
+      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-danger/30 bg-danger/10 px-2.5 text-sm font-medium text-danger hover:border-danger/50 hover:bg-danger/20"
     >
       <X className="size-3.5" />
       Limpiar filtros

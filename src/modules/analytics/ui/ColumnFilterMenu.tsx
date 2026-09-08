@@ -4,28 +4,23 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { valuesOf, type ActiveFilter, type FilterColumn } from './ColumnFilterBar';
 
-/** Menú de filtro de una columna al estilo Excel/Sheets: valores distintos de
- * esa columna (sobre el universo sin filtrar), búsqueda, "seleccionar todo" y
- * multi-select con checkbox. Emite el mismo `ActiveFilter[]` que ya consume
- * `passesFilters` — ninguna página cambia su lógica de filtrado por usar esto
- * en vez del autocomplete de un solo valor de `ColumnFilterBar`. */
-export function ColumnFilterMenu<T>({ column, rows, active, onChange, trigger, open: openProp, onOpenChange, onClose }: {
+/** Cuerpo del filtro de una columna al estilo Excel/Sheets: valores distintos
+ * de esa columna (sobre el universo sin filtrar), búsqueda, "seleccionar
+ * todo" y multi-select con checkbox — sin el `Popover` que lo envuelve, para
+ * poder incrustarlo dentro de otro popover ya abierto (ver `ColumnFilterBar`,
+ * que lo usa junto a un picker de columna en un solo flujo) además de en el
+ * trigger standalone de `ColumnFilterMenu` de abajo. */
+export function ColumnValuesPicker<T>({ column, rows, active, onChange, onBack, onDone }: {
   column: FilterColumn<T>;
   rows: T[];
   active: ActiveFilter[];
   onChange: (next: ActiveFilter[]) => void;
-  trigger?: React.ReactNode;
-  /** Controlado: si se pasa, el popover se abre/cierra desde afuera (p. ej. al elegir la columna en `ColumnFilterBar`). Sin esto, maneja su propio estado. */
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  onClose?: () => void;
+  /** Si viene, muestra un enlace "← columnas" arriba (usado por `ColumnFilterBar`
+   * para volver al picker de columna sin cerrar el popover). */
+  onBack?: () => void;
+  /** Se llama al "Aplicar" — cierra el popover contenedor. */
+  onDone: () => void;
 }) {
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-  const open = openProp ?? uncontrolledOpen;
-  const setOpen = (v: boolean) => {
-    if (onOpenChange) onOpenChange(v); else setUncontrolledOpen(v);
-    if (!v) onClose?.();
-  };
   const [typed, setTyped] = useState('');
 
   const distinct = useMemo(() => {
@@ -61,6 +56,83 @@ export function ColumnFilterMenu<T>({ column, rows, active, onChange, trigger, o
   };
 
   return (
+    <div>
+      {onBack && (
+        <button type="button" onClick={onBack} className="mb-1.5 text-xs text-text-faint hover:text-text">
+          ← columnas
+        </button>
+      )}
+      <input
+        autoFocus
+        autoComplete="off"
+        value={typed}
+        onChange={(e) => setTyped(e.target.value)}
+        placeholder={`Buscar en ${column.label}…`}
+        className="mb-1.5 h-8 w-full rounded-md border border-border bg-bg-elevated px-2 text-xs"
+      />
+      <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs font-medium hover:bg-bg-inset">
+        <input
+          type="checkbox"
+          checked={allVisibleSelected}
+          ref={(el) => { if (el) el.indeterminate = someVisibleSelected && !allVisibleSelected; }}
+          onChange={toggleAllVisible}
+        />
+        Seleccionar todo{typed.trim() ? ' (resultados)' : ''}
+      </label>
+      <div className="mt-1 max-h-56 overflow-auto border-t border-border pt-1">
+        {shown.length === 0 && <div className="px-1.5 py-2 text-xs text-text-faint">Sin valores</div>}
+        {shown.map((v) => (
+          <label key={v} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-bg-inset">
+            <input type="checkbox" checked={activeSet.has(v)} onChange={() => toggle(v)} />
+            <span className="truncate">{v}</span>
+          </label>
+        ))}
+        {visible.length > shown.length && (
+          <div className="px-1.5 py-1 text-[11px] text-text-faint">+{visible.length - shown.length} más — sigue escribiendo para acotar</div>
+        )}
+      </div>
+      <div className="mt-1.5 flex items-center justify-between border-t border-border pt-1.5">
+        <button
+          type="button"
+          disabled={!hasActive}
+          onClick={() => setValues(new Set())}
+          className="text-xs text-text-faint hover:text-text disabled:opacity-40"
+        >
+          Limpiar columna
+        </button>
+        <button type="button" onClick={onDone} className="text-xs text-accent hover:underline">
+          Aplicar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Menú de filtro de una columna al estilo Excel/Sheets — mismo `ActiveFilter[]`
+ * que ya consume `passesFilters`; ninguna página cambia su lógica de filtrado
+ * por usar esto en vez del picker fusionado de `ColumnFilterBar`. */
+export function ColumnFilterMenu<T>({ column, rows, active, onChange, trigger, open: openProp, onOpenChange, onClose }: {
+  column: FilterColumn<T>;
+  rows: T[];
+  active: ActiveFilter[];
+  onChange: (next: ActiveFilter[]) => void;
+  trigger?: React.ReactNode;
+  /** Controlado: si se pasa, el popover se abre/cierra desde afuera (p. ej. al elegir la columna en `ColumnFilterBar`). Sin esto, maneja su propio estado. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onClose?: () => void;
+}) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = openProp ?? uncontrolledOpen;
+  const setOpen = (v: boolean) => {
+    if (onOpenChange) onOpenChange(v); else setUncontrolledOpen(v);
+    if (!v) onClose?.();
+  };
+
+  const activeSet = useMemo(() => new Set(active.filter((f) => f.col === column.key).map((f) => f.value)), [active, column.key]);
+  const hasActive = activeSet.size > 0;
+
+  return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         {trigger ?? (
@@ -75,48 +147,7 @@ export function ColumnFilterMenu<T>({ column, rows, active, onChange, trigger, o
         )}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 p-2" onClick={(e) => e.stopPropagation()}>
-        <input
-          autoFocus
-          autoComplete="off"
-          value={typed}
-          onChange={(e) => setTyped(e.target.value)}
-          placeholder={`Buscar en ${column.label}…`}
-          className="mb-1.5 h-8 w-full rounded-md border border-border bg-bg-elevated px-2 text-xs"
-        />
-        <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs font-medium hover:bg-bg-inset">
-          <input
-            type="checkbox"
-            checked={allVisibleSelected}
-            ref={(el) => { if (el) el.indeterminate = someVisibleSelected && !allVisibleSelected; }}
-            onChange={toggleAllVisible}
-          />
-          Seleccionar todo{typed.trim() ? ' (resultados)' : ''}
-        </label>
-        <div className="mt-1 max-h-56 overflow-auto border-t border-border pt-1">
-          {shown.length === 0 && <div className="px-1.5 py-2 text-xs text-text-faint">Sin valores</div>}
-          {shown.map((v) => (
-            <label key={v} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-bg-inset">
-              <input type="checkbox" checked={activeSet.has(v)} onChange={() => toggle(v)} />
-              <span className="truncate">{v}</span>
-            </label>
-          ))}
-          {visible.length > shown.length && (
-            <div className="px-1.5 py-1 text-[11px] text-text-faint">+{visible.length - shown.length} más — sigue escribiendo para acotar</div>
-          )}
-        </div>
-        <div className="mt-1.5 flex items-center justify-between border-t border-border pt-1.5">
-          <button
-            type="button"
-            disabled={!hasActive}
-            onClick={() => setValues(new Set())}
-            className="text-xs text-text-faint hover:text-text disabled:opacity-40"
-          >
-            Limpiar columna
-          </button>
-          <button type="button" onClick={() => setOpen(false)} className="text-xs text-accent hover:underline">
-            Aplicar
-          </button>
-        </div>
+        <ColumnValuesPicker column={column} rows={rows} active={active} onChange={onChange} onDone={() => setOpen(false)} />
       </PopoverContent>
     </Popover>
   );

@@ -10,9 +10,9 @@ import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { usePanelStore } from '@/store/panelStore';
 import { StatTile, EvolChart, ComparativaDual, Chip, RowContextMenu, StatePill, AbcBadge, useSavedViews, SavedViewsControl, ClearFiltersButton } from '@/modules/analytics/ui';
-import { analisisVentas, type ClienteAna, type MatAna, type AnalisisFilters } from '@/core/comercial';
+import { analisisVentas, buildAnalisisPredicates, type ClienteAna, type MatAna, type AnalisisFilters } from '@/core/comercial';
 import { mesKey, mesAnterior, hoyMes } from '@/core/resumenFac';
-import { summarizeAbc, type AbcEntry } from '@/core/abc';
+import { buildAbc, summarizeAbc, type AbcEntry } from '@/core/abc';
 import { norm, num } from '@/modules/analytics/helpers';
 import { usePersistedState } from '@/hooks/usePersistedState';
 
@@ -120,10 +120,19 @@ export function AnalisisPage() {
     return { qLabel: qLabelOf(qStartK), cur, prev };
   }, [A, periodo]);
 
-  const abcMaterialesSummary = useMemo(() => summarizeAbc(a.abc.materiales), [a.abc.materiales]);
-  const abcClientesSummary = useMemo(() => summarizeAbc(a.abc.clientes), [a.abc.clientes]);
+  // La clasificación ABC/Pareto es propia de esta página (no el índice global
+  // `a.abc`, que no sabe nada de estos 4 filtros) — mismos predicados que ya
+  // usa `analisisVentas` para el resto de la página, así ambos quedan
+  // consistentes entre sí y con los filtros activos.
+  const abcFiltrado = useMemo(() => {
+    if (!a.rf) return { materiales: [] as AbcEntry[], clientes: [] as AbcEntry[] };
+    const predicates = buildAnalisisPredicates(a.rf, a.enrich, { ejecutivo, grupoCliente, sector, grupoArticulo });
+    return buildAbc(a.rf, predicates);
+  }, [a.rf, a.enrich, ejecutivo, grupoCliente, sector, grupoArticulo]);
+  const abcMaterialesSummary = useMemo(() => summarizeAbc(abcFiltrado.materiales), [abcFiltrado.materiales]);
+  const abcClientesSummary = useMemo(() => summarizeAbc(abcFiltrado.clientes), [abcFiltrado.clientes]);
   const [abcTab, setAbcTab] = usePersistedState<'materiales' | 'clientes'>('analisis.abcTab', 'materiales');
-  const abcShown = abcTab === 'materiales' ? a.abc.materiales : a.abc.clientes;
+  const abcShown = abcTab === 'materiales' ? abcFiltrado.materiales : abcFiltrado.clientes;
 
   const opsShown = useMemo(() => {
     if (!A) return [];
@@ -210,11 +219,11 @@ export function AnalisisPage() {
       },
       {
         name: 'ABC Materiales',
-        rows: a.abc.materiales.map((e) => ({ Rank: e.rank, Material: e.key, Descripción: e.label, 'Importe 12m': e.importe12m, 'Cantidad 12m': e.cantidad12m, '% del importe': e.share, '% acumulado': e.cumShare, Clase: e.clase })),
+        rows: abcFiltrado.materiales.map((e) => ({ Rank: e.rank, Material: e.key, Descripción: e.label, 'Importe 12m': e.importe12m, 'Cantidad 12m': e.cantidad12m, '% del importe': e.share, '% acumulado': e.cumShare, Clase: e.clase })),
       },
       {
         name: 'ABC Clientes',
-        rows: a.abc.clientes.map((e) => ({ Rank: e.rank, Solicitante: e.key, Cliente: e.label, 'Importe 12m': e.importe12m, 'Cantidad 12m': e.cantidad12m, '% del importe': e.share, '% acumulado': e.cumShare, Clase: e.clase })),
+        rows: abcFiltrado.clientes.map((e) => ({ Rank: e.rank, Solicitante: e.key, Cliente: e.label, 'Importe 12m': e.importe12m, 'Cantidad 12m': e.cantidad12m, '% del importe': e.share, '% acumulado': e.cumShare, Clase: e.clase })),
       },
       {
         name: 'Sectores',

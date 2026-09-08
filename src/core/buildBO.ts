@@ -36,6 +36,12 @@ const keyOf = (r: Sugerencia): string =>
 
 const hasFuente = (r: Sugerencia): boolean => norm(r.fuente) !== '';
 
+/** Fila de demanda real (sin fuente alterna) — usar para filtrar `Sugerencia[]`
+ * crudo antes de sumar `cantidadPendiente`/`precio`/contar pedidos, en
+ * cualquier lugar que NO pase por `buildBO()` (que ya deduplica por su
+ * cuenta): sumar sobre filas crudas multiplica por 1+N fuentes. */
+export const sinFuente = (r: Sugerencia): boolean => !hasFuente(r);
+
 export function buildBO(rows: Sugerencia[], rf: RFIndex | null): BOItem[] {
   const map = new Map<string, { origen: Sugerencia | null; fuentes: Sugerencia[]; fuenteKeys: Set<string>; any: Sugerencia }>();
   for (const r of rows) {

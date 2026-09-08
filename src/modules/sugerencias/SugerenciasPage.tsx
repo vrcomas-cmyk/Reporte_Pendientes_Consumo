@@ -14,7 +14,7 @@ import { usePanelStore } from '@/store/panelStore';
 import { StatePill, TrendBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { enRango } from '@/lib/fechas';
 import { ESTADOS } from '@/core/resumenFac';
-import { norm, num, matchesQuery, transitoFor } from '@/modules/analytics/helpers';
+import { norm, num, matchesQuery, transitoFor, buildConsumoIndex, consumoKey } from '@/modules/analytics/helpers';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
 import { buildFromSugerencia, buildFromInventarioCentro, crear } from '@/services/solicitudService';
 import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSolicitarDialog';
@@ -43,7 +43,7 @@ const HEADER_HINTS: Record<string, string> = {
   cantped: 'Cantidad total pedida originalmente.',
   pend: 'Cantidad que aún falta por surtir de este pedido.',
   precio: 'Precio unitario de lista para este material.',
-  consumo: 'Consumo promedio mensual reciente de este material para este cliente.',
+  consumo: 'Consumo promedio mensual reciente de este material para este cliente. Debajo: fecha de la última venta registrada (Reporte de Consumo).',
   invtotal: 'Inventario disponible sumando todos los almacenes.',
   '1030': 'Inventario disponible en el almacén 1030.',
   '1031': 'Inventario disponible en el almacén 1031 (hub de distribución).',
@@ -121,12 +121,13 @@ export function SugerenciasPage() {
   const [centroValido, setCentroValido] = usePersistedState('sugerencias.centroValido', false);
   const [soloAccionables, setSoloAccionables] = usePersistedState('sugerencias.soloAccionables', false);
   const [ocultarPend0, setOcultarPend0] = usePersistedState('sugerencias.ocultarPend0', false);
+  const [ocultarBloqueados, setOcultarBloqueados] = usePersistedState('sugerencias.ocultarBloqueados', false);
   const [quick, setQuick] = usePersistedState<ActiveFilter[]>('sugerencias.quick', []);
   useUrlFilters(quick, setQuick);
   const [rango, setRango] = usePersistedState<{ desde: string; hasta: string }>('sugerencias.rango', { desde: '', hasta: '' });
   const [clearTick, setClearTick] = useState(0);
   const clearFilters = () => {
-    setQ(''); setEstado(''); setFuente(''); setCentroValido(false); setSoloAccionables(false); setOcultarPend0(false); setQuick([]); setRango({ desde: '', hasta: '' });
+    setQ(''); setEstado(''); setFuente(''); setCentroValido(false); setSoloAccionables(false); setOcultarPend0(false); setOcultarBloqueados(false); setQuick([]); setRango({ desde: '', hasta: '' });
     setClearTick((n) => n + 1);
   };
   const [sectorOpen, setSectorOpen] = useState(false);
@@ -147,6 +148,10 @@ export function SugerenciasPage() {
     if (!/corta/i.test(f.fuente)) return true;
     return CENTROS_CORTA.includes(f.centroSugerido) || f.centroSugerido === b.centroPedido;
   };
+
+  // Fecha de última venta (Destinatario+Material) para la sub-línea de la
+  // columna "Consumo" — mismo dato que ya se ve en /consumo, cruzado aquí.
+  const consumoIdx = useMemo(() => buildConsumoIndex(a.result?.consumo ?? []), [a.result]);
 
   const filterCols: FilterColumn<BORow>[] = useMemo(() => [
     { key: 'pedido', label: 'Pedido', get: (it) => it.bo.pedido },
@@ -186,6 +191,7 @@ export function SugerenciasPage() {
       // resolver hoy, sin tener que combinar Fuentes + Centro válido a mano.
       if (soloAccionables && (num(b.cantidadPendiente) <= 0 || !it.fuentes.length || b.bloqueado || !it.fuentes.some((f) => centroPasa(b, f)))) return false;
       if (ocultarPend0 && num(b.cantidadPendiente) <= 0) return false;
+      if (ocultarBloqueados && b.bloqueado) return false;
       if (!passesFilters(it, filterCols, quick)) return false;
       if (!enRango(b.fecha, rango.desde, rango.hasta)) return false;
       if (q) {
@@ -194,7 +200,7 @@ export function SugerenciasPage() {
       }
       return true;
     });
-  }, [a.bo, q, estado, fuente, centroValido, soloAccionables, ocultarPend0, quick, rango, filterCols]);
+  }, [a.bo, q, estado, fuente, centroValido, soloAccionables, ocultarPend0, ocultarBloqueados, quick, rango, filterCols]);
 
   const kpis = useMemo(() => {
     const isBloq = (it: (typeof filtered)[number]) => it.bo.bloqueado !== '';
@@ -551,6 +557,14 @@ export function SugerenciasPage() {
         >
           Ocultar pendiente 0
         </button>
+        <button
+          type="button"
+          onClick={() => setOcultarBloqueados((v) => !v)}
+          title="Excluye cualquier renglón con motivo de bloqueo (Detenido, Crédito, Detenido por ambos)"
+          className={`flex h-9 items-center gap-1.5 rounded-md border px-2 text-sm ${ocultarBloqueados ? 'border-accent bg-accent-soft text-accent' : 'border-border bg-bg-elevated text-text-muted hover:text-text'}`}
+        >
+          Ocultar bloqueados
+        </button>
         <DateRangeFilter desde={rango.desde} hasta={rango.hasta} onChange={setRango} />
         <ClearFiltersButton onClear={clearFilters} />
       </div>
@@ -654,7 +668,7 @@ export function SugerenciasPage() {
                     {vis('cantped') && <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>}
                     {vis('pend') && <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>}
                     {!precioOculto && vis('precio') && <TableCell className="text-right">{formatCurrency(b.precio)}</TableCell>}
-                    {vis('consumo') && <TableCell className="text-right">{formatNumber(it.consumoProm)}</TableCell>}
+                    {vis('consumo') && <TableCell className="text-right">{formatNumber(it.consumoProm)}<div className="text-[11px] text-text-faint">{consumoIdx.get(consumoKey(b.destinatario, b.materialBase))?.ultimoMesFacturacion || '—'}</div></TableCell>}
                     {unificarInv ? (
                       vis('invtotal') && (
                         <TableCell className="text-right" title={INV_ALL.map((c) => `${c}: ${formatNumber(num(b.invByCenter[c] || 0))}`).join(' · ')}>
@@ -773,7 +787,7 @@ export function SugerenciasPage() {
                     {vis('cantped') && <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>}
                     {vis('pend') && <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>}
                     {!precioOculto && vis('precio') && <TableCell className="text-right">{formatCurrency(b.precio)}</TableCell>}
-                    {vis('consumo') && <TableCell className="text-right">{formatNumber(it.consumoProm)}</TableCell>}
+                    {vis('consumo') && <TableCell className="text-right">{formatNumber(it.consumoProm)}<div className="text-[11px] text-text-faint">{consumoIdx.get(consumoKey(b.destinatario, b.materialBase))?.ultimoMesFacturacion || '—'}</div></TableCell>}
                     {unificarInv ? (
                       vis('invtotal') && (
                         <TableCell className="text-right" title={INV_ALL.map((c) => `${c}: ${formatNumber(num(b.invByCenter[c] || 0))}`).join(' · ')}>

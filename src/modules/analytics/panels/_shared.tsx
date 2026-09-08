@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { StatePill, Chip, TrendBadge, AbcBadge, DetailChevron, StatTile, SuggestInput, useColumnVisibility, ColumnVisibilityControl } from '../ui';
 import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
-import { matchesQuery, RC, pickField, num, norm, consumoSerie, consumoStatus, consumoTend, consumoEnrich, transitoFor } from '../helpers';
+import { matchesQuery, RC, pickField, num, norm, consumoSerie, consumoStatus, consumoTend, consumoEnrich, transitoFor, buildConsumoIndex, consumoKey } from '../helpers';
 import { consumoDe } from '@/core/resumenFac';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import type { RFIndex } from '@/core/resumenFac';
@@ -15,6 +15,11 @@ import { usePermissionsStore } from '@/store/permissionsStore';
 import { isColumnHidden, isDetailHidden } from '@/core/permissions';
 import { buildSugerenciasColsAgrupado } from '@/modules/sugerencias/columns';
 import { COLS_CONSUMO } from '@/modules/consumo/columns';
+import { buildFromSugerencia, buildFromConsumo } from '@/services/solicitudService';
+import { useSolicitarDialog } from '@/modules/solicitudes/useSolicitarDialog';
+import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
+import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
+import { useSolicitudStore } from '@/store/solicitudStore';
 
 /** Normaliza una fecha de caducidad y la convierte en un texto legible con clase de color (rojo/ámbar/verde) según los días restantes. */
 export function vigenciaTxt(fecha: string): { txt: string; cls: string } | null {
@@ -61,6 +66,21 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
   const colVis = useColumnVisibility('sugerencias_columnas');
   const vis = colVis.isVisible;
   const cols = useMemo(() => buildSugerenciasColsAgrupado({ precioOculto, unificarInv: false, fuenteOculto }), [precioOculto, fuenteOculto]);
+  const consumoIdx = useMemo(() => buildConsumoIndex(a.result?.consumo ?? []), [a.result]);
+  const solicitar = useSolicitarDialog();
+  const solicitudesList = useSolicitudStore((s) => s.list);
+  // Sugerencias picks its lote inside the dialog (BOItem.fuentes may hold
+  // several), así que el sourceKey completo no se conoce de antemano — hace
+  // match por prefijo de BO key, igual que en `/sugerencias`.
+  const sugSolicitadas = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of solicitudesList) {
+      if (s.origen !== 'sugerencias') continue;
+      const parts = s.sourceKey.split('|');
+      set.add(parts.slice(1, -1).join('|'));
+    }
+    return set;
+  }, [solicitudesList]);
   if (!list.length) return <p className="text-sm text-text-muted">Sin sugerencias.</p>;
   const shown = f ? list.filter((it) => matchesQuery(f, `${it.bo.pedido} ${it.bo.razonSocial} ${it.bo.centroPedido}`)) : list;
   return (
@@ -99,8 +119,23 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
             {shown.map((it) => {
               const b = it.bo;
               const isBloqueado = !!b.bloqueado;
+              const onSolicitar = () => solicitar.abrir(buildFromSugerencia(b, it.k, it.fuentes[0] ?? null, a.enrich));
+              const copyItems = [
+                { label: 'Material', value: b.materialBase },
+                { label: 'Pedido', value: b.pedido },
+                { label: 'Cliente', value: b.razonSocial },
+                { label: 'Centro', value: b.centroPedido },
+              ];
               return (
-                <TableRow key={it.k} className={`group ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`}>
+                <SolicitarContextMenu
+                  key={it.k}
+                  onSolicitar={onSolicitar}
+                  solicitado={sugSolicitadas.has(it.k)}
+                  label={b.materialBase}
+                  onVerDetalle={() => push({ type: 'sugDetalle', boKey: it.k })}
+                  copyItems={copyItems}
+                >
+                <TableRow className={`group ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`}>
                   {vis('ejecutivo') && <TableCell>{a.enrich.ejecutivoNombre(b.gpoVdor) || '—'}<div className="text-[11px] text-text-faint">{a.enrich.grupoCliente(b.gpoCte) || '—'}</div></TableCell>}
                   {vis('pedido') && <TableCell><Chip onClick={() => push({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                   {vis('fecha') && <TableCell className="whitespace-nowrap text-xs">{b.fecha || '—'}</TableCell>}
@@ -111,7 +146,7 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
                   {vis('cantped') && <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>}
                   {vis('pend') && <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>}
                   {!precioOculto && vis('precio') && <TableCell className="text-right">{formatCurrency(b.precio)}</TableCell>}
-                  {vis('consumo') && <TableCell className="text-right">{formatNumber(it.consumoProm)}</TableCell>}
+                  {vis('consumo') && <TableCell className="text-right">{formatNumber(it.consumoProm)}<div className="text-[11px] text-text-faint">{consumoIdx.get(consumoKey(b.destinatario, b.materialBase))?.ultimoMesFacturacion || '—'}</div></TableCell>}
                   {(['1030', '1031', '1032', '1060'] as const).map((alm) => vis(`inv${alm}`) && (
                     <TableCell key={alm} className="text-right">
                       {formatNumber(num(b.invByCenter[alm] || 0))}
@@ -124,11 +159,13 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
                   {!fuenteOculto && vis('fuentes') && <TableCell className="text-right">{it.fuentes.length || '—'}</TableCell>}
                   <TableCell><DetailChevron onOpen={() => push({ type: 'sugDetalle', boKey: it.k })} /></TableCell>
                 </TableRow>
+                </SolicitarContextMenu>
               );
             })}
           </TableBody>
         </Table>
       </div>
+      <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
     </div>
   );
 }
@@ -142,6 +179,9 @@ export function ConsumoTable({ list, a, push }: { list: ConsumoRow[]; a: Analyti
   const colVis = useColumnVisibility('consumo_columnas');
   const vis = colVis.isVisible;
   const claseDe = (r: ConsumoRow) => a.abc.classByMaterial.get(norm(r.material)) || '';
+  const solicitar = useSolicitarDialog();
+  const solicitudesList = useSolicitudStore((s) => s.list);
+  const solicitudSourceKeys = useMemo(() => new Set(solicitudesList.filter((s) => s.origen === 'consumo').map((s) => s.sourceKey)), [solicitudesList]);
   if (!list.length) return <p className="text-sm text-text-muted">Sin facturación de consumo.</p>;
   const shown = f ? list.filter((r) => matchesQuery(f, `${r.razonSocial} ${r.destinatario} ${r.centro}`)) : list;
   return (
@@ -170,8 +210,23 @@ export function ConsumoTable({ list, a, push }: { list: ConsumoRow[]; a: Analyti
             </TableRow>
           </TableHeader>
           <TableBody>
-            {shown.map((r, i) => (
-              <TableRow key={i} className="group">
+            {shown.map((r, i) => {
+              const onSolicitar = () => solicitar.abrir(buildFromConsumo(r));
+              const copyItems = [
+                { label: 'Material', value: r.material },
+                { label: 'Cliente', value: r.razonSocial },
+                { label: 'Centro', value: r.centro },
+              ];
+              return (
+              <SolicitarContextMenu
+                key={i}
+                onSolicitar={onSolicitar}
+                solicitado={solicitudSourceKeys.has(`con|${norm(r.material)}|${norm(r.centro)}`)}
+                label={r.material}
+                onVerDetalle={() => push({ type: 'consumoMaterial', dest: r.destinatario, material: r.material })}
+                copyItems={copyItems}
+              >
+              <TableRow className="group">
                 {vis('cliente') && <TableCell className="max-w-64 truncate">{r.razonSocial}<div className="text-[11px]"><Chip onClick={() => push({ type: 'evol', kind: 'solic', key: r.solicitante })}>S {r.solicitante}</Chip> · <Chip onClick={() => push({ type: 'evol', kind: 'dest', key: r.destinatario })}>D {r.destinatario}</Chip></div></TableCell>}
                 {vis('ejecutivo') && <TableCell>{ce.ejec(r) || '—'}<div className="text-[11px] text-text-faint">{ce.grupoCli(r) || '—'}</div></TableCell>}
                 {vis('centro') && <TableCell>{r.centro || ce.grupoCli(r) || '—'}</TableCell>}
@@ -186,10 +241,13 @@ export function ConsumoTable({ list, a, push }: { list: ConsumoRow[]; a: Analyti
                 {vis('tendencia') && <TableCell><TrendBadge t={consumoTend(a.rf, r)} /></TableCell>}
                 <TableCell><DetailChevron onOpen={() => push({ type: 'consumoMaterial', dest: r.destinatario, material: r.material })} /></TableCell>
               </TableRow>
-            ))}
+              </SolicitarContextMenu>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
+      <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
     </div>
   );
 }

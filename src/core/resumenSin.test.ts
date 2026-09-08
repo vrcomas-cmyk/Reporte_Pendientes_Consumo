@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildRSS, coberturaEstado, coberturaDeAlmacen, peorCobertura, summarizeCobertura,
   quiebreMitigadoPorTransito, summarizeCoberturaConTransito, esCentroDistribucion, esLento,
-  invGen, invPorCondicion,
+  invGen, invPorCondicion, pendPorCondicion, transitoPorCondicion, esLentoPorCondicion,
   type RSSAlmacen, type RSSCentro,
 } from './resumenSin';
 import type { ResumenSinSugerenciaRow } from './types';
@@ -211,5 +211,46 @@ describe('invPorCondicion (RN-INV-002)', () => {
   });
   it('centro inexistente devuelve 0', () => {
     expect(invPorCondicion(undefined, 'Normal')).toBe(0);
+  });
+});
+
+describe('pendPorCondicion / transitoPorCondicion / esLentoPorCondicion (RN-INV-002, módulo Inv Condición)', () => {
+  const rowFor = (almacen: string, pend: number, transito: number, ultMes: string) => mkRow({
+    Centro: '1001', Almacen: almacen, Material: 'M1', Descripcion: 'Material Uno',
+    'Inv 1030': almacen === '1030' ? 10 : 0, 'Inv 1031': 0, 'Inv 1032': almacen === '1032' ? 5 : 0, 'Inv 1060': 0,
+    'Cantidad_Pendiente': pend, 'Importe_Pendiente': 0, 'Ultimo_Mes_Consumo': ultMes, 'Cantidad_Ultimo_Mes': 0,
+    'Penultimo_Mes_Consumo': '', 'Cantidad_Penultimo_Mes': 0, 'Cant. en Tránsito': transito,
+    'Disponible 1031-1030': 0, 'Disponible 1031-1032': 0, 'Suma pendiente': 0, 'Status Revisión': '', Fuente: '', Pedidos: 0,
+    'Meses_Inventario': 0, 'Promedio_Consumo_12M': 0, 'Suma inventario': 15,
+  });
+  const rss = buildRSS([
+    rowFor('1030', 7, 3, '01/2024'),
+    rowFor('1032', 2, 4, '06/2024'),
+  ]);
+  const co = rss.mats.get('M1')!.centros.get('1001')!;
+
+  it('condición de caducidad: pendiente/tránsito solo del almacén 1032', () => {
+    expect(pendPorCondicion(co, 'Corta caducidad')).toBe(2);
+    expect(transitoPorCondicion(co, 'Corta caducidad')).toBe(4);
+  });
+  it('condición normal: suma 1030+1031+1060, ignora 1032', () => {
+    expect(pendPorCondicion(co, 'Normal')).toBe(7);
+    expect(transitoPorCondicion(co, 'Normal')).toBe(3);
+  });
+  it('centro inexistente devuelve 0', () => {
+    expect(pendPorCondicion(undefined, 'Normal')).toBe(0);
+    expect(transitoPorCondicion(undefined, 'Normal')).toBe(0);
+  });
+
+  it('esLentoPorCondicion: sin pendiente aplicable y sin consumo reciente en los almacenes de esa condición', () => {
+    // Para "Normal" (1030+1031+1060): hay pendiente (7) -> no es lento.
+    expect(esLentoPorCondicion(co, 'Normal', 24294)).toBe(false);
+    // Para "Corta caducidad" (solo 1032): pendiente aplicable es 2 -> tampoco lento.
+    expect(esLentoPorCondicion(co, 'Corta caducidad', 24294)).toBe(false);
+  });
+  it('esLentoPorCondicion: centro sin inventario aplicable no es lento', () => {
+    const soloNormal = buildRSS([rowFor('1030', 0, 0, '2024-01')]);
+    const coNormal = soloNormal.mats.get('M1')!.centros.get('1001')!;
+    expect(esLentoPorCondicion(coNormal, 'Corta caducidad', 24294)).toBe(false);
   });
 });

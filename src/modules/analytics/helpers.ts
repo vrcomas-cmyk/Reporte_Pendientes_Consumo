@@ -122,6 +122,19 @@ export function consFor(rows: ConsumoRow[], material: string, centro?: string | 
   return rows.filter((r) => norm(r.material) === m && (!c || norm(r.centro) === c));
 }
 
+/** Índice O(1) de "Reporte de Consumo" por (destinatario, material) — mismo
+ * formato de clave que ya usa `ConsumoPage.tsx` para deduplicar — para poder
+ * mostrar la fecha de última venta (`ultimoMesFacturacion`) en columnas/celdas
+ * de otras páginas (p.ej. "Consumo" en Pedidos) sin un `.find()` lineal por fila. */
+export function consumoKey(destinatario: string, material: string): string {
+  return `${norm(destinatario)}||${norm(material)}`;
+}
+export function buildConsumoIndex(consumo: ConsumoRow[]): Map<string, ConsumoRow> {
+  const m = new Map<string, ConsumoRow>();
+  for (const r of consumo) m.set(consumoKey(r.destinatario, r.material), r);
+  return m;
+}
+
 export { mesKey };
 
 /** Cantidad en tránsito de un material hacia un (centro, almacén), leída del

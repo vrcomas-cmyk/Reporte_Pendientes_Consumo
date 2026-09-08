@@ -101,6 +101,17 @@ describe('buildAbc', () => {
   it('los umbrales A/B siguen siendo 80%/95%', () => {
     expect(ABC_THRESHOLDS).toEqual({ a: 0.8, b: 0.95 });
   });
+
+  it('con predicados, excluye materiales/clientes que no pasan (para reactividad con filtros de página)', () => {
+    const rows: ResumenFacRow[] = [
+      mkRow({ solicitante: 'C1', material: 'M-A', importeFacturado: 8000 }),
+      mkRow({ solicitante: 'C2', material: 'M-B', importeFacturado: 1500 }),
+    ];
+    const rf = buildRF(rows);
+    const abc = buildAbc(rf, { matPasa: (m) => m === 'M-A', clientePasa: (c) => c === 'C1' });
+    expect(abc.materiales.map((e) => e.key)).toEqual(['M-A']);
+    expect(abc.clientes.map((e) => e.key)).toEqual(['C1']);
+  });
 });
 
 describe('summarizeAbc', () => {

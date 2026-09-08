@@ -233,7 +233,8 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
           <Chip title="Ver todos los pedidos y consumo de este material" onClick={() => push({ type: 'material', material: selItem.bo.materialBase })}>{selItem.bo.materialBase}</Chip>{' '}
           <span className="text-text-faint">— {selItem.bo.descripcionSolicitada}</span>
         </h2>
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          <StatTile label="Cant. Ped." value={formatNumber(selItem.bo.cantidadPedido)} />
           <StatTile label="Pendiente" value={formatNumber(selItem.bo.cantidadPendiente)} />
           <StatTile label="Precio" value={formatCurrency(selItem.bo.precio)} />
           <StatTile label="Estado" value={selItem.status.label} />

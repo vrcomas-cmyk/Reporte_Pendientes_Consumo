@@ -61,6 +61,31 @@ export interface AnalisisFilters {
   grupoArticulo?: string;
 }
 
+/** Predicados de los 4 filtros de Análisis (`AnalisisFilters`), compartidos
+ * entre `analisisVentas` y cualquier otro índice que deba respetar los
+ * mismos filtros (p.ej. la clasificación ABC/Pareto en `abc.ts`, que por sí
+ * sola no sabe nada de estos filtros) — un solo lugar decide qué material o
+ * qué cliente "pasa", para que ambos queden consistentes. */
+export function buildAnalisisPredicates(
+  rf: RFIndex,
+  enrich: EnrichIndex,
+  filters?: AnalisisFilters,
+): { matPasa: (m: string) => boolean; clientePasa: (c: string) => boolean } {
+  const matPasa = (m: string) => {
+    if (filters?.sector && (enrich.matSector(m) || '(sin sector)') !== filters.sector) return false;
+    if (filters?.grupoArticulo && (enrich.matGrupo(m) || '(sin grupo)') !== filters.grupoArticulo) return false;
+    return true;
+  };
+  const ejecDe = (c: string) => enrich.ejecutivoNombre(rf.solicGpoV.get(c) || '') || '';
+  const grupoDe = (c: string) => enrich.grupoCliente(rf.solicGpoC.get(c) || '') || (rf.solicGpoC.get(c) || '');
+  const clientePasa = (c: string) => {
+    if (filters?.ejecutivo && ejecDe(c) !== filters.ejecutivo) return false;
+    if (filters?.grupoCliente && grupoDe(c) !== filters.grupoCliente) return false;
+    return true;
+  };
+  return { matPasa, clientePasa };
+}
+
 export function analisisVentas(rf: RFIndex | null, bo: BOItem[], enrich: EnrichIndex, filters?: AnalisisFilters): AnalisisResult | null {
   if (!rf) return null;
   const R = refK();
@@ -69,11 +94,7 @@ export function analisisVentas(rf: RFIndex | null, bo: BOItem[], enrich: EnrichI
   const p3 = (s: Serie) => sumRange(s, R - 5, R - 3);
   const imp12 = (s: Serie) => sumRange(s, R - 11, R);
 
-  const matPasa = (m: string) => {
-    if (filters?.sector && (enrich.matSector(m) || '(sin sector)') !== filters.sector) return false;
-    if (filters?.grupoArticulo && (enrich.matGrupo(m) || '(sin grupo)') !== filters.grupoArticulo) return false;
-    return true;
-  };
+  const { matPasa, clientePasa } = buildAnalisisPredicates(rf, enrich, filters);
 
   const tot = new Map<number, { cant: number; imp: number }>();
   rf.mat.forEach((serie, m) => {
@@ -94,8 +115,7 @@ export function analisisVentas(rf: RFIndex | null, bo: BOItem[], enrich: EnrichI
   const grupoDe = (c: string) => enrich.grupoCliente(rf.solicGpoC.get(c) || '') || (rf.solicGpoC.get(c) || '');
   const clientes: ClienteAna[] = [];
   rf.solic.forEach((serie, s) => {
-    if (filters?.ejecutivo && ejecDe(s) !== filters.ejecutivo) return;
-    if (filters?.grupoCliente && grupoDe(s) !== filters.grupoCliente) return;
+    if (!clientePasa(s)) return;
     const i12 = imp12(serie);
     const last = lastBuyK(serie);
     if (!i12 && !last) return;

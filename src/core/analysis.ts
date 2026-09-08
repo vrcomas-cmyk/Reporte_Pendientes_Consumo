@@ -16,6 +16,7 @@ import type {
 } from './types';
 import { normCode, buildEnrich, type EnrichIndex } from './enrich';
 import { evaluarCortaCaducidad } from './inventoryRules';
+import { sinFuente } from './buildBO';
 
 /** Normalizes a "Condición" value for matching between the daily report and
  *  the catalog (trim, deaccent, uppercase). */
@@ -169,7 +170,9 @@ export function computeBloqueados(sugerencias: Sugerencia[]): { count: number; i
   const byMotivo = new Map<string, BloqueadoMotivo>();
   let count = 0;
   let importeTotal = 0;
-  for (const s of sugerencias) {
+  // Las filas con fuente son abasto alterno sugerido, no demanda adicional —
+  // sumarlas también multiplicaría el importe bloqueado por 1+N fuentes.
+  for (const s of sugerencias.filter(sinFuente)) {
     const motivo = (s.bloqueado || '').trim();
     if (!motivo) continue;
     const imp = s.cantidadPendiente * s.precio;
@@ -186,7 +189,9 @@ export function computeBloqueados(sugerencias: Sugerencia[]): { count: number; i
 
 export function topMateriales(sugerencias: Sugerencia[], n = 5): TopMaterial[] {
   const byMat = new Map<string, TopMaterial>();
-  for (const s of sugerencias) {
+  // Ver comentario de `computeBloqueados`: excluir filas con fuente para no
+  // multiplicar pendiente/importe por cada fuente alterna del mismo pedido.
+  for (const s of sugerencias.filter(sinFuente)) {
     const key = s.materialBase || s.materialSolicitado;
     if (!key) continue;
     const cur = byMat.get(key) ?? {
@@ -226,7 +231,9 @@ export function topEjecutivos(sugerencias: Sugerencia[], catalog: CatalogSnapsho
       if (!byEjec.has(nombre)) byEjec.set(nombre, { ejecutivo: nombre, cantidadPendiente: 0, importePendiente: 0, pedidos: 0 });
     }
   }
-  for (const s of sugerencias) {
+  // Ver comentario de `computeBloqueados`: excluir filas con fuente para no
+  // multiplicar pendiente/importe/conteo de pedidos por cada fuente alterna.
+  for (const s of sugerencias.filter(sinFuente)) {
     // Never fall back to the raw gpoVdor code as a pseudo-name — an
     // unmatched code isn't a distinct executive, it's a join miss, and
     // showing it as one inflates the list with duplicates of names that
@@ -288,7 +295,10 @@ export function detectInconsistencies(params: {
 
   const seenMat = new Set<string>();
   const seenGpo = new Set<string>();
-  for (const s of sugerencias) {
+  // Ver comentario de `computeBloqueados`: sin este filtro, el check de
+  // "precio-cero" empujaría un hallazgo por cada fuente alterna del mismo
+  // pedido, duplicando el mismo pedido varias veces en la lista.
+  for (const s of sugerencias.filter(sinFuente)) {
     const mat = s.materialBase || s.materialSolicitado;
     if (mat && !knownMaterials.has(mat) && !seenMat.has(mat)) {
       seenMat.add(mat);

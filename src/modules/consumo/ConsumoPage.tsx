@@ -201,7 +201,16 @@ export function ConsumoPage() {
     const qNum = Math.floor(((qStartK - 1) % 12) / 3) + 1;
     const qYear = Math.floor((qStartK - 1) / 12);
 
-    return { baseMes, impMesCur, impMesPrev, pctMes, impQCur, impQPrev, pctQ, qLabel: `Q${qNum} ${qYear}` };
+    // #YTD: año a la fecha (enero..baseMes) vs los MISMOS meses del año
+    // anterior — parcial vs parcial, no año completo vs parcial, para que la
+    // comparación sea justa mientras el año en curso todavía no cierra.
+    const janK = cy * 12 + 1;
+    let impYtdCur = 0, impYtdPrev = 0;
+    for (let k = janK; k <= baseK; k++) { impYtdCur += mesMap.get(k) || 0; impYtdPrev += mesMap.get(k - 12) || 0; }
+    const pctYtd = impYtdPrev ? ((impYtdCur - impYtdPrev) / impYtdPrev) * 100 : (impYtdCur ? 100 : 0);
+    const ytdLabel = `Enero–${mesLabel(baseMes)}`;
+
+    return { baseMes, impMesCur, impMesPrev, pctMes, impQCur, impQPrev, pctQ, qLabel: `Q${qNum} ${qYear}`, impYtdCur, impYtdPrev, pctYtd, ytdLabel };
   }, [aggSerie, periodo, rangoActivo, rangoHiK]);
 
   // #18: click a month bar -> snapshot the clients that invoiced that month under the
@@ -429,7 +438,7 @@ export function ConsumoPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <div className="rounded-xl border border-border p-3">
           <div className="text-xs font-medium text-text-faint">Mes {mesLabel(comparativas.baseMes)} vs mismo mes año anterior</div>
           <div className="mt-1 flex items-baseline gap-2">
@@ -445,6 +454,14 @@ export function ConsumoPage() {
             <span className={`text-sm font-medium ${comparativas.pctQ >= 0 ? 'text-emerald-500' : 'text-danger'}`}>{comparativas.pctQ >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctQ).toFixed(1)}%</span>
           </div>
           <div className="text-[11px] text-text-faint">vs {formatCurrency(comparativas.impQPrev)} año anterior</div>
+        </div>
+        <div className="rounded-xl border border-border p-3">
+          <div className="text-xs font-medium text-text-faint">{comparativas.ytdLabel} vs mismo periodo año anterior</div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="font-display text-xl font-semibold">{formatCurrency(comparativas.impYtdCur)}</span>
+            <span className={`text-sm font-medium ${comparativas.pctYtd >= 0 ? 'text-emerald-500' : 'text-danger'}`}>{comparativas.pctYtd >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctYtd).toFixed(1)}%</span>
+          </div>
+          <div className="text-[11px] text-text-faint">vs {formatCurrency(comparativas.impYtdPrev)} año anterior</div>
         </div>
       </div>
 

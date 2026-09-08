@@ -48,6 +48,23 @@ export const invPorCondicion = (co: RSSCentro | undefined, condicion: string): n
   return almacenesDeCondicion(condicion).reduce((s, alm) => s + (co.invAlm[alm] || 0), 0);
 };
 
+/** Mismo patrón que `invPorCondicion` (RN-INV-002), pero para pendiente y
+ * tránsito por almacén — usados por el módulo "Inv Condición" para mostrar,
+ * por centro, el mismo subíndice de pendiente/tránsito/lento que el módulo
+ * Inventario, restringido a los almacenes que aplican según la condición. */
+export const pendPorCondicion = (co: RSSCentro | undefined, condicion: string): number => {
+  if (!co) return 0;
+  return almacenesDeCondicion(condicion).reduce((s, alm) => s + (co.alm.get(alm)?.pend || 0), 0);
+};
+export const transitoPorCondicion = (co: RSSCentro | undefined, condicion: string): number => {
+  if (!co) return 0;
+  return almacenesDeCondicion(condicion).reduce((s, alm) => s + (co.alm.get(alm)?.transito || 0), 0);
+};
+export const impPendPorCondicion = (co: RSSCentro | undefined, condicion: string): number => {
+  if (!co) return 0;
+  return almacenesDeCondicion(condicion).reduce((s, alm) => s + (co.alm.get(alm)?.impPend || 0), 0);
+};
+
 const MESES_LENTO = 6;
 
 /** Centro 1031 es el hub de abasto/distribución (casi no factura directo,
@@ -62,6 +79,18 @@ export function esLento(co: RSSCentro | undefined, curMes: number): boolean {
   if (!co) return false;
   if (esCentroDistribucion(co.centro)) return false;
   if (invGen(co) <= 0 || co.pend > 0) return false;
+  if (!co.ultMesK) return true;
+  return curMes - co.ultMesK >= MESES_LENTO;
+}
+
+/** Igual que `esLento`, pero mirando solo el inventario/pendiente de los
+ * almacenes aplicables según la condición (RN-INV-002) — para el módulo
+ * "Inv Condición", donde "lento" debe evaluarse contra 1032 solamente en
+ * corta caducidad, no contra el inventario general del centro. */
+export function esLentoPorCondicion(co: RSSCentro | undefined, condicion: string, curMes: number): boolean {
+  if (!co) return false;
+  if (esCentroDistribucion(co.centro)) return false;
+  if (invPorCondicion(co, condicion) <= 0 || pendPorCondicion(co, condicion) > 0) return false;
   if (!co.ultMesK) return true;
   return curMes - co.ultMesK >= MESES_LENTO;
 }
