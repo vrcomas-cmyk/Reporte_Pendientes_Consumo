@@ -12,7 +12,7 @@ import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
 import { StatePill, TrendBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
-import { enRango } from '@/lib/fechas';
+import { enRango, dateSortValue } from '@/lib/fechas';
 import { ESTADOS } from '@/core/resumenFac';
 import { norm, num, matchesQuery, transitoFor, buildConsumoIndex, consumoKey } from '@/modules/analytics/helpers';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
@@ -307,7 +307,7 @@ export function SugerenciasPage() {
   const sortAcc = useMemo(() => ({
     grupocli: (it: (typeof filtered)[number]) => grupoCli(it.bo),
     pedido: (it: (typeof filtered)[number]) => it.bo.pedido,
-    fecha: (it: (typeof filtered)[number]) => it.bo.fecha,
+    fecha: (it: (typeof filtered)[number]) => dateSortValue(it.bo.fecha),
     cliente: (it: (typeof filtered)[number]) => it.bo.razonSocial,
     ejecutivo: (it: (typeof filtered)[number]) => ejec(it.bo),
     centro: (it: (typeof filtered)[number]) => it.bo.centroPedido,
@@ -354,7 +354,7 @@ export function SugerenciasPage() {
   }, [filtered, centroValido]);
   const sortAccRaw = useMemo(() => ({
     pedido: (r: RawRow) => r.it.bo.pedido,
-    fecha: (r: RawRow) => r.it.bo.fecha,
+    fecha: (r: RawRow) => dateSortValue(r.it.bo.fecha),
     cliente: (r: RawRow) => r.it.bo.razonSocial,
     ejecutivo: (r: RawRow) => ejec(r.it.bo),
     centro: (r: RawRow) => r.it.bo.centroPedido,
