@@ -1,7 +1,7 @@
 export { DebouncedSearch } from './DebouncedSearch';
 export { useZoom, ZoomControl } from './ZoomControl';
 export { DetailChevron } from './DetailChevron';
-export { ColumnFilterBar, passesFilters, valuesOf } from './ColumnFilterBar';
+export { ColumnFilterBar, passesFilters, valuesOf, normalizeFilters } from './ColumnFilterBar';
 export type { FilterColumn, ActiveFilter } from './ColumnFilterBar';
 export { ColumnFilterMenu } from './ColumnFilterMenu';
 export { StatePill, TrendBadge } from './StatePill';
@@ -19,5 +19,6 @@ export { useSavedViews, SavedViewsControl } from './SavedViews';
 export type { SavedView } from './SavedViews';
 export { RowContextMenu } from './RowContextMenu';
 export { DateRangeFilter } from './DateRangeFilter';
+export { MonthRangeFilter } from './MonthRangeFilter';
 export { ClearFiltersButton } from './ClearFiltersButton';
 export { SuggestInput } from './SuggestInput';

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { StatTile, StatePill, useSavedViews, SavedViewsControl, ColumnFilterBar, passesFilters, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatTile, StatePill, useSavedViews, SavedViewsControl, ColumnFilterBar, passesFilters, type FilterColumn } from '@/modules/analytics/ui';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { cn, formatCurrency, formatNumber } from '@/lib/utils';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
@@ -18,7 +18,7 @@ import { alertasColocacion, agruparAlertasPorMaterial, fichaConfigurada } from '
 import { consumoStatus } from '@/modules/analytics/helpers';
 import { norm } from '@/lib/text';
 import { usePersistedState } from '@/hooks/usePersistedState';
-import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { useQuickFilters } from '@/hooks/useQuickFilters';
 import { supabase } from '@/lib/supabaseClient';
 import { MaterialSearch } from './components/MaterialSearch';
 import { OportunidadTray } from './components/OportunidadTray';
@@ -133,8 +133,7 @@ export function OportunidadesPage() {
 
   const [condicion, setCondicion] = usePersistedState<CondicionEspecial | ''>('oportunidades.condicion', '');
   const [vista, setVista] = usePersistedState<'tablero' | 'lista'>('oportunidades.vista', 'tablero');
-  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('oportunidades.quick', []);
-  useUrlFilters(quick, setQuick);
+  const [quick, setQuick] = useQuickFilters('oportunidades.quick');
   const [quickFiltro, setQuickFiltro] = useState<QuickFiltro>('todas');
   const [miEmail, setMiEmail] = useState('');
   useEffect(() => { void supabase.auth.getUser().then(({ data }) => setMiEmail(data.user?.email ?? '')); }, []);

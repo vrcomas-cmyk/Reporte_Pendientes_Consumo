@@ -3,15 +3,14 @@ import { Inbox, Download, RefreshCw, Trash2, CheckCheck, Undo2 } from 'lucide-re
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { StatePill, DateRangeFilter, ClearFiltersButton, ColumnFilterBar, passesFilters, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatePill, DateRangeFilter, ClearFiltersButton, ColumnFilterBar, passesFilters, type FilterColumn } from '@/modules/analytics/ui';
 import { formatNumber, formatDateTime } from '@/lib/utils';
 import { enRango } from '@/lib/fechas';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { toDrpRow } from '@/lib/drpColumns';
 import { reenviar, eliminar, marcarEstado } from '@/services/solicitudService';
 import { useSolicitudStore } from '@/store/solicitudStore';
-import { usePersistedState } from '@/hooks/usePersistedState';
-import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { useQuickFilters } from '@/hooks/useQuickFilters';
 import type { SolicitudDRP, SolicitudSync } from '@/core/types';
 
 // El envío directo al Sheet DRP está pausado (ver solicitudService.ts,
@@ -38,8 +37,7 @@ export function SolicitudesPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [marking, setMarking] = useState(false);
   const [rango, setRango] = useState<{ desde: string; hasta: string }>({ desde: '', hasta: '' });
-  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('solicitudes.quick', []);
-  useUrlFilters(quick, setQuick);
+  const [quick, setQuick] = useQuickFilters('solicitudes.quick');
   const clearFilters = () => { setSync(''); setRango({ desde: '', hasta: '' }); setQuick([]); };
 
   const filterCols: FilterColumn<SolicitudDRP>[] = useMemo(() => [

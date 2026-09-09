@@ -29,16 +29,37 @@ export function ColumnValuesPicker<T>({ column, rows, active, onChange, onBack, 
     return [...s].sort((a, b) => a.localeCompare(b));
   }, [column, rows]);
 
-  const activeSet = useMemo(() => new Set(active.filter((f) => f.col === column.key).map((f) => f.value)), [active, column.key]);
+  const activeSet = useMemo(() => new Set(active.find((f) => f.col === column.key)?.values ?? []), [active, column.key]);
   const hasActive = activeSet.size > 0;
 
+  // Orden congelado en la apertura del popover: lo ya seleccionado va arriba,
+  // a propósito sin reordenar en vivo — si lo hiciera, cada clic haría saltar
+  // la fila que acabas de tocar. Radix desmonta el contenido al cerrar, así
+  // que la próxima apertura vuelve a congelar con la selección vigente.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pinned = useMemo(() => new Set(activeSet), []);
+  const ordenados = useMemo(() => {
+    const sel: string[] = [], resto: string[] = [];
+    for (const v of distinct) (pinned.has(v) ? sel : resto).push(v);
+    return [...sel, ...resto];
+  }, [distinct, pinned]);
+
   const visible = typed.trim()
-    ? distinct.filter((v) => v.toLowerCase().includes(typed.toLowerCase()))
-    : distinct;
+    ? ordenados.filter((v) => v.toLowerCase().includes(typed.toLowerCase()))
+    : ordenados;
   const shown = visible.slice(0, 300);
 
-  const others = active.filter((f) => f.col !== column.key);
-  const setValues = (values: Set<string>) => onChange([...others, ...[...values].map((value) => ({ col: column.key, value }))]);
+  // Escribe (o crea) la entrada de esta columna EN SU SITIO, sin borrarla
+  // nunca aquí: vaciar los valores la deja como `{col, values: []}` — el chip
+  // sigue vivo hasta que se quita con su ✕ en la barra.
+  const setValues = (values: Set<string>) => {
+    const arr = [...values];
+    const i = active.findIndex((f) => f.col === column.key);
+    if (i < 0) { onChange([...active, { col: column.key, values: arr }]); return; }
+    const next = active.slice();
+    next[i] = { col: column.key, values: arr };
+    onChange(next);
+  };
 
   const toggle = (v: string) => {
     const next = new Set(activeSet);
@@ -98,7 +119,7 @@ export function ColumnValuesPicker<T>({ column, rows, active, onChange, onBack, 
           onClick={() => setValues(new Set())}
           className="text-xs text-text-faint hover:text-text disabled:opacity-40"
         >
-          Limpiar columna
+          Deseleccionar todo
         </button>
         <button type="button" onClick={onDone} className="text-xs text-accent hover:underline">
           Aplicar
@@ -129,7 +150,7 @@ export function ColumnFilterMenu<T>({ column, rows, active, onChange, trigger, o
     if (!v) onClose?.();
   };
 
-  const activeSet = useMemo(() => new Set(active.filter((f) => f.col === column.key).map((f) => f.value)), [active, column.key]);
+  const activeSet = useMemo(() => new Set(active.find((f) => f.col === column.key)?.values ?? []), [active, column.key]);
   const hasActive = activeSet.size > 0;
 
   return (

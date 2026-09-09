@@ -11,7 +11,7 @@ import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils'
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { enRango, dateSortValue } from '@/lib/fechas';
 import { ESTADOS } from '@/core/resumenFac';
 import { norm, num, matchesQuery, transitoFor, buildConsumoIndex, consumoKey } from '@/modules/analytics/helpers';
@@ -23,7 +23,7 @@ import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu
 import { useSolicitudStore } from '@/store/solicitudStore';
 import { useMaterialPrefiltro } from '@/hooks/useMaterialPrefiltro';
 import { usePersistedState } from '@/hooks/usePersistedState';
-import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { useQuickFilters } from '@/hooks/useQuickFilters';
 import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
 import { Select } from '@/components/ui/select';
 import { usePermissionsStore } from '@/store/permissionsStore';
@@ -122,8 +122,7 @@ export function SugerenciasPage() {
   const [soloAccionables, setSoloAccionables] = usePersistedState('sugerencias.soloAccionables', false);
   const [ocultarPend0, setOcultarPend0] = usePersistedState('sugerencias.ocultarPend0', false);
   const [ocultarBloqueados, setOcultarBloqueados] = usePersistedState('sugerencias.ocultarBloqueados', false);
-  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('sugerencias.quick', []);
-  useUrlFilters(quick, setQuick);
+  const [quick, setQuick] = useQuickFilters('sugerencias.quick');
   const [rango, setRango] = usePersistedState<{ desde: string; hasta: string }>('sugerencias.rango', { desde: '', hasta: '' });
   const [clearTick, setClearTick] = useState(0);
   const clearFilters = () => {
@@ -244,8 +243,13 @@ export function SugerenciasPage() {
 
 
   const addQuick = (field: string, value: string) => {
-    if (!value || quick.some((f) => f.col === field && f.value === value)) return;
-    setQuick([...quick, { col: field, value }]);
+    if (!value) return;
+    const i = quick.findIndex((f) => f.col === field);
+    if (i < 0) { setQuick([...quick, { col: field, values: [value] }]); return; }
+    if (quick[i].values.includes(value)) return;
+    const next = quick.slice();
+    next[i] = { col: field, values: [...quick[i].values, value] };
+    setQuick(next);
   };
 
   const toggleSelected = (k: string) => setSelected((prev) => {

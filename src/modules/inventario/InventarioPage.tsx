@@ -29,7 +29,7 @@ import { useSolicitudStore } from '@/store/solicitudStore';
 import { useMaterialPrefiltro } from '@/hooks/useMaterialPrefiltro';
 import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
 import { usePersistedState } from '@/hooks/usePersistedState';
-import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { useQuickFilters } from '@/hooks/useQuickFilters';
 
 const CENTERS = ['1001', '1003', '1004', '1017', '1018', '1022', '1036'];
 
@@ -153,8 +153,7 @@ export function InventarioPage() {
   const [centro, setCentro] = usePersistedState('inventario.centro', '');
   const [isAdmin, setIsAdmin] = useState(readAdmin);
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
-  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('inventario.quick', []);
-  useUrlFilters(quick, setQuick);
+  const [quick, setQuick] = useQuickFilters('inventario.quick');
   const zoom = useZoom('inventario_zoom');
   const clearFilters = () => { setQ(''); setCond(''); setSector(''); setCentro(''); setQuick([]); };
 
@@ -252,7 +251,11 @@ export function InventarioPage() {
   // que no venga literal del reporte. El desglose por almacén (InvDetalle)
   // se ve al hacer clic en la celda, vía el panel `invCondCelda`.
   const invCond = (r: (typeof rows)[number], c: string) => r.invByCenter[c] || 0;
-  const invSumaCond = (r: (typeof rows)[number]) => CENTERS.reduce((s, c) => s + invCond(r, c), 0);
+  // "Inv Suma" (y por tanto "Importe $") debe sumar también Disp 31-30 y
+  // Disp 31-32 — así lo calcula el reporte original ("Inv Suma"/"Importe
+  // Inventario $" de la hoja fuente), y antes se quedaban fuera al sumar solo
+  // los centros nombrados (CENTERS).
+  const invSumaCond = (r: (typeof rows)[number]) => CENTERS.reduce((s, c) => s + invCond(r, c), 0) + (r.disponible31_30 || 0) + (r.disponible31_32 || 0);
   // Pendiente/tránsito/lento por celda vienen de "Resumen Sin Sugerencias"
   // (por almacén), no de "InvConsolidado" — restringidos a los almacenes que
   // aplican según la condición (RN-INV-002: solo 1032 en corta caducidad,
@@ -455,7 +458,7 @@ export function InventarioPage() {
                 {colVis.isVisible('disp3130') && <SortableTableHead sortKey="disp3130" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Cantidad disponible para mover del centro 1031 (hub de distribución) al almacén 1030.">Disp 31·30</SortableTableHead>}
                 {colVis.isVisible('disp3132') && <SortableTableHead sortKey="disp3132" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Cantidad disponible para mover del centro 1031 (hub de distribución) al almacén 1032.">Disp 31·32</SortableTableHead>}
                 {visibleCenters.map((c) => <TableHead key={c} className="text-right" title={`Inventario de este material en el centro ${c}, tal como viene en el reporte "InvConsolidado". Clic = desglose por lote (InvDetalle). Debajo: pendiente (rojo) y tránsito ("+N", solo hacia los almacenes que aplican según la condición). El ícono ⚠ indica "lento" (≥6 meses sin consumo y sin pendiente en ese centro).`}>Inv {c}</TableHead>)}
-                {colVis.isVisible('invsuma') && <SortableTableHead sortKey="invsuma" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Suma del inventario (por condición) de este material en todos los centros.">Inv Suma</SortableTableHead>}
+                {colVis.isVisible('invsuma') && <SortableTableHead sortKey="invsuma" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Suma del inventario (por condición) de este material en todos los centros, más Disp 31-30 y Disp 31-32.">Inv Suma</SortableTableHead>}
                 {colVis.isVisible('importe') && <SortableTableHead sortKey="importe" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Valor del inventario por condición (cantidad × precio de oferta).">Importe $</SortableTableHead>}
               </TableRow>
             </TableHeader>

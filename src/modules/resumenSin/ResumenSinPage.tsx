@@ -17,7 +17,7 @@ import {
   type RSSMaterial, type RSSCentro, type CoberturaEstado,
 } from '@/core/resumenSin';
 import { serieMaterial, tendenciaTexto } from '@/core/resumenFac';
-import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { useQuickFilters } from '@/hooks/useQuickFilters';
 import { useRowVirtualizer } from '@/hooks/useRowVirtualizer';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { matchesQuery, norm } from '@/modules/analytics/helpers';
@@ -38,8 +38,7 @@ export function ResumenSinPage() {
   const open = usePanelStore((s) => s.open);
   const [q, setQ] = usePersistedState('resumenSin.q', '');
   const [centroFiltro, setCentroFiltro] = usePersistedState('resumenSin.centro', '');
-  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('resumenSin.quick', []);
-  useUrlFilters(quick, setQuick);
+  const [quick, setQuick] = useQuickFilters('resumenSin.quick');
   const [pendFiltro, setPendFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.pend', '');
   const [lentoFiltro, setLentoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.lento', '');
   const [transitoFiltro, setTransitoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.transito', '');

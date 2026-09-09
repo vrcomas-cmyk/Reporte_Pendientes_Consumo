@@ -13,8 +13,8 @@ import { formatCurrency, formatNumber } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, AbcBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
-import { enRango, dateSortValue, isoToMesKey } from '@/lib/fechas';
+import { StatePill, TrendBadge, AbcBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, MonthRangeFilter, ClearFiltersButton, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { dateSortValue } from '@/lib/fechas';
 import { COLS_CONSUMO } from './columns';
 import { ESTADOS, mesKey, mesLabel, clasificarEstado, tendenciaTexto, mesRefQAnterior, mesAnterior, hoyMes, type Serie, type Estado, type Tendencia } from '@/core/resumenFac';
 import { norm, num, searchNorm, consumoEnrich, consumoSerie, matchesQueryNormalized, RC, pickField } from '@/modules/analytics/helpers';
@@ -27,7 +27,7 @@ import { useSolicitudStore } from '@/store/solicitudStore';
 import { useMaterialPrefiltro } from '@/hooks/useMaterialPrefiltro';
 import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
 import { usePersistedState } from '@/hooks/usePersistedState';
-import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { useQuickFilters } from '@/hooks/useQuickFilters';
 
 // #2: combined date+qty cell, same pattern as the existing "Última" column.
 function fechaCantCell(fecha: string, cant: number) {
@@ -50,14 +50,15 @@ export function ConsumoPage() {
   const [estado, setEstado] = usePersistedState('consumo.estado', '');
   const [clase, setClase] = usePersistedState('consumo.clase', '');
   const claseDe = (r: ConsumoRow) => a.abc.classByMaterial.get(norm(r.material)) || '';
-  const [quick, setQuick] = usePersistedState<ActiveFilter[]>('consumo.quick', []);
-  useUrlFilters(quick, setQuick);
-  const [periodoRango, setPeriodoRango] = usePersistedState<{ desde: string; hasta: string }>('consumo.periodoRango', { desde: '', hasta: '' });
+  const [quick, setQuick] = useQuickFilters('consumo.quick');
+  // Meses ('mm/aaaa') de Resumen de Facturación que acotan el periodo
+  // visualizado — no una fecha real, los datos de facturación no tienen día.
+  const [periodoMeses, setPeriodoMeses] = usePersistedState<{ desde: string; hasta: string }>('consumo.periodoMeses', { desde: '', hasta: '' });
   const [gruposOpen, setGruposOpen] = useState(false);
   const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>('consumo.periodo', 'corriente');
   const [clearTick, setClearTick] = useState(0);
   const clearFilters = () => {
-    setQ(''); setEstado(''); setClase(''); setQuick([]); setPeriodoRango({ desde: '', hasta: '' });
+    setQ(''); setEstado(''); setClase(''); setQuick([]); setPeriodoMeses({ desde: '', hasta: '' });
     setClearTick((n) => n + 1);
   };
   const colVis = useColumnVisibility('consumo_columnas');
@@ -78,14 +79,23 @@ export function ConsumoPage() {
   // it once per row here (indexed by row identity, memoized on data + catalog
   // identity) and read from the index everywhere else.
   const statusIndex = useMemo(() => {
-    const m = new Map<ConsumoRow, { status: Estado; tend: Tendencia }>();
+    const m = new Map<ConsumoRow, { status: Estado; tend: Tendencia; meses: number[] }>();
     for (const r of rows) {
       const serie = consumoSerie(a.rf, r);
-      m.set(r, { status: clasificarEstado(serie.length ? serie : null, false), tend: tendenciaTexto(serie) });
+      // Meses (escala mesKey) en los que esta fila REALMENTE facturó — base
+      // del filtro de periodo, que es por mes/año y sale de Resumen de
+      // Facturación, no de un campo de fecha con día.
+      const meses: number[] = [];
+      for (const p of serie) {
+        if (!p.cant && !p.imp) continue;
+        const k = mesKey(p.mes);
+        if (k) meses.push(k);
+      }
+      m.set(r, { status: clasificarEstado(serie.length ? serie : null, false), tend: tendenciaTexto(serie), meses });
     }
     return m;
   }, [rows, a.rf]);
-  const statusOf = (r: ConsumoRow) => statusIndex.get(r) ?? { status: clasificarEstado(null, false), tend: tendenciaTexto([]) };
+  const statusOf = (r: ConsumoRow) => statusIndex.get(r) ?? { status: clasificarEstado(null, false), tend: tendenciaTexto([]), meses: [] as number[] };
 
   // Perf: precompute each row's lowercased/accent-stripped searchable text
   // once, instead of building the concat string + re-normalizing it on every
@@ -114,12 +124,24 @@ export function ConsumoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [ce, statusIndex, a.abc]);
 
+  // Rango del filtro de periodo, en la misma escala que mesKey (año*12+mes) —
+  // cuando está activo, acota tanto las filas (por meses con movimiento real
+  // en statusIndex) como las ventanas de las agregaciones mensuales de abajo
+  // (aggSerie/rankMat/rankSector/grupos), en vez de la ventana fija "últimos
+  // N meses desde hoy".
+  const rangoLoK = useMemo(() => (periodoMeses.desde ? mesKey(periodoMeses.desde) : null), [periodoMeses.desde]);
+  const rangoHiK = useMemo(() => (periodoMeses.hasta ? mesKey(periodoMeses.hasta) : null), [periodoMeses.hasta]);
+  const rangoActivo = rangoLoK != null || rangoHiK != null;
+
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (estado && statusOf(r).status.key !== estado) return false;
       if (clase && claseDe(r) !== clase) return false;
       if (!passesFilters(r, filterCols, quick)) return false;
-      if (!enRango(r.ultimoMesFacturacion, periodoRango.desde, periodoRango.hasta, true)) return false;
+      if (rangoActivo) {
+        const meses = statusOf(r).meses;
+        if (!meses.some((k) => (rangoLoK == null || k >= rangoLoK) && (rangoHiK == null || k <= rangoHiK))) return false;
+      }
       if (q) {
         const hay = searchIndex.get(r) ?? '';
         if (!matchesQueryNormalized(q, hay)) return false;
@@ -127,21 +149,13 @@ export function ConsumoPage() {
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, q, estado, clase, quick, periodoRango, statusIndex, searchIndex, filterCols, a.abc]);
+  }, [rows, q, estado, clase, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, searchIndex, filterCols, a.abc]);
 
   const kpis = useMemo(() => {
     const cnt = (k: string) => filtered.filter((r) => statusOf(r).status.key === k).length;
     return { corriente: cnt('corriente'), riesgo: cnt('riesgo'), reactiva: cnt('reactiva'), nueva: cnt('nueva') };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, statusIndex]);
-
-  // Rango del filtro de periodo, en la misma escala que mesKey (año*12+mes) —
-  // cuando está activo, acota las ventanas de las agregaciones mensuales de
-  // abajo (aggSerie/rankMat/rankSector/grupos) al mismo rango que ya filtra
-  // las filas, en vez de la ventana fija "últimos N meses desde hoy".
-  const rangoLoK = useMemo(() => isoToMesKey(periodoRango.desde), [periodoRango.desde]);
-  const rangoHiK = useMemo(() => isoToMesKey(periodoRango.hasta), [periodoRango.hasta]);
-  const rangoActivo = rangoLoK != null || rangoHiK != null;
 
   const aggSerie = useMemo<Serie>(() => {
     // Guard against outlier/corrupt month values (e.g. a mis-parsed date far in the
@@ -170,6 +184,24 @@ export function ConsumoPage() {
     }
     return [...bucket.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
   }, [filtered, a.rf, rangoActivo, rangoLoK, rangoHiK]);
+
+  // Total facturado del periodo visible: suma exacta de los mismos buckets que
+  // pinta EvolChart, así el card nunca puede discrepar de la gráfica.
+  const facturadoPeriodo = useMemo(() => {
+    let imp = 0, cant = 0;
+    for (const p of aggSerie) { imp += p.imp; cant += p.cant; }
+    const desde = aggSerie.length ? mesLabel(aggSerie[0].mes) : '';
+    const hasta = aggSerie.length ? mesLabel(aggSerie[aggSerie.length - 1].mes) : '';
+    // Denominador del promedio: meses de CALENDARIO que abarca el periodo (no
+    // solo los que tuvieron movimiento) — así un mes en cero sí "pesa" en el
+    // promedio, igual que en un estado de cuenta.
+    const mesesCalendario = aggSerie.length ? mesKey(aggSerie[aggSerie.length - 1].mes) - mesKey(aggSerie[0].mes) + 1 : 0;
+    const promImpMes = mesesCalendario ? imp / mesesCalendario : 0;
+    const promCantMes = mesesCalendario ? cant / mesesCalendario : 0;
+    const promImpQ = promImpMes * 3;
+    const promCantQ = promCantMes * 3;
+    return { imp, cant, meses: aggSerie.length, desde, hasta, mesesCalendario, promImpMes, promCantMes, promImpQ, promCantQ };
+  }, [aggSerie]);
 
   // #5/#6/#7: current month/quarter vs the same period one year ago, driven by
   // the actual current date (never hardcoded) and shiftable one period back
@@ -373,7 +405,15 @@ export function ConsumoPage() {
     return <EmptyState title={'No se cargó la hoja "Reporte de Consumo".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 
-  const addQuick = (field: string, value: string) => { if (value && !quick.some((f) => f.col === field && f.value === value)) setQuick([...quick, { col: field, value }]); };
+  const addQuick = (field: string, value: string) => {
+    if (!value) return;
+    const i = quick.findIndex((f) => f.col === field);
+    if (i < 0) { setQuick([...quick, { col: field, values: [value] }]); return; }
+    if (quick[i].values.includes(value)) return;
+    const next = quick.slice();
+    next[i] = { col: field, values: [...quick[i].values, value] };
+    setQuick(next);
+  };
   const vsCell = (act: number, prom: number) => {
     const pct = prom ? ((act - prom) / prom) * 100 : 0;
     const cls = pct > 5 ? 'text-emerald-500' : pct < -5 ? 'text-danger' : 'text-text-faint';
@@ -420,7 +460,7 @@ export function ConsumoPage() {
           <option value="B">B — hasta 95%</option>
           <option value="C">C — cola</option>
         </Select>
-        <DateRangeFilter desde={periodoRango.desde} hasta={periodoRango.hasta} onChange={setPeriodoRango} label="Último mes fact." />
+        <MonthRangeFilter desde={periodoMeses.desde} hasta={periodoMeses.hasta} onChange={setPeriodoMeses} label="Periodo" />
         <ClearFiltersButton onClear={clearFilters} />
       </div>
       <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
@@ -435,6 +475,36 @@ export function ConsumoPage() {
         <div className="ml-auto flex items-center gap-1 rounded-md border border-border p-0.5 text-xs">
           <button onClick={() => setPeriodo('corriente')} className={`rounded px-2 py-1 ${periodo === 'corriente' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo corriente</button>
           <button onClick={() => setPeriodo('anterior')} className={`rounded px-2 py-1 ${periodo === 'anterior' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo anterior</button>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border p-3">
+        <div className="text-xs font-medium text-text-faint">
+          Facturado en el periodo{facturadoPeriodo.meses ? ` · ${facturadoPeriodo.desde} – ${facturadoPeriodo.hasta}` : ''}
+        </div>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-8 gap-y-1">
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-text-faint">Importe</div>
+            <span className="font-display text-2xl font-semibold">{formatCurrency(facturadoPeriodo.imp)}</span>
+          </div>
+          <div title="Suma de cantidades facturadas; mezcla distintas unidades de medida.">
+            <div className="text-[10px] uppercase tracking-wide text-text-faint">Cantidad</div>
+            <span className="font-display text-2xl font-semibold">{formatNumber(facturadoPeriodo.cant)}</span>
+          </div>
+          <div className="border-l border-border pl-8" title={`Promedio sobre ${facturadoPeriodo.mesesCalendario} meses de calendario del periodo (incluye meses en cero).`}>
+            <div className="text-[10px] uppercase tracking-wide text-text-faint">Promedio / mes</div>
+            <span className="text-sm font-medium">{formatCurrency(facturadoPeriodo.promImpMes)}</span>
+            <span className="ml-1.5 text-[11px] text-text-faint">{formatNumber(facturadoPeriodo.promCantMes)} u.</span>
+          </div>
+          <div title={`Promedio sobre ${facturadoPeriodo.mesesCalendario} meses de calendario del periodo (incluye meses en cero).`}>
+            <div className="text-[10px] uppercase tracking-wide text-text-faint">Promedio / trimestre</div>
+            <span className="text-sm font-medium">{formatCurrency(facturadoPeriodo.promImpQ)}</span>
+            <span className="ml-1.5 text-[11px] text-text-faint">{formatNumber(facturadoPeriodo.promCantQ)} u.</span>
+          </div>
+        </div>
+        <div className="text-[11px] text-text-faint">
+          {facturadoPeriodo.meses} {facturadoPeriodo.meses === 1 ? 'mes' : 'meses'} con movimiento · {formatNumber(filtered.length)} líneas del filtro actual
+          {!rangoActivo && ' · ventana por defecto: últimos 36 meses (usa "Último mes fact." para acotar)'}
         </div>
       </div>
 

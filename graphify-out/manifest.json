@@ -170,8 +170,8 @@
     "semantic_hash": ""
   },
   "src/modules/consumo/ConsumoPage.tsx": {
-    "mtime": 1788820504.9683347,
-    "ast_hash": "148c4bfc6b73e077b3a9a7d2c7e218f4",
+    "mtime": 1788970794.7271552,
+    "ast_hash": "086c32cb7f42c27eed81417aa7b7bb2b",
     "semantic_hash": ""
   },
   "src/modules/dashboard/DashboardPage.tsx": {
@@ -195,18 +195,18 @@
     "semantic_hash": ""
   },
   "src/modules/inventario/InventarioPage.tsx": {
-    "mtime": 1788844549.087125,
-    "ast_hash": "ddf8607dcbc2470a82edb835f0c2daf4",
+    "mtime": 1788971461.8027325,
+    "ast_hash": "af5ffd55878a4dc73c151a05db2e6807",
     "semantic_hash": ""
   },
   "src/modules/results/ResultsPage.tsx": {
-    "mtime": 1787077636.785086,
-    "ast_hash": "9b612b0a550ffbff3dc9df6ac156f150",
+    "mtime": 1788970992.6078606,
+    "ast_hash": "825e29ec2e145d58366a70d457a747fa",
     "semantic_hash": ""
   },
   "src/modules/resumenSin/ResumenSinPage.tsx": {
-    "mtime": 1787083736.358704,
-    "ast_hash": "c9e54a9906df5cc20595a81c07e03aab",
+    "mtime": 1788970850.1977644,
+    "ast_hash": "400994d4b889c620aad923dedb4319b8",
     "semantic_hash": ""
   },
   "src/modules/settings/SettingsPage.tsx": {
@@ -215,8 +215,8 @@
     "semantic_hash": ""
   },
   "src/modules/sugerencias/SugerenciasPage.tsx": {
-    "mtime": 1788888045.5972826,
-    "ast_hash": "ffb387e619c4ac1def727604594a23c6",
+    "mtime": 1788971002.0532556,
+    "ast_hash": "0f220fc36b93d361d7c703136fedd60a",
     "semantic_hash": ""
   },
   "src/modules/upload/UploadPage.tsx": {
@@ -410,8 +410,8 @@
     "semantic_hash": ""
   },
   "src/modules/comodato/ComodatoPage.tsx": {
-    "mtime": 1787077647.3772874,
-    "ast_hash": "3f47ccd755d439d5493db00c4c2f1522",
+    "mtime": 1788970983.6496768,
+    "ast_hash": "486b96214a34b47e0c61d46ab89f8972",
     "semantic_hash": ""
   },
   "src/services/comodatoService.ts": {
@@ -470,8 +470,8 @@
     "semantic_hash": ""
   },
   "src/modules/solicitudes/SolicitudesPage.tsx": {
-    "mtime": 1787077706.3349621,
-    "ast_hash": "0cdcebac82104e6c939533fcaae8023e",
+    "mtime": 1788970996.6996703,
+    "ast_hash": "d31fbcf17791eb57a30eb2e199cbd4f2",
     "semantic_hash": ""
   },
   "src/modules/solicitudes/useSolicitarDialog.ts": {
@@ -610,8 +610,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/ColumnFilterBar.tsx": {
-    "mtime": 1788844640.5274115,
-    "ast_hash": "ee04ab0c8864305747256b4544f991e8",
+    "mtime": 1788970709.4713922,
+    "ast_hash": "5e37cd8333135917f53a990ab935b2dc",
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/ComparativaDual.tsx": {
@@ -660,8 +660,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/index.ts": {
-    "mtime": 1788236673.2363994,
-    "ast_hash": "3f5cf3e1dfae5b84e2ec388784057cd6",
+    "mtime": 1788970760.1258364,
+    "ast_hash": "7bd383894bdc312a2e584d99a3d8cc22",
     "semantic_hash": ""
   },
   "src/components/navigation/CheatsheetDialog.tsx": {
@@ -2345,8 +2345,8 @@
     "semantic_hash": ""
   },
   "src/modules/oportunidades/OportunidadesPage.tsx": {
-    "mtime": 1788493679.404073,
-    "ast_hash": "6ccc22b546982333cbc636481d130511",
+    "mtime": 1788970988.0002608,
+    "ast_hash": "d7e2d1edc1b188142ac64543e0d84f4a",
     "semantic_hash": ""
   },
   "src/modules/oportunidades/components/ClienteFicha.tsx": {
@@ -2525,8 +2525,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/DateRangeFilter.tsx": {
-    "mtime": 1786147320.1615796,
-    "ast_hash": "c41d8311fa5306785224762aaccd3b7b",
+    "mtime": 1788907007.478038,
+    "ast_hash": "b7d9e40860324cc8b4788199d31d3e8d",
     "semantic_hash": ""
   },
   "src/modules/consumo/columns.ts": {
@@ -2605,13 +2605,13 @@
     "semantic_hash": ""
   },
   "src/hooks/useUrlFilters.ts": {
-    "mtime": 1787075246.7314074,
-    "ast_hash": "22780868b293dd5f95133e9c9b4e22e3",
+    "mtime": 1788971138.616741,
+    "ast_hash": "05b7c783634d29ce777543d880fbbbd0",
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/ColumnFilterMenu.tsx": {
-    "mtime": 1788820268.828308,
-    "ast_hash": "69b6c05f7e075f50bd9d1ca442f70c6c",
+    "mtime": 1788970740.2753806,
+    "ast_hash": "bc431d7abcad1b53da60272a156c219c",
     "semantic_hash": ""
   },
   "src/modules/oportunidades/OfertasClientePage.tsx": {
@@ -2722,6 +2722,21 @@
   "src/components/ui/filter-chip.tsx": {
     "mtime": 1788479278.2635486,
     "ast_hash": "2314dca5aef647aa4fcdae4ee026180f",
+    "semantic_hash": ""
+  },
+  "src/modules/analytics/ui/MonthRangeFilter.tsx": {
+    "mtime": 1788965271.1137023,
+    "ast_hash": "9614c78ca114d64f7f81f4d88a6d3a8d",
+    "semantic_hash": ""
+  },
+  "src/hooks/useQuickFilters.ts": {
+    "mtime": 1788971142.4646628,
+    "ast_hash": "e04dd13c0ffe2fef06c995719ce017ed",
+    "semantic_hash": ""
+  },
+  "src/modules/analytics/ui/columnFilters.test.ts": {
+    "mtime": 1788971088.6134267,
+    "ast_hash": "84a6a6fec63194973289935e4ba0a1b8",
     "semantic_hash": ""
   }
 }
