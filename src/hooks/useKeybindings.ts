@@ -80,4 +80,15 @@ export function useKeybindings(handlers: KeyHandler[], enabled = true) {
   }, [handlers, enabled]);
 }
 
+/** True when the event's target is a form field (or contenteditable) that
+ *  should keep normal typing behavior — bare-key shortcuts must bail out so
+ *  the user can type freely into inputs, textareas, selects, etc. */
+export function isEditableTarget(ev: KeyboardEvent): boolean {
+  const el = ev.target as HTMLElement | null;
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return el.isContentEditable;
+}
+
 export { isMac, matchCombo };

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Copy, Trash2, X } from 'lucide-react';
+import { Copy, Trash2, X } from 'lucide-react';
 import { StatTile, StatePill, EvolChart, ComparativaDual, Chip } from '../ui';
 import { InventarioPrincipalSection, PrecioCondicionSection, FuentesOfertaSection } from './SugDetallePanel';
+import { PedidoNavControl } from './PedidoNavControl';
 import { ConsumoMaterialCard, Section } from './_shared';
 import { cn, formatCurrency, formatFechaCaducidad, formatNumber } from '@/lib/utils';
 import { norm, num } from '../helpers';
@@ -9,6 +10,7 @@ import { usePanelStore, type Panel } from '@/store/panelStore';
 import { condicionTextoDeMaterial } from '@/core/oportunidad';
 import { preciosPorCondicion } from '@/core/enrich';
 import { useClipboard } from '@/hooks/useClipboard';
+import { useKeybindings, isEditableTarget, type KeyHandler } from '@/hooks/useKeybindings';
 import type { Sugerencia } from '@/core/types';
 import type { Analytics } from '../AnalyticsContext';
 
@@ -56,19 +58,44 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
   };
   const totalSeleccion = [...seleccion.values()].reduce((s, m) => s + m.size, 0);
 
+  // Navegación ◀/▶/#/buscador entre pedidos: recorre `panel.lista` (snapshot
+  // del orden filtrado que tenía la tabla de Sugerencias al abrir el
+  // detalle). Sin `lista` (p.ej. abierto desde Análisis) los controles no se
+  // muestran. Calculado ANTES del `return` temprano de abajo para no romper
+  // el orden de hooks (`useKeybindings` es un hook y debe llamarse siempre).
+  const lista = panel.lista;
+  const idx = lista ? lista.indexOf(panel.pedido) : -1;
+  const irA = (i: number) => { if (lista && i >= 0 && i < lista.length) replaceTop({ type: 'pedido', pedido: lista[i], lista }); };
+  // Etiqueta "cliente" para cada pedido de `lista`, usada por el buscador del
+  // desplegable — un solo pase sobre `a.bo` (no solo los materiales de ESTE
+  // pedido) para poder nombrar cualquier pedido de la lista.
+  const pedidoCliente = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const it of a.bo) {
+      const k = norm(it.bo.pedido);
+      if (!m.has(k)) m.set(k, it.bo.razonSocial || it.bo.destinatario || '');
+    }
+    return m;
+  }, [a.bo]);
+  const etiquetaPedido = (p: string) => {
+    const cliente = pedidoCliente.get(norm(p));
+    return cliente ? `${p} · ${cliente}` : p;
+  };
+  useKeybindings(
+    useMemo<KeyHandler[]>(() => [
+      { combo: 'ArrowLeft', handler: (ev) => { if (isEditableTarget(ev) || !lista || idx <= 0) return; ev.preventDefault(); irA(idx - 1); } },
+      { combo: 'ArrowRight', handler: (ev) => { if (isEditableTarget(ev) || !lista || idx < 0 || idx >= lista.length - 1) return; ev.preventDefault(); irA(idx + 1); } },
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    ], [idx, lista]),
+    !!lista && lista.length > 1,
+  );
+
   if (!items.length) return <p>Pedido sin materiales.</p>;
   const b0 = items[0].bo;
   const pendTot = items.reduce((s, it) => s + num(it.bo.cantidadPendiente), 0);
   const impTot = items.reduce((s, it) => s + num(it.bo.cantidadPendiente) * num(it.bo.precio), 0);
   const selKey = panel.boKey && items.some((it) => it.k === panel.boKey) ? panel.boKey : items[0].k;
   const selItem = items.find((it) => it.k === selKey) ?? items[0];
-
-  // Navegación ◀/▶ entre pedidos: recorre `panel.lista` (snapshot del orden
-  // filtrado que tenía la tabla de Sugerencias al abrir el detalle). Sin
-  // `lista` (p.ej. abierto desde Análisis) los controles no se muestran.
-  const lista = panel.lista;
-  const idx = lista ? lista.indexOf(panel.pedido) : -1;
-  const irA = (i: number) => { if (lista && i >= 0 && i < lista.length) replaceTop({ type: 'pedido', pedido: lista[i], lista }); };
 
   // Materiales con fuente alterna o condición registrada — se marcan en
   // verde en la lista de materiales del pedido.
@@ -107,15 +134,7 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
             <h2 className="font-display text-lg font-semibold">Pedido {panel.pedido}</h2>
           </div>
           {lista && lista.length > 1 && (
-            <div className="flex shrink-0 items-center gap-1">
-              <button type="button" title="Pedido anterior" disabled={idx <= 0} onClick={() => irA(idx - 1)} className="rounded-md border border-border p-1 disabled:opacity-30">
-                <ChevronLeft className="size-3.5" />
-              </button>
-              <span className="text-[11px] text-text-faint tabular-nums">{idx + 1}/{lista.length}</span>
-              <button type="button" title="Pedido siguiente" disabled={idx < 0 || idx >= lista.length - 1} onClick={() => irA(idx + 1)} className="rounded-md border border-border p-1 disabled:opacity-30">
-                <ChevronRight className="size-3.5" />
-              </button>
-            </div>
+            <PedidoNavControl lista={lista} idx={idx} irA={irA} etiqueta={etiquetaPedido} />
           )}
         </div>
         {/* Identidad: quién y por dónde — cada nombre es un chip a su propia

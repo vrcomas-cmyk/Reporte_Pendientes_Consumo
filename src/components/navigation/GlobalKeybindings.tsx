@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useKeybindings, type KeyHandler } from '@/hooks/useKeybindings';
+import { useKeybindings, isEditableTarget, type KeyHandler } from '@/hooks/useKeybindings';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { useUiStore } from '@/store/uiStore';
 import { usePanelStore } from '@/store/panelStore';
@@ -33,14 +33,6 @@ const CHORD_NAV: Record<string, string> = {
   m: '/comodato', q: '/solicitudes', h: '/historial', l: '/registros',
   x: '/ajustes', t: '/resultados',
 };
-
-function isEditableTarget(ev: KeyboardEvent): boolean {
-  const el = ev.target as HTMLElement | null;
-  if (!el) return false;
-  const tag = el.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-  return el.isContentEditable;
-}
 
 export function GlobalKeybindings() {
   const navigate = useNavigate();

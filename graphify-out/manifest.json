@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "src/modules/inventario/InventarioPage.tsx": {
-    "mtime": 1788971461.8027325,
-    "ast_hash": "af5ffd55878a4dc73c151a05db2e6807",
+    "mtime": 1788986020.87746,
+    "ast_hash": "abeee39cdad92403035a5fb66385cc48",
     "semantic_hash": ""
   },
   "src/modules/results/ResultsPage.tsx": {
@@ -575,8 +575,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/MaterialPanel.tsx": {
-    "mtime": 1786724761.9936414,
-    "ast_hash": "8709e0b5f7cc308d3c61747c5e40a8a0",
+    "mtime": 1788985958.300228,
+    "ast_hash": "9270ba4b08e90c70eb6050a0dca5e784",
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/MaterialTotalesPanel.tsx": {
@@ -585,8 +585,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/PedidoPanel.tsx": {
-    "mtime": 1788820340.8784223,
-    "ast_hash": "adbea2924dceb254c9385cfa210fe68a",
+    "mtime": 1788986011.7343261,
+    "ast_hash": "f8a194a607ba7407dd479c491ae0ad99",
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/SectorPanel.tsx": {
@@ -665,8 +665,8 @@
     "semantic_hash": ""
   },
   "src/components/navigation/CheatsheetDialog.tsx": {
-    "mtime": 1786058672.9850104,
-    "ast_hash": "2b823700143a203009f11d7cc4ad60ce",
+    "mtime": 1788986014.9810374,
+    "ast_hash": "453ac21fc21fdda7affc51626eceb3cc",
     "semantic_hash": ""
   },
   "src/components/navigation/CommandPalette.tsx": {
@@ -675,8 +675,8 @@
     "semantic_hash": ""
   },
   "src/components/navigation/GlobalKeybindings.tsx": {
-    "mtime": 1786058640.1636407,
-    "ast_hash": "719a920462d92354d83bbf973d61d52f",
+    "mtime": 1788985924.423085,
+    "ast_hash": "757ad1084789475ecd9bd53353dc1478",
     "semantic_hash": ""
   },
   "src/components/upload/DropZone.tsx": {
@@ -695,8 +695,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useKeybindings.ts": {
-    "mtime": 1784930595.629967,
-    "ast_hash": "0235f610e49569c37c009674051a1462",
+    "mtime": 1788985918.5612984,
+    "ast_hash": "ea90cba5bfee26414aa5d3ef60e35e74",
     "semantic_hash": ""
   },
   "src/store/commandPaletteStore.ts": {
@@ -2737,6 +2737,16 @@
   "src/modules/analytics/ui/columnFilters.test.ts": {
     "mtime": 1788971088.6134267,
     "ast_hash": "84a6a6fec63194973289935e4ba0a1b8",
+    "semantic_hash": ""
+  },
+  "src/modules/analytics/panels/InventarioCentrosPanel.tsx": {
+    "mtime": 1788986062.4206307,
+    "ast_hash": "fc7a757c7b9994ea9d00942a7deb980d",
+    "semantic_hash": ""
+  },
+  "src/modules/analytics/panels/PedidoNavControl.tsx": {
+    "mtime": 1788985975.2426453,
+    "ast_hash": "acac942f12615f43b4bf4fac7af8ce98",
     "semantic_hash": ""
   }
 }

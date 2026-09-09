@@ -40,6 +40,12 @@ const SHORTCUTS: { group: string; items: { keys: string; desc: string }[] }[] = 
     ],
   },
   {
+    group: 'Detalle de pedido',
+    items: [
+      { keys: '← / →', desc: 'Pedido anterior / siguiente' },
+    ],
+  },
+  {
     group: 'Tablas',
     items: [
       { keys: 'Clic en fila', desc: 'Copiar valor de la celda (ver tooltip)' },
