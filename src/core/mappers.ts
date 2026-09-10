@@ -7,6 +7,7 @@ import type {
   ResumenSinSugerenciaRow,
   ConsumoRow,
   ResumenFacRow,
+  IncrementoCostoRow,
 } from './types';
 import { CENTERS } from './types';
 import { norm, numLoose } from '@/lib/text';
@@ -285,5 +286,20 @@ export function mapResumenFac(r: Row): ResumenFacRow {
     gpoCte: str(r['Gpo. Cte.']),
     gpoVdor: str(r['Gpo. Vdor.']),
     centro: str(r['Centro']),
+  };
+}
+
+/** Headers del Sheet "Incremento de costos" — tolerante a variantes con/sin
+ * acento y a "Descripcion DEGASA" vs "Descripción DEGASA" (ver `pick`). */
+export function mapIncrementoCosto(r: Row): IncrementoCostoRow {
+  return {
+    material: str(pick(r, 'Código') ?? r['Codigo']),
+    descripcion: str(pick(r, 'Descripcion DEGASA')),
+    sector: str(r['Sector']),
+    grupoArticulo: str(pick(r, 'Grupo Articulo')),
+    costoAnteriorPieza: num(r['Costo Anterior']),
+    costoNuevoPieza: num(pick(r, 'Costo Nuevo Pieza')),
+    costoAnteriorCaja: num(pick(r, 'Costo Anterior Caja')),
+    costoNuevoCaja: num(pick(r, 'Costo Nuevo Caja')),
   };
 }

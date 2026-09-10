@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   X,
   Sunrise,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/store/uiStore';
@@ -55,6 +56,7 @@ export const NAV_GROUPS = [
       { to: '/resumen-sin', moduleKey: 'resumen-sin', label: 'Inventario', icon: Grid3x3 },
       { to: '/inventario', moduleKey: 'inventario', label: 'Inv Condición', icon: Boxes },
       { to: '/analisis', moduleKey: 'analisis', label: 'Análisis', icon: LineChart },
+      { to: '/incremento', moduleKey: 'incremento', label: 'Incremento de costos', icon: TrendingUp },
       { to: '/oportunidades', moduleKey: 'oportunidades', label: 'Oportunidades', icon: Target },
       { to: '/comodato', moduleKey: 'comodato', label: 'Comodato vs. Fac.', icon: HandCoins },
     ],

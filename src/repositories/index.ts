@@ -10,6 +10,7 @@ import { LocalOfertaRepository } from './LocalOfertaRepository';
 import { SupabaseOfertaRepository } from './SupabaseOfertaRepository';
 import { LocalReglaAceptacionRepository } from './LocalReglaAceptacionRepository';
 import { SupabaseReglaAceptacionRepository } from './SupabaseReglaAceptacionRepository';
+import { LocalIncrementoRepository } from './LocalIncrementoRepository';
 import type { CatalogRepository } from './CatalogRepository';
 import type { ReportRepository } from './ReportRepository';
 import type { SolicitudRepository } from './SolicitudRepository';
@@ -17,6 +18,7 @@ import type { OportunidadRepository } from './OportunidadRepository';
 import type { ClienteConocimientoRepository } from './ClienteConocimientoRepository';
 import type { OfertaRepository } from './OfertaRepository';
 import type { ReglaAceptacionRepository } from './ReglaAceptacionRepository';
+import type { IncrementoRepository } from './IncrementoRepository';
 
 export type { CatalogRepository } from './CatalogRepository';
 export type { ReportRepository } from './ReportRepository';
@@ -25,6 +27,7 @@ export type { OportunidadRepository } from './OportunidadRepository';
 export type { ClienteConocimientoRepository } from './ClienteConocimientoRepository';
 export type { OfertaRepository } from './OfertaRepository';
 export type { ReglaAceptacionRepository } from './ReglaAceptacionRepository';
+export type { IncrementoRepository } from './IncrementoRepository';
 
 /** Simple factory: swap backends without touching services/UI code.
  * 'supabase' moves history/settings/logs to Supabase (per-user, RLS-scoped)
@@ -110,3 +113,10 @@ export const oportunidadRepository = createOportunidadRepository();
 export const clienteConocimientoRepository = createClienteConocimientoRepository();
 export const ofertaRepository = createOfertaRepository();
 export const reglaAceptacionRepository = createReglaAceptacionRepository();
+
+/** El Sheet de incremento de costos es local/por-dispositivo (como el
+ * catálogo) — no hay backend Supabase para este dataset. */
+export function createIncrementoRepository(): IncrementoRepository {
+  return new LocalIncrementoRepository();
+}
+export const incrementoRepository = createIncrementoRepository();

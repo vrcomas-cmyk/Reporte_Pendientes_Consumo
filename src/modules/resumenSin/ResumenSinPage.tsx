@@ -9,7 +9,7 @@ import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { buildLotesSheet, loteKey } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, Chip, StatTile, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, ClearFiltersButton, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, Chip, StatTile, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, ClearFiltersButton, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { TooltipHint } from '@/components/ui/tooltip';
 import {
   invGen, esLento, esCentroDistribucion, peorCobertura, summarizeCoberturaConTransito, quiebreMitigadoPorTransito,
@@ -43,9 +43,12 @@ export function ResumenSinPage() {
   const [lentoFiltro, setLentoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.lento', '');
   const [transitoFiltro, setTransitoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.transito', '');
   const [coberturaFiltro, setCoberturaFiltro] = usePersistedState<'' | CoberturaEstado>('resumenSin.cobertura', '');
+  // "Pegar materiales" estilo SAP — filtro ADITIVO: no toca ninguno de los
+  // filtros de arriba, solo acota la lista a los códigos pegados (si hay alguno).
+  const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('resumenSin.pasteCodes', []);
   const zoom = useZoom('resumen_sin_zoom');
   const clearFilters = () => {
-    setQ(''); setCentroFiltro(''); setQuick([]); setPendFiltro(''); setLentoFiltro(''); setTransitoFiltro(''); setCoberturaFiltro('');
+    setQ(''); setCentroFiltro(''); setQuick([]); setPendFiltro(''); setLentoFiltro(''); setTransitoFiltro(''); setCoberturaFiltro(''); setPasteCodes([]);
   };
   const rss = a.rss;
   const qd = useDebouncedValue(q, 200);
@@ -100,9 +103,10 @@ export function ResumenSinPage() {
       if (transitoFiltro === 'con' && !anyCentro(mo, (co) => co.transito > 0)) return false;
       if (transitoFiltro === 'sin' && anyCentro(mo, (co) => co.transito > 0)) return false;
       if (coberturaFiltro && !anyCentro(mo, (co) => peorCobertura(co) === coberturaFiltro)) return false;
+      if (!matchesCodes(pasteCodes, mo.material)) return false;
       return true;
     });
-  }, [rss, qd, a.enrich, filterCols, quick, pendFiltro, lentoFiltro, transitoFiltro, coberturaFiltro]);
+  }, [rss, qd, a.enrich, filterCols, quick, pendFiltro, lentoFiltro, transitoFiltro, coberturaFiltro, pasteCodes]);
 
   const totals = useMemo(() => {
     let inv = 0, pend = 0, trans = 0;
@@ -136,13 +140,14 @@ export function ResumenSinPage() {
     () => (rss ? rss.centros.map((c) => ({ key: `centro_${c}`, label: `Centro ${c}` })) : []),
     [rss],
   );
-  const savedViews = useSavedViews<{ quick: ActiveFilter[]; centroFiltro: string; pendFiltro: typeof pendFiltro; lentoFiltro: typeof lentoFiltro; transitoFiltro: typeof transitoFiltro; coberturaFiltro: typeof coberturaFiltro; hidden: string[] }>('resumenSin_vistas');
-  const applyView = (state: { quick: ActiveFilter[]; centroFiltro: string; pendFiltro: typeof pendFiltro; lentoFiltro: typeof lentoFiltro; transitoFiltro: typeof transitoFiltro; coberturaFiltro: typeof coberturaFiltro; hidden: string[] }) => {
+  const savedViews = useSavedViews<{ quick: ActiveFilter[]; centroFiltro: string; pendFiltro: typeof pendFiltro; lentoFiltro: typeof lentoFiltro; transitoFiltro: typeof transitoFiltro; coberturaFiltro: typeof coberturaFiltro; hidden: string[]; pasteCodes?: string[] }>('resumenSin_vistas');
+  const applyView = (state: { quick: ActiveFilter[]; centroFiltro: string; pendFiltro: typeof pendFiltro; lentoFiltro: typeof lentoFiltro; transitoFiltro: typeof transitoFiltro; coberturaFiltro: typeof coberturaFiltro; hidden: string[]; pasteCodes?: string[] }) => {
     setQuick(state.quick); setCentroFiltro(state.centroFiltro); setPendFiltro(state.pendFiltro);
     setLentoFiltro(state.lentoFiltro); setTransitoFiltro(state.transitoFiltro); setCoberturaFiltro(state.coberturaFiltro);
+    setPasteCodes(state.pasteCodes ?? []);
     colVis.apply(state.hidden);
   };
-  const saveCurrentView = (name: string) => savedViews.save(name, { quick, centroFiltro, pendFiltro, lentoFiltro, transitoFiltro, coberturaFiltro, hidden: [...colVis.hidden] });
+  const saveCurrentView = (name: string) => savedViews.save(name, { quick, centroFiltro, pendFiltro, lentoFiltro, transitoFiltro, coberturaFiltro, hidden: [...colVis.hidden], pasteCodes });
 
   if (!rss) {
     if (!bootstrapped) return <TableSkeleton />;
@@ -225,10 +230,16 @@ export function ResumenSinPage() {
           <option value="">Todos los centros</option>
           {centrosAll.filter((c) => c !== '1031').map((c) => <option key={c} value={c}>Solo Centro {c} (+1031)</option>)}
         </select>
+        <PasteCodesFilter value={pasteCodes} onChange={setPasteCodes} label="material" />
         <p className="text-xs text-text-faint">Celda = inv. del centro · <span className="text-danger">Pend</span> pendiente · <AlertTriangle className="inline size-3 text-warning" /> lento (≥6m sin mov.)</p>
         <ClearFiltersButton onClear={clearFilters} />
         <div className="ml-auto"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
       </div>
+      {pasteCodes.length > 0 && (
+        <div className="-mt-1 flex items-center gap-1.5">
+          <PasteCodesChip value={pasteCodes} onChange={setPasteCodes} label="material" />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <ColumnFilterBar columns={filterCols} rows={list} active={quick} onChange={setQuick} />
@@ -283,7 +294,7 @@ export function ResumenSinPage() {
                 const pendTot = [...mo.centros.values()].reduce((s, co) => s + co.pend, 0);
                 return (
                   <TableRow key={mo.material}>
-                    <TableCell><Chip onClick={() => open({ type: 'material', material: mo.material })}>{mo.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{mo.desc}</div>{a.enrich.matPrecioOferta(mo.material) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(a.enrich.matPrecioOferta(mo.material))}</div>}</TableCell>
+                    <TableCell><Chip onClick={() => open({ type: 'material', material: mo.material })}>{mo.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{mo.desc}</div>{a.enrich.matPrecioOferta(mo.material) > 0 && <div className="text-[10px] text-success">Of. {formatCurrency(a.enrich.matPrecioOferta(mo.material))}</div>}</TableCell>
                     <TableCell>{a.enrich.matSector(mo.material) || '—'}<div className="text-[11px] text-text-faint">{a.enrich.matGrupo(mo.material)}</div></TableCell>
                     <TableCell><TrendBadge t={tendenciaTexto(serieMaterial(a.rf, mo.material))} /></TableCell>
                     <TableCell className="text-xs text-text-muted">{statusMat(mo) || '—'}</TableCell>
@@ -324,7 +335,7 @@ export function ResumenSinPage() {
                         >
                         <TableCell className="text-right">
                           <Chip onClick={() => open({ type: 'celda', material: mo.material, centro: c })}>{formatNumber(ig)}</Chip>
-                          {co.transito > 0 && <span className="text-emerald-500"> +{formatNumber(co.transito)}</span>}
+                          {co.transito > 0 && <span className="text-success"> +{formatNumber(co.transito)}</span>}
                           {esLento(co, rss.curMes) && <span title="Lento: sin movimiento hace ≥6 meses y sin pendiente en este centro."><AlertTriangle className="ml-1 inline size-3 text-warning" /></span>}
                           {co.pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(co.pend)}</div>}
                           {showCoberturaBadge && (

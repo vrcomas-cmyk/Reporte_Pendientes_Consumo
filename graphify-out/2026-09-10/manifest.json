@@ -15,17 +15,17 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1788988657.604093,
+    "mtime": 1789016355.1019824,
     "ast_hash": "47c012e8c6a496b925dd0aca883beaed",
     "semantic_hash": ""
   },
   "src/components/layout/AppShell.tsx": {
-    "mtime": 1788988632.9493406,
+    "mtime": 1789016355.1164124,
     "ast_hash": "2bcacc7291c2bebb0bf953544bcb9e7a",
     "semantic_hash": ""
   },
   "src/components/layout/Sidebar.tsx": {
-    "mtime": 1788988670.2103295,
+    "mtime": 1789016355.1287954,
     "ast_hash": "ada401bf22f9b35c458ce923b2ba1a63",
     "semantic_hash": ""
   },
@@ -95,12 +95,12 @@
     "semantic_hash": ""
   },
   "src/core/mappers.ts": {
-    "mtime": 1788988632.957845,
+    "mtime": 1789016355.141981,
     "ast_hash": "c988a29c6cc1f14ea0bd63bc9c8a4301",
     "semantic_hash": ""
   },
   "src/core/resumenFac.ts": {
-    "mtime": 1788988632.9618447,
+    "mtime": 1789016355.1574106,
     "ast_hash": "4b24282750f6f7743dcd27796669c1ab",
     "semantic_hash": ""
   },
@@ -115,7 +115,7 @@
     "semantic_hash": ""
   },
   "src/core/types.ts": {
-    "mtime": 1788988632.9668474,
+    "mtime": 1789016355.1719196,
     "ast_hash": "ec3c94df26ba58ad9ca1167b7cc93174",
     "semantic_hash": ""
   },
@@ -155,7 +155,7 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/AnalyticsContext.tsx": {
-    "mtime": 1788988632.9748652,
+    "mtime": 1789016355.1855774,
     "ast_hash": "263fa0852803c64f15ad05f10bf3e8de",
     "semantic_hash": ""
   },
@@ -170,8 +170,8 @@
     "semantic_hash": ""
   },
   "src/modules/consumo/ConsumoPage.tsx": {
-    "mtime": 1788970794.7271552,
-    "ast_hash": "086c32cb7f42c27eed81417aa7b7bb2b",
+    "mtime": 1789016355.2112806,
+    "ast_hash": "84f073bbb59a846a8ff82088f56dea59",
     "semantic_hash": ""
   },
   "src/modules/dashboard/DashboardPage.tsx": {
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "src/modules/inventario/InventarioPage.tsx": {
-    "mtime": 1788986020.87746,
-    "ast_hash": "abeee39cdad92403035a5fb66385cc48",
+    "mtime": 1789016355.2276902,
+    "ast_hash": "a111d959672b82a8441a6d7540090deb",
     "semantic_hash": ""
   },
   "src/modules/results/ResultsPage.tsx": {
@@ -205,8 +205,8 @@
     "semantic_hash": ""
   },
   "src/modules/resumenSin/ResumenSinPage.tsx": {
-    "mtime": 1788970850.1977644,
-    "ast_hash": "400994d4b889c620aad923dedb4319b8",
+    "mtime": 1789016355.2432833,
+    "ast_hash": "275b648899e5b7dc6407aa3450073f34",
     "semantic_hash": ""
   },
   "src/modules/settings/SettingsPage.tsx": {
@@ -215,8 +215,8 @@
     "semantic_hash": ""
   },
   "src/modules/sugerencias/SugerenciasPage.tsx": {
-    "mtime": 1788971002.0532556,
-    "ast_hash": "0f220fc36b93d361d7c703136fedd60a",
+    "mtime": 1789016355.258289,
+    "ast_hash": "6e6df7f0ec410399b60311e05e0f2f53",
     "semantic_hash": ""
   },
   "src/modules/upload/UploadPage.tsx": {
@@ -245,12 +245,12 @@
     "semantic_hash": ""
   },
   "src/repositories/db.ts": {
-    "mtime": 1788988632.9798684,
+    "mtime": 1789016355.2723978,
     "ast_hash": "2b3efd86be80f39f85ec185b6ee16542",
     "semantic_hash": ""
   },
   "src/repositories/index.ts": {
-    "mtime": 1788988632.9849985,
+    "mtime": 1789016355.2858348,
     "ast_hash": "67d0d934f603b0249dcfa9ec962b18f4",
     "semantic_hash": ""
   },
@@ -270,7 +270,7 @@
     "semantic_hash": ""
   },
   "src/store/dataStore.ts": {
-    "mtime": 1788988632.9956446,
+    "mtime": 1789016355.3102365,
     "ast_hash": "dd1e3a90685c3929ce69fae947937d86",
     "semantic_hash": ""
   },
@@ -660,8 +660,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/index.ts": {
-    "mtime": 1788970760.1258364,
-    "ast_hash": "7bd383894bdc312a2e584d99a3d8cc22",
+    "mtime": 1789016355.1954799,
+    "ast_hash": "ccc515b5bf67932450bfd2db7132a97d",
     "semantic_hash": ""
   },
   "src/components/navigation/CheatsheetDialog.tsx": {
@@ -825,7 +825,7 @@
     "semantic_hash": ""
   },
   "src/services/connectorsService.ts": {
-    "mtime": 1788988632.99114,
+    "mtime": 1789016355.297985,
     "ast_hash": "6b04bad3ed4c6302baf9d2f34b5cb154",
     "semantic_hash": ""
   },
@@ -2792,6 +2792,16 @@
   "docs/apps-script-incremento.md": {
     "mtime": 1788988221.002133,
     "ast_hash": "6c8469f7eba270ae3dbded71e8417729",
+    "semantic_hash": ""
+  },
+  "src/modules/analytics/ui/PasteCodesFilter.test.ts": {
+    "mtime": 1789015992.2614133,
+    "ast_hash": "1c4170361347d61afb4a24f3105f6f38",
+    "semantic_hash": ""
+  },
+  "src/modules/analytics/ui/PasteCodesFilter.tsx": {
+    "mtime": 1789015976.7809577,
+    "ast_hash": "874a482c9453f77c155d4b08ce95521e",
     "semantic_hash": ""
   }
 }

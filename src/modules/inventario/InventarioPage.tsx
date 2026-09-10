@@ -12,7 +12,7 @@ import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore, type Panel } from '@/store/panelStore';
 import { CENTERS } from '@/core/types';
 import type { InvDetalleRow } from '@/core/types';
-import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, ClearFiltersButton, useColumnVisibility, ColumnVisibilityControl, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
+import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, ClearFiltersButton, useColumnVisibility, ColumnVisibilityControl, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { norm, matchesQuery } from '@/modules/analytics/helpers';
 import { esCondicionCortaCaducidad } from '@/core/inventoryRules';
 import { pendPorCondicion, transitoPorCondicion, esLentoPorCondicion } from '@/core/resumenSin';
@@ -153,8 +153,10 @@ export function InventarioPage() {
   const [isAdmin, setIsAdmin] = useState(readAdmin);
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
   const [quick, setQuick] = useQuickFilters('inventario.quick');
+  // "Pegar materiales" estilo SAP — aditivo, no toca los filtros de arriba.
+  const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('inventario.pasteCodes', []);
   const zoom = useZoom('inventario_zoom');
-  const clearFilters = () => { setQ(''); setCond(''); setSector(''); setCentro(''); setQuick([]); };
+  const clearFilters = () => { setQ(''); setCond(''); setSector(''); setCentro(''); setQuick([]); setPasteCodes([]); };
 
   const colVis = useColumnVisibility('inventario_columnas');
   const columnDefs: ColDef[] = useMemo(() => [
@@ -166,12 +168,13 @@ export function InventarioPage() {
   ], []);
 
   // Vistas guardadas: snapshot de filtros (condicion/sector/centro/quick) + columnas ocultas, persistido entre sesiones.
-  const savedViews = useSavedViews<{ cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[] }>('inventario_vistas');
-  const applyView = (state: { cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[] }) => {
+  const savedViews = useSavedViews<{ cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[]; pasteCodes?: string[] }>('inventario_vistas');
+  const applyView = (state: { cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[]; pasteCodes?: string[] }) => {
     setCond(state.cond); setSector(state.sector); setCentro(state.centro); setQuick(state.quick);
+    setPasteCodes(state.pasteCodes ?? []);
     if (state.hidden) colVis.apply(state.hidden);
   };
-  const saveCurrentView = (name: string) => savedViews.save(name, { cond, sector, centro, quick, hidden: [...colVis.hidden] });
+  const saveCurrentView = (name: string) => savedViews.save(name, { cond, sector, centro, quick, hidden: [...colVis.hidden], pasteCodes });
   const qd = useDebouncedValue(q, 200);
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
@@ -281,9 +284,10 @@ export function InventarioPage() {
       if (!passesFilters(r, filterCols, quick)) return false;
       if (qd && !matchesQuery(qd, `${r.material} ${r.textoBreve}`)) return false;
       if (!isAdmin && hidden.has(rowKey(r.material, r.condicion))) return false;
+      if (!matchesCodes(pasteCodes, r.material)) return false;
       return true;
     });
-  }, [rows, qd, cond, sector, centro, a.enrich, isAdmin, hidden, filterCols, quick]);
+  }, [rows, qd, cond, sector, centro, a.enrich, isAdmin, hidden, filterCols, quick, pasteCodes]);
 
   const kpis = useMemo(() => {
     const mats = new Set(filtered.map((r) => norm(r.material)));
@@ -428,7 +432,8 @@ export function InventarioPage() {
         <select value={centro} onChange={(e) => setCentro(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
           <option value="">Centro (todos)</option>{CENTERS.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <p className="text-xs text-text-faint">Debajo de cada celda: <span className="text-danger">Pend</span> pendiente · <span className="text-emerald-500">+N</span> tránsito · <AlertTriangle className="inline size-3 text-warning" /> lento (≥6m sin consumo)</p>
+        <PasteCodesFilter value={pasteCodes} onChange={setPasteCodes} label="material" />
+        <p className="text-xs text-text-faint">Debajo de cada celda: <span className="text-danger">Pend</span> pendiente · <span className="text-success">+N</span> tránsito · <AlertTriangle className="inline size-3 text-warning" /> lento (≥6m sin consumo)</p>
         <Button
           variant={isAdmin ? 'default' : 'outline'}
           size="sm"
@@ -441,6 +446,11 @@ export function InventarioPage() {
         <ClearFiltersButton onClear={clearFilters} />
         <div className="ml-auto"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
       </div>
+      {pasteCodes.length > 0 && (
+        <div className="-mt-1 flex shrink-0 items-center gap-1.5">
+          <PasteCodesChip value={pasteCodes} onChange={setPasteCodes} label="material" />
+        </div>
+      )}
 
       <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
 
@@ -523,7 +533,7 @@ export function InventarioPage() {
                       return (
                         <TableCell key={c} className="text-right">
                           <Chip onClick={() => open({ type: 'invCondCelda', material: r.material, centro: c })}>{formatNumber(invCond(r, c))}</Chip>
-                          {transito > 0 && <span className="text-emerald-500"> +{formatNumber(transito)}</span>}
+                          {transito > 0 && <span className="text-success"> +{formatNumber(transito)}</span>}
                           {lento && <span title="Lento: sin consumo hace ≥6 meses y sin pendiente aplicable en este centro."><AlertTriangle className="ml-1 inline size-3 text-warning" /></span>}
                           {pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(pend)}</div>}
                         </TableCell>
