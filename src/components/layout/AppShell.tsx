@@ -8,6 +8,7 @@ import { GlobalKeybindings } from '@/components/navigation/GlobalKeybindings';
 import { useUiStore } from '@/store/uiStore';
 import { useDataStore } from '@/store/dataStore';
 import { getCachedCatalog, syncCatalogFromAppScript } from '@/services/catalogService';
+import { getCachedIncremento } from '@/services/incrementoService';
 import { checkForReportSheetsUpdate } from '@/services/reportSheetsService';
 import { getLatestAnalysis } from '@/services/reportService';
 import { reportRepository } from '@/repositories';
@@ -20,6 +21,7 @@ export function AppShell() {
   const setCatalog = useDataStore((s) => s.setCatalog);
   const setSettings = useDataStore((s) => s.setSettings);
   const setActiveAnalysis = useDataStore((s) => s.setActiveAnalysis);
+  const setIncremento = useDataStore((s) => s.setIncremento);
   const setBootstrapped = useDataStore((s) => s.setBootstrapped);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -47,7 +49,7 @@ export function AppShell() {
     let cancelled = false;
 
     async function bootstrap() {
-      const [cached, analysis, cfg] = await Promise.all([
+      const [cached, analysis, cfg, incremento] = await Promise.all([
         getCachedCatalog().catch((e) => {
           logError('catalog-get-failed', e instanceof Error ? e.message : String(e));
           return null;
@@ -60,12 +62,17 @@ export function AppShell() {
           logWarn('settings-load-failed', e instanceof Error ? e.message : String(e));
           return null;
         }),
+        getCachedIncremento().catch((e) => {
+          logWarn('incremento-get-failed', e instanceof Error ? e.message : String(e));
+          return null;
+        }),
       ]);
       if (cancelled) return;
 
       setCatalog(cached);
       if (analysis) setActiveAnalysis(analysis);
       if (cfg) setSettings(cfg);
+      if (incremento) setIncremento(incremento);
       setBootstrapped(true);
 
       // First-ever boot with nothing cached yet: sync automatically so the
@@ -144,7 +151,7 @@ export function AppShell() {
       cancelled = true;
       cleanupVisibility?.();
     };
-  }, [setCatalog, setSettings, setActiveAnalysis, setBootstrapped]);
+  }, [setCatalog, setSettings, setActiveAnalysis, setIncremento, setBootstrapped]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg text-text">

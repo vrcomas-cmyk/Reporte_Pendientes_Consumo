@@ -1,11 +1,15 @@
 import { create } from 'zustand';
-import type { CatalogSnapshot, AnalysisResult, ProcessingProgress, AppSettings } from '@/core/types';
+import type { CatalogSnapshot, AnalysisResult, ProcessingProgress, AppSettings, IncrementoSnapshot } from '@/core/types';
 import { DEFAULT_SETTINGS } from '@/core/types';
 
 interface DataState {
   catalog: CatalogSnapshot | null;
   catalogLoading: boolean;
   activeAnalysis: AnalysisResult | null;
+  /** Último sync del Sheet "Incremento de costos" (módulo `/incremento`) —
+   * restaurado en el bootstrap de AppShell junto al catálogo. `null` hasta
+   * que el usuario configura el conector y sincroniza por primera vez. */
+  incremento: IncrementoSnapshot | null;
   progress: ProcessingProgress;
   settings: AppSettings;
   /** True once `AppShell`'s one-time IndexedDB restore (catalog + last
@@ -19,6 +23,7 @@ interface DataState {
   setCatalog: (c: CatalogSnapshot | null) => void;
   setCatalogLoading: (v: boolean) => void;
   setActiveAnalysis: (a: AnalysisResult | null) => void;
+  setIncremento: (i: IncrementoSnapshot | null) => void;
   setProgress: (p: ProcessingProgress) => void;
   setSettings: (s: AppSettings) => void;
   setBootstrapped: (v: boolean) => void;
@@ -30,6 +35,7 @@ export const useDataStore = create<DataState>((set) => ({
   catalog: null,
   catalogLoading: false,
   activeAnalysis: null,
+  incremento: null,
   progress: { phase: 'idle', percent: 0, message: '' },
   settings: DEFAULT_SETTINGS,
   bootstrapped: false,
@@ -37,6 +43,7 @@ export const useDataStore = create<DataState>((set) => ({
   setCatalog: (c) => set({ catalog: c }),
   setCatalogLoading: (v) => set({ catalogLoading: v }),
   setActiveAnalysis: (a) => set({ activeAnalysis: a }),
+  setIncremento: (i) => set({ incremento: i }),
   setProgress: (p) => set({ progress: p }),
   setSettings: (s) => set({ settings: s }),
   setBootstrapped: (v) => set({ bootstrapped: v }),

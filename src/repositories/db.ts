@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { SolicitudDRP, Oportunidad, Interaccion, ClienteConocimiento, Observacion, Oferta, ReglaAceptacion } from '@/core/types';
+import type { SolicitudDRP, Oportunidad, Interaccion, ClienteConocimiento, Observacion, Oferta, ReglaAceptacion, IncrementoSnapshot } from '@/core/types';
 
 /** Row shape for catalog/analysis snapshots: array-valued fields (the bulk
  * of the data — resumenFac, sugerencias, invDetalle, ...) are stored
@@ -54,6 +54,10 @@ export class DegasaDb extends Dexie {
   /** Módulo "Ofertas por Cliente": reglas de aceptación por destinatario
    * (global cuando `material` es null) — ver ReglaAceptacionRepository. */
   reglasAceptacion!: Table<ReglaAceptacion, number>;
+  /** Módulo "Incremento de costos": snapshot del último sync del Sheet de
+   * proveedor. Filas chicas (decenas/cientos), guardadas como JSON plano —
+   * a diferencia de `catalog`/`analyses` no necesita blobCodec/Parquet. */
+  incrementoCostos!: Table<IncrementoSnapshot, string>;
 
   constructor() {
     super('degasa-portal');
@@ -126,6 +130,21 @@ export class DegasaDb extends Dexie {
       reglasAceptacion: '++id, dest, material, activa',
     }).upgrade(() => {
       // noop: v8 adds `reglasAceptacion` (módulo "Ofertas por Cliente").
+    });
+    this.version(9).stores({
+      catalog: 'id',
+      analyses: '++id, processedAt',
+      solicitudes: '++id, sync, sourceKey, fechaSolicitud',
+      sheetsCache: 'tab',
+      oportunidades: '++id, material, estado, condicion, creadaEn',
+      interacciones: '++id, dest, oportunidadId, fecha',
+      clientesConocimiento: '++id, &dest, razonSocial',
+      observaciones: '++id, dest, material, creadoEn',
+      ofertas: '++id, dest, material, oportunidadId, resultado, fechaOferta',
+      reglasAceptacion: '++id, dest, material, activa',
+      incrementoCostos: 'id',
+    }).upgrade(() => {
+      // noop: v9 adds `incrementoCostos` (módulo "Incremento de costos").
     });
   }
 }

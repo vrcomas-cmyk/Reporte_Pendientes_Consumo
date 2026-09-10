@@ -11,7 +11,7 @@ import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils'
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, DateRangeFilter, ClearFiltersButton, PasteCodesFilter, PasteCodesChip, matchesAnyCode, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { enRango, dateSortValue } from '@/lib/fechas';
 import { ESTADOS } from '@/core/resumenFac';
 import { norm, num, matchesQuery, transitoFor, buildConsumoIndex, consumoKey } from '@/modules/analytics/helpers';
@@ -73,7 +73,7 @@ function diasDesde(fecha: string): number | null {
 function UrgenciaDot({ fecha }: { fecha: string }) {
   const dias = diasDesde(fecha);
   if (dias === null || dias < 0) return null;
-  const cls = dias > 30 ? 'bg-danger' : dias > 15 ? 'bg-warning' : 'bg-emerald-500';
+  const cls = dias > 30 ? 'bg-danger' : dias > 15 ? 'bg-warning' : 'bg-success';
   return (
     <TooltipHint text={`${dias} día(s) desde el pedido`}>
       <span tabIndex={0} className={`inline-block size-1.5 rounded-full outline-none ${cls}`} />
@@ -125,8 +125,10 @@ export function SugerenciasPage() {
   const [quick, setQuick] = useQuickFilters('sugerencias.quick');
   const [rango, setRango] = usePersistedState<{ desde: string; hasta: string }>('sugerencias.rango', { desde: '', hasta: '' });
   const [clearTick, setClearTick] = useState(0);
+  // "Pegar pedidos/materiales" estilo SAP — aditivo, no toca los filtros de arriba.
+  const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('sugerencias.pasteCodes', []);
   const clearFilters = () => {
-    setQ(''); setEstado(''); setFuente(''); setCentroValido(false); setSoloAccionables(false); setOcultarPend0(false); setOcultarBloqueados(false); setQuick([]); setRango({ desde: '', hasta: '' });
+    setQ(''); setEstado(''); setFuente(''); setCentroValido(false); setSoloAccionables(false); setOcultarPend0(false); setOcultarBloqueados(false); setQuick([]); setRango({ desde: '', hasta: '' }); setPasteCodes([]);
     setClearTick((n) => n + 1);
   };
   const [sectorOpen, setSectorOpen] = useState(false);
@@ -197,9 +199,10 @@ export function SugerenciasPage() {
         const hay = `${b.materialBase} ${b.descripcionSolicitada} ${b.pedido} ${b.razonSocial} ${b.solicitante} ${b.destinatario}`;
         if (!matchesQuery(q, hay)) return false;
       }
+      if (!matchesAnyCode(pasteCodes, [b.pedido, b.materialBase])) return false;
       return true;
     });
-  }, [a.bo, q, estado, fuente, centroValido, soloAccionables, ocultarPend0, ocultarBloqueados, quick, rango, filterCols]);
+  }, [a.bo, q, estado, fuente, centroValido, soloAccionables, ocultarPend0, ocultarBloqueados, quick, rango, filterCols, pasteCodes]);
 
   const kpis = useMemo(() => {
     const isBloq = (it: (typeof filtered)[number]) => it.bo.bloqueado !== '';
@@ -291,12 +294,13 @@ export function SugerenciasPage() {
   const invTransitoTotal = (b: BORow['bo']) => INV_COLS.reduce((s, c) => s + transitoFor(a.rss, b.centroPedido, c, b.materialBase), 0);
 
   // Vistas guardadas: snapshot de columnas ocultas + unificar inventario, persistido entre sesiones.
-  const savedViews = useSavedViews<{ hidden: string[]; unificarInv: boolean }>('sugerencias_vistas');
-  const applyView = (state: { hidden: string[]; unificarInv: boolean }) => {
+  const savedViews = useSavedViews<{ hidden: string[]; unificarInv: boolean; pasteCodes?: string[] }>('sugerencias_vistas');
+  const applyView = (state: { hidden: string[]; unificarInv: boolean; pasteCodes?: string[] }) => {
     colVis.apply(state.hidden);
     setUnificarInv(state.unificarInv);
+    setPasteCodes(state.pasteCodes ?? []);
   };
-  const saveCurrentView = (name: string) => savedViews.save(name, { hidden: [...colVis.hidden], unificarInv });
+  const saveCurrentView = (name: string) => savedViews.save(name, { hidden: [...colVis.hidden], unificarInv, pasteCodes });
 
   const COLS_AGRUPADO: ColDef[] = buildSugerenciasColsAgrupado({ precioOculto, unificarInv, fuenteOculto });
   const COLS_COMMON: ColDef[] = fuenteOculto ? COLS_AGRUPADO : COLS_AGRUPADO.slice(0, -1);
@@ -570,8 +574,14 @@ export function SugerenciasPage() {
           Ocultar bloqueados
         </button>
         <DateRangeFilter desde={rango.desde} hasta={rango.hasta} onChange={setRango} />
+        <PasteCodesFilter value={pasteCodes} onChange={setPasteCodes} label="pedido/material" />
         <ClearFiltersButton onClear={clearFilters} />
       </div>
+      {pasteCodes.length > 0 && (
+        <div className="-mt-1 flex items-center gap-1.5">
+          <PasteCodesChip value={pasteCodes} onChange={setPasteCodes} label="pedido/material" />
+        </div>
+      )}
 
       <ColumnFilterBar columns={filterCols} rows={a.bo} active={quick} onChange={setQuick} />
 
@@ -667,7 +677,7 @@ export function SugerenciasPage() {
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}
                     {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial} <ClienteOportunidadBadge dest={b.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
-                    {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
+                    {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-success">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
                     {vis('sector') && <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>}
                     {vis('cantped') && <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>}
                     {vis('pend') && <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>}
@@ -677,7 +687,7 @@ export function SugerenciasPage() {
                       vis('invtotal') && (
                         <TableCell className="text-right" title={INV_ALL.map((c) => `${c}: ${formatNumber(num(b.invByCenter[c] || 0))}`).join(' · ')}>
                           {formatNumber(invTotal(b))}
-                          {invTransitoTotal(b) > 0 && <div className="text-[10px] text-emerald-500">↻+{formatNumber(invTransitoTotal(b))}</div>}
+                          {invTransitoTotal(b) > 0 && <div className="text-[10px] text-success">↻+{formatNumber(invTransitoTotal(b))}</div>}
                         </TableCell>
                       )
                     ) : (
@@ -688,7 +698,7 @@ export function SugerenciasPage() {
                           return (
                             <TableCell key={alm} className="text-right">
                               {formatNumber(invVal)}
-                              {tr > 0 && <div className="text-[10px] text-emerald-500">↻+{formatNumber(tr)}</div>}
+                              {tr > 0 && <div className="text-[10px] text-success">↻+{formatNumber(tr)}</div>}
                             </TableCell>
                           );
                         })}
@@ -786,7 +796,7 @@ export function SugerenciasPage() {
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}
                     {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial} <ClienteOportunidadBadge dest={b.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
-                    {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
+                    {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-success">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
                     {vis('sector') && <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>}
                     {vis('cantped') && <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>}
                     {vis('pend') && <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>}
@@ -796,7 +806,7 @@ export function SugerenciasPage() {
                       vis('invtotal') && (
                         <TableCell className="text-right" title={INV_ALL.map((c) => `${c}: ${formatNumber(num(b.invByCenter[c] || 0))}`).join(' · ')}>
                           {formatNumber(invTotal(b))}
-                          {invTransitoTotal(b) > 0 && <div className="text-[10px] text-emerald-500">↻+{formatNumber(invTransitoTotal(b))}</div>}
+                          {invTransitoTotal(b) > 0 && <div className="text-[10px] text-success">↻+{formatNumber(invTransitoTotal(b))}</div>}
                         </TableCell>
                       )
                     ) : (
@@ -807,7 +817,7 @@ export function SugerenciasPage() {
                           return (
                             <TableCell key={alm} className="text-right">
                               {formatNumber(invVal)}
-                              {tr > 0 && <div className="text-[10px] text-emerald-500">↻+{formatNumber(tr)}</div>}
+                              {tr > 0 && <div className="text-[10px] text-success">↻+{formatNumber(tr)}</div>}
                             </TableCell>
                           );
                         })}

@@ -1,13 +1,13 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useDataStore } from '@/store/dataStore';
-import { buildRF, type RFIndex } from '@/core/resumenFac';
+import { buildRF, mesesDisponibles, type RFIndex } from '@/core/resumenFac';
 import { buildBO, type BOItem } from '@/core/buildBO';
 import { buildRSS, type RSSIndex } from '@/core/resumenSin';
 import { buildEnrich, type EnrichIndex } from '@/core/enrich';
 import { applyCatalogPriceFallback } from '@/core/analysis';
 import { buildAbc, type AbcResult } from '@/core/abc';
 import { buildPrecioDispersion, type PrecioDispersionEntry } from '@/core/precios';
-import type { AnalysisResult, InvConsolidadoRow, InvDetalleRow } from '@/core/types';
+import type { AnalysisResult, InvConsolidadoRow, InvDetalleRow, IncrementoCostoRow } from '@/core/types';
 
 export interface Analytics {
   result: AnalysisResult | null;
@@ -31,6 +31,14 @@ export interface Analytics {
   /** Dispersión de precio unitario vigente entre clientes distintos, por
    * material (ver `core/precios.ts`). Vacía sin Reporte de Consumo. */
   precioDispersion: PrecioDispersionEntry[];
+  /** Filas crudas del Sheet "Incremento de costos" (módulo `/incremento`).
+   * El cálculo de impacto (`buildIncrementoImpacto`) NO vive aquí porque
+   * depende del periodo/filtros elegidos por el usuario en esa página —
+   * mismo patrón que `analisisVentas` en AnalisisPage. */
+  incrementoRows: IncrementoCostoRow[];
+  /** Meses distintos presentes en `rf.rows`, ordenados cronológicamente —
+   * alimenta el selector de periodo antes de que exista un `PeriodoAnalisis`. */
+  mesesDisponibles: string[];
 }
 
 const AnalyticsCtx = createContext<Analytics | null>(null);
@@ -38,14 +46,17 @@ const AnalyticsCtx = createContext<Analytics | null>(null);
 export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const result = useDataStore((s) => s.activeAnalysis);
   const catalog = useDataStore((s) => s.catalog);
+  const incremento = useDataStore((s) => s.incremento);
 
   const value = useMemo<Analytics>(() => {
     const enrich = buildEnrich(catalog);
     const invConsolidadoCatalog = catalog?.invConsolidado ?? [];
+    const incrementoRows = incremento?.rows ?? [];
     if (!result) {
       return {
         result: null, rf: null, bo: [], boByKey: new Map(), rss: null, enrich,
         invCondicion: [], invConsolidadoCatalog, lotes: [], curmes: '', abc: buildAbc(null), precioDispersion: [],
+        incrementoRows, mesesDisponibles: [],
       };
     }
     const rf = result.resumenFac.length ? buildRF(result.resumenFac) : null;
@@ -59,8 +70,11 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     const lotes = [...(catalog?.invDetalle ?? []), ...result.lotesCortaCaducidad];
     const abc = buildAbc(rf);
     const precioDispersion = result.consumo.length ? buildPrecioDispersion(result.consumo) : [];
-    return { result, rf, bo, boByKey, rss, enrich, invCondicion, invConsolidadoCatalog, lotes, curmes: rf?.curmes ?? '', abc, precioDispersion };
-  }, [result, catalog]);
+    return {
+      result, rf, bo, boByKey, rss, enrich, invCondicion, invConsolidadoCatalog, lotes, curmes: rf?.curmes ?? '', abc, precioDispersion,
+      incrementoRows, mesesDisponibles: mesesDisponibles(rf),
+    };
+  }, [result, catalog, incremento]);
 
   return <AnalyticsCtx.Provider value={value}>{children}</AnalyticsCtx.Provider>;
 }

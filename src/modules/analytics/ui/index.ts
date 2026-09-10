@@ -21,4 +21,5 @@ export { RowContextMenu } from './RowContextMenu';
 export { DateRangeFilter } from './DateRangeFilter';
 export { MonthRangeFilter } from './MonthRangeFilter';
 export { ClearFiltersButton } from './ClearFiltersButton';
+export { PasteCodesFilter, PasteCodesChip, parseCodesPaste, matchesCodes, matchesAnyCode } from './PasteCodesFilter';
 export { SuggestInput } from './SuggestInput';

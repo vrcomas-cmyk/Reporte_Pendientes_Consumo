@@ -13,7 +13,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, AbcBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, MonthRangeFilter, ClearFiltersButton, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, AbcBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, MonthRangeFilter, ClearFiltersButton, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { dateSortValue } from '@/lib/fechas';
 import { COLS_CONSUMO } from './columns';
 import { ESTADOS, mesKey, mesLabel, clasificarEstado, tendenciaTexto, mesRefQAnterior, mesAnterior, hoyMes, type Serie, type Estado, type Tendencia } from '@/core/resumenFac';
@@ -57,8 +57,10 @@ export function ConsumoPage() {
   const [gruposOpen, setGruposOpen] = useState(false);
   const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>('consumo.periodo', 'corriente');
   const [clearTick, setClearTick] = useState(0);
+  // "Pegar materiales" estilo SAP — aditivo, no toca los filtros de arriba.
+  const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('consumo.pasteCodes', []);
   const clearFilters = () => {
-    setQ(''); setEstado(''); setClase(''); setQuick([]); setPeriodoMeses({ desde: '', hasta: '' });
+    setQ(''); setEstado(''); setClase(''); setQuick([]); setPeriodoMeses({ desde: '', hasta: '' }); setPasteCodes([]);
     setClearTick((n) => n + 1);
   };
   const colVis = useColumnVisibility('consumo_columnas');
@@ -66,9 +68,11 @@ export function ConsumoPage() {
   const zoom = useZoom('consumo_zoom');
 
   // Vistas guardadas: snapshot de estado + filtros rápidos, persistido entre sesiones.
-  const savedViews = useSavedViews<{ estado: string; clase: string; quick: ActiveFilter[] }>('consumo_vistas');
-  const applyView = (state: { estado: string; clase?: string; quick: ActiveFilter[] }) => { setEstado(state.estado); setClase(state.clase ?? ''); setQuick(state.quick); };
-  const saveCurrentView = (name: string) => savedViews.save(name, { estado, clase, quick });
+  const savedViews = useSavedViews<{ estado: string; clase: string; quick: ActiveFilter[]; pasteCodes?: string[] }>('consumo_vistas');
+  const applyView = (state: { estado: string; clase?: string; quick: ActiveFilter[]; pasteCodes?: string[] }) => {
+    setEstado(state.estado); setClase(state.clase ?? ''); setQuick(state.quick); setPasteCodes(state.pasteCodes ?? []);
+  };
+  const saveCurrentView = (name: string) => savedViews.save(name, { estado, clase, quick, pasteCodes });
   const solicitar = useSolicitarDialog();
   const solicitudSourceKeys = useSolicitudStore((s) => s.sourceKeys);
 
@@ -146,10 +150,11 @@ export function ConsumoPage() {
         const hay = searchIndex.get(r) ?? '';
         if (!matchesQueryNormalized(q, hay)) return false;
       }
+      if (!matchesCodes(pasteCodes, r.material)) return false;
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, q, estado, clase, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, searchIndex, filterCols, a.abc]);
+  }, [rows, q, estado, clase, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, searchIndex, filterCols, a.abc, pasteCodes]);
 
   const kpis = useMemo(() => {
     const cnt = (k: string) => filtered.filter((r) => statusOf(r).status.key === k).length;
@@ -416,7 +421,7 @@ export function ConsumoPage() {
   };
   const vsCell = (act: number, prom: number) => {
     const pct = prom ? ((act - prom) / prom) * 100 : 0;
-    const cls = pct > 5 ? 'text-emerald-500' : pct < -5 ? 'text-danger' : 'text-text-faint';
+    const cls = pct > 5 ? 'text-success' : pct < -5 ? 'text-danger' : 'text-text-faint';
     return <div><b>{formatNumber(act)}</b><div className={`text-[11px] ${cls}`}>prom {formatNumber(prom)}</div></div>;
   };
 
@@ -461,13 +466,19 @@ export function ConsumoPage() {
           <option value="C">C — cola</option>
         </Select>
         <MonthRangeFilter desde={periodoMeses.desde} hasta={periodoMeses.hasta} onChange={setPeriodoMeses} label="Periodo" />
+        <PasteCodesFilter value={pasteCodes} onChange={setPasteCodes} label="material" />
         <ClearFiltersButton onClear={clearFilters} />
       </div>
+      {pasteCodes.length > 0 && (
+        <div className="-mt-1 flex items-center gap-1.5">
+          <PasteCodesChip value={pasteCodes} onChange={setPasteCodes} label="material" />
+        </div>
+      )}
       <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
 
       <div className="flex flex-wrap items-start gap-3">
         <div className="inline-grid grid-cols-2 content-start gap-2 sm:grid-cols-4">
-          <StatTile compact label="Al corriente" value={formatNumber(kpis.corriente)} tone="text-emerald-500" />
+          <StatTile compact label="Al corriente" value={formatNumber(kpis.corriente)} tone="text-success" />
           <StatTile compact label="En riesgo" value={formatNumber(kpis.riesgo)} tone="text-danger" />
           <StatTile compact label="Reactivación" value={formatNumber(kpis.reactiva)} tone="text-violet-500" />
           <StatTile compact label="Nueva compra" value={formatNumber(kpis.nueva)} tone="text-violet-500" />
@@ -513,7 +524,7 @@ export function ConsumoPage() {
           <div className="text-xs font-medium text-text-faint">Mes {mesLabel(comparativas.baseMes)} vs mismo mes año anterior</div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="font-display text-xl font-semibold">{formatCurrency(comparativas.impMesCur)}</span>
-            <span className={`text-sm font-medium ${comparativas.pctMes >= 0 ? 'text-emerald-500' : 'text-danger'}`}>{comparativas.pctMes >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctMes).toFixed(1)}%</span>
+            <span className={`text-sm font-medium ${comparativas.pctMes >= 0 ? 'text-success' : 'text-danger'}`}>{comparativas.pctMes >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctMes).toFixed(1)}%</span>
           </div>
           <div className="text-[11px] text-text-faint">vs {formatCurrency(comparativas.impMesPrev)} año anterior</div>
         </div>
@@ -521,7 +532,7 @@ export function ConsumoPage() {
           <div className="text-xs font-medium text-text-faint">{comparativas.qLabel} vs mismo trimestre año anterior</div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="font-display text-xl font-semibold">{formatCurrency(comparativas.impQCur)}</span>
-            <span className={`text-sm font-medium ${comparativas.pctQ >= 0 ? 'text-emerald-500' : 'text-danger'}`}>{comparativas.pctQ >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctQ).toFixed(1)}%</span>
+            <span className={`text-sm font-medium ${comparativas.pctQ >= 0 ? 'text-success' : 'text-danger'}`}>{comparativas.pctQ >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctQ).toFixed(1)}%</span>
           </div>
           <div className="text-[11px] text-text-faint">vs {formatCurrency(comparativas.impQPrev)} año anterior</div>
         </div>
@@ -529,7 +540,7 @@ export function ConsumoPage() {
           <div className="text-xs font-medium text-text-faint">{comparativas.ytdLabel} vs mismo periodo año anterior</div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="font-display text-xl font-semibold">{formatCurrency(comparativas.impYtdCur)}</span>
-            <span className={`text-sm font-medium ${comparativas.pctYtd >= 0 ? 'text-emerald-500' : 'text-danger'}`}>{comparativas.pctYtd >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctYtd).toFixed(1)}%</span>
+            <span className={`text-sm font-medium ${comparativas.pctYtd >= 0 ? 'text-success' : 'text-danger'}`}>{comparativas.pctYtd >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctYtd).toFixed(1)}%</span>
           </div>
           <div className="text-[11px] text-text-faint">vs {formatCurrency(comparativas.impYtdPrev)} año anterior</div>
         </div>
@@ -667,7 +678,7 @@ export function ConsumoPage() {
                   <div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', ce.grupoCli(r))}>{ce.grupoCli(r) || '—'}</Chip></div>
                 </TableCell>}
                 {vis('centro') && <TableCell><Chip onClick={() => addQuick('centro', r.centro)}>{r.centro || '—'}</Chip></TableCell>}
-                {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div>{ce.precioOferta(r) > 0 && <div className="text-[10px] text-emerald-600 dark:text-emerald-400">Of. {formatCurrency(ce.precioOferta(r))}</div>}</TableCell>}
+                {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div>{ce.precioOferta(r) > 0 && <div className="text-[10px] text-success">Of. {formatCurrency(ce.precioOferta(r))}</div>}</TableCell>}
                 {vis('abc') && <TableCell><AbcBadge clase={claseDe(r) || undefined} /></TableCell>}
                 {vis('sector') && <TableCell>{ce.sector(r) || '—'}<div className="text-[11px] text-text-faint">{ce.grupoArt(r)}</div></TableCell>}
                 {vis('consumo') && <TableCell className="text-right">{vsCell(r.consumoActual, r.consumoPromedioMensual)}</TableCell>}

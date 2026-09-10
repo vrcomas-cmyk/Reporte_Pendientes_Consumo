@@ -171,6 +171,34 @@ export interface ResumenFacRow {
   centro: string;
 }
 
+/** A row from the "Incremento de costos" Google Sheet — proveedor-notified
+ * cost increase per material, at piece and box granularity. Not part of the
+ * daily report or the sync catalog; its own connector (see
+ * services/incrementoService.ts). */
+export interface IncrementoCostoRow {
+  material: string;
+  descripcion: string;
+  sector: string;
+  grupoArticulo: string;
+  costoAnteriorPieza: number;
+  costoNuevoPieza: number;
+  costoAnteriorCaja: number;
+  costoNuevoCaja: number;
+}
+
+/** Persisted snapshot of the last "Incremento de costos" sync (IndexedDB). */
+export interface IncrementoSnapshot {
+  id: 'current';
+  fileName: string;
+  loadedAt: string;
+  /** Metadatos opcionales capturados a mano en la UI al sincronizar — no
+   * vienen del Sheet, sirven para estampar el export ("vigente desde X"). */
+  vigenciaDesde: string;
+  motivo: string;
+  temporal: boolean;
+  rows: IncrementoCostoRow[];
+}
+
 /** Sheet "roles" the app knows how to auto-detect by header signature. */
 export type SheetRole =
   | 'ejecutivos'

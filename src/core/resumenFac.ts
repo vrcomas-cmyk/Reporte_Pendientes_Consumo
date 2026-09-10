@@ -204,6 +204,19 @@ export const serieMatCentro = (rf: RFIndex | null, m: unknown, centro: unknown):
 export const precioMinAnioMaterial = (rf: RFIndex | null, m: unknown): number | null =>
   rf ? rf.matMinYr.get(norm(m)) ?? null : null;
 
+/** Meses distintos presentes en `rf.rows`, ordenados cronológicamente
+ * (`mesKey`) — usado por el selector de periodo del módulo Incremento de
+ * costos (`core/incremento.ts`) para acotar qué rangos tienen datos reales. */
+export function mesesDisponibles(rf: RFIndex | null): string[] {
+  if (!rf) return [];
+  const set = new Set<string>();
+  for (const r of rf.rows) {
+    const mes = norm(r.mesAno);
+    if (mes) set.add(mes);
+  }
+  return [...set].sort((a, b) => mesKey(a) - mesKey(b));
+}
+
 // ---- date utilities ---------------------------------------------------------
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
