@@ -19,6 +19,13 @@ const APPSCRIPT_TABS = {
   invDetalle: 'InvDetalle',
 } as const;
 
+/** Apps Script tab reads (e.g. `getDataRange()`) commonly pull a few trailing
+ * blank rows past the real data — a row where every cell is empty/whitespace
+ * isn't a material, it's sheet padding, so it's dropped before mapping. */
+function isBlankRow(r: Record<string, unknown>): boolean {
+  return Object.values(r).every((v) => v === undefined || v === null || String(v).trim() === '');
+}
+
 async function fetchAppScriptTab(tab: string): Promise<Record<string, unknown>[]> {
   const appscriptUrl = await getConnector(CONNECTOR_KEYS.appscriptCatalogUrl, APPSCRIPT_URL_ENV);
   if (!appscriptUrl) {
@@ -29,7 +36,7 @@ async function fetchAppScriptTab(tab: string): Promise<Record<string, unknown>[]
   if (!res.ok) throw new Error(`HTTP ${res.status} al leer la pestaña "${tab}" del catálogo.`);
   const data = await res.json();
   if (data && typeof data === 'object' && 'error' in data) throw new Error(String((data as { error: unknown }).error));
-  return Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+  return Array.isArray(data) ? (data as Record<string, unknown>[]).filter((r) => !isBlankRow(r)) : [];
 }
 
 /** Fetches the sync catalog live from the AppScript endpoint (no xlsx upload

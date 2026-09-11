@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { ErrorBoundary } from './ErrorBoundary';
 import { GlobalKeybindings } from '@/components/navigation/GlobalKeybindings';
+import { CalculatorWidget } from '@/components/widgets/CalculatorWidget';
 import { useUiStore } from '@/store/uiStore';
 import { useDataStore } from '@/store/dataStore';
 import { getCachedCatalog, syncCatalogFromAppScript } from '@/services/catalogService';
@@ -176,6 +177,7 @@ export function AppShell() {
         </main>
       </div>
       <GlobalKeybindings />
+      <CalculatorWidget />
     </div>
   );
 }

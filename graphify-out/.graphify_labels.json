@@ -353,14 +353,5 @@
   "351": "LocalClienteConocimientoRepository",
   "352": "Toaster.tsx",
   "353": "normalizeGitHubEvent",
-  "354": "SavedViews.tsx",
-  "355": "button.tsx",
-  "356": "@supabase/supabase-js",
-  "357": "tabs.tsx",
-  "358": "context-menu.tsx",
-  "359": "MonthRangeFilter.tsx",
-  "360": "ClienteOportunidadBadge.tsx",
-  "361": "sugerencias/columns.ts",
-  "362": "ClearFiltersButton.tsx",
-  "363": "InvGrid"
+  "356": "@supabase/supabase-js"
 }

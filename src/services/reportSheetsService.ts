@@ -818,7 +818,6 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
 // ---------------------------------------------------------------------------
 
 const SYNC_META_KEY = 'report-sheets-sync-meta';
-const CHECK_THROTTLE_MS = 60_000;
 
 interface SyncMeta {
   modifiedTime?: string;
@@ -841,10 +840,17 @@ function writeSyncMeta(meta: SyncMeta): void {
   }
 }
 
+function isSameLocalDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 /** Called on mount and on window focus/visibility regain. Cheap-checks the
  * spreadsheet's Drive `modifiedTime`; if it changed since the last check,
  * runs a full sync (all 4 tabs) and returns the new result. Throttled to at
- * most once a minute so rapid focus/blur toggling doesn't spam Apps Script. */
+ * most once per calendar day (local time) — otherwise every edit anyone makes
+ * to the sheet during the day would trigger a silent resync on the user's
+ * next tab focus, instead of the intended "once when I open it in the
+ * morning, or when I sync manually" cadence. */
 export async function checkForReportSheetsUpdate(
   params: Omit<SyncReportSheetsParams, 'selectedRoles'>,
 ): Promise<{ changed: boolean; result?: AnalysisResult }> {
@@ -852,7 +858,7 @@ export async function checkForReportSheetsUpdate(
   if (!url) return { changed: false };
 
   const meta = readSyncMeta();
-  if (meta.checkedAt && Date.now() - new Date(meta.checkedAt).getTime() < CHECK_THROTTLE_MS) {
+  if (meta.checkedAt && isSameLocalDay(new Date(meta.checkedAt), new Date())) {
     return { changed: false };
   }
 
