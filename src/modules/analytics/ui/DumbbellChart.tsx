@@ -41,7 +41,7 @@ export const DumbbellChart = memo(function DumbbellChart({ rows, labelA, labelB,
           <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatCurrency(Number(v))} />
           <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} width={130} interval={0} />
           <Tooltip
-            formatter={(v: number, key: string) => (key === 'a' ? [formatCurrency(v), labelA] : key === 'b' ? [formatCurrency(v), labelB] : [null, null])}
+            formatter={(v, key) => (key === 'a' ? [formatCurrency(Number(v)), labelA] : key === 'b' ? [formatCurrency(Number(v)), labelB] : [null, null])}
             contentStyle={{
               fontSize: 12, borderRadius: 8,
               background: theme === 'dark' ? '#1c1c1b' : '#fff',

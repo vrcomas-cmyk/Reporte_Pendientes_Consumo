@@ -55,7 +55,7 @@ export const YearComparisonChart = memo(function YearComparisonChart({ anios, me
           <XAxis dataKey="label" tick={{ fontSize: 10 }} />
           <YAxis tick={{ fontSize: 10 }} width={54} tickFormatter={(v) => formatCurrency(Number(v))} />
           <Tooltip
-            formatter={(v: number, name: string) => [v == null ? '—' : formatCurrency(v), name]}
+            formatter={(v, name) => [v == null ? '—' : formatCurrency(Number(v)), name]}
             contentStyle={{
               fontSize: 12, borderRadius: 8,
               background: theme === 'dark' ? '#1c1c1b' : '#fff',

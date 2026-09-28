@@ -127,7 +127,7 @@ describe('analisisDirectivo', () => {
       row({ solicitante: 'C3', gpoCte: 'G3', material: 'M1', mesAno: '01/2026', importeFacturado: 300 }),
     ];
     const rf = buildRF(rows);
-    const enrich = mkEnrich({ grupoCliente: (g) => g });
+    const enrich = mkEnrich({ grupoCliente: (g) => String(g) });
     const periodo = buildPeriodo('01/2026', '01/2026');
     const r = analisisDirectivo(rf, [], enrich, { grupoClientes: ['G1', 'G3'] }, periodo, periodo)!;
     expect(r.penetracion.universo).toBe(2);
@@ -141,7 +141,7 @@ describe('analisisDirectivo', () => {
       row({ solicitante: 'C3', gpoCte: 'G2', material: 'M1', mesAno: '01/2026', importeFacturado: 300, cantidadFacturada: 30 }),
     ];
     const rf = buildRF(rows);
-    const enrich = mkEnrich({ grupoCliente: (g) => g, matCosto: () => 5 });
+    const enrich = mkEnrich({ grupoCliente: (g) => String(g), matCosto: () => 5 });
     const periodo = buildPeriodo('01/2026', '01/2026');
     const r = analisisDirectivo(rf, [], enrich, {}, periodo, periodo)!;
     const g1 = r.porGrupoCliente.find((g) => g.grupo === 'G1')!;
@@ -159,7 +159,7 @@ describe('analisisDirectivo', () => {
       row({ solicitante: 'C2', gpoCte: 'CAE', material: 'M1', mesAno: '02/2026', importeFacturado: 50 }),
     ];
     const rf = buildRF(rows);
-    const enrich = mkEnrich({ grupoCliente: (g) => g });
+    const enrich = mkEnrich({ grupoCliente: (g) => String(g) });
     const r = analisisDirectivo(rf, [], enrich, {}, buildPeriodo('01/2026', '01/2026'), buildPeriodo('02/2026', '02/2026'))!;
     const texto = narrativaDirectivo(r);
     expect(texto).toContain('grupo de cliente');
