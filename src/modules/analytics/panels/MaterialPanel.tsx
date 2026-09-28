@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { EvolChart, TrendBadge } from '../ui';
 import { Section, SugTable, ConsumoTable, LotesTable, PrecioCondicionBox } from './_shared';
+import { CostoTile } from './CostoMaterial';
 import { InventarioCentrosPanel } from './InventarioCentrosPanel';
 import { formatNumber } from '@/lib/utils';
 import { serieMaterial, tendenciaTexto } from '@/core/resumenFac';
@@ -29,6 +30,7 @@ export function MaterialPanel({ panel, a, push }: { panel: Extract<Panel, { type
       <div className="min-w-0 flex-1">
         <h2 className="font-display text-lg font-semibold">{mat}</h2>
         <p className="mt-1 text-sm text-text-muted">{enrich.matTexto(mat) ? `${enrich.matTexto(mat)} · ` : ''}{lotesF.length} lote(s) · {formatNumber(totalUni)} unidades</p>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4"><CostoTile a={a} material={mat} /></div>
         <PrecioCondicionBox a={a} material={mat} />
         <Section title="Tendencia del material">
           <div className="mb-2"><TrendBadge t={tendenciaTexto(serie)} /></div>

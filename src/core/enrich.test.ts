@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { preciosPorCondicion, normCode } from './enrich';
-import type { InvConsolidadoRow } from './types';
+import { preciosPorCondicion, normCode, buildEnrich } from './enrich';
+import type { CatalogSnapshot, InvConsolidadoRow } from './types';
 
 const mkRow = (over: Partial<InvConsolidadoRow>): InvConsolidadoRow => ({
   sector: '',
@@ -110,5 +110,32 @@ describe('normCode', () => {
 
   it('preserves negative numeric codes', () => {
     expect(normCode('-007')).toBe('-7');
+  });
+});
+
+describe('gerencia de marca', () => {
+  const catalog = {
+    id: 'current', fileName: '', loadedAt: '',
+    ejecutivos: [], materiales: [], invConsolidado: [], invDetalle: [],
+    gerenciaMarca: [
+      { gerente: 'Ana', sector: 'Suturas' },
+      { gerente: 'Ana', sector: 'Curación' },
+      { gerente: 'Beto', sector: 'Diagnóstico' },
+    ],
+  } as CatalogSnapshot;
+  const e = buildEnrich(catalog);
+
+  it('lista gerentes ordenados y sus sectores', () => {
+    expect(e.gerentes).toEqual(['Ana', 'Beto']);
+    expect(e.sectoresDeGerente('Ana')).toEqual(['Curación', 'Suturas']);
+  });
+  it('compara sin acentos ni mayúsculas', () => {
+    expect(e.sectorDeGerente('SUTURAS', 'Ana')).toBe(true);
+    expect(e.sectorDeGerente('curacion', 'Ana')).toBe(true);
+    expect(e.sectorDeGerente('Suturas', 'Beto')).toBe(false);
+  });
+  it('sin gerente pasa todo; catálogo sin pestaña no rompe', () => {
+    expect(e.sectorDeGerente('X', '')).toBe(true);
+    expect(buildEnrich({ ...catalog, gerenciaMarca: undefined }).gerentes).toEqual([]);
   });
 });

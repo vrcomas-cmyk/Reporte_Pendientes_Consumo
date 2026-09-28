@@ -6,6 +6,7 @@ import {
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
+import { GerenteSelect } from '@/components/ui/gerente-select';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead } from '@/components/ui/table';
@@ -119,6 +120,8 @@ function anioAnteriorCompleto(meses: string[]): { desde: string; hasta: string }
 // `onChange` en cada render → loop infinito ("Maximum update depth
 // exceeded", saturaba hasta el worker de análisis).
 interface IncrementoFiltersState {
+  /** Opcional: vistas/estado persistido anteriores no lo traen. */
+  gerente?: string;
   sector: string;
   grupoArticulo: string;
   ejecutivo: string;
@@ -238,9 +241,9 @@ export function IncrementoPage() {
 
   const impacto = useMemo(() => {
     if (!impactoSinFiltros || !periodo) return null;
-    if (!filters.ejecutivo && !filters.sector && !filters.grupoArticulo && !filters.grupoCliente) return impactoSinFiltros;
+    if (!filters.ejecutivo && !filters.gerente && !filters.sector && !filters.grupoArticulo && !filters.grupoCliente) return impactoSinFiltros;
     const analisisFilters: AnalisisFilters = {
-      ejecutivo: filters.ejecutivo, sector: filters.sector, grupoArticulo: filters.grupoArticulo, grupoCliente: filters.grupoCliente,
+      ejecutivo: filters.ejecutivo, gerente: filters.gerente, sector: filters.sector, grupoArticulo: filters.grupoArticulo, grupoCliente: filters.grupoCliente,
     };
     return buildIncrementoImpacto(
       a.incrementoRows,
@@ -251,7 +254,7 @@ export function IncrementoPage() {
       analisisFilters,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [impactoSinFiltros, a.incrementoRows, a.rf, a.enrich, a.abc, a.rss, a.bo, materiales, periodo, filters.ejecutivo, filters.sector, filters.grupoArticulo, filters.grupoCliente]);
+  }, [impactoSinFiltros, a.incrementoRows, a.rf, a.enrich, a.abc, a.rss, a.bo, materiales, periodo, filters.ejecutivo, filters.gerente, filters.sector, filters.grupoArticulo, filters.grupoCliente]);
 
   const skusShown = useMemo(() => {
     if (!impacto) return [];
@@ -474,6 +477,7 @@ export function IncrementoPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
           <DebouncedSearch key={clearTick} initialValue={q} onChange={setQ} placeholder="Buscar material o descripción…" />
+          <GerenteSelect enrich={a.enrich} value={filters.gerente ?? ''} onChange={(v) => setFilters({ ...filters, gerente: v })} />
           <Select value={filters.sector} onChange={(ev) => setFilters({ ...filters, sector: ev.target.value })} className="w-auto">
             <option value="">Sector (todos)</option>{sectorOptions.map((v) => <option key={v} value={v}>{v}</option>)}
           </Select>
@@ -495,9 +499,12 @@ export function IncrementoPage() {
             filtro elegido aparece como chip removible, no solo dentro del
             <select> (que en algunos navegadores/zoom no siempre se nota
             resaltado a simple vista). */}
-        {(filters.sector || filters.grupoArticulo || filters.ejecutivo || filters.grupoCliente || filters.clase) && (
+        {(filters.gerente || filters.sector || filters.grupoArticulo || filters.ejecutivo || filters.grupoCliente || filters.clase) && (
           <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
             <span className="text-[11px] text-text-faint">Filtrando por:</span>
+            {filters.gerente && (
+              <FilterChip active onClear={() => setFilters({ ...filters, gerente: '' })}>Gerente: {filters.gerente}</FilterChip>
+            )}
             {filters.sector && (
               <FilterChip active onClear={() => setFilters({ ...filters, sector: '' })}>Sector: {filters.sector}</FilterChip>
             )}

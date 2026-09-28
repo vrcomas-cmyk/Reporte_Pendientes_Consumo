@@ -57,8 +57,14 @@ export interface AnalisisResult {
 export interface AnalisisFilters {
   ejecutivo?: string;
   grupoCliente?: string;
+  /** Multi-select de grupo de cliente — si viene con al menos un valor, GANA
+   * sobre `grupoCliente` (single-select, usado por Análisis/Incremento).
+   * Permite elegir uno, varios o "casi todos" los grupos. */
+  grupoClientes?: string[];
   sector?: string;
   grupoArticulo?: string;
+  /** Gerente de marca: acota a los sectores a su cargo (pestaña GERENCIA DE MARCA). */
+  gerente?: string;
 }
 
 /** Predicados de los 4 filtros de Análisis (`AnalisisFilters`), compartidos
@@ -72,15 +78,18 @@ export function buildAnalisisPredicates(
   filters?: AnalisisFilters,
 ): { matPasa: (m: string) => boolean; clientePasa: (c: string) => boolean } {
   const matPasa = (m: string) => {
+    if (filters?.gerente && !enrich.sectorDeGerente(enrich.matSector(m), filters.gerente)) return false;
     if (filters?.sector && (enrich.matSector(m) || '(sin sector)') !== filters.sector) return false;
     if (filters?.grupoArticulo && (enrich.matGrupo(m) || '(sin grupo)') !== filters.grupoArticulo) return false;
     return true;
   };
   const ejecDe = (c: string) => enrich.ejecutivoNombre(rf.solicGpoV.get(c) || '') || '';
   const grupoDe = (c: string) => enrich.grupoCliente(rf.solicGpoC.get(c) || '') || (rf.solicGpoC.get(c) || '');
+  const grupoClientesSet = filters?.grupoClientes?.length ? new Set(filters.grupoClientes) : null;
   const clientePasa = (c: string) => {
     if (filters?.ejecutivo && ejecDe(c) !== filters.ejecutivo) return false;
-    if (filters?.grupoCliente && grupoDe(c) !== filters.grupoCliente) return false;
+    if (grupoClientesSet) { if (!grupoClientesSet.has(grupoDe(c))) return false; }
+    else if (filters?.grupoCliente && grupoDe(c) !== filters.grupoCliente) return false;
     return true;
   };
   return { matPasa, clientePasa };

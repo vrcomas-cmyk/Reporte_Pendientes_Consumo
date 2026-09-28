@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Chip, StatTile, EvolChart, ComparativaDual } from '../ui';
 import { Section, PrecioCondicionBox } from './_shared';
+import { MaterialInventarioSection } from './MaterialInventario';
 import { formatNumber } from '@/lib/utils';
 import { consumoSerie, consumoStatus, consumoEnrich, norm } from '../helpers';
 import type { Panel } from '@/store/panelStore';
@@ -34,6 +35,7 @@ export function ConsumoMaterialPanel({ panel, a, push }: { panel: Extract<Panel,
       <PrecioCondicionBox a={a} material={r.material} />
       <Section title="Comparativo anual"><ComparativaDual serie={serie} /></Section>
       <Section title="Evolución mensual — material + destinatario"><EvolChart serie={serie} onMonth={(mes) => push({ type: 'clientesMes', material: r.material, mes })} /></Section>
+      <MaterialInventarioSection a={a} material={r.material} />
     </div>
   );
 }

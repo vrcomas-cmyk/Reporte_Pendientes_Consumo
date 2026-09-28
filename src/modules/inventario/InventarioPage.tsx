@@ -29,6 +29,7 @@ import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu
 import { useSolicitudStore } from '@/store/solicitudStore';
 import { useMaterialPrefiltro } from '@/hooks/useMaterialPrefiltro';
 import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
+import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { useQuickFilters } from '@/hooks/useQuickFilters';
 
@@ -149,6 +150,7 @@ export function InventarioPage() {
   const { prefiltro, clear: clearPrefiltro } = useMaterialPrefiltro(setQ);
   const [cond, setCond] = usePersistedState('inventario.cond', '');
   const [sector, setSector] = usePersistedState('inventario.sector', '');
+  const [gerente, setGerente] = usePersistedState('inventario.gerente', '');
   const [centro, setCentro] = usePersistedState('inventario.centro', '');
   const [isAdmin, setIsAdmin] = useState(readAdmin);
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
@@ -156,7 +158,7 @@ export function InventarioPage() {
   // "Pegar materiales" estilo SAP — aditivo, no toca los filtros de arriba.
   const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('inventario.pasteCodes', []);
   const zoom = useZoom('inventario_zoom');
-  const clearFilters = () => { setQ(''); setCond(''); setSector(''); setCentro(''); setQuick([]); setPasteCodes([]); };
+  const clearFilters = () => { setQ(''); setCond(''); setSector(''); setGerente(''); setCentro(''); setQuick([]); setPasteCodes([]); };
 
   const colVis = useColumnVisibility('inventario_columnas');
   const columnDefs: ColDef[] = useMemo(() => [
@@ -280,6 +282,7 @@ export function InventarioPage() {
     return rows.filter((r) => {
       if (cond && norm(r.condicion) !== cond) return false;
       if (sector && (a.enrich.matSector(r.material) || r.sector) !== sector) return false;
+      if (gerente && !a.enrich.sectorDeGerente(a.enrich.matSector(r.material) || r.sector, gerente)) return false;
       if (centro && !(invCond(r, centro) > 0)) return false;
       if (!passesFilters(r, filterCols, quick)) return false;
       if (qd && !matchesQuery(qd, `${r.material} ${r.textoBreve}`)) return false;
@@ -287,7 +290,7 @@ export function InventarioPage() {
       if (!matchesCodes(pasteCodes, r.material)) return false;
       return true;
     });
-  }, [rows, qd, cond, sector, centro, a.enrich, isAdmin, hidden, filterCols, quick, pasteCodes]);
+  }, [rows, qd, cond, sector, gerente, centro, a.enrich, isAdmin, hidden, filterCols, quick, pasteCodes]);
 
   const kpis = useMemo(() => {
     const mats = new Set(filtered.map((r) => norm(r.material)));
@@ -303,6 +306,7 @@ export function InventarioPage() {
     condicion: (r: (typeof filtered)[number]) => r.condicion,
     sector: (r: (typeof filtered)[number]) => a.enrich.matSector(r.material) || r.sector,
     precio: (r: (typeof filtered)[number]) => r.precioOferta,
+    um: (r: (typeof filtered)[number]) => a.enrich.matUm(r.material),
     disp3130: (r: (typeof filtered)[number]) => r.disponible31_30,
     disp3132: (r: (typeof filtered)[number]) => r.disponible31_32,
     invsuma: (r: (typeof filtered)[number]) => invSumaCond(r),
@@ -311,7 +315,7 @@ export function InventarioPage() {
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
   const visibleCenters = useMemo(() => CENTERS.filter((c) => colVis.isVisible(`centro_${c}`)), [colVis]);
-  const colCount = (isAdmin ? 1 : 0) + 4
+  const colCount = (isAdmin ? 1 : 0) + 5
     + (colVis.isVisible('disp3130') ? 1 : 0) + (colVis.isVisible('disp3132') ? 1 : 0)
     + visibleCenters.length
     + (colVis.isVisible('invsuma') ? 1 : 0) + (colVis.isVisible('importe') ? 1 : 0);
@@ -324,10 +328,11 @@ export function InventarioPage() {
   // out of alignment with the header on horizontal scroll. Giving each a
   // fixed width (+ truncate) keeps the offsets always accurate, and also
   // accounts for the admin toggle column, which the old offsets ignored.
-  const ADMIN_W = 36, MATERIAL_W = 160, CONDICION_W = 110, SECTOR_W = 140, PRECIO_W = 90;
+  const ADMIN_W = 36, MATERIAL_W = 160, UM_W = 64, CONDICION_W = 110, SECTOR_W = 140, PRECIO_W = 90;
   const adminLeft = 0;
   const materialLeft = isAdmin ? ADMIN_W : 0;
-  const condicionLeft = materialLeft + MATERIAL_W;
+  const umLeft = materialLeft + MATERIAL_W;
+  const condicionLeft = umLeft + UM_W;
   const sectorLeft = condicionLeft + CONDICION_W;
   const precioLeft = sectorLeft + SECTOR_W;
 
@@ -341,7 +346,7 @@ export function InventarioPage() {
       const o: Record<string, unknown> = {
         Material: r.material, Descripción: r.textoBreve, Condición: r.condicion,
         Sector: a.enrich.matSector(r.material) || r.sector, 'Grupo art.': a.enrich.matGrupo(r.material) || r.grupo,
-        Precio: r.precioOferta, 'Disp 1031-1030': r.disponible31_30, 'Disp 1031-1032': r.disponible31_32,
+        UM: a.enrich.matUm(r.material), Precio: r.precioOferta, 'Disp 1031-1030': r.disponible31_30, 'Disp 1031-1032': r.disponible31_32,
       };
       CENTERS.forEach((c) => { o['Inv ' + c] = invCond(r, c); });
       o['Inv Suma'] = invSumaCond(r); o['Importe $'] = invSumaCond(r) * r.precioOferta;
@@ -426,6 +431,7 @@ export function InventarioPage() {
         <select value={cond} onChange={(e) => setCond(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
           <option value="">Condición (todas)</option>{conds.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
+        <GerenteSelect enrich={a.enrich} value={gerente} onChange={setGerente} />
         <select value={sector} onChange={(e) => setSector(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
           <option value="">Sector (todos)</option>{sectores.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
@@ -461,6 +467,7 @@ export function InventarioPage() {
               <TableRow>
                 {isAdmin && <TableHead className="sticky z-20 bg-bg-elevated" style={{ left: adminLeft, width: ADMIN_W, minWidth: ADMIN_W }}></TableHead>}
                 <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: materialLeft, width: MATERIAL_W, minWidth: MATERIAL_W }} filter={<ColumnFilterMenu column={filterCols[0]} rows={rows} active={quick} onChange={setQuick} />}>Material</SortableTableHead>
+                <SortableTableHead sortKey="um" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: umLeft, width: UM_W, minWidth: UM_W }} title="Unidad de medida del catálogo (pestaña Materiales).">UM</SortableTableHead>
                 <SortableTableHead sortKey="condicion" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: condicionLeft, width: CONDICION_W, minWidth: CONDICION_W }} title="Fuente de pedido/condición del material: corta-caducidad, lento-movimiento, calidad, dañado o normal.">Condición</SortableTableHead>
                 <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: sectorLeft, width: SECTOR_W, minWidth: SECTOR_W }} filter={<ColumnFilterMenu column={filterCols[2]} rows={rows} active={quick} onChange={setQuick} />} title="Sector y grupo de artículo del catálogo.">Sector/Grupo</SortableTableHead>
                 <SortableTableHead sortKey="precio" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated text-right" style={{ left: precioLeft, width: PRECIO_W, minWidth: PRECIO_W }} title="Precio de oferta vigente para este material.">Precio</SortableTableHead>
@@ -520,6 +527,7 @@ export function InventarioPage() {
                       </TableCell>
                     )}
                     <TableCell className="sticky z-10 truncate bg-bg-elevated" style={{ left: materialLeft, width: MATERIAL_W, minWidth: MATERIAL_W }}><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="truncate text-[11px] text-text-faint">{r.textoBreve}</div></TableCell>
+                    <TableCell className="sticky z-10 bg-bg-elevated" style={{ left: umLeft, width: UM_W, minWidth: UM_W }}>{a.enrich.matUm(r.material) || '—'}</TableCell>
                     <TableCell className="sticky z-10 bg-bg-elevated" style={{ left: condicionLeft, width: CONDICION_W, minWidth: CONDICION_W }}><StatePill label={r.condicion || '—'} cls={corta ? 'rojo' : 'gris'} /></TableCell>
                     <TableCell className="sticky z-10 truncate bg-bg-elevated" style={{ left: sectorLeft, width: SECTOR_W, minWidth: SECTOR_W }}>{a.enrich.matSector(r.material) || r.sector || '—'}<div className="truncate text-[11px] text-text-faint">{a.enrich.matGrupo(r.material) || r.grupo}</div></TableCell>
                     <TableCell className="sticky z-10 bg-bg-elevated text-right" style={{ left: precioLeft, width: PRECIO_W, minWidth: PRECIO_W }}>{r.precioOferta ? formatCurrency(r.precioOferta) : '—'}</TableCell>
