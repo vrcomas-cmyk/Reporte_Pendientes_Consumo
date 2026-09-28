@@ -1,7 +1,25 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { Calculator, X, GripHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import { isEditableTarget } from '@/hooks/useKeybindings';
+
+function useClipboard() {
+    const copy = useCallback(async (text: string) => {
+      await navigator.clipboard.writeText(text);
+    }, []);
+
+    const paste = useCallback(async (): Promise<string | null> => {
+      try {
+        const text = await navigator.clipboard.readText();
+        return text;
+      } catch {
+        return null;
+      }
+    }, []);
+
+    return { copy, paste };
+  }
 
 type Operator = '+' | '-' | '×' | '÷';
 
@@ -42,6 +60,7 @@ export function CalculatorWidget() {
   const [pos, setPos] = usePersistedState('calculator.pos', { x: 24, y: 24 });
   const [calc, setCalc] = useState<CalcState>(INITIAL_STATE);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const { copy, paste } = useClipboard();
 
   const onDragStart = useCallback((e: React.PointerEvent) => {
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y };
@@ -111,6 +130,50 @@ export function CalculatorWidget() {
   const memoryAdd = () => setCalc((s) => ({ ...s, memory: s.memory + parseFloat(s.display.replace(/,/g, '')) }));
   const memorySubtract = () => setCalc((s) => ({ ...s, memory: s.memory - parseFloat(s.display.replace(/,/g, '')) }));
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!open) return;
+      if (isEditableTarget(e)) return;
+      e.preventDefault();
+
+      const key = e.key;
+
+      if (key >= '0' && key <= '9') {
+        inputDigit(key);
+      } else if (key === '+' || key === '-') {
+        const op: Operator = key === '+' ? '+' : '-';
+        performOperation(op);
+      } else if (key === '*' || key === 'x' || key === 'X') {
+        performOperation('×');
+      } else if (key === '/' || key === ':') {
+        performOperation('÷');
+      } else if (key === 'Enter' || key === '=') {
+        equals();
+      } else if (key === 'Escape') {
+        setOpen(false);
+      } else if (key === '.') {
+        inputDecimal();
+      } else if (key === 'Backspace') {
+        clearEntry();
+      } else if (e.key === 'c' && (e.metaKey || e.ctrlKey)) {
+        copy(calc.display);
+      } else if (e.key === 'v' && (e.metaKey || e.ctrlKey)) {
+        paste().then((text) => {
+          if (text) {
+            const num = parseFloat(text.replace(/,/g, ''));
+            if (!isNaN(num)) {
+            const numStr = String(num);
+            const digit = numStr.includes('.') ? num : numStr.replace(/[^0-9]/g, '');
+            inputDigit(String(digit));
+          }
+          }
+        });
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
+
   const KEY = 'flex-1 h-10 rounded-md text-sm font-medium transition-colors active:scale-[0.97]';
 
   return (
@@ -157,6 +220,7 @@ export function CalculatorWidget() {
               <button type="button" onClick={memoryRecall} className={cn(KEY, 'bg-bg-inset text-text-muted hover:bg-border text-xs')}>MR</button>
               <button type="button" onClick={memoryAdd} className={cn(KEY, 'bg-bg-inset text-text-muted hover:bg-border text-xs')}>M+</button>
               <button type="button" onClick={memorySubtract} className={cn(KEY, 'bg-bg-inset text-text-muted hover:bg-border text-xs')}>M-</button>
+              <button type="button" onClick={() => copy(calc.display)} className={cn(KEY, 'bg-bg-inset text-text-muted hover:bg-border text-xs')}>Copiar</button>
             </div>
 
             <div className="grid grid-cols-4 gap-1.5">
@@ -182,6 +246,7 @@ export function CalculatorWidget() {
 
               <button type="button" onClick={toggleSign} className={cn(KEY, 'bg-transparent text-text hover:bg-bg-inset')}>±</button>
               <button type="button" onClick={() => inputDigit('0')} className={cn(KEY, 'bg-transparent text-text hover:bg-bg-inset')}>0</button>
+              <button type="button" onClick={() => paste()} className={cn(KEY, 'bg-transparent text-text hover:bg-bg-inset')}>Pegar</button>
               <button type="button" onClick={inputDecimal} className={cn(KEY, 'bg-transparent text-text hover:bg-bg-inset')}>,</button>
               <button type="button" onClick={equals} className={cn(KEY, 'bg-accent text-accent-fg hover:opacity-90')}>=</button>
             </div>

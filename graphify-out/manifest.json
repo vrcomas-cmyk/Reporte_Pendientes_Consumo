@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "src/components/layout/AppShell.tsx": {
-    "mtime": 1789016355.1164124,
-    "ast_hash": "2bcacc7291c2bebb0bf953544bcb9e7a",
+    "mtime": 1789055882.9737911,
+    "ast_hash": "6f3b2abca18c8882938727fe5f19da16",
     "semantic_hash": ""
   },
   "src/components/layout/Sidebar.tsx": {
@@ -260,8 +260,8 @@
     "semantic_hash": ""
   },
   "src/services/catalogService.ts": {
-    "mtime": 1786726232.82546,
-    "ast_hash": "62ac2c14d66e3f238f24f33b2a196ab4",
+    "mtime": 1789055749.7967458,
+    "ast_hash": "d148700c1c65920992cc4280c4f6e336",
     "semantic_hash": ""
   },
   "src/services/reportService.ts": {
@@ -2802,6 +2802,11 @@
   "src/modules/analytics/ui/PasteCodesFilter.tsx": {
     "mtime": 1789015976.7809577,
     "ast_hash": "874a482c9453f77c155d4b08ce95521e",
+    "semantic_hash": ""
+  },
+  "src/components/widgets/CalculatorWidget.tsx": {
+    "mtime": 1789055876.684768,
+    "ast_hash": "a47c7a6f1801a4729a6ae6df9805b03f",
     "semantic_hash": ""
   }
 }
