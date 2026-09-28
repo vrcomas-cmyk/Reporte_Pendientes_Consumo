@@ -20,6 +20,9 @@ import { useSolicitarDialog } from '@/modules/solicitudes/useSolicitarDialog';
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
 import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { useAnalytics } from '../AnalyticsContext';
+import { MaterialInventarioSection } from './MaterialInventario';
 
 /** Normaliza una fecha de caducidad y la convierte en un texto legible con clase de color (rojo/ámbar/verde) según los días restantes. */
 export function vigenciaTxt(fecha: string): { txt: string; cls: string } | null {
@@ -348,6 +351,10 @@ export function FuentesTable({ fuentes, push, selection }: { fuentes: BOItem['fu
   const [fCentro, setFCentro] = useState('');
   const [fLote, setFLote] = useState('');
   const [fMaterial, setFMaterial] = useState('');
+  // Vista rápida: clic en el material de una fuente abre su inventario en un
+  // diálogo encima del detalle (sin navegar), para revisar y volver.
+  const analytics = useAnalytics();
+  const [vistaRapida, setVistaRapida] = useState<string | null>(null);
   const centros = useMemo(() => [...new Set(fuentes.map((x) => x.centroSugerido).filter(Boolean))].sort(), [fuentes]);
   const lotes = useMemo(() => [...new Set(fuentes.map((x) => x.lote).filter(Boolean))].sort(), [fuentes]);
   const materiales = useMemo(() => [...new Set(fuentes.map((x) => x.materialSugerido).filter(Boolean))].sort(), [fuentes]);
@@ -385,7 +392,7 @@ export function FuentesTable({ fuentes, push, selection }: { fuentes: BOItem['fu
                     </TableCell>
                   )}
                   <TableCell><StatePill label={f2.fuente} cls={/corta/i.test(f2.fuente) ? 'rojo' : 'azul'} /></TableCell>
-                  <TableCell><Chip onClick={() => push({ type: 'material', material: f2.materialSugerido })}>{f2.materialSugerido}</Chip><div className="text-[11px] text-text-faint">{f2.descripcionSugerida}</div></TableCell>
+                  <TableCell><Chip title="Ver inventario de este material sin salir del detalle" onClick={() => setVistaRapida(f2.materialSugerido)}>{f2.materialSugerido}</Chip><div className="text-[11px] text-text-faint">{f2.descripcionSugerida}</div></TableCell>
                   <TableCell>{f2.centroSugerido}{f2.almacenSugerido ? ` / ${f2.almacenSugerido}` : ''}</TableCell>
                   <TableCell className="text-right">{formatNumber(f2.disponible)}</TableCell>
                   <TableCell>{f2.lote}</TableCell>
@@ -396,6 +403,20 @@ export function FuentesTable({ fuentes, push, selection }: { fuentes: BOItem['fu
           </TableBody>
         </Table>
       </div>
+      <Dialog open={!!vistaRapida} onOpenChange={(o) => !o && setVistaRapida(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{vistaRapida}</DialogTitle>
+            <DialogDescription>{vistaRapida ? analytics.enrich.matTexto(vistaRapida) : ''}</DialogDescription>
+          </DialogHeader>
+          {vistaRapida && <MaterialInventarioSection a={analytics} material={vistaRapida} />}
+          {vistaRapida && (
+            <button type="button" className="mt-3 text-xs text-accent hover:underline" onClick={() => { const m = vistaRapida; setVistaRapida(null); push({ type: 'material', material: m }); }}>
+              Abrir detalle completo del material →
+            </button>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -86,6 +86,37 @@ export function buildFromInventarioCentro(
   };
 }
 
+/** Inventario de un material en un centro/almacén (sin lote ni pedido): sirve
+ * para "Solicitar desde inventario" desde cualquier detalle de material
+ * (Consumo, Inventario, Inv Condición, vista rápida de fuente). Destino y
+ * pedidos se capturan en el diálogo. */
+export function buildFromInventarioMaterial(
+  material: string,
+  centro: string,
+  almacen: string,
+  cantidad: number,
+  enrich: EnrichIndex,
+): SolicitudDraft {
+  const codigo = norm(material);
+  return {
+    fechaSolicitud: new Date().toISOString(),
+    centroOrigen: norm(centro),
+    almacenOrigen: norm(almacen),
+    centroDestino: '',
+    almacenDestino: '',
+    codigo,
+    descripcion: enrich.matTexto(codigo),
+    cantidad,
+    um: enrich.matUm(codigo),
+    lote: '',
+    fechaCaducidad: '',
+    comentarios: '',
+    pedidos: '',
+    origen: 'inventario',
+    sourceKey: `inv|${codigo}|inv-${norm(centro)}-${norm(almacen)}`,
+  };
+}
+
 /** Inventario: the lote itself is the origin; destino/pedidos are unknown
  * here and must be filled in the dialog. */
 export function buildFromInvDetalle(lote: InvDetalleRow, enrich: EnrichIndex): SolicitudDraft {

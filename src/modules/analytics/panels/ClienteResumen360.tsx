@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { StatTile } from '../ui';
-import { Section, SugTable, ClienteConsumoTable } from './_shared';
+import { Section, SugTable, ClienteConsumoTable, SubFilter } from './_shared';
 import { formatCurrency, formatNumber } from '@/lib/utils';
-import { consumoEnrich, norm } from '../helpers';
+import { consumoEnrich, matchesQuery, norm } from '../helpers';
 import type { Panel } from '@/store/panelStore';
 import type { Analytics } from '../AnalyticsContext';
 
@@ -20,6 +20,28 @@ export function ClienteResumen360({ dest, a, push }: { dest: string; a: Analytic
     boRows: bo.filter((it) => norm(it.bo.destinatario) === destN),
   }), [result, bo, destN]);
   const ce = consumoEnrich(enrich);
+
+  // Filtro único para "Pedidos pendientes" y "Consumo histórico": texto libre
+  // sobre código/descripción/sector/grupo. Varios códigos o términos separados
+  // por coma = cualquiera de ellos ("1001, 2050, gasa"). Los totales de arriba
+  // siguen siendo del cliente completo — solo se acotan las dos listas.
+  const [q, setQ] = useState('');
+  const [sector, setSector] = useState('');
+  const terms = useMemo(() => q.split(',').map((t) => t.trim()).filter(Boolean), [q]);
+  const pasa = (material: string, desc: string) => {
+    const sec = enrich.matSector(material);
+    if (sector && sec !== sector) return false;
+    if (!terms.length) return true;
+    const hay = `${material} ${desc} ${sec} ${enrich.matGrupo(material)}`;
+    return terms.some((t) => matchesQuery(t, hay));
+  };
+  const sectorOptions = useMemo(
+    () => [...new Set([...consRows.map((r) => enrich.matSector(r.material)), ...boRows.map((it) => enrich.matSector(it.bo.materialBase))].filter(Boolean))].sort(),
+    [consRows, boRows, enrich],
+  );
+  const consShown = useMemo(() => consRows.filter((r) => pasa(r.material, r.textoMaterial)), [consRows, terms, sector, enrich]); // eslint-disable-line react-hooks/exhaustive-deps
+  const boShown = useMemo(() => boRows.filter((it) => pasa(it.bo.materialBase, it.bo.descripcionSolicitada)), [boRows, terms, sector, enrich]); // eslint-disable-line react-hooks/exhaustive-deps
+  const filtrando = terms.length > 0 || !!sector;
   const totalImp = consRows.reduce((s, r) => s + r.importeUltima, 0);
 
   return (
@@ -30,11 +52,20 @@ export function ClienteResumen360({ dest, a, push }: { dest: string; a: Analytic
         <StatTile label="Materiales facturados" value={formatNumber(consRows.length)} />
         <StatTile label="Importe última fact. (suma)" value={formatCurrency(totalImp)} />
       </div>
-      <Section title={`Pedidos pendientes · ${boRows.length}`}>
-        {boRows.length === 0 ? <p className="text-sm text-text-muted">Sin pedidos pendientes.</p> : <SugTable list={boRows} a={a} push={push} />}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <SubFilter value={q} onChange={setQ} placeholder="Filtrar materiales (código, texto; separa varios con coma)…" />
+        {sectorOptions.length > 1 && (
+          <select value={sector} onChange={(e) => setSector(e.target.value)} className="mb-2 h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs">
+            <option value="">Sector (todos)</option>{sectorOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+        {filtrando && <button type="button" onClick={() => { setQ(''); setSector(''); }} className="mb-2 text-xs text-accent hover:underline">Limpiar</button>}
+      </div>
+      <Section title={`Pedidos pendientes · ${filtrando ? `${boShown.length} de ${boRows.length}` : boRows.length}`}>
+        {boRows.length === 0 ? <p className="text-sm text-text-muted">Sin pedidos pendientes.</p> : boShown.length === 0 ? <p className="text-sm text-text-muted">Ningún pedido coincide con el filtro.</p> : <SugTable list={boShown} a={a} push={push} />}
       </Section>
-      <Section title={`Consumo histórico · ${consRows.length} material(es)`}>
-        <ClienteConsumoTable rows={consRows} rf={rf} push={push} />
+      <Section title={`Consumo histórico · ${filtrando ? `${consShown.length} de ${consRows.length}` : consRows.length} material(es)`}>
+        <ClienteConsumoTable rows={consShown} rf={rf} push={push} />
       </Section>
     </div>
   );

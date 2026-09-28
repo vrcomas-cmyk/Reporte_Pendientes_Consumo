@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { StatTile, EvolChart, StatePill } from '../ui';
 import { Section, SugTable, ConsumoTable, PrecioCondicionBox } from './_shared';
+import { MaterialInventarioSection } from './MaterialInventario';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { invGen } from '@/core/resumenSin';
 import { serieMaterial, serieMatCentro } from '@/core/resumenFac';
@@ -64,6 +65,7 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
         <div className="mt-3">
           <Button variant="outline" size="sm" onClick={() => push({ type: 'materialTotales', material: panel.material })}>Ver totales del material</Button>
         </div>
+        <MaterialInventarioSection a={a} material={panel.material} />
       </div>
     );
   }
@@ -119,6 +121,7 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
       <div className="mt-3">
         <Button variant="outline" size="sm" onClick={() => push({ type: 'materialTotales', material: panel.material })}>Ver totales del material</Button>
       </div>
+      <MaterialInventarioSection a={a} material={panel.material} />
     </div>
   );
 }

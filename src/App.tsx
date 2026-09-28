@@ -37,6 +37,7 @@ const ConsumoPage = lazy(() => import('@/modules/consumo/ConsumoPage').then((m) 
 const ResumenSinPage = lazy(() => import('@/modules/resumenSin/ResumenSinPage').then((m) => ({ default: m.ResumenSinPage })));
 const AnalisisPage = lazy(() => import('@/modules/analisis/AnalisisPage').then((m) => ({ default: m.AnalisisPage })));
 const IncrementoPage = lazy(() => import('@/modules/incremento/IncrementoPage').then((m) => ({ default: m.IncrementoPage })));
+const AnalisisDirectivoPage = lazy(() => import('@/modules/analisisDirectivo/AnalisisDirectivoPage').then((m) => ({ default: m.AnalisisDirectivoPage })));
 const SolicitudesPage = lazy(() => import('@/modules/solicitudes/SolicitudesPage').then((m) => ({ default: m.SolicitudesPage })));
 const AdminPage = lazy(() => import('@/modules/admin/AdminPage').then((m) => ({ default: m.AdminPage })));
 const OportunidadesPage = lazy(() => import('@/modules/oportunidades/OportunidadesPage').then((m) => ({ default: m.OportunidadesPage })));
@@ -85,6 +86,7 @@ function App() {
                   <Route path="/resumen-sin" element={<ModuleGuard moduleKey="resumen-sin"><Suspense fallback={<RouteFallback />}><ResumenSinPage /></Suspense></ModuleGuard>} />
                   <Route path="/analisis" element={<ModuleGuard moduleKey="analisis"><Suspense fallback={<RouteFallback />}><AnalisisPage /></Suspense></ModuleGuard>} />
                   <Route path="/incremento" element={<ModuleGuard moduleKey="incremento"><Suspense fallback={<RouteFallback />}><IncrementoPage /></Suspense></ModuleGuard>} />
+                  <Route path="/analisis-directivo" element={<ModuleGuard moduleKey="analisis-directivo"><Suspense fallback={<RouteFallback />}><AnalisisDirectivoPage /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><OportunidadesPage /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades/material/:material" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><Material360Page /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades/clientes" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><ClientesPage /></Suspense></ModuleGuard>} />

@@ -26,6 +26,7 @@ import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu
 import { useSolicitudStore } from '@/store/solicitudStore';
 import { useMaterialPrefiltro } from '@/hooks/useMaterialPrefiltro';
 import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
+import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { useQuickFilters } from '@/hooks/useQuickFilters';
 
@@ -49,6 +50,7 @@ export function ConsumoPage() {
   const { prefiltro, clear: clearPrefiltro } = useMaterialPrefiltro(setQ);
   const [estado, setEstado] = usePersistedState('consumo.estado', '');
   const [clase, setClase] = usePersistedState('consumo.clase', '');
+  const [gerente, setGerente] = usePersistedState('consumo.gerente', '');
   const claseDe = (r: ConsumoRow) => a.abc.classByMaterial.get(norm(r.material)) || '';
   const [quick, setQuick] = useQuickFilters('consumo.quick');
   // Meses ('mm/aaaa') de Resumen de Facturación que acotan el periodo
@@ -60,7 +62,7 @@ export function ConsumoPage() {
   // "Pegar materiales" estilo SAP — aditivo, no toca los filtros de arriba.
   const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('consumo.pasteCodes', []);
   const clearFilters = () => {
-    setQ(''); setEstado(''); setClase(''); setQuick([]); setPeriodoMeses({ desde: '', hasta: '' }); setPasteCodes([]);
+    setQ(''); setEstado(''); setClase(''); setGerente(''); setQuick([]); setPeriodoMeses({ desde: '', hasta: '' }); setPasteCodes([]);
     setClearTick((n) => n + 1);
   };
   const colVis = useColumnVisibility('consumo_columnas');
@@ -141,6 +143,7 @@ export function ConsumoPage() {
     return rows.filter((r) => {
       if (estado && statusOf(r).status.key !== estado) return false;
       if (clase && claseDe(r) !== clase) return false;
+      if (gerente && !a.enrich.sectorDeGerente(ce.sector(r), gerente)) return false;
       if (!passesFilters(r, filterCols, quick)) return false;
       if (rangoActivo) {
         const meses = statusOf(r).meses;
@@ -154,7 +157,7 @@ export function ConsumoPage() {
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, q, estado, clase, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, searchIndex, filterCols, a.abc, pasteCodes]);
+  }, [rows, q, estado, clase, gerente, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, searchIndex, filterCols, a.abc, pasteCodes]);
 
   const kpis = useMemo(() => {
     const cnt = (k: string) => filtered.filter((r) => statusOf(r).status.key === k).length;
@@ -456,6 +459,7 @@ export function ConsumoPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <DebouncedSearch key={clearTick} initialValue={q} onChange={setQ} placeholder="Buscar…" />
+        <GerenteSelect enrich={a.enrich} value={gerente} onChange={setGerente} />
         <Select value={estado} onChange={(ev) => setEstado(ev.target.value)} className="w-auto">
           <option value="">Estado (todos)</option>{ESTADOS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </Select>

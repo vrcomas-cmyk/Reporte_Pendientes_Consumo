@@ -58,13 +58,25 @@ export interface EnrichIndex {
    * ResumenSinSugerenciaRow don't carry their own `um`, so DRP requests built
    * from those rows look it up here. */
   matUm: (mat: unknown) => string;
+  /** Costo del catálogo (pestaña Materiales). Sensible: la UI lo gatea con el detalle `costo`. */
+  matCosto: (mat: unknown) => number;
   /** Distinct "Condición" values (Normal, Corta caducidad, ...) known for a
    * material, from the catalog's InvConsolidado. Condición lives only at the
    * material level (never per-lote) in any report, so this is the best
    * available answer to "qué condición tiene este material" when building a
    * Solicitar request from a lote/centro that has no condición of its own. */
   matCondiciones: (mat: unknown) => string[];
+  /** Gerentes de marca conocidos (pestaña "GERENCIA DE MARCA"), ordenados. */
+  gerentes: string[];
+  /** Sectores a cargo de un gerente (nombres tal como vienen en la pestaña). */
+  sectoresDeGerente: (gerente: string) => string[];
+  /** ¿`sector` pertenece a `gerente`? Sin gerente (vacío) siempre `true`.
+   * Compara sin acentos/mayúsculas. */
+  sectorDeGerente: (sector: unknown, gerente: string) => boolean;
 }
+
+const normSector = (v: unknown): string =>
+  (v == null ? '' : String(v)).trim().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 const EMPTY: EnrichIndex = {
   grupoCliente: () => '',
@@ -74,7 +86,11 @@ const EMPTY: EnrichIndex = {
   matTexto: () => '',
   matPrecioOferta: () => 0,
   matUm: () => '',
+  matCosto: () => 0,
   matCondiciones: () => [],
+  gerentes: [],
+  sectoresDeGerente: () => [],
+  sectorDeGerente: (_s, g) => !g,
 };
 
 /** Builds all lookup Maps once from the cached catalog snapshot. */
@@ -87,6 +103,7 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
   const mapGrupoArt = new Map<string, string>();
   const mapTexto = new Map<string, string>();
   const mapUm = new Map<string, string>();
+  const mapCosto = new Map<string, number>();
 
   for (const e of catalog.ejecutivos) {
     // legacy joined ejecutivos by Zona; we also index by codOfVtas so both the
@@ -106,6 +123,7 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
     if (!mapGrupoArt.has(k)) mapGrupoArt.set(k, m.descrGrupoArt || m.grupoArticulos || '');
     if (!mapTexto.has(k)) mapTexto.set(k, m.textoBreve || '');
     if (!mapUm.has(k)) mapUm.set(k, m.um || '');
+    if (!mapCosto.has(k) && m.costo > 0) mapCosto.set(k, m.costo);
   }
 
   // Offer price per material: first positive price found in InvConsolidado
@@ -124,6 +142,15 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
     }
   }
 
+  const gerSectores = new Map<string, Map<string, string>>();
+  for (const g of catalog.gerenciaMarca ?? []) {
+    const k = normSector(g.sector);
+    if (!g.gerente || !k) continue;
+    const m = gerSectores.get(g.gerente) ?? new Map<string, string>();
+    if (!m.has(k)) m.set(k, g.sector);
+    gerSectores.set(g.gerente, m);
+  }
+
   return {
     grupoCliente: (code) => mapGrupo.get(normCode(code)) || '',
     ejecutivoNombre: (zona) => mapEjec.get(normCode(zona)) || '',
@@ -132,6 +159,10 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
     matTexto: (mat) => mapTexto.get(normCode(mat)) || '',
     matPrecioOferta: (mat) => mapPrecio.get(normCode(mat)) || 0,
     matUm: (mat) => mapUm.get(normCode(mat)) || '',
+    matCosto: (mat) => mapCosto.get(normCode(mat)) || 0,
     matCondiciones: (mat) => mapCondiciones.get(normCode(mat)) ?? [],
+    gerentes: [...gerSectores.keys()].sort((a, b) => a.localeCompare(b, 'es')),
+    sectoresDeGerente: (g) => [...(gerSectores.get(g)?.values() ?? [])].sort((a, b) => a.localeCompare(b, 'es')),
+    sectorDeGerente: (sector, g) => !g || (gerSectores.get(g)?.has(normSector(sector)) ?? false),
   };
 }

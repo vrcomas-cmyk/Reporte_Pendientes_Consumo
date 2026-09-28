@@ -1,7 +1,7 @@
 import { catalogRepository } from '@/repositories';
 import { parseCatalog } from './analysisService';
-import { mapEjecutivo, mapMaterial, mapInvConsolidado, mapInvDetalle } from '@/core/mappers';
-import { logInfo } from '@/lib/logError';
+import { mapGerenciaMarca, mapEjecutivo, mapMaterial, mapInvConsolidado, mapInvDetalle } from '@/core/mappers';
+import { logInfo, logWarn } from '@/lib/logError';
 import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import { getConnector, CONNECTOR_KEYS } from '@/services/connectorsService';
 import type { CatalogSnapshot, ProcessingProgress } from '@/core/types';
@@ -17,6 +17,7 @@ const APPSCRIPT_TABS = {
   materiales: 'Materiales',
   invConsolidado: 'InvConsolidado',
   invDetalle: 'InvDetalle',
+  gerenciaMarca: 'GERENCIA DE MARCA',
 } as const;
 
 /** Apps Script tab reads (e.g. `getDataRange()`) commonly pull a few trailing
@@ -45,11 +46,16 @@ async function fetchAppScriptTab(tab: string): Promise<Record<string, unknown>[]
  * Persists the result and replaces whatever was cached, same as the manual
  * "Actualizar" flow used to. */
 export async function syncCatalogFromAppScript(): Promise<CatalogSnapshot> {
-  const [ejecutivosRows, materialesRows, invConsolidadoRows, invDetalleRows] = await Promise.all([
+  const [ejecutivosRows, materialesRows, invConsolidadoRows, invDetalleRows, gerenciaRows] = await Promise.all([
     fetchAppScriptTab(APPSCRIPT_TABS.ejecutivos),
     fetchAppScriptTab(APPSCRIPT_TABS.materiales),
     fetchAppScriptTab(APPSCRIPT_TABS.invConsolidado),
     fetchAppScriptTab(APPSCRIPT_TABS.invDetalle),
+    // Tolerante: si la pestaña aún no existe o falla, el catálogo carga igual.
+    fetchAppScriptTab(APPSCRIPT_TABS.gerenciaMarca).catch((err) => {
+      void logWarn('catalog-load', `Pestaña "${APPSCRIPT_TABS.gerenciaMarca}" no disponible: ${String(err)}`);
+      return [] as Record<string, unknown>[];
+    }),
   ]);
   const catalog: CatalogSnapshot = {
     id: 'current',
@@ -59,6 +65,7 @@ export async function syncCatalogFromAppScript(): Promise<CatalogSnapshot> {
     materiales: materialesRows.map(mapMaterial),
     invConsolidado: invConsolidadoRows.map(mapInvConsolidado),
     invDetalle: invDetalleRows.map(mapInvDetalle),
+    gerenciaMarca: gerenciaRows.map(mapGerenciaMarca).filter((g) => g.gerente && g.sector),
   };
   await catalogRepository.save(catalog);
   void logInfo('catalog-load', `AppScript sync: ${catalog.materiales.length} materiales, ${catalog.ejecutivos.length} ejecutivos`);

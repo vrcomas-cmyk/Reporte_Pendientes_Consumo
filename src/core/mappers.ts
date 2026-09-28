@@ -1,5 +1,6 @@
 import type {
   Ejecutivo,
+  GerenciaMarca,
   Material,
   InvConsolidadoRow,
   InvDetalleRow,
@@ -39,6 +40,10 @@ function pick(r: Row, name: string): unknown {
     if (normHeader(k) === target) return r[k];
   }
   return undefined;
+}
+
+export function mapGerenciaMarca(r: Row): GerenciaMarca {
+  return { gerente: str(r['Gerencia Marca']), sector: str(r['Sector']) };
 }
 
 export function mapEjecutivo(r: Row): Ejecutivo {

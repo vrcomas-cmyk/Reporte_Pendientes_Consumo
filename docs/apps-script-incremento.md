@@ -25,7 +25,7 @@ tolerante a variantes con/sin acento (`Descripcion`/`Descripción`).
 3. Pega esto:
 
 ```javascript
-const SHEET_ID = 'TU_SHEET_ID_AQUI';
+const SHEET_ID = '1JVaAtyAJj-08GeTC14_dgtDJzvQ3WmTpJSPILjaL0rg';
 const TAB_NAME = 'IncrementoCostos';
 
 function doGet(e) {

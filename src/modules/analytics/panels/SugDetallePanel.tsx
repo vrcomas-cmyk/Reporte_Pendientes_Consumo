@@ -1,4 +1,5 @@
 import { Chip, StatePill, EvolChart, ComparativaDual, InvGrid, StatTile } from '../ui';
+import { CentrosFiltroBar } from './CentrosFiltroBar';
 import { FuentesTable, Section, precioPorCondicion, type FuentesSelection } from './_shared';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { buildFromInventarioCentro } from '@/services/solicitudService';
@@ -6,6 +7,7 @@ import { useSolicitarDialog } from '@/modules/solicitudes/useSolicitarDialog';
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
 import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
+import { useCentrosFiltroStore, centroPasaFiltro } from '@/store/centrosFiltroStore';
 import { usePermissionsStore } from '@/store/permissionsStore';
 import { isColumnHidden, isDetailHidden } from '@/core/permissions';
 import { norm, transitoFor } from '../helpers';
@@ -65,7 +67,9 @@ export function InventarioPrincipalSection({ a, b, it }: { a: Analytics; b: BOIt
   const solicitudesList = useSolicitudStore((s) => s.list);
   const invPrin: [string, number, number?][] = (['1030', '1031', '1032', '1060'] as const)
     .map((c) => [c, b.invByCenter[c] || 0, transitoFor(a.rss, b.centroPedido, c, b.materialBase)]);
+  const centrosElegidos = useCentrosFiltroStore((s) => s.centros);
   const invOtros: [string, number, number?][] = ['1001', '1003', '1004', '1017', '1018', '1022', '1036']
+    .filter((c) => centroPasaFiltro(c, b.centroPedido, centrosElegidos))
     .map((c) => [c, b.invByCenter[c] || 0, transitoFor(a.rss, b.centroPedido, c, b.materialBase)]);
   const esSuturas = enrich.matSector(b.materialBase) === 'Suturas';
   const condicionesMat = enrich.matCondiciones(b.materialBase).join(', ');
@@ -80,7 +84,9 @@ export function InventarioPrincipalSection({ a, b, it }: { a: Analytics; b: BOIt
   return (
     <>
       <Section title="Inventario principales"><InvGrid items={invPrin} /></Section>
-      <Section title="Otros centros (1001–1036)"><InvGrid items={invOtros} /></Section>
+      <Section title={`Otros centros (1001–1036)${centrosElegidos.length ? ' · filtrado' : ''}`}>
+        {invOtros.length ? <InvGrid items={invOtros} /> : <p className="text-sm text-text-muted">Ningún centro elegido en el filtro.</p>}
+      </Section>
       <Section title="Solicitar desde inventario (click derecho)">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {puntosSolicitar.map((p) => (
@@ -109,12 +115,14 @@ export function InventarioPrincipalSection({ a, b, it }: { a: Analytics; b: BOIt
 export function FuentesOfertaSection({ it, push, selection }: { it: BOItem; push: (p: Panel) => void; selection?: FuentesSelection }) {
   const perms = usePermissionsStore((s) => s.perms);
   const fuenteDetalleOculto = isDetailHidden(perms, 'sugerencias', 'fuente');
+  const centrosElegidos = useCentrosFiltroStore((s) => s.centros);
   if (fuenteDetalleOculto) return null;
+  const fuentes = centrosElegidos.length ? it.fuentes.filter((f) => centroPasaFiltro(f.centroSugerido, it.bo.centroPedido, centrosElegidos)) : it.fuentes;
   return (
-    <Section title={`Fuentes / materiales ofertables (${it.fuentes.length})`}>
-      {it.fuentes.length ? (
-        <FuentesTable fuentes={it.fuentes} push={push} selection={selection} />
-      ) : <p className="text-sm text-text-muted">Este BO no tiene fuentes asociadas.</p>}
+    <Section title={`Fuentes / materiales ofertables (${fuentes.length}${fuentes.length !== it.fuentes.length ? ` de ${it.fuentes.length}` : ''})`}>
+      {fuentes.length ? (
+        <FuentesTable fuentes={fuentes} push={push} selection={selection} />
+      ) : <p className="text-sm text-text-muted">{it.fuentes.length ? 'Ninguna fuente coincide con los centros elegidos.' : 'Este BO no tiene fuentes asociadas.'}</p>}
     </Section>
   );
 }
@@ -154,6 +162,7 @@ export function SugDetallePanel({ panel, a, push }: { panel: Extract<Panel, { ty
       </div>
       <Section title="Evolución mensual — material + destinatario"><EvolChart serie={it.serie} onMonth={(mes) => push({ type: 'clientesMes', material: b.materialBase, mes })} /></Section>
       {a.rf && <Section title="Comparativo anual"><ComparativaDual serie={it.serie} /></Section>}
+      <CentrosFiltroBar centroPedido={b.centroPedido} />
       <FuentesOfertaSection it={it} push={push} />
       <PrecioCondicionSection a={a} materiales={materialesOferta} />
       <InventarioPrincipalSection a={a} b={b} it={it} />

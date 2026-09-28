@@ -30,6 +30,7 @@ import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSo
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
 import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
+import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePersistedState } from '@/hooks/usePersistedState';
 
 export function ResumenSinPage() {
@@ -38,6 +39,7 @@ export function ResumenSinPage() {
   const open = usePanelStore((s) => s.open);
   const [q, setQ] = usePersistedState('resumenSin.q', '');
   const [centroFiltro, setCentroFiltro] = usePersistedState('resumenSin.centro', '');
+  const [gerente, setGerente] = usePersistedState('resumenSin.gerente', '');
   const [quick, setQuick] = useQuickFilters('resumenSin.quick');
   const [pendFiltro, setPendFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.pend', '');
   const [lentoFiltro, setLentoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.lento', '');
@@ -48,7 +50,7 @@ export function ResumenSinPage() {
   const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('resumenSin.pasteCodes', []);
   const zoom = useZoom('resumen_sin_zoom');
   const clearFilters = () => {
-    setQ(''); setCentroFiltro(''); setQuick([]); setPendFiltro(''); setLentoFiltro(''); setTransitoFiltro(''); setCoberturaFiltro(''); setPasteCodes([]);
+    setQ(''); setGerente(''); setCentroFiltro(''); setQuick([]); setPendFiltro(''); setLentoFiltro(''); setTransitoFiltro(''); setCoberturaFiltro(''); setPasteCodes([]);
   };
   const rss = a.rss;
   const qd = useDebouncedValue(q, 200);
@@ -95,6 +97,7 @@ export function ResumenSinPage() {
     if (!rss) return [];
     return [...rss.mats.values()].filter((mo) => {
       if (qd && !matchesQuery(qd, `${mo.material} ${mo.desc} ${a.enrich.matSector(mo.material)} ${a.enrich.matGrupo(mo.material)}`)) return false;
+      if (gerente && !a.enrich.sectorDeGerente(a.enrich.matSector(mo.material), gerente)) return false;
       if (!passesFilters(mo, filterCols, quick)) return false;
       if (pendFiltro === 'con' && !anyCentro(mo, (co) => co.pend > 0)) return false;
       if (pendFiltro === 'sin' && anyCentro(mo, (co) => co.pend > 0)) return false;
@@ -106,7 +109,7 @@ export function ResumenSinPage() {
       if (!matchesCodes(pasteCodes, mo.material)) return false;
       return true;
     });
-  }, [rss, qd, a.enrich, filterCols, quick, pendFiltro, lentoFiltro, transitoFiltro, coberturaFiltro, pasteCodes]);
+  }, [rss, qd, a.enrich, gerente, filterCols, quick, pendFiltro, lentoFiltro, transitoFiltro, coberturaFiltro, pasteCodes]);
 
   const totals = useMemo(() => {
     let inv = 0, pend = 0, trans = 0;
@@ -126,6 +129,7 @@ export function ResumenSinPage() {
   const statusMat = (mo: RSSMaterial) => [...statusSetOf(mo)].join(', ');
   const sortAcc = useMemo(() => ({
     material: (mo: (typeof list)[number]) => mo.material,
+    um: (mo: (typeof list)[number]) => a.enrich.matUm(mo.material),
     sector: (mo: (typeof list)[number]) => a.enrich.matSector(mo.material),
     status: (mo: (typeof list)[number]) => statusMat(mo),
     invtot: (mo: (typeof list)[number]) => [...mo.centros.values()].reduce((s, co) => s + invGen(co), 0),
@@ -158,7 +162,7 @@ export function ResumenSinPage() {
   // Always-visible: 1031 stays regardless of the toggle; toggle picks which other centro(s) show.
   const centros = (centroFiltro ? centrosAll.filter((c) => c === '1031' || c === centroFiltro) : centrosAll)
     .filter((c) => colVis.isVisible(`centro_${c}`));
-  const colCount = 6 + centros.length;
+  const colCount = 7 + centros.length;
 
   const exportar = () => {
     const out: Record<string, unknown>[] = [];
@@ -174,7 +178,7 @@ export function ResumenSinPage() {
           ? quiebreMitigadoPorTransito(peor, co) ? `${COBERTURA_LABEL.quiebre} (en tránsito)` : COBERTURA_LABEL[peor]
           : '';
         out.push({
-          Material: mo.material, Descripción: mo.desc, Centro: centro,
+          Material: mo.material, UM: a.enrich.matUm(mo.material), Descripción: mo.desc, Centro: centro,
           'Inv. general (1030+1031+1060)': ig, Pendiente: co.pend, 'En tránsito': co.transito,
           Lento: esLento(co, rss.curMes) ? 'Sí' : '',
           Cobertura: coberturaTxt,
@@ -226,6 +230,7 @@ export function ResumenSinPage() {
       <div className="flex items-center gap-2">
         <div className="relative w-64"><Search className="absolute left-2.5 top-2.5 size-3.5 text-text-faint" />
           <Input placeholder="Buscar material…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" /></div>
+        <GerenteSelect enrich={a.enrich} value={gerente} onChange={setGerente} />
         <select value={centroFiltro} onChange={(e) => setCentroFiltro(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
           <option value="">Todos los centros</option>
           {centrosAll.filter((c) => c !== '1031').map((c) => <option key={c} value={c}>Solo Centro {c} (+1031)</option>)}
@@ -276,6 +281,7 @@ export function ResumenSinPage() {
             <TableHeader>
               <TableRow>
                 <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort} filter={<ColumnFilterMenu column={filterCols[0]} rows={list} active={quick} onChange={setQuick} />}>Material</SortableTableHead>
+                <SortableTableHead sortKey="um" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Unidad de medida del catálogo (pestaña Materiales).">UM</SortableTableHead>
                 <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort} filter={<ColumnFilterMenu column={filterCols[2]} rows={list} active={quick} onChange={setQuick} />}>Sector/Grupo</SortableTableHead>
                 <TableHead title="Compara la facturación de los últimos 3 meses completos vs. los 3 anteriores: En aumento (+10%), En decremento (-10%) o Estable.">Tendencia</TableHead>
                 <SortableTableHead sortKey="status" activeKey={sortKey} dir={dir} onSort={toggleSort} filter={<ColumnFilterMenu column={filterCols[5]} rows={list} active={quick} onChange={setQuick} />} title="Estatus de revisión reportado por el centro para este material.">Status Revisión</SortableTableHead>
@@ -295,6 +301,7 @@ export function ResumenSinPage() {
                 return (
                   <TableRow key={mo.material}>
                     <TableCell><Chip onClick={() => open({ type: 'material', material: mo.material })}>{mo.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{mo.desc}</div>{a.enrich.matPrecioOferta(mo.material) > 0 && <div className="text-[10px] text-success">Of. {formatCurrency(a.enrich.matPrecioOferta(mo.material))}</div>}</TableCell>
+                    <TableCell>{a.enrich.matUm(mo.material) || '—'}</TableCell>
                     <TableCell>{a.enrich.matSector(mo.material) || '—'}<div className="text-[11px] text-text-faint">{a.enrich.matGrupo(mo.material)}</div></TableCell>
                     <TableCell><TrendBadge t={tendenciaTexto(serieMaterial(a.rf, mo.material))} /></TableCell>
                     <TableCell className="text-xs text-text-muted">{statusMat(mo) || '—'}</TableCell>

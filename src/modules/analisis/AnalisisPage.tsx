@@ -3,6 +3,7 @@ import { Download } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
+import { GerenteSelect } from '@/components/ui/gerente-select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
@@ -34,6 +35,7 @@ export function AnalisisPage() {
   const [ejecutivo, setEjecutivo] = usePersistedState('analisis.ejecutivo', '');
   const [grupoCliente, setGrupoCliente] = usePersistedState('analisis.grupoCliente', '');
   const [sector, setSector] = usePersistedState('analisis.sector', '');
+  const [gerente, setGerente] = usePersistedState('analisis.gerente', '');
   const [grupoArticulo, setGrupoArticulo] = usePersistedState('analisis.grupoArticulo', '');
   const [soloNoDetenido, setSoloNoDetenido] = usePersistedState('analisis.soloNoDetenido', false);
   const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>('analisis.periodo', 'corriente');
@@ -47,7 +49,7 @@ export function AnalisisPage() {
   };
   const saveCurrentView = (name: string) => savedViews.save(name, { ejecutivo, grupoCliente, sector, grupoArticulo, soloNoDetenido, periodo });
   const clearFilters = () => {
-    setEjecutivo(''); setGrupoCliente(''); setSector(''); setGrupoArticulo(''); setSoloNoDetenido(false);
+    setEjecutivo(''); setGrupoCliente(''); setSector(''); setGerente(''); setGrupoArticulo(''); setSoloNoDetenido(false);
   };
 
   // Opciones distintas para los 4 filtros, tomadas de las mismas fuentes
@@ -77,9 +79,9 @@ export function AnalisisPage() {
   }, [a.rf, a.enrich]);
 
   const A = useMemo(() => {
-    const filters: AnalisisFilters = { ejecutivo, grupoCliente, sector, grupoArticulo };
+    const filters: AnalisisFilters = { ejecutivo, grupoCliente, sector, grupoArticulo, gerente };
     return analisisVentas(a.rf, a.bo, a.enrich, filters);
-  }, [a.rf, a.bo, a.enrich, ejecutivo, grupoCliente, sector, grupoArticulo]);
+  }, [a.rf, a.bo, a.enrich, ejecutivo, grupoCliente, sector, grupoArticulo, gerente]);
 
   // #5: solicitantes con al menos un pedido pendiente + fuente disponible —
   // reactivar a un "cliente en riesgo" es más fácil si ya hay con qué surtirlo.
@@ -270,6 +272,7 @@ export function AnalisisPage() {
         <Select value={grupoCliente} onChange={(ev) => setGrupoCliente(ev.target.value)} className="w-auto">
           <option value="">Grupo cliente (todos)</option>{grupoClienteOptions.map((v) => <option key={v} value={v}>{v}</option>)}
         </Select>
+        <GerenteSelect enrich={a.enrich} value={gerente} onChange={setGerente} />
         <Select value={sector} onChange={(ev) => setSector(ev.target.value)} className="w-auto">
           <option value="">Sector (todos)</option>{sectorOptions.map((v) => <option key={v} value={v}>{v}</option>)}
         </Select>

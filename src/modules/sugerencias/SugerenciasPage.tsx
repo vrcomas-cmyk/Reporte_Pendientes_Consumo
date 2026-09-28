@@ -26,6 +26,7 @@ import { usePersistedState } from '@/hooks/usePersistedState';
 import { useQuickFilters } from '@/hooks/useQuickFilters';
 import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
 import { Select } from '@/components/ui/select';
+import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePermissionsStore } from '@/store/permissionsStore';
 import { isColumnHidden, isDetailHidden } from '@/core/permissions';
 import { toast } from '@/store/toastStore';
@@ -118,6 +119,7 @@ export function SugerenciasPage() {
   const { prefiltro, clear: clearPrefiltro } = useMaterialPrefiltro(setQ);
   const [estado, setEstado] = usePersistedState('sugerencias.estado', '');
   const [fuente, setFuente] = usePersistedState('sugerencias.fuente', '');
+  const [gerente, setGerente] = usePersistedState('sugerencias.gerente', '');
   const [centroValido, setCentroValido] = usePersistedState('sugerencias.centroValido', false);
   const [soloAccionables, setSoloAccionables] = usePersistedState('sugerencias.soloAccionables', false);
   const [ocultarPend0, setOcultarPend0] = usePersistedState('sugerencias.ocultarPend0', false);
@@ -128,7 +130,7 @@ export function SugerenciasPage() {
   // "Pegar pedidos/materiales" estilo SAP — aditivo, no toca los filtros de arriba.
   const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('sugerencias.pasteCodes', []);
   const clearFilters = () => {
-    setQ(''); setEstado(''); setFuente(''); setCentroValido(false); setSoloAccionables(false); setOcultarPend0(false); setOcultarBloqueados(false); setQuick([]); setRango({ desde: '', hasta: '' }); setPasteCodes([]);
+    setQ(''); setEstado(''); setFuente(''); setGerente(''); setCentroValido(false); setSoloAccionables(false); setOcultarPend0(false); setOcultarBloqueados(false); setQuick([]); setRango({ desde: '', hasta: '' }); setPasteCodes([]);
     setClearTick((n) => n + 1);
   };
   const [sectorOpen, setSectorOpen] = useState(false);
@@ -184,6 +186,7 @@ export function SugerenciasPage() {
     return a.bo.filter((it) => {
       const b = it.bo;
       if (estado && it.status.key !== estado) return false;
+      if (gerente && !e.sectorDeGerente(e.matSector(b.materialBase), gerente)) return false;
       if (fuente === 'si' && !it.fuentes.length) return false;
       if (fuente === 'no' && it.fuentes.length) return false;
       if (centroValido && it.fuentes.length && !it.fuentes.some((f) => centroPasa(b, f))) return false;
@@ -202,7 +205,7 @@ export function SugerenciasPage() {
       if (!matchesAnyCode(pasteCodes, [b.pedido, b.materialBase])) return false;
       return true;
     });
-  }, [a.bo, q, estado, fuente, centroValido, soloAccionables, ocultarPend0, ocultarBloqueados, quick, rango, filterCols, pasteCodes]);
+  }, [a.bo, q, estado, fuente, gerente, e, centroValido, soloAccionables, ocultarPend0, ocultarBloqueados, quick, rango, filterCols, pasteCodes]);
 
   const kpis = useMemo(() => {
     const isBloq = (it: (typeof filtered)[number]) => it.bo.bloqueado !== '';
@@ -536,6 +539,7 @@ export function SugerenciasPage() {
           <option value="">Estado (todos)</option>
           {ESTADOS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </Select>
+        <GerenteSelect enrich={e} value={gerente} onChange={setGerente} />
         {!fuenteOculto && (
           <Select value={fuente} onChange={(ev) => setFuente(ev.target.value)} className="w-auto">
             <option value="">Fuentes</option><option value="si">Con fuentes</option><option value="no">Sin fuentes</option>

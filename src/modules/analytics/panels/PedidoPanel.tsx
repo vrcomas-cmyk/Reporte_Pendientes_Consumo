@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Trash2, X } from 'lucide-react';
 import { StatTile, StatePill, EvolChart, ComparativaDual, Chip } from '../ui';
 import { InventarioPrincipalSection, PrecioCondicionSection, FuentesOfertaSection } from './SugDetallePanel';
 import { PedidoNavControl } from './PedidoNavControl';
 import { ConsumoMaterialCard, Section } from './_shared';
+import { CostoTile } from './CostoMaterial';
+import { CentrosFiltroBar } from './CentrosFiltroBar';
 import { cn, formatCurrency, formatFechaCaducidad, formatNumber } from '@/lib/utils';
 import { norm, num } from '../helpers';
 import { usePanelStore, type Panel } from '@/store/panelStore';
@@ -81,6 +83,26 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
     const cliente = pedidoCliente.get(norm(p));
     return cliente ? `${p} · ${cliente}` : p;
   };
+  // Selección de material del pedido — se calcula ANTES del `return` temprano
+  // (hooks) para que ↑/↓ recorran `items` igual que ◀/▶ recorren `lista`.
+  const selKey = panel.boKey && items.some((it) => it.k === panel.boKey) ? panel.boKey : items[0]?.k;
+  const selIdx = items.findIndex((it) => it.k === selKey);
+  const irAMaterial = (i: number) => {
+    if (i < 0 || i >= items.length) return;
+    replaceTop({ type: 'pedido', pedido: panel.pedido, boKey: items[i].k, lista });
+  };
+  const listaMatRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    listaMatRef.current?.querySelector('[data-sel="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [selKey]);
+  useKeybindings(
+    useMemo<KeyHandler[]>(() => [
+      { combo: 'ArrowUp', handler: (ev) => { if (isEditableTarget(ev) || selIdx <= 0) return; ev.preventDefault(); irAMaterial(selIdx - 1); } },
+      { combo: 'ArrowDown', handler: (ev) => { if (isEditableTarget(ev) || selIdx < 0 || selIdx >= items.length - 1) return; ev.preventDefault(); irAMaterial(selIdx + 1); } },
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    ], [selIdx, items, panel.pedido, lista]),
+    items.length > 1,
+  );
   useKeybindings(
     useMemo<KeyHandler[]>(() => [
       { combo: 'ArrowLeft', handler: (ev) => { if (isEditableTarget(ev) || !lista || idx <= 0) return; ev.preventDefault(); irA(idx - 1); } },
@@ -94,7 +116,6 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
   const b0 = items[0].bo;
   const pendTot = items.reduce((s, it) => s + num(it.bo.cantidadPendiente), 0);
   const impTot = items.reduce((s, it) => s + num(it.bo.cantidadPendiente) * num(it.bo.precio), 0);
-  const selKey = panel.boKey && items.some((it) => it.k === panel.boKey) ? panel.boKey : items[0].k;
   const selItem = items.find((it) => it.k === selKey) ?? items[0];
 
   // Materiales con fuente alterna o condición registrada — se marcan en
@@ -163,8 +184,8 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
             <span className="text-right font-medium">{b0.oc || '—'} · {b0.fecha || '—'}</span>
           </div>
           <div className="flex items-start justify-between gap-2 px-2.5 py-1.5">
-            <span className="shrink-0 text-text-faint">Centro / Almacén</span>
-            <span className="text-right font-medium">{b0.centroPedido || '—'}{b0.almacen ? ` / ${b0.almacen}` : ''}</span>
+            <span className="shrink-0 text-text-faint">Centro / Almacén <span className="text-[10px]">(material)</span></span>
+            <span className="text-right font-medium">{selItem.bo.centroPedido || '—'}{selItem.bo.almacen ? ` / ${selItem.bo.almacen}` : ''}</span>
           </div>
         </div>
 
@@ -181,7 +202,7 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
             consumo del material seleccionado, justo debajo. */}
         <div className="mt-4 flex flex-col gap-1">
           <p className="text-xs font-semibold text-text-muted">Materiales del pedido</p>
-          <div className="flex max-h-52 flex-col gap-1 overflow-y-auto pr-1">
+          <div ref={listaMatRef} className="flex max-h-52 flex-col gap-1 overflow-y-auto pr-1">
             {items.map((it) => {
               const conOfertaFlag = materialTieneOferta(it.bo.materialBase, it.fuentes.length);
               const nSel = seleccion.get(it.k)?.size ?? 0;
@@ -189,6 +210,7 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
                 <button
                   key={it.k}
                   type="button"
+                  data-sel={it.k === selKey}
                   title={conOfertaFlag ? 'Tiene fuentes ofertables o condición registrada' : undefined}
                   onClick={() => replaceTop({ type: 'pedido', pedido: panel.pedido, boKey: it.k, lista })}
                   className={cn(
@@ -258,7 +280,9 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
           <StatTile label="Precio" value={formatCurrency(selItem.bo.precio)} />
           <StatTile label="Estado" value={selItem.status.label} />
         </div>
+        <div className="mt-2 grid grid-cols-4 gap-2"><CostoTile a={a} material={selItem.bo.materialBase} /></div>
         {selItem.bo.bloqueado && <p className="mt-2"><StatePill label={selItem.bo.bloqueado} cls="amb" /></p>}
+        <CentrosFiltroBar centroPedido={selItem.bo.centroPedido} />
         <FuentesOfertaSection
           it={selItem}
           push={push}

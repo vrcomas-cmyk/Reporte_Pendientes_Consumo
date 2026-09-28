@@ -222,6 +222,12 @@ export interface DetectedSheet {
   loaded?: boolean;
 }
 
+/** Fila de la pestaña "GERENCIA DE MARCA": un sector a cargo de un gerente. */
+export interface GerenciaMarca {
+  gerente: string;
+  sector: string;
+}
+
 /** Persisted catalog snapshot (IndexedDB). */
 export interface CatalogSnapshot {
   id: 'current';
@@ -231,6 +237,8 @@ export interface CatalogSnapshot {
   materiales: Material[];
   invConsolidado: InvConsolidadoRow[];
   invDetalle: InvDetalleRow[];
+  /** Opcional: cachés previos a la pestaña "GERENCIA DE MARCA" no la traen. */
+  gerenciaMarca?: GerenciaMarca[];
 }
 
 /** Importe pendiente bloqueado agrupado por el motivo real de la hoja

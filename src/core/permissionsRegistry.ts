@@ -24,6 +24,9 @@ export const MODULE_COLUMNS: Record<string, RegistryItem[]> = {
 };
 
 export const MODULE_DETAILS: Record<string, RegistryItem[]> = {
+  inventario: [
+    { key: 'costo', label: 'Costo del material (en todos los paneles de detalle)' },
+  ],
   sugerencias: [
     { key: 'fuente', label: 'Detalle de fuente (lote/centro sugerido/disponible)' },
   ],

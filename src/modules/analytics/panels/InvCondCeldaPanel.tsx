@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { StatTile, StatePill, EvolChart } from '../ui';
 import { Section, PrecioCondicionBox, SugTable, ConsumoTable } from './_shared';
+import { MaterialInventarioSection } from './MaterialInventario';
 import { formatNumber, formatCurrency, formatFechaCaducidad } from '@/lib/utils';
 import { almacenesDeCondicion } from '@/core/inventoryRules';
 import { pendPorCondicion, transitoPorCondicion, impPendPorCondicion, esLentoPorCondicion, type RSSAlmacen } from '@/core/resumenSin';
@@ -218,6 +219,7 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
       <div className="mt-3">
         <Button variant="outline" size="sm" onClick={() => push({ type: 'materialTotales', material: panel.material })}>Ver totales del material</Button>
       </div>
+      <MaterialInventarioSection a={a} material={panel.material} />
       <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
       </div>
     </div>
