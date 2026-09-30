@@ -353,7 +353,22 @@
   "351": "LocalClienteConocimientoRepository",
   "352": "Toaster.tsx",
   "353": "gerente-select.tsx",
+  "354": "resolveLiveInjectionAnchor",
+  "355": "precios.ts",
+  "356": "ClientesMesPanel.tsx",
+  "357": "reportSnapshotService.ts",
   "358": "CalculatorWidget.tsx",
+  "359": "StatTile.tsx",
+  "360": "button.tsx",
   "361": ".opencode/skills/impeccable/scripts/lib/staleness-notice.mjs",
-  "364": "AnalisisDirectivoPage.tsx"
+  "362": "tabs.tsx",
+  "363": "YearComparisonChart.tsx",
+  "364": "AnalisisDirectivoPage.tsx",
+  "365": "SolicitudesPage.tsx",
+  "366": "CentrosFiltroBar.tsx",
+  "367": "ScoreBar.tsx",
+  "368": "sugerencias/columns.ts",
+  "369": "incremento/columns.ts",
+  "370": "HubLinks.tsx",
+  "371": "ScoreExplain.tsx"
 }

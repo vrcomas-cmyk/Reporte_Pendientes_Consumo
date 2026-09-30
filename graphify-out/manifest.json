@@ -25,8 +25,8 @@
     "semantic_hash": ""
   },
   "src/components/layout/Sidebar.tsx": {
-    "mtime": 1790791082.87311,
-    "ast_hash": "9addb98041a9b312bbaa8ef65693a632",
+    "mtime": 1790799503.5535662,
+    "ast_hash": "fc0d16c5f2c4f5a376bc3d14817329c7",
     "semantic_hash": ""
   },
   "src/components/layout/Topbar.tsx": {
@@ -325,8 +325,8 @@
     "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1790607908.3185189,
-    "ast_hash": "48221db96493baaec712c42747c967b4",
+    "mtime": 1790799097.9046116,
+    "ast_hash": "cd89b7a609c8e27fdbf95d3cccddabec",
     "semantic_hash": ""
   },
   "public/favicon.svg": {
@@ -2887,6 +2887,11 @@
   "src/services/catalogService.test.ts": {
     "mtime": 1790796305.1233861,
     "ast_hash": "4977a39943efb898c110b6f929630876",
+    "semantic_hash": ""
+  },
+  "docs/apps-script-catalogo.md": {
+    "mtime": 1790803569.3141358,
+    "ast_hash": "5bd7f2a7a54498637000143c326fadf6",
     "semantic_hash": ""
   }
 }

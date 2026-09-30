@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "src/components/layout/AppShell.tsx": {
-    "mtime": 1790791082.851884,
-    "ast_hash": "6f3b2abca18c8882938727fe5f19da16",
+    "mtime": 1790796227.754633,
+    "ast_hash": "2a691c7d9e0382dda8beb9694228a011",
     "semantic_hash": ""
   },
   "src/components/layout/Sidebar.tsx": {
@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "src/components/layout/Topbar.tsx": {
-    "mtime": 1790791082.8816185,
-    "ast_hash": "097256f3005a4e8b3bc32aa7926b93f4",
+    "mtime": 1790796264.5966105,
+    "ast_hash": "033b4448583aec474b9119cfa0bde400",
     "semantic_hash": ""
   },
   "src/components/ui/badge.tsx": {
@@ -220,8 +220,8 @@
     "semantic_hash": ""
   },
   "src/modules/upload/UploadPage.tsx": {
-    "mtime": 1790791087.0751739,
-    "ast_hash": "d15a37e76b83dbafec814602cf9e7c0d",
+    "mtime": 1790796227.7631464,
+    "ast_hash": "3e1ff948c22139b659ac77212e8cab08",
     "semantic_hash": ""
   },
   "src/repositories/CatalogRepository.ts": {
@@ -260,8 +260,8 @@
     "semantic_hash": ""
   },
   "src/services/catalogService.ts": {
-    "mtime": 1790791087.5837429,
-    "ast_hash": "a90dba48925c53fe0479fe789a3ecea4",
+    "mtime": 1790796213.0967007,
+    "ast_hash": "846f1f09f78312bd69731dd0235a81ba",
     "semantic_hash": ""
   },
   "src/services/reportService.ts": {
@@ -270,8 +270,8 @@
     "semantic_hash": ""
   },
   "src/store/dataStore.ts": {
-    "mtime": 1790791087.8530393,
-    "ast_hash": "dd1e3a90685c3929ce69fae947937d86",
+    "mtime": 1790796227.7476387,
+    "ast_hash": "6140e25d6f9899a9d25d524e3bbe3434",
     "semantic_hash": ""
   },
   "src/store/panelStore.ts": {
@@ -2882,6 +2882,11 @@
   "src/modules/analytics/ui/PuenteVentaChart.tsx": {
     "mtime": 1790791085.9672835,
     "ast_hash": "2aa7ead40a2f1bbf072ba6275136458f",
+    "semantic_hash": ""
+  },
+  "src/services/catalogService.test.ts": {
+    "mtime": 1790796305.1233861,
+    "ast_hash": "4977a39943efb898c110b6f929630876",
     "semantic_hash": ""
   }
 }
