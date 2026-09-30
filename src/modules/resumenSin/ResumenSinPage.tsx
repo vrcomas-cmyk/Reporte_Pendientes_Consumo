@@ -45,6 +45,8 @@ export function ResumenSinPage() {
   const [lentoFiltro, setLentoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.lento', '');
   const [transitoFiltro, setTransitoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.transito', '');
   const [coberturaFiltro, setCoberturaFiltro] = usePersistedState<'' | CoberturaEstado>('resumenSin.cobertura', '');
+  // Mostrar/ocultar los badges de estado (Quiebre, Exceso, Inmovilizado…) en las celdas.
+  const [mostrarEstados, setMostrarEstados] = usePersistedState<boolean>('resumenSin.mostrarEstados', true);
   // "Pegar materiales" estilo SAP — filtro ADITIVO: no toca ninguno de los
   // filtros de arriba, solo acota la lista a los códigos pegados (si hay alguno).
   const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('resumenSin.pasteCodes', []);
@@ -205,26 +207,26 @@ export function ResumenSinPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <StatTile label="Materiales" value={formatNumber(list.length)} />
-        <StatTile label="Inv. total" value={formatNumber(totals.inv)} />
-        <StatTile label="Pendiente total" value={formatNumber(totals.pend)} tone="text-danger" />
-        <StatTile label="En tránsito total" value={formatNumber(totals.trans)} tone="text-warning" />
+      <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-4">
+        <TooltipHint text={`${COBERTURA_HELP.quiebre} No incluye Centro 1031 (hub de distribución).`}>
+          <div><StatTile emphasis="hero" label="Quiebre urgente (sin tránsito)" value={formatNumber(coberturaSummary.quiebreUrgente)} tone={coberturaSummary.quiebreUrgente > 0 ? 'danger' : undefined} /></div>
+        </TooltipHint>
+        <TooltipHint text={`${COBERTURA_HELP_TRANSITO} No incluye Centro 1031 (hub de distribución).`}>
+          <div><StatTile compact label="Quiebre con tránsito en camino" value={formatNumber(coberturaSummary.quiebreMitigado)} tone="info" /></div>
+        </TooltipHint>
+        <TooltipHint text={`${COBERTURA_HELP.inmovilizado} No incluye Centro 1031 (hub de distribución).`}>
+          <div><StatTile compact label="Inmovilizado (sin consumo, con inv.)" value={formatNumber(coberturaCount('inmovilizado'))} tone="warning" /></div>
+        </TooltipHint>
+        <TooltipHint text={`${COBERTURA_HELP.exceso} No incluye Centro 1031 (hub de distribución).`}>
+          <div><StatTile compact label="Exceso (> 12 meses cobertura)" value={formatNumber(coberturaCount('exceso'))} tone="warning" /></div>
+        </TooltipHint>
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <TooltipHint text={`${COBERTURA_HELP.quiebre} No incluye Centro 1031 (hub de distribución).`}>
-          <div><StatTile compact label="Quiebre urgente (sin tránsito)" value={formatNumber(coberturaSummary.quiebreUrgente)} tone="text-danger" /></div>
-        </TooltipHint>
-        <TooltipHint text={`${COBERTURA_HELP_TRANSITO} No incluye Centro 1031 (hub de distribución).`}>
-          <div><StatTile compact label="Quiebre con tránsito en camino" value={formatNumber(coberturaSummary.quiebreMitigado)} tone="text-warning" /></div>
-        </TooltipHint>
-        <TooltipHint text={`${COBERTURA_HELP.inmovilizado} No incluye Centro 1031 (hub de distribución).`}>
-          <div><StatTile compact label="Inmovilizado (sin consumo, con inv.)" value={formatNumber(coberturaCount('inmovilizado'))} tone="text-violet-500" /></div>
-        </TooltipHint>
-        <TooltipHint text={`${COBERTURA_HELP.exceso} No incluye Centro 1031 (hub de distribución).`}>
-          <div><StatTile compact label="Exceso (> 12 meses cobertura)" value={formatNumber(coberturaCount('exceso'))} tone="text-warning" /></div>
-        </TooltipHint>
+        <StatTile label="Materiales" value={formatNumber(list.length)} />
+        <StatTile label="Inv. total" value={formatNumber(totals.inv)} />
+        <StatTile label="Pendiente total" value={formatNumber(totals.pend)} />
+        <StatTile label="En tránsito total" value={formatNumber(totals.trans)} tone="info" />
       </div>
 
       <div className="flex items-center gap-2">
@@ -270,6 +272,10 @@ export function ResumenSinPage() {
           <option value="exceso">{COBERTURA_LABEL.exceso}</option>
           <option value="sano">{COBERTURA_LABEL.sano}</option>
         </select>
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-muted" title="Muestra u oculta los estados (Quiebre, Exceso, Inmovilizado…) debajo del inventario y el pendiente de cada celda.">
+          <input type="checkbox" checked={mostrarEstados} onChange={(e) => setMostrarEstados(e.target.checked)} className="size-3.5 accent-accent" />
+          Mostrar estados
+        </label>
         <TooltipHint text={`${COBERTURA_HELP.quiebre} · ${COBERTURA_HELP.inmovilizado} · ${COBERTURA_HELP.exceso} · ${COBERTURA_HELP.sano} · ${COBERTURA_HELP.aceptable} · Centro 1031 (hub de distribución) queda excluido de estos estados.`}>
           <button type="button" className="text-xs text-text-faint underline decoration-dotted underline-offset-2 hover:text-text">¿Qué significa cada estado?</button>
         </TooltipHint>
@@ -300,7 +306,7 @@ export function ResumenSinPage() {
                 const pendTot = [...mo.centros.values()].reduce((s, co) => s + co.pend, 0);
                 return (
                   <TableRow key={mo.material}>
-                    <TableCell><Chip onClick={() => open({ type: 'material', material: mo.material })}>{mo.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{mo.desc}</div>{a.enrich.matPrecioOferta(mo.material) > 0 && <div className="text-[10px] text-success">Of. {formatCurrency(a.enrich.matPrecioOferta(mo.material))}</div>}</TableCell>
+                    <TableCell><Chip onClick={() => open({ type: 'material', material: mo.material })}>{mo.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{mo.desc}</div>{a.enrich.matPrecioOferta(mo.material) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(a.enrich.matPrecioOferta(mo.material))}</div>}</TableCell>
                     <TableCell>{a.enrich.matUm(mo.material) || '—'}</TableCell>
                     <TableCell>{a.enrich.matSector(mo.material) || '—'}<div className="text-[11px] text-text-faint">{a.enrich.matGrupo(mo.material)}</div></TableCell>
                     <TableCell><TrendBadge t={tendenciaTexto(serieMaterial(a.rf, mo.material))} /></TableCell>
@@ -345,10 +351,12 @@ export function ResumenSinPage() {
                           {co.transito > 0 && <span className="text-success"> +{formatNumber(co.transito)}</span>}
                           {esLento(co, rss.curMes) && <span title="Lento: sin movimiento hace ≥6 meses y sin pendiente en este centro."><AlertTriangle className="ml-1 inline size-3 text-warning" /></span>}
                           {co.pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(co.pend)}</div>}
-                          {showCoberturaBadge && (
-                            <TooltipHint text={mitigado ? COBERTURA_HELP_TRANSITO : peor ? COBERTURA_HELP[peor] : ''}>
-                              <div className="mt-0.5 inline-block"><StatePill label={coberturaLabel} cls={coberturaCls} /></div>
-                            </TooltipHint>
+                          {mostrarEstados && showCoberturaBadge && (
+                            <div className="mt-0.5">
+                              <TooltipHint text={mitigado ? COBERTURA_HELP_TRANSITO : peor ? COBERTURA_HELP[peor] : ''}>
+                                <span className="inline-block"><StatePill label={coberturaLabel} cls={coberturaCls} /></span>
+                              </TooltipHint>
+                            </div>
                           )}
                           {esCentroDistribucion(c) && <div className="text-[10px] text-text-faint">Distribución</div>}
                         </TableCell>

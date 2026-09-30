@@ -48,7 +48,7 @@ export function PrecioCondicionSection({ a, materiales }: { a: Analytics; materi
           <div key={i} className="rounded-lg border border-border bg-bg-elevated p-2.5">
             <div className="flex items-center justify-between gap-2">
               <StatePill label={g.condicion} cls={/caducidad/i.test(g.condicion) ? 'rojo' : 'gris'} />
-              <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(g.precio)}</span>
+              <span className="font-mono text-sm font-semibold text-text">{formatCurrency(g.precio)}</span>
             </div>
             <p className="mt-1.5 truncate text-[11px] text-text-faint">{g.materiales.join(', ')}</p>
           </div>

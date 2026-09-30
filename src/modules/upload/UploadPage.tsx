@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useDataStore } from '@/store/dataStore';
-import { syncCatalogFromAppScript } from '@/services/catalogService';
+import { checkForCatalogUpdate } from '@/services/catalogService';
 import { syncReportSheets, REPORT_SHEET_ROLES, SNAPSHOT_ROLES } from '@/services/reportSheetsService';
 import { useReportSheetsSyncStore } from '@/store/reportSheetsSyncStore';
 import { ROLE_LABEL } from '@/core/roleDetection';
@@ -37,8 +37,9 @@ export function UploadPage() {
     setCatalogLoading(true);
     setCatalogError(null);
     try {
-      const c = await syncCatalogFromAppScript();
-      setCatalog(c);
+      const { catalog: c } = await checkForCatalogUpdate({ force: true });
+      if (c) setCatalog(c);
+      useDataStore.getState().setCatalogError(null);
     } catch (e) {
       setCatalogError(e instanceof Error ? e.message : String(e));
     } finally {

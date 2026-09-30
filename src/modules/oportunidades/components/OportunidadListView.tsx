@@ -49,7 +49,7 @@ export function OportunidadListView({ oportunidades }: { oportunidades: Oportuni
         <TableBody>
           {oportunidades.map((o) => (
             <TableRow key={o.id} className="cursor-pointer" onClick={() => open({ type: 'oportunidad', id: o.id! })}>
-              {isVisible('material') && <TableCell><span className="font-mono text-xs text-accent">{o.material}</span><div className="max-w-64 truncate text-[11px] text-text-faint">{o.descripcion}</div></TableCell>}
+              {isVisible('material') && <TableCell><span className="font-mono text-xs text-text">{o.material}</span><div className="max-w-64 truncate text-[11px] text-text-faint">{o.descripcion}</div></TableCell>}
               {isVisible('condicion') && <TableCell>{CONDICION_LABEL[o.condicion]}</TableCell>}
               {isVisible('cantidad') && <TableCell className="text-right">{formatNumber(o.cantidadDisponible)}</TableCell>}
               {isVisible('caducidad') && <TableCell>{o.fechaCaducidad ? formatFechaCaducidad(o.fechaCaducidad) : '—'}</TableCell>}

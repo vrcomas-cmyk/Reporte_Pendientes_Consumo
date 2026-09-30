@@ -4,8 +4,7 @@ import {
 } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
 import { completarSerie, mesLabel, type Serie } from '@/core/resumenFac';
-import { useUiStore } from '@/store/uiStore';
-import { categorical } from '@/lib/chartColors';
+import { categorical, CHART_UI } from '@/lib/chartColors';
 
 /** Gráfico de líneas de importe por mes con completarSerie. Click sobre un punto llama onMonth(mes). isAnimationActive=false para evitar quedarse en 0-length dash-array cuando trabajo síncrono pesado corre tras el mount.
  * Colors/tooltip match the Dashboard's recharts (same categorical palette,
@@ -14,11 +13,10 @@ import { categorical } from '@/lib/chartColors';
  * inconsistency between Dashboard's charts and every other module's (this
  * component is shared by Sugerencias, Consumo, and every detail panel). */
 export const EvolChart = memo(function EvolChart({ serie, onMonth, height = 220 }: { serie: Serie; onMonth?: (mes: string) => void; height?: number }) {
-  const theme = useUiStore((s) => s.theme);
   const data = useMemo(() => completarSerie(serie).map((p) => ({ ...p, label: mesLabel(p.mes) })), [serie]);
   if (!data.length) return <p className="text-sm text-text-muted">Sin datos para graficar.</p>;
-  const palette = categorical(theme === 'dark');
-  const gridColor = theme === 'dark' ? '#2d2d2b' : '#e4e3e0';
+  const palette = categorical();
+  const gridColor = CHART_UI.grid;
   return (
     <div style={{ height }} className="w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -37,7 +35,8 @@ export const EvolChart = memo(function EvolChart({ serie, onMonth, height = 220 
             contentStyle={{
               fontSize: 12,
               borderRadius: 8,
-              background: theme === 'dark' ? '#1c1c1b' : '#fff',
+              background: CHART_UI.surface,
+              color: CHART_UI.label,
               border: `1px solid ${gridColor}`,
             }}
           />

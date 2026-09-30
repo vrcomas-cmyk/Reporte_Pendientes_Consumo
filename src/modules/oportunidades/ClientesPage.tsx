@@ -123,7 +123,7 @@ export function ClientesTab() {
                 <p className="font-mono text-xs text-text-faint">{r.dest}</p>
               </div>
               {r.aceptaAlgo ? (
-                <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">Configurado</span>
+                <span className="shrink-0 rounded-full bg-success/15 px-2 py-0.5 text-[10px] text-success">Configurado</span>
               ) : (
                 <span className="shrink-0 rounded-full bg-bg-inset px-2 py-0.5 text-[10px] text-text-faint" title="Sin criterio de aceptación marcado: no aparece como candidato en ningún matching todavía.">Sin configurar</span>
               )}

@@ -309,11 +309,14 @@
   "307": "Cognitive Load Assessment",
   "308": ".claude/skills/impeccable/scripts/lib/template-extensions.mjs",
   "309": "syncEditBadgeHitProxies",
+  "310": "precios.ts",
   "311": "rel",
   "312": "readConfig",
+  "313": "ensureHookGitExcludes",
   "314": "3. Heal",
   "315": "PasteCodesFilter.tsx",
   "316": "syncEditBadgeHitProxies",
+  "317": "MonthRangeFilter.tsx",
   "318": "context-menu.tsx",
   "319": "AdminPage.tsx",
   "320": "MaterialColocacionPanel.tsx",
@@ -351,6 +354,7 @@
   "352": "Toaster.tsx",
   "353": "gerente-select.tsx",
   "354": "incrementoService.ts",
+  "355": "clsx",
   "356": "@radix-ui/react-alert-dialog",
   "357": "react-router-dom",
   "358": "CalculatorWidget.tsx",
@@ -361,5 +365,9 @@
   "363": "@tanstack/react-query",
   "364": "AnalisisDirectivoPage.tsx",
   "365": "DateRangeFilter.tsx",
-  "366": "zustand"
+  "366": "zustand",
+  "367": "SolicitudesPage.tsx",
+  "368": "sugerencias/columns.ts",
+  "369": "@radix-ui/react-alert-dialog",
+  "370": "incremento/columns.ts"
 }

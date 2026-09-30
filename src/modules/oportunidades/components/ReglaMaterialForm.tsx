@@ -91,7 +91,7 @@ export function MaterialPicker({ onPick }: { onPick: (material: string) => void 
         <div className="absolute z-20 mt-1 w-full rounded-lg border border-border bg-bg-elevated shadow-lg">
           {shown.map(([mat, texto]) => (
             <button key={mat} type="button" className="flex w-full flex-col items-start px-3 py-1.5 text-left text-sm hover:bg-bg-inset" onClick={() => onPick(mat)}>
-              <span className="font-mono text-xs text-accent">{mat}</span>
+              <span className="font-mono text-xs text-text">{mat}</span>
               <span className="truncate text-text-muted">{texto || '—'}</span>
             </button>
           ))}

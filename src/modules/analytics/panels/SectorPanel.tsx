@@ -8,7 +8,7 @@ import type { Analytics } from '../AnalyticsContext';
 
 function pct(a: number, b: number) {
   const p = b ? (a / b - 1) * 100 : a ? 100 : 0;
-  return <span className={p >= 0 ? 'text-emerald-500' : 'text-danger'}>{p >= 0 ? '▲' : '▼'} {Math.abs(p).toFixed(1)}%</span>;
+  return <span className={p >= 0 ? 'text-success' : 'text-danger'}>{p >= 0 ? '▲' : '▼'} {Math.abs(p).toFixed(1)}%</span>;
 }
 
 /** Panel — Grupos de artículo de un sector, misma ventana 3m previos / últ. 3m / 12m que la tabla de sectores. */

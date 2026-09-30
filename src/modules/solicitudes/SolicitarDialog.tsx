@@ -169,7 +169,7 @@ export function SolicitarDialog({ draft, loteOptions, onClose }: SolicitarDialog
           </div>
 
           {result && (
-            <p className={`text-sm ${result.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-danger'}`}>{result.message}</p>
+            <p className={`text-sm ${result.ok ? 'text-success' : 'text-danger'}`}>{result.message}</p>
           )}
 
           <div className="flex justify-end gap-2 pt-1">

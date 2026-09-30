@@ -24,7 +24,7 @@ function BloqueCondicion({ r, mo, curMes, material, push }: {
     <div className="rounded-lg border border-border p-2.5">
       <div className="flex items-center justify-between gap-2">
         <StatePill label={r.condicion || 'Sin condición'} cls={esCondicionCortaCaducidad(r.condicion) ? 'rojo' : 'gris'} />
-        {r.precioOferta > 0 && <span className="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(r.precioOferta)}</span>}
+        {r.precioOferta > 0 && <span className="font-mono text-xs font-semibold text-text">{formatCurrency(r.precioOferta)}</span>}
       </div>
       <div className="mt-2 grid grid-cols-2 gap-1.5">
         {CENTERS.map((c) => {
@@ -42,7 +42,7 @@ function BloqueCondicion({ r, mo, curMes, material, push }: {
               <p className="text-[11px] text-text-faint">Inv {c}</p>
               <p className="font-mono text-sm">
                 {formatNumber(r.invByCenter[c] || 0)}
-                {transito > 0 && <span className="text-emerald-500"> +{formatNumber(transito)}</span>}
+                {transito > 0 && <span className="text-success"> +{formatNumber(transito)}</span>}
                 {lento && <AlertTriangle className="ml-1 inline size-3 text-warning" />}
               </p>
               {pend > 0 && <p className="text-[11px] text-danger">Pend {formatNumber(pend)}</p>}
@@ -89,7 +89,7 @@ function BloqueGeneral({ mo, curMes, material, push }: {
               <p className="text-[11px] text-text-faint">Inv {c}</p>
               <p className="font-mono text-sm">
                 {formatNumber(ig)}
-                {!!co?.transito && co.transito > 0 && <span className="text-emerald-500"> +{formatNumber(co.transito)}</span>}
+                {!!co?.transito && co.transito > 0 && <span className="text-success"> +{formatNumber(co.transito)}</span>}
                 {lento && <AlertTriangle className="ml-1 inline size-3 text-warning" />}
               </p>
               {!!co?.pend && co.pend > 0 && <p className="text-[11px] text-danger">Pend {formatNumber(co.pend)}</p>}

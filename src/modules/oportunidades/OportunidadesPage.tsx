@@ -67,7 +67,7 @@ function CandidataRow({ c, onCrear }: { c: OportunidadCandidata; onCrear: (c: Op
   if (!abierto) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-border bg-bg-elevated px-3 py-2 text-xs">
-        <span className="font-mono text-accent">{c.material}</span>
+        <span className="font-mono text-text">{c.material}</span>
         <span className="text-text-muted">{c.diasVigencia != null ? `${c.diasVigencia}d` : c.condicion}</span>
         <Button size="sm" variant="outline" onClick={() => setAbierto(true)}><Plus className="size-3" /> Crear oportunidad</Button>
       </div>
@@ -76,7 +76,7 @@ function CandidataRow({ c, onCrear }: { c: OportunidadCandidata; onCrear: (c: Op
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-accent/40 bg-bg-elevated px-3 py-2 text-xs">
       <div className="flex items-center gap-2">
-        <span className="font-mono text-accent">{c.material}</span>
+        <span className="font-mono text-text">{c.material}</span>
         <span className="text-text-muted">{c.diasVigencia != null ? `${c.diasVigencia}d` : c.condicion} · {formatNumber(c.cantidadDisponible)} disp. · {formatCurrency(c.precioOferta)}</span>
       </div>
       <div className="flex flex-wrap items-end gap-2">
@@ -367,7 +367,7 @@ export function OportunidadesPage() {
                     className={cn('flex w-full flex-wrap items-center justify-between gap-2 rounded-md border bg-bg-elevated px-3 py-2 text-left text-xs hover:bg-bg-inset', urgente ? 'border-danger/40' : 'border-border')}
                   >
                     <div className="min-w-0">
-                      <span className="font-mono text-accent">{g.material}</span>
+                      <span className="font-mono text-text">{g.material}</span>
                       <span className="ml-1.5 text-text-faint">{g.descripcion}</span>
                       <span className="ml-1.5 text-text-faint">· {formatNumber(g.cantidadDisponible)} disp.{g.lotesCount > 1 ? ` (${g.lotesCount} lotes)` : ''}</span>
                       {g.diasCaducidad != null && (
@@ -405,7 +405,7 @@ export function OportunidadesPage() {
                       className="flex w-full flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-bg-elevated px-3 py-2 text-left text-xs hover:bg-bg-inset"
                     >
                       <div className="min-w-0">
-                        <span className="font-mono text-accent">{g.material}</span>
+                        <span className="font-mono text-text">{g.material}</span>
                         <span className="ml-1.5 text-text-faint">{g.descripcion}</span>
                         {mejor && <span className="ml-1.5"><StatePill label={mejor.estado.label} cls={mejor.estado.cls} /></span>}
                       </div>
@@ -437,8 +437,8 @@ export function OportunidadesPage() {
               <div className="mt-3 flex flex-col gap-4">
                 <div className="flex flex-wrap gap-2">
                   <StatTile label="Abiertas" value={String(abiertas.length)} />
-                  <StatTile label="Riesgo económico" value={formatCurrency(riesgo)} sub="lotes sin oportunidad" tone="text-danger" title="Valor de los lotes con condición especial que aún no tienen una Oportunidad abierta." />
-                  <StatTile label="Vencen <60d" value={String(venceProximo)} />
+                  <StatTile emphasis="hero" label="Riesgo económico" value={formatCurrency(riesgo)} sub="lotes sin oportunidad" tone={riesgo > 0 ? 'danger' : undefined} title="Valor de los lotes con condición especial que aún no tienen una Oportunidad abierta." />
+                  <StatTile label="Vencen <60d" value={String(venceProximo)} tone={venceProximo > 0 ? 'warning' : undefined} />
                   <StatTile label="Colocación 90d" value={colocacion90 != null ? `${colocacion90}%` : '—'} sub="oportunidades cerradas" title="% de oportunidades cerradas en los últimos 90 días que terminaron colocadas por completo (vs. sin interesados)." />
                 </div>
 

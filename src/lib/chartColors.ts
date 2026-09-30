@@ -1,33 +1,36 @@
-// Chart color tokens, derived from the dataviz skill's validated default
-// palette (references/palette.md). Categorical order is fixed — never
-// cycled arbitrarily — and was chosen to maximize adjacent CVD separation.
-export const CATEGORICAL_LIGHT = [
-  '#2a78d6', // blue
-  '#1baf7a', // aqua
-  '#eda100', // yellow
-  '#008300', // green
-  '#4a3aa7', // violet
-  '#e34948', // red
-  '#e87ba4', // magenta
-  '#eb6834', // orange
-];
+// Chart color tokens. Los valores reales viven en src/index.css como variables
+// CSS (--chart-1..8, --seq-1..7) y cambian solos con el modo claro/oscuro y con
+// la skin (clasico / apple); aqui solo se referencian. Orden categorico fijo —
+// nunca se cicla arbitrariamente — elegido para separar colores adyacentes
+// (daltonismo). Base: dataviz skill (references/palette.md).
+export const CATEGORICAL = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `var(--chart-${n})`);
 
-export const CATEGORICAL_DARK = [
-  '#3987e5',
-  '#199e70',
-  '#c98500',
-  '#008300',
-  '#9085e9',
-  '#e66767',
-  '#d55181',
-  '#d95926',
-];
+// Rampa secuencial de un solo tono (azul), de claro a oscuro, para magnitud.
+export const SEQUENTIAL_BLUE = [1, 2, 3, 4, 5, 6, 7].map((n) => `var(--seq-${n})`);
 
-// Sequential single-hue ramp (blue), light -> dark, for heatmap magnitude.
-export const SEQUENTIAL_BLUE = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
+// Superficies de grafica (ejes, rejilla, tooltip) — mismas variables que la UI.
+export const CHART_UI = {
+  grid: 'var(--border)',
+  axis: 'var(--text-muted)',
+  label: 'var(--text)',
+  neutral: 'var(--text-faint)',
+  positive: 'var(--success)',
+  negative: 'var(--danger)',
+  surface: 'var(--bg-elevated)',
+  border: 'var(--border)',
+  tooltipStyle: {
+    background: 'var(--bg-elevated)',
+    border: '1px solid var(--border)',
+    borderRadius: 8,
+    fontSize: 12,
+    color: 'var(--text)',
+  },
+} as const;
 
-export function categorical(isDark: boolean): string[] {
-  return isDark ? CATEGORICAL_DARK : CATEGORICAL_LIGHT;
+/** El parametro se conserva por compatibilidad: ya no hace falta distinguir el
+ * modo porque las variables CSS resuelven el color segun el tema activo. */
+export function categorical(_isDark?: boolean): string[] {
+  return CATEGORICAL;
 }
 
 export function sequentialStep(value: number, min: number, max: number): string {

@@ -97,7 +97,7 @@ export function OfertaRow({ oferta }: { oferta: Oferta }) {
     <div className="rounded-lg border border-border bg-bg-elevated p-2.5 text-sm">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <span className="font-mono text-xs text-accent">{oferta.material}</span>
+          <span className="font-mono text-xs text-text">{oferta.material}</span>
           <span className="ml-2 text-text-faint text-xs">{new Date(oferta.fechaOferta).toLocaleDateString('es-MX')}</span>
         </div>
         <span className={RESULTADO_CLS[oferta.resultado]}>{RESULTADO_LABEL[oferta.resultado]}</span>

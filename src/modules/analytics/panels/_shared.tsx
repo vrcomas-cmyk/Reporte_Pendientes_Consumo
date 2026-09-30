@@ -138,7 +138,7 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
                   onVerDetalle={() => push({ type: 'sugDetalle', boKey: it.k })}
                   copyItems={copyItems}
                 >
-                <TableRow className={`group ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`}>
+                <TableRow className={`group ${isBloqueado ? 'bg-danger/10 hover:bg-danger/15 [&>td:first-child]:shadow-[inset_3px_0_0_var(--danger)]' : ''}`}>
                   {vis('ejecutivo') && <TableCell>{a.enrich.ejecutivoNombre(b.gpoVdor) || '—'}<div className="text-[11px] text-text-faint">{a.enrich.grupoCliente(b.gpoCte) || '—'}</div></TableCell>}
                   {vis('pedido') && <TableCell><Chip onClick={() => push({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                   {vis('fecha') && <TableCell className="whitespace-nowrap text-xs">{b.fecha || '—'}</TableCell>}
@@ -153,7 +153,7 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
                   {(['1030', '1031', '1032', '1060'] as const).map((alm) => vis(`inv${alm}`) && (
                     <TableCell key={alm} className="text-right">
                       {formatNumber(num(b.invByCenter[alm] || 0))}
-                      {transitoFor(a.rss, b.centroPedido, alm, b.materialBase) > 0 && <div className="text-[10px] text-emerald-500">↻+{formatNumber(transitoFor(a.rss, b.centroPedido, alm, b.materialBase))}</div>}
+                      {transitoFor(a.rss, b.centroPedido, alm, b.materialBase) > 0 && <div className="text-[10px] text-success">↻+{formatNumber(transitoFor(a.rss, b.centroPedido, alm, b.materialBase))}</div>}
                     </TableCell>
                   ))}
                   {vis('bloq') && <TableCell>{b.bloqueado ? <StatePill label={b.bloqueado} cls="amb" /> : '—'}</TableCell>}
@@ -279,7 +279,7 @@ export function ClienteConsumoTable({ rows, rf, push }: {
           <TableBody>
             {shown.map((r, i) => (
               <TableRow key={i} className="group">
-                <TableCell><span className="text-accent">{r.material}</span><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div></TableCell>
+                <TableCell><span className="text-text">{r.material}</span><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div></TableCell>
                 <TableCell className="text-right">{formatNumber(r.cantidadUltima)}<div className="text-[11px] text-text-faint">{r.ultimoMesFacturacion || '—'}</div></TableCell>
                 <TableCell className="text-right">{formatNumber(num(r.raw[RC.cantPen]))}<div className="text-[11px] text-text-faint">{pickField(r.raw, [RC.penFecha]) || '—'}</div></TableCell>
                 <TableCell className="text-right">{formatCurrency(r.precioProm)}</TableCell>
@@ -378,7 +378,7 @@ export function FuentesTable({ fuentes, push, selection }: { fuentes: BOItem['fu
               const vg = vigenciaTxt(f2.fechaCaducidad);
               const sel = selection?.isSelected(f2) ?? false;
               return (
-                <TableRow key={i} className={sel ? 'bg-emerald-500/10' : undefined}>
+                <TableRow key={i} className={sel ? 'bg-success/10' : undefined}>
                   {selection && (
                     <TableCell>
                       <input
@@ -387,7 +387,7 @@ export function FuentesTable({ fuentes, push, selection }: { fuentes: BOItem['fu
                         disabled={!sel && selection.full}
                         onChange={() => selection.onToggle(f2)}
                         title={!sel && selection.full ? 'Máximo 2 lotes seleccionados para este material' : 'Seleccionar para la oferta'}
-                        className="size-3.5 accent-emerald-600"
+                        className="size-3.5 accent-success"
                       />
                     </TableCell>
                   )}
@@ -443,7 +443,7 @@ export function LotesTable({ lotes, a, material }: { lotes: Analytics['lotes']; 
                   <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
                   <TableCell className="text-right align-top">
                     {lotePrecio > 0 && (
-                      <div className="mb-1 font-mono text-emerald-600 dark:text-emerald-400">{formatCurrency(lotePrecio)}<div className="text-[10px] text-text-faint">del lote</div></div>
+                      <div className="mb-1 font-mono text-text">{formatCurrency(lotePrecio)}<div className="text-[10px] text-text-faint">del lote</div></div>
                     )}
                     {precios.length > 0 ? (
                       <div className="inline-flex flex-col gap-0.5">
@@ -495,7 +495,7 @@ export function PrecioCondicionBox({ a, material }: { a: Analytics; material: st
             <div className="truncate text-[11px] text-text-faint">{descripcion || '—'}</div>
             <div className="mt-1.5 flex items-center justify-between gap-2">
               <StatePill label={p.condicion} cls={/corta/i.test(p.condicion) ? 'rojo' : 'gris'} />
-              <div className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">{p.precio ? formatCurrency(p.precio) : '—'}</div>
+              <div className="font-mono text-sm font-semibold text-text">{p.precio ? formatCurrency(p.precio) : '—'}</div>
             </div>
             {p.inv > 0 && <div className="mt-1 text-[11px] text-text-faint">inv {formatNumber(p.inv)}</div>}
           </div>

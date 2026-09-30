@@ -2,82 +2,296 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* =========================================================
+   TOKENS — dos skins (clasico | apple) x dos modos (claro | oscuro)
+
+   html[data-skin="apple"] activa la skin Apple; sin atributo es la clasica.
+   html.dark activa el modo oscuro. Todos los colores estan en hexadecimal
+   (#rrggbb); las transparencias se hacen con color-mix().
+
+   DONDE CAMBIAR EL COLOR DE LAS LETRAS (una vez por skin y modo):
+     --text        texto principal (titulos, valores)
+     --text-muted  texto secundario (descripciones, subtitulos)
+     --text-faint  texto terciario (etiquetas, placeholders, metadatos)
+   Bloques: ":root" (clasico claro), ".dark" (clasico oscuro),
+   ":root[data-skin=apple]" (apple claro) y ":root[data-skin=apple].dark".
+   ========================================================= */
+
+/* ---------- Clasico · claro ---------- */
 :root {
-  --bg: 250 250 249;
-  --bg-elevated: 255 255 255;
-  --bg-inset: 244 244 243;
-  --border: 228 227 224;
-  --border-strong: 210 208 204;
-  --text: 28 27 25;
-  --text-muted: 108 105 99;
-  --text-faint: 150 147 141;
-  --accent: 2 132 199;
-  --accent-soft: 224 242 254;
-  --accent-fg: 255 255 255;
-  --danger: 185 40 40;
-  --warning: 178 108 8;
-  --success: 27 122 69;
-  --ring: 2 132 199;
+  --bg: #fafaf9;
+  --bg-elevated: #ffffff;
+  --bg-inset: #f4f4f3;
+  --border: #e4e3e0;
+  --border-strong: #100e0b;
+
+  --text: #1c1b19;
+  --text-muted: #000000;
+  --text-faint: #000000;
+
+  --accent: #0284c7;
+  --accent-soft: #e0f2fe;
+  --accent-fg: #ffffff;
+
+  /* CONTRATO DE COLOR — un color = un significado en toda la app:
+     text     -> conteos y valores neutros de contexto (sin tono)
+     accent   -> SOLO interaccion: links, seleccion, foco, boton primario
+     success  -> resultado positivo / mejora (▲, altas, retencion sana)
+     warning  -> requiere atencion, no urgente (en riesgo, exceso, vence pronto)
+     danger   -> bloqueante / critico / perdida (bloqueado, quiebre, bajas, ▼)
+     info     -> en curso, ni bueno ni malo (en transito, recuperados, nuevas)
+     Maximo 1-2 KPI con tono por fila, y solo si el valor es > 0. */
+  --info: #6d4ad2;
+  --success: #1b7a45;
+  --warning: #b26c08;
+  --danger: #b92828;
+  --ring: #0284c7;
+
+  /* Paleta categorica de graficas (orden fijo, ver lib/chartColors.ts) */
+  --chart-1: #2a78d6;
+  --chart-2: #1baf7a;
+  --chart-3: #eda100;
+  --chart-4: #008300;
+  --chart-5: #4a3aa7;
+  --chart-6: #e34948;
+  --chart-7: #e87ba4;
+  --chart-8: #eb6834;
+
+  /* Rampa secuencial (heatmap), de menor a mayor magnitud */
+  --seq-1: #cde2fb;
+  --seq-2: #9ec5f4;
+  --seq-3: #6da7ec;
+  --seq-4: #3987e5;
+  --seq-5: #256abf;
+  --seq-6: #184f95;
+  --seq-7: #0d366b;
+
+  --glass: #ffffff;
+  --glass-alpha: 0.8;
+
+  --elev-xs: 0 1px 2px rgb(0 0 0 / 0.04);
+  --elev-sm: 0 1px 3px rgb(0 0 0 / 0.06);
+  --elev-md: 0 6px 16px rgb(0 0 0 / 0.08);
+  --elev-lg: 0 12px 32px rgb(0 0 0 / 0.12);
+
+  --skin-radius-sm: 6px;
+  --skin-radius-md: 8px;
+  --skin-radius-lg: 12px;
 }
 
+/* ---------- Clasico · oscuro ---------- */
 .dark {
-  --bg: 20 20 19;
-  --bg-elevated: 28 28 27;
-  --bg-inset: 15 15 14;
-  --border: 45 45 43;
-  --border-strong: 62 62 59;
-  --text: 237 236 233;
-  --text-muted: 163 160 154;
-  --text-faint: 118 116 111;
-  --accent: 56 189 248;
-  --accent-soft: 12 74 110;
-  --accent-fg: 8 20 32;
-  --danger: 240 100 100;
-  --warning: 232 168 66;
-  --success: 96 201 140;
-  --ring: 56 189 248;
+  --bg: #141413;
+  --bg-elevated: #1c1c1b;
+  --bg-inset: #0f0f0e;
+  --border: #2d2d2b;
+  --border-strong: #3e3e3b;
+
+  --text: #edece9;
+  --text-muted: #f0ede5cf;
+  --text-faint: #f0ede5cf;
+
+  --accent: #38bdf8;
+  --accent-soft: #0c4a6e;
+  --accent-fg: #081420;
+
+  --info: #a594f0;
+  --success: #30d158;
+  --warning: #e8a842;
+  --danger: #f06464;
+  --ring: #38bdf8;
+
+  --chart-1: #3987e5;
+  --chart-2: #199e70;
+  --chart-3: #c98500;
+  --chart-4: #008300;
+  --chart-5: #9085e9;
+  --chart-6: #e66767;
+  --chart-7: #d55181;
+  --chart-8: #d95926;
+
+  --glass: #1c1c1b;
+  --glass-alpha: 0.8;
+
+  --elev-xs: 0 1px 2px rgb(0 0 0 / 0.25);
+  --elev-sm: 0 1px 3px rgb(0 0 0 / 0.3);
+  --elev-md: 0 6px 16px rgb(0 0 0 / 0.35);
+  --elev-lg: 0 12px 32px rgb(0 0 0 / 0.45);
 }
+
+/* ---------- Apple · claro ---------- */
+:root[data-skin="apple"] {
+  --bg: #f6f6f8;
+  --bg-elevated: #ffffff;
+  --bg-inset: #eeeef0;
+  --border: #e1e1e6;
+  --border-strong: #007aff;
+
+  --text: #1d1d1f;
+  --text-muted: #040405;
+  --text-faint: #0b0b0b;
+
+  --accent: #007aff;
+  --accent-soft: #e6f0ff;
+  --accent-fg: #ffffff;
+
+  --info: #af52de;
+  --success: #248a3d;
+  --warning: #c96800;
+  --danger: #ff3b30;
+  --ring: #007aff;
+
+  /* Colores de sistema de Apple, en el mismo orden categorico */
+  --chart-1: #007aff;
+  --chart-2: #32ade6;
+  --chart-3: #ffcc00;
+  --chart-4: #34c759;
+  --chart-5: #5856d6;
+  --chart-6: #ff3b30;
+  --chart-7: #ff2d55;
+  --chart-8: #ff9500;
+
+  --seq-1: #d6e8ff;
+  --seq-2: #a8cfff;
+  --seq-3: #70b1ff;
+  --seq-4: #298dff;
+  --seq-5: #006ae0;
+  --seq-6: #004dad;
+  --seq-7: #003378;
+
+  --glass: #ffffff;
+  --glass-alpha: 0.78;
+
+  --elev-xs: 0 1px 2px rgb(0 0 0 / 0.04);
+  --elev-sm: 0 2px 8px rgb(0 0 0 / 0.06);
+  --elev-md: 0 8px 24px rgb(0 0 0 / 0.08);
+  --elev-lg: 0 16px 40px rgb(0 0 0 / 0.12);
+
+  --skin-radius-sm: 8px;
+  --skin-radius-md: 12px;
+  --skin-radius-lg: 16px;
+}
+
+/* ---------- Apple · oscuro ---------- */
+:root[data-skin="apple"].dark {
+  --bg: #121214;
+  --bg-elevated: #1d1d1f;
+  --bg-inset: #0c0c0e;
+  --border: #adadb644;
+  --border-strong: #38bdf8;
+
+  --text: #f5f5f7;
+  --text-muted: #f1f1fb;
+  --text-faint: #ffffff;
+
+  --accent: #38bdf8;
+  --accent-soft: #184878;
+  --accent-fg: #ffffff;
+
+  --info: #bf5af2;
+  --success: #30d158;
+  --warning: #ff9f0a;
+  --danger: #ff453a;
+  --ring: #38bdf8;
+
+  --chart-1: #0a84ff;
+  --chart-2: #64d2ff;
+  --chart-3: #ffd60a;
+  --chart-4: #30d158;
+  --chart-5: #5e5ce6;
+  --chart-6: #ff453a;
+  --chart-7: #ff375f;
+  --chart-8: #ff9f0a;
+
+  --glass: #1e1e20;
+  --glass-alpha: 0.78;
+
+  --elev-xs: 0 1px 2px rgb(0 0 0 / 0.25);
+  --elev-sm: 0 2px 8px rgb(0 0 0 / 0.3);
+  --elev-md: 0 8px 24px rgb(0 0 0 / 0.35);
+  --elev-lg: 0 16px 40px rgb(0 0 0 / 0.45);
+}
+
+/* =========================================================
+   TAILWIND THEME
+   ========================================================= */
 
 @theme inline {
-  --color-bg: rgb(var(--bg));
-  --color-bg-elevated: rgb(var(--bg-elevated));
-  --color-bg-inset: rgb(var(--bg-inset));
-  --color-border: rgb(var(--border));
-  --color-border-strong: rgb(var(--border-strong));
-  --color-text: rgb(var(--text));
-  --color-text-muted: rgb(var(--text-muted));
-  --color-text-faint: rgb(var(--text-faint));
-  --color-accent: rgb(var(--accent));
-  --color-accent-soft: rgb(var(--accent-soft));
-  --color-accent-fg: rgb(var(--accent-fg));
-  --color-danger: rgb(var(--danger));
-  --color-warning: rgb(var(--warning));
-  --color-success: rgb(var(--success));
-  --color-ring: rgb(var(--ring));
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-inset: var(--bg-inset);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-info: var(--info);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-ring: var(--ring);
+
+  --shadow-xs: var(--elev-xs);
+  --shadow-sm: var(--elev-sm);
+  --shadow-md: var(--elev-md);
+  --shadow-lg: var(--elev-lg);
+
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 }
 
+/* Apple usa SF Pro cuando existe (macOS/iOS) y cae a Segoe UI / Inter */
+:root[data-skin="apple"] {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* =========================================================
+   BASE (compartida por ambas skins)
+   ========================================================= */
+
 * {
-  border-color: rgb(var(--border));
+  border-color: var(--border);
 }
 
 html, body, #root {
   height: 100%;
 }
 
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
-  background: rgb(var(--bg));
-  color: rgb(var(--text));
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-sans);
   font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
-.font-mono { font-family: var(--font-mono); }
+.font-mono { font-family: var(--font-mono); font-feature-settings: "tnum" 1; }
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -88,7 +302,118 @@ body {
   }
 }
 
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgb(var(--border-strong)); border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: rgb(var(--text-faint)); }
+/* =========================================================
+   APPLE — refinamientos de skin.
+   Van dentro de @layer base para que las utilidades de Tailwind
+   (text-xs, rounded-md, etc.) sigan ganando sobre estas reglas.
+   ========================================================= */
+
+@layer base {
+  html[data-skin="apple"] {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  html[data-skin="apple"] body {
+    background:
+      radial-gradient(circle at top, rgb(255 255 255 / 0.75), transparent 42%),
+      var(--bg);
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  }
+
+  html[data-skin="apple"].dark body {
+    background:
+      radial-gradient(circle at top, rgb(255 255 255 / 0.035), transparent 42%),
+      var(--bg);
+  }
+
+  html[data-skin="apple"] h1,
+  html[data-skin="apple"] h2,
+  html[data-skin="apple"] h3 {
+    letter-spacing: -0.025em;
+  }
+
+  html[data-skin="apple"] :focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--ring) 18%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--ring) 65%, transparent);
+  }
+
+  html[data-skin="apple"] button:not(:disabled):active,
+  html[data-skin="apple"] [role="button"]:not([aria-disabled="true"]):active {
+    transform: scale(0.97);
+  }
+
+  html[data-skin="apple"] input:focus,
+  html[data-skin="apple"] textarea:focus,
+  html[data-skin="apple"] select:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--ring) 75%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 14%, transparent);
+  }
+
+  html[data-skin="apple"] input::placeholder,
+  html[data-skin="apple"] textarea::placeholder {
+    color: var(--text-faint);
+  }
+
+  html[data-skin="apple"] * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--border-strong) 75%, transparent) transparent;
+  }
+  html[data-skin="apple"] ::-webkit-scrollbar { width: 8px; height: 8px; }
+  html[data-skin="apple"] ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--border-strong) 72%, transparent);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
+  }
+  html[data-skin="apple"] ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--text-faint) 72%, transparent);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+}
+
+/* =========================================================
+   COMPONENTES OPCIONALES (funcionan en ambas skins y modos)
+   ========================================================= */
+
+.apple-glass {
+  background: color-mix(in srgb, var(--glass) calc(var(--glass-alpha) * 100%), transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  box-shadow: var(--elev-sm);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.apple-card {
+  background: var(--bg-elevated);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--skin-radius-lg);
+  box-shadow: var(--elev-xs);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.apple-card:hover {
+  border-color: color-mix(in srgb, var(--border-strong) 85%, transparent);
+  box-shadow: var(--elev-sm);
+}
+
+.apple-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.apple-pill-accent  { background: var(--accent-soft); color: var(--accent); }
+.apple-pill-success { background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success); }
+.apple-pill-warning { background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning); }
+.apple-pill-danger  { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }

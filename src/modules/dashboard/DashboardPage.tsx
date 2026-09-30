@@ -33,8 +33,7 @@ import { KpiTile } from './KpiTile';
 import { Heatmap } from './Heatmap';
 import { useDataStore } from '@/store/dataStore';
 import { getLatestAnalysis } from '@/services/reportService';
-import { useUiStore } from '@/store/uiStore';
-import { categorical } from '@/lib/chartColors';
+import { categorical, CHART_UI } from '@/lib/chartColors';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { topEjecutivos as computeTopEjecutivos } from '@/core/analysis';
 
@@ -42,11 +41,10 @@ export function DashboardPage() {
   const activeAnalysis = useDataStore((s) => s.activeAnalysis);
   const setActiveAnalysis = useDataStore((s) => s.setActiveAnalysis);
   const catalog = useDataStore((s) => s.catalog);
-  const theme = useUiStore((s) => s.theme);
   const [loading, setLoading] = useState(!activeAnalysis);
-  const palette = categorical(theme === 'dark');
-  const gridColor = theme === 'dark' ? '#2d2d2b' : '#e4e3e0';
-  const axisColor = theme === 'dark' ? '#a3a09a' : '#6c6963';
+  const palette = categorical();
+  const gridColor = CHART_UI.grid;
+  const axisColor = CHART_UI.axis;
 
   useEffect(() => {
     if (activeAnalysis) {
@@ -140,8 +138,10 @@ export function DashboardPage() {
       {/* Two-tier KPI hierarchy instead of 8 equal-weight tiles in one row:
           the 4 "needs attention" numbers (what to act on today) lead, larger;
           the 4 context numbers (what the analysis covers) follow, smaller. */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <KpiTile
+          emphasis="hero"
+          className="col-span-2"
           label="Bloqueado"
           value={formatCurrency(kpis?.bloqueadosImportePendiente ?? 0)}
           icon={Ban}
@@ -152,9 +152,9 @@ export function DashboardPage() {
               : undefined
           }
         />
-        <KpiTile label="Corta caducidad" value={formatNumber(kpis?.productosCortaCaducidad ?? 0)} icon={Clock4} tone="danger" />
-        <KpiTile label="Sin consumo" value={formatNumber(kpis?.productosSinConsumo ?? 0)} icon={PackageX} tone="warning" />
-        <KpiTile label="Lento movimiento" value={formatNumber(kpis?.productosLentoMovimiento ?? 0)} icon={TrendingDown} tone="warning" />
+        <KpiTile label="Corta caducidad" value={formatNumber(kpis?.productosCortaCaducidad ?? 0)} icon={Clock4} tone="warning" />
+        <KpiTile label="Sin consumo" value={formatNumber(kpis?.productosSinConsumo ?? 0)} icon={PackageX} />
+        <KpiTile label="Lento movimiento" value={formatNumber(kpis?.productosLentoMovimiento ?? 0)} icon={TrendingDown} />
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <KpiTile label="Materiales analizados" value={formatNumber(kpis?.materialesAnalizados ?? 0)} icon={Boxes} size="sm" />
@@ -164,6 +164,31 @@ export function DashboardPage() {
         <KpiTile label="Inventario total" value={formatNumber(kpis?.inventarioTotal ?? 0)} icon={Warehouse} size="sm" />
         <KpiTile label="Valor económico" value={formatCurrency(kpis?.valorEconomico ?? 0)} icon={CircleDollarSign} size="sm" />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Facturación mensual</CardTitle>
+          <CardDescription>Resumen_Fac agrupado por mes</CardDescription>
+        </CardHeader>
+        <CardContent className="h-72">
+          {!activeAnalysis ? (
+            <div className="flex h-full items-center justify-center text-xs text-text-faint">Sin datos — carga el reporte diario.</div>
+          ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={lineData}>
+              <CartesianGrid stroke={gridColor} vertical={false} />
+              <XAxis dataKey="mes" stroke={axisColor} fontSize={11} />
+              <YAxis stroke={axisColor} fontSize={11} tickFormatter={(v) => formatNumber(v)} />
+              <Tooltip
+                formatter={(v) => formatCurrency(Number(v))}
+                contentStyle={CHART_UI.tooltipStyle}
+              />
+              <Line type="monotone" dataKey="importe" stroke={palette[0]} strokeWidth={2} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card>
@@ -186,7 +211,7 @@ export function DashboardPage() {
                     const desc = payload?.[0]?.payload?.desc as string | undefined;
                     return desc ? `${name} — ${desc}` : name;
                   }}
-                  contentStyle={{ background: theme === 'dark' ? '#1c1c1b' : '#fff', border: `1px solid ${gridColor}`, borderRadius: 8, fontSize: 12 }}
+                  contentStyle={CHART_UI.tooltipStyle}
                 />
                 <Bar dataKey="importe" fill={palette[0]} radius={[0, 4, 4, 0]} maxBarSize={22} />
               </BarChart>
@@ -208,13 +233,13 @@ export function DashboardPage() {
               <PieChart>
                 <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2}>
                   {pieData.map((_, i) => (
-                    <Cell key={i} fill={palette[i % palette.length]} stroke={theme === 'dark' ? '#1c1c1b' : '#ffffff'} strokeWidth={2} />
+                    <Cell key={i} fill={palette[i % palette.length]} stroke={CHART_UI.surface} strokeWidth={2} />
                   ))}
                 </Pie>
                 <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 11 }} />
                 <Tooltip
                   formatter={(v) => formatCurrency(Number(v))}
-                  contentStyle={{ background: theme === 'dark' ? '#1c1c1b' : '#fff', border: `1px solid ${gridColor}`, borderRadius: 8, fontSize: 12 }}
+                  contentStyle={CHART_UI.tooltipStyle}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -222,31 +247,6 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Facturación mensual</CardTitle>
-          <CardDescription>Resumen_Fac agrupado por mes</CardDescription>
-        </CardHeader>
-        <CardContent className="h-72">
-          {!activeAnalysis ? (
-            <div className="flex h-full items-center justify-center text-xs text-text-faint">Sin datos — carga el reporte diario.</div>
-          ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={lineData}>
-              <CartesianGrid stroke={gridColor} vertical={false} />
-              <XAxis dataKey="mes" stroke={axisColor} fontSize={11} />
-              <YAxis stroke={axisColor} fontSize={11} tickFormatter={(v) => formatNumber(v)} />
-              <Tooltip
-                formatter={(v) => formatCurrency(Number(v))}
-                contentStyle={{ background: theme === 'dark' ? '#1c1c1b' : '#fff', border: `1px solid ${gridColor}`, borderRadius: 8, fontSize: 12 }}
-              />
-              <Line type="monotone" dataKey="importe" stroke={palette[0]} strokeWidth={2} dot={{ r: 3 }} />
-            </LineChart>
-          </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {/* No separate "Top 5 materiales" list here — it duplicated the bar

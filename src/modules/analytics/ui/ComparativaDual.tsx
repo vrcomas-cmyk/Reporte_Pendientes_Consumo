@@ -5,7 +5,7 @@ import { formatCurrency } from '@/lib/utils';
 function pctTxt(p: number) {
   const up = p >= 0;
   return (
-    <span className={up ? 'text-emerald-500' : 'text-danger'}>
+    <span className={up ? 'text-success' : 'text-danger'}>
       {up ? '▲' : '▼'} {Math.abs(p).toFixed(1)}%
     </span>
   );

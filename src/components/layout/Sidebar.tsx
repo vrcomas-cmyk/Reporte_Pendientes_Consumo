@@ -138,7 +138,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
             <Warehouse className="size-4" />
           </div>
           {expanded && (
-            <span className="font-display text-sm font-semibold tracking-tight text-text">DEGASA</span>
+            <span className="font-display text-sm font-semibold tracking-tight text-text">DEGASAS</span>
           )}
           {mobileOpen && (
             <button

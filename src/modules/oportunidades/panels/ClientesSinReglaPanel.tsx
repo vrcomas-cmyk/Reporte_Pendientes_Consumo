@@ -13,7 +13,7 @@ export function ClientesSinReglaPanel({ panel }: { panel: Extract<Panel, { type:
 
   return (
     <div>
-      <span className="font-mono text-xs text-accent">{material}</span>
+      <span className="font-mono text-xs text-text">{material}</span>
       <h2 className="font-display text-lg font-semibold">{descripcion || material}</h2>
       <p className="mt-1 text-sm text-text-muted">
         {clientes.length} cliente(s) compran este material pero su regla actual no lo cubre (o no tienen regla) — ordenados por mejor rotación primero.

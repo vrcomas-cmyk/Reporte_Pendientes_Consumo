@@ -2740,8 +2740,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/InventarioCentrosPanel.tsx": {
-    "mtime": 1790631969.1274712,
-    "ast_hash": "f8ac72bb24fda8ebb93102e7a6d1c5f8",
+    "mtime": 1790632267.7490387,
+    "ast_hash": "daa3a7b24ea6a2ac91fb86d04f756130",
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/PedidoNavControl.tsx": {

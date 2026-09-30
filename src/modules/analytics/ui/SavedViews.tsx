@@ -64,7 +64,7 @@ export function SavedViewsControl<T>({ views, onApply, onSave, onRemove }: {
               {v.name}
             </button>
             <TooltipHint text="Borrar vista">
-              <button type="button" onClick={() => onRemove(v.name)} aria-label="Borrar vista" className="rounded p-1 text-text-faint opacity-0 hover:text-red-500 group-hover:opacity-100">
+              <button type="button" onClick={() => onRemove(v.name)} aria-label="Borrar vista" className="rounded p-1 text-text-faint opacity-0 hover:text-danger group-hover:opacity-100">
                 <Trash2 className="size-3.5" />
               </button>
             </TooltipHint>

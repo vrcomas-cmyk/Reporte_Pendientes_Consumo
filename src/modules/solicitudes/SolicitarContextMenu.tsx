@@ -54,7 +54,7 @@ export function SolicitarContextMenu({ children, onSolicitar, solicitado, label,
         )}
         {solicitado && (
           <ContextMenuItem disabled>
-            <CheckCircle2 className="size-3.5 text-emerald-500" /> Ya solicitado
+            <CheckCircle2 className="size-3.5 text-success" /> Ya solicitado
           </ContextMenuItem>
         )}
         {copyItems && copyItems.length > 0 && (

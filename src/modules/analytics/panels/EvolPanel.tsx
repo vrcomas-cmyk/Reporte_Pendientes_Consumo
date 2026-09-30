@@ -30,7 +30,7 @@ export function EvolPanel({ panel, a, push }: { panel: Extract<Panel, { type: 'e
             <TableBody>
               {mats.map((m) => (
                 <TableRow key={m.material} className="group">
-                  <TableCell><span className="text-accent">{m.material}</span><div className="text-[11px] text-text-faint max-w-72 truncate">{m.texto}</div></TableCell>
+                  <TableCell><span className="text-text">{m.material}</span><div className="text-[11px] text-text-faint max-w-72 truncate">{m.texto}</div></TableCell>
                   <TableCell>{m.sector || '—'}<div className="text-[11px] text-text-faint">{m.grupo}</div></TableCell>
                   <TableCell>{m.ultimo ? mesLabel(m.ultimo.mes) : '—'}</TableCell>
                   <TableCell className="text-right">{m.ultimo ? formatCurrency(m.ultimo.imp) : '—'}</TableCell>
