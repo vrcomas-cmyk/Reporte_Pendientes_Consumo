@@ -8,7 +8,7 @@ import { GlobalKeybindings } from '@/components/navigation/GlobalKeybindings';
 import { CalculatorWidget } from '@/components/widgets/CalculatorWidget';
 import { useUiStore } from '@/store/uiStore';
 import { useDataStore } from '@/store/dataStore';
-import { getCachedCatalog, syncCatalogFromAppScript } from '@/services/catalogService';
+import { getCachedCatalog, checkForCatalogUpdate } from '@/services/catalogService';
 import { getCachedIncremento } from '@/services/incrementoService';
 import { checkForReportSheetsUpdate } from '@/services/reportSheetsService';
 import { getLatestAnalysis } from '@/services/reportService';
@@ -76,17 +76,55 @@ export function AppShell() {
       if (incremento) setIncremento(incremento);
       setBootstrapped(true);
 
-      // First-ever boot with nothing cached yet: sync automatically so the
-      // user isn't required to find and click a button before anything works.
-      if (!cached) {
-        syncCatalogFromAppScript()
-          .then((c) => !cancelled && setCatalog(c))
-          .catch((e) => {
-            logError('catalog-sync-failed', e instanceof Error ? e.message : String(e));
-          });
-      }
-
+      startCatalogWatch();
       startReportSheetsWatch();
+    }
+
+    // Catálogo maestro: se revisa al abrir, al volver a la pestaña y cada 10 min
+    // mientras esté visible. Antes solo se descargaba si NO había cache, así que
+    // los cambios del Sheet no llegaban nunca sin el botón manual. La revisión
+    // es barata (`?meta=1` → modifiedTime) y solo descarga si algo cambió; ver
+    // `checkForCatalogUpdate`. Si falla, se conserva el catálogo cacheado y el
+    // error queda visible en el Topbar (`catalogError`).
+    function startCatalogWatch() {
+      const check = () => {
+        const st = useDataStore.getState();
+        const hadCatalog = !!st.catalog;
+        // Solo el primer arranque sin cache muestra "Sincronizando…"; las
+        // revisiones en segundo plano son silenciosas.
+        if (!hadCatalog) st.setCatalogLoading(true);
+        checkForCatalogUpdate({ cachedLoadedAt: st.catalog?.loadedAt })
+          .then(({ changed, catalog }) => {
+            if (cancelled) return;
+            st.setCatalogError(null);
+            if (changed && catalog) {
+              st.setCatalog(catalog);
+              if (hadCatalog) toast.info('Catálogo actualizado', 'Se sincronizó automáticamente desde Google Sheets.');
+            }
+          })
+          .catch((e) => {
+            const msg = e instanceof Error ? e.message : String(e);
+            logError('catalog-sync-failed', msg);
+            if (!cancelled) st.setCatalogError(msg);
+          })
+          .finally(() => {
+            if (!hadCatalog) st.setCatalogLoading(false);
+          });
+      };
+
+      const first = window.setTimeout(check, 0);
+      const interval = window.setInterval(() => {
+        if (document.visibilityState === 'visible') check();
+      }, 10 * 60_000);
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') check();
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      cleanupCatalog = () => {
+        window.clearTimeout(first);
+        window.clearInterval(interval);
+        document.removeEventListener('visibilitychange', onVisible);
+      };
     }
 
     // "Revisar al abrir/enfocar": on mount (after the restore above) and
@@ -146,11 +184,13 @@ export function AppShell() {
     }
 
     let cleanupVisibility: (() => void) | undefined;
+    let cleanupCatalog: (() => void) | undefined;
     void bootstrap();
 
     return () => {
       cancelled = true;
       cleanupVisibility?.();
+      cleanupCatalog?.();
     };
   }, [setCatalog, setSettings, setActiveAnalysis, setIncremento, setBootstrapped]);
 

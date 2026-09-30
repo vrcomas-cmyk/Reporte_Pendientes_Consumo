@@ -76,10 +76,10 @@ export function HoyPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Pedidos bloqueados" value={formatNumber(bloqueados.length)} sub={formatCurrency(bloqueadosImp)} tone="text-danger" />
-        <StatTile label="Clientes en riesgo" value={formatNumber(riesgo.length)} sub="≥3 compras, 3-24m sin comprar" tone="text-warning" />
-        <StatTile label="Lotes por vencer (≤30d)" value={formatNumber(lotesPorVencer.length)} sub={`${lotesPorVencer.filter((l) => l.conDemanda).length} con demanda activa`} tone="text-danger" />
-        <StatTile label="En riesgo por caducidad (≤12m)" value={formatCurrency(riesgoCaducidadImpTotal)} sub={`${formatCurrency(riesgoCaducidadImpSinDemanda)} sin demanda reciente`} tone="text-danger" />
+        <StatTile emphasis="hero" label="En riesgo por caducidad (≤12m)" value={formatCurrency(riesgoCaducidadImpTotal)} sub={`${formatCurrency(riesgoCaducidadImpSinDemanda)} sin demanda reciente`} tone="danger" />
+        <StatTile label="Pedidos bloqueados" value={formatNumber(bloqueados.length)} sub={formatCurrency(bloqueadosImp)} tone="danger" />
+        <StatTile label="Lotes por vencer (≤30d)" value={formatNumber(lotesPorVencer.length)} sub={`${lotesPorVencer.filter((l) => l.conDemanda).length} con demanda activa`} tone="warning" />
+        <StatTile label="Clientes en riesgo" value={formatNumber(riesgo.length)} sub="≥3 compras, 3-24m sin comprar" tone="warning" />
       </div>
 
       <Card>
@@ -99,36 +99,11 @@ export function HoyPage() {
                     onVerDetalle={() => open({ type: 'sugDetalle', boKey: it.k })}
                     copyItems={[{ label: 'Pedido', value: it.bo.pedido }, { label: 'Material', value: it.bo.materialBase }]}
                   >
-                    <TableRow className="cursor-pointer bg-amber-400/20 hover:bg-amber-400/30" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
+                    <TableRow className="cursor-pointer bg-danger/10 hover:bg-danger/15 [&>td:first-child]:shadow-[inset_3px_0_0_var(--danger)]" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'sugDetalle', boKey: it.k })}>
                       <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: it.bo.pedido })}>{it.bo.pedido}</Chip></TableCell>
                       <TableCell className="max-w-64 truncate">{it.bo.razonSocial}</TableCell>
                       <TableCell><Chip onClick={() => open({ type: 'material', material: it.bo.materialBase })}>{it.bo.materialBase}</Chip></TableCell>
                       <TableCell className="text-right">{formatCurrency(imp)}</TableCell>
-                    </TableRow>
-                  </RowContextMenu>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Users className="size-4 text-warning" /> Clientes en riesgo de abandono</CardTitle>
-          <CardDescription>De Análisis — compraban seguido y llevan 3-24 meses sin volver</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {riesgo.length === 0 ? <p className="text-sm text-text-muted">Sin clientes en riesgo.</p> : (
-            <Table wrapperClassName="max-h-72 rounded-lg border border-border">
-              <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead className="text-right">Base 12m</TableHead><TableHead>Situación</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {riesgo.map((c) => (
-                  <RowContextMenu key={c.code} label={c.razon || c.code} onVerDetalle={() => open({ type: 'evol', kind: 'solic', key: c.code })} copyItems={[{ label: 'Cliente', value: c.razon }]}>
-                    <TableRow className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'evol', kind: 'solic', key: c.code })}>
-                      <TableCell className="max-w-72 truncate"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: c.code })}>{c.razon || '—'}</Chip><div className="text-[11px] text-text-faint">{c.ejec || '—'}</div></TableCell>
-                      <TableCell className="text-right">{formatCurrency(c.base ?? 0)}</TableCell>
-                      <TableCell>{c.sinComprar} m sin comprar</TableCell>
                     </TableRow>
                   </RowContextMenu>
                 ))}
@@ -155,7 +130,7 @@ export function HoyPage() {
                       <TableCell className="whitespace-nowrap text-xs">{l.lote || '—'} · {l.centro}</TableCell>
                       <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
                       <TableCell className="whitespace-nowrap text-xs">{l.dias} d<div className="text-[10px] text-text-faint">{formatFechaCaducidad(l.fechaCaducidad)}</div></TableCell>
-                      <TableCell>{l.conDemanda ? <span className="text-emerald-500">Activa</span> : <span className="text-text-faint">Sin consumo reciente</span>}</TableCell>
+                      <TableCell>{l.conDemanda ? <span className="text-success">Activa</span> : <span className="text-text-faint">Sin consumo reciente</span>}</TableCell>
                     </TableRow>
                   </RowContextMenu>
                 ))}
@@ -182,6 +157,31 @@ export function HoyPage() {
                     <TableCell className="text-right">{formatCurrency(m.importeTotal)}</TableCell>
                     <TableCell className="text-right text-danger">{formatCurrency(m.importeTotal - m.importeConDemanda)}</TableCell>
                   </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Users className="size-4 text-warning" /> Clientes en riesgo de abandono</CardTitle>
+          <CardDescription>De Análisis — compraban seguido y llevan 3-24 meses sin volver</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {riesgo.length === 0 ? <p className="text-sm text-text-muted">Sin clientes en riesgo.</p> : (
+            <Table wrapperClassName="max-h-72 rounded-lg border border-border">
+              <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead className="text-right">Base 12m</TableHead><TableHead>Situación</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {riesgo.map((c) => (
+                  <RowContextMenu key={c.code} label={c.razon || c.code} onVerDetalle={() => open({ type: 'evol', kind: 'solic', key: c.code })} copyItems={[{ label: 'Cliente', value: c.razon }]}>
+                    <TableRow className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'evol', kind: 'solic', key: c.code })}>
+                      <TableCell className="max-w-72 truncate"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: c.code })}>{c.razon || '—'}</Chip><div className="text-[11px] text-text-faint">{c.ejec || '—'}</div></TableCell>
+                      <TableCell className="text-right">{formatCurrency(c.base ?? 0)}</TableCell>
+                      <TableCell>{c.sinComprar} m sin comprar</TableCell>
+                    </TableRow>
+                  </RowContextMenu>
                 ))}
               </TableBody>
             </Table>

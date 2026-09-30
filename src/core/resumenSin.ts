@@ -198,7 +198,7 @@ export const COBERTURA_LABEL: Record<CoberturaEstado, string> = {
   quiebre: 'Quiebre', sano: 'Sano', aceptable: 'Aceptable', exceso: 'Exceso', inmovilizado: 'Inmovilizado', sinDatos: 'Sin datos',
 };
 export const COBERTURA_CLS: Record<CoberturaEstado, string> = {
-  quiebre: 'rojo', sano: 'verde', aceptable: 'gris', exceso: 'amb', inmovilizado: 'vio', sinDatos: 'gris',
+  quiebre: 'rojo', sano: 'verde', aceptable: 'gris', exceso: 'amb', inmovilizado: 'amb', sinDatos: 'gris',
 };
 
 /** Definición corta de cada estado de cobertura, para tooltip en el badge de

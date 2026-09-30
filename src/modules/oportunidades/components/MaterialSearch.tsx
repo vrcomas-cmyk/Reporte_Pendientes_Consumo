@@ -31,7 +31,7 @@ export function MaterialSearch() {
               className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-bg-inset"
               onClick={() => navigate(`/oportunidades/material/${encodeURIComponent(mat)}`)}
             >
-              <span className="font-mono text-xs text-accent">{mat}</span>
+              <span className="font-mono text-xs text-text">{mat}</span>
               <span className="truncate text-text">{texto || '—'}</span>
             </button>
           ))}

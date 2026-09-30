@@ -183,7 +183,7 @@ export function MaterialColocacionPanel({ panel, a }: { panel: Extract<Panel, { 
 
   return (
     <div>
-      <span className="font-mono text-xs text-accent">{material}</span>
+      <span className="font-mono text-xs text-text">{material}</span>
       <h2 className="font-display text-lg font-semibold">{descripcion || material}</h2>
       <p className="mt-1 text-sm text-text-muted">{clientes.length} cliente(s) aceptarían este material bajo su regla ya configurada.</p>
 
@@ -260,7 +260,7 @@ export function MaterialColocacionPanel({ panel, a }: { panel: Extract<Panel, { 
       <div className="mt-4 flex flex-wrap gap-2">
         <StatTile label="Ya compran este material" value={String(yaConsumen.length)} tone="text-accent" />
         <StatTile label="No lo compran aún" value={String(noConsumen.length)} />
-        <StatTile label="Con pedido de este material" value={String(filas.filter((f) => f.pendientesEsteMaterial > 0).length)} tone="text-emerald-600" />
+        <StatTile label="Con pedido de este material" value={String(filas.filter((f) => f.pendientesEsteMaterial > 0).length)} tone="text-success" />
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">

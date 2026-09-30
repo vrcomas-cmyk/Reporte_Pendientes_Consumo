@@ -486,9 +486,9 @@ export function SugerenciasPage() {
       {agrupado && (
       <div className="flex flex-wrap items-start gap-3">
         <div className="inline-grid grid-cols-2 content-start gap-2">
+          <StatTile emphasis="hero" label="Importe pendiente" value={formatCurrency(kpis.impTot)} sub={<><span className="mr-1 inline-block size-1.5 rounded-full bg-success" />{formatCurrency(kpis.impTot - kpis.impBloq)} libre · <span className="mr-1 inline-block size-1.5 rounded-full bg-danger" />{formatCurrency(kpis.impBloq)} bloqueado</>} />
+          <StatTile compact label="Cant. pendiente" value={formatNumber(kpis.pendTot)} sub={<><span className="mr-1 inline-block size-1.5 rounded-full bg-success" />{formatNumber(kpis.pendTot - kpis.pendBloq)} · <span className="mr-1 inline-block size-1.5 rounded-full bg-danger" />{formatNumber(kpis.pendBloq)}</>} />
           <StatTile compact label="Renglones BO" value={formatNumber(filtered.length)} />
-          <StatTile compact label="Cant. pendiente" value={formatNumber(kpis.pendTot)} sub={<>🟢 {formatNumber(kpis.pendTot - kpis.pendBloq)} · 🟡 {formatNumber(kpis.pendBloq)}</>} />
-          <StatTile compact label="Importe pendiente" value={formatCurrency(kpis.impTot)} sub={<>🟢 {formatCurrency(kpis.impTot - kpis.impBloq)} · 🟡 {formatCurrency(kpis.impBloq)}</>} />
           {!fuenteOculto && <StatTile compact label="Con fuentes" value={formatNumber(kpis.conF)} />}
         </div>
         <Ranking title="Top 10 material por importe pendiente" items={kpis.rk} money wide onRow={(m) => open({ type: 'material', material: m })} className="min-w-[420px] flex-1" />
@@ -668,7 +668,7 @@ export function SugerenciasPage() {
                     onVerDetalle={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosLista })}
                     copyItems={copyItems}
                   >
-                  <TableRow ref={measureElement} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosLista })}>
+                  <TableRow ref={measureElement} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-danger/10 hover:bg-danger/15 [&>td:first-child]:shadow-[inset_3px_0_0_var(--danger)]' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosLista })}>
                     {!fuenteOculto && (
                       <TableCell onClick={(ev) => ev.stopPropagation()}>
                         {it.fuentes.length > 0 && (
@@ -681,7 +681,7 @@ export function SugerenciasPage() {
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}
                     {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial} <ClienteOportunidadBadge dest={b.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
-                    {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-success">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
+                    {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
                     {vis('sector') && <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>}
                     {vis('cantped') && <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>}
                     {vis('pend') && <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>}
@@ -794,13 +794,13 @@ export function SugerenciasPage() {
                     onVerDetalle={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosListaRaw })}
                     copyItems={copyItems}
                   >
-                  <TableRow ref={measureElementRaw} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosListaRaw })}>
+                  <TableRow ref={measureElementRaw} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-danger/10 hover:bg-danger/15 [&>td:first-child]:shadow-[inset_3px_0_0_var(--danger)]' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosListaRaw })}>
                     {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
                     {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido, lista: pedidosListaRaw })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}
                     {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial} <ClienteOportunidadBadge dest={b.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
-                    {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-success">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
+                    {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
                     {vis('sector') && <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>}
                     {vis('cantped') && <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>}
                     {vis('pend') && <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>}

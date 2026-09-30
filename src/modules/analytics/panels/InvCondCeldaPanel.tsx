@@ -108,7 +108,7 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
                 <p className="text-[11px] text-text-faint">Inv {o.centro}</p>
                 <p className="font-mono text-sm">
                   {formatNumber(o.inv)}
-                  {o.transito > 0 && <span className="text-emerald-500"> +{formatNumber(o.transito)}</span>}
+                  {o.transito > 0 && <span className="text-success"> +{formatNumber(o.transito)}</span>}
                   {o.lento && <AlertTriangle className="ml-1 inline size-3 text-warning" />}
                 </p>
                 {o.pend > 0 && <p className="text-[11px] text-danger">Pend {formatNumber(o.pend)}</p>}

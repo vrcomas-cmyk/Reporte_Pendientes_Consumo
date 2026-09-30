@@ -250,10 +250,10 @@ export function MaterialHubPanel({ panel, a }: { panel: Extract<Panel, { type: '
           )}
           <div className="flex flex-col gap-2">
             {matches.map((m) => (
-              <div key={m.dest} className={`flex items-center justify-between gap-3 rounded-lg border p-2.5 ${m.evaluacion.acepta ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-border border-dashed'}`}>
+              <div key={m.dest} className={`flex items-center justify-between gap-3 rounded-lg border p-2.5 ${m.evaluacion.acepta ? 'border-success/40 bg-success/5' : 'border-border border-dashed'}`}>
                 <div className="min-w-0 flex-1">
                   <button className="truncate text-left text-sm font-medium text-text hover:text-accent" onClick={() => push({ type: 'clienteDetalle', dest: m.dest })}>{m.razonSocial}</button>
-                  <p className={`mt-0.5 text-xs ${m.evaluacion.acepta ? 'text-emerald-600 dark:text-emerald-400' : 'text-text-faint'}`}>
+                  <p className={`mt-0.5 text-xs ${m.evaluacion.acepta ? 'text-success' : 'text-text-faint'}`}>
                     {m.evaluacion.acepta ? 'Acepta' : 'No acepta'} · {m.evaluacion.motivos.join(' · ')}
                   </p>
                 </div>

@@ -480,27 +480,14 @@ export function ConsumoPage() {
       )}
       <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
 
-      <div className="flex flex-wrap items-start gap-3">
-        <div className="inline-grid grid-cols-2 content-start gap-2 sm:grid-cols-4">
-          <StatTile compact label="Al corriente" value={formatNumber(kpis.corriente)} tone="text-success" />
-          <StatTile compact label="En riesgo" value={formatNumber(kpis.riesgo)} tone="text-danger" />
-          <StatTile compact label="Reactivación" value={formatNumber(kpis.reactiva)} tone="text-violet-500" />
-          <StatTile compact label="Nueva compra" value={formatNumber(kpis.nueva)} tone="text-violet-500" />
-        </div>
-        <div className="ml-auto flex items-center gap-1 rounded-md border border-border p-0.5 text-xs">
-          <button onClick={() => setPeriodo('corriente')} className={`rounded px-2 py-1 ${periodo === 'corriente' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo corriente</button>
-          <button onClick={() => setPeriodo('anterior')} className={`rounded px-2 py-1 ${periodo === 'anterior' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo anterior</button>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-border p-3">
-        <div className="text-xs font-medium text-text-faint">
+      <div className="rounded-xl border border-border border-t-2 border-t-accent bg-bg-elevated p-4 shadow-sm">
+        <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
           Facturado en el periodo{facturadoPeriodo.meses ? ` · ${facturadoPeriodo.desde} – ${facturadoPeriodo.hasta}` : ''}
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-8 gap-y-1">
           <div>
             <div className="text-[10px] uppercase tracking-wide text-text-faint">Importe</div>
-            <span className="font-display text-2xl font-semibold">{formatCurrency(facturadoPeriodo.imp)}</span>
+            <span className="font-display text-3xl font-semibold tracking-tight">{formatCurrency(facturadoPeriodo.imp)}</span>
           </div>
           <div title="Suma de cantidades facturadas; mezcla distintas unidades de medida.">
             <div className="text-[10px] uppercase tracking-wide text-text-faint">Cantidad</div>
@@ -550,6 +537,24 @@ export function ConsumoPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="inline-grid grid-cols-2 content-start gap-2 sm:grid-cols-4">
+          <StatTile compact label="Al corriente" value={formatNumber(kpis.corriente)} />
+          <StatTile compact label="En riesgo" value={formatNumber(kpis.riesgo)} tone={kpis.riesgo > 0 ? 'danger' : undefined} />
+          <StatTile compact label="Reactivación" value={formatNumber(kpis.reactiva)} tone="info" />
+          <StatTile compact label="Nueva compra" value={formatNumber(kpis.nueva)} tone="info" />
+        </div>
+        <div className="ml-auto flex items-center gap-1 rounded-md border border-border p-0.5 text-xs">
+          <button onClick={() => setPeriodo('corriente')} className={`rounded px-2 py-1 ${periodo === 'corriente' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo corriente</button>
+          <button onClick={() => setPeriodo('anterior')} className={`rounded px-2 py-1 ${periodo === 'anterior' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo anterior</button>
+        </div>
+      </div>
+
+      <div className="w-full rounded-xl border border-border p-3">
+        <h4 className="mb-2 text-xs font-semibold text-text-muted">Facturación mensual (filtro)</h4>
+        <EvolChart serie={aggSerie} height={160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes) })} />
+      </div>
+
       <Ranking title="Sectores · fact. prom 12m" items={rankSector} money wide onRow={(s) => open({ type: 'sector', sector: s })} />
       <Ranking title="Materiales · fact. prom 12m" items={rankMat} money wide onRow={(m) => open({ type: 'material', material: m })} />
 
@@ -583,11 +588,6 @@ export function ConsumoPage() {
         )}
       </div>
 
-      <div className="w-full rounded-xl border border-border p-3">
-        <h4 className="mb-2 text-xs font-semibold text-text-muted">Facturación mensual (filtro)</h4>
-        <EvolChart serie={aggSerie} height={160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes) })} />
-      </div>
-
       <div className="rounded-xl border border-border">
         <button onClick={() => setGruposOpen(!gruposOpen)} className="flex w-full items-center justify-between p-3 text-sm font-medium">
           <span>Nuevas compras y reactivaciones por Grupo de artículo · {grupos.reduce((s, g) => s + g.nueva, 0)} nuevas · {grupos.reduce((s, g) => s + g.reactiva, 0)} reactivaciones</span>
@@ -605,10 +605,10 @@ export function ConsumoPage() {
               <TableBody>
                 {grupos.map((g) => (
                   <TableRow key={g.grupo} className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'grupo', grupo: g.grupo })}>
-                    <TableCell><span className="text-accent">{g.grupo}</span></TableCell>
-                    <TableCell className="text-right text-violet-500">{g.nueva || '—'}</TableCell>
+                    <TableCell><span className="text-text">{g.grupo}</span></TableCell>
+                    <TableCell className="text-right text-info">{g.nueva || '—'}</TableCell>
                     <TableCell className="text-right text-text-faint">{g.nuevaPrev || '—'}</TableCell>
-                    <TableCell className="text-right text-violet-500">{g.reactiva || '—'}</TableCell>
+                    <TableCell className="text-right text-info">{g.reactiva || '—'}</TableCell>
                     <TableCell className="text-right text-text-faint">{g.reactivaPrev || '—'}</TableCell>
                     <TableCell className="text-right">{g.solics}</TableCell>
                     <TableCell className="text-right">{formatCurrency(g.imp12)}</TableCell>
@@ -682,7 +682,7 @@ export function ConsumoPage() {
                   <div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', ce.grupoCli(r))}>{ce.grupoCli(r) || '—'}</Chip></div>
                 </TableCell>}
                 {vis('centro') && <TableCell><Chip onClick={() => addQuick('centro', r.centro)}>{r.centro || '—'}</Chip></TableCell>}
-                {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div>{ce.precioOferta(r) > 0 && <div className="text-[10px] text-success">Of. {formatCurrency(ce.precioOferta(r))}</div>}</TableCell>}
+                {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div>{ce.precioOferta(r) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(ce.precioOferta(r))}</div>}</TableCell>}
                 {vis('abc') && <TableCell><AbcBadge clase={claseDe(r) || undefined} /></TableCell>}
                 {vis('sector') && <TableCell>{ce.sector(r) || '—'}<div className="text-[11px] text-text-faint">{ce.grupoArt(r)}</div></TableCell>}
                 {vis('consumo') && <TableCell className="text-right">{vsCell(r.consumoActual, r.consumoPromedioMensual)}</TableCell>}

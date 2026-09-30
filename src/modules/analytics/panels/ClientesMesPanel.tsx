@@ -63,7 +63,7 @@ function ClientesMesInner({ title, subtitle, list, push }: {
                   <>
                     <TableRow key={d.dest} className="cursor-pointer" onClick={() => setOpenDest(isOpen ? null : d.dest)}>
                       <TableCell><ChevronDownIcon open={isOpen} /></TableCell>
-                      <TableCell><span className="text-accent">{d.dest}</span></TableCell>
+                      <TableCell><span className="text-text">{d.dest}</span></TableCell>
                       <TableCell className="max-w-72 truncate">{d.razon}</TableCell>
                       <TableCell className="text-right">{d.items.length}</TableCell>
                       <TableCell className="text-right">{formatNumber(d.cant)}</TableCell>

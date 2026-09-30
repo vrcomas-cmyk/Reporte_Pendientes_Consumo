@@ -218,7 +218,7 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
                     it.k === selKey
                       ? 'border-accent bg-accent-soft text-accent'
                       : conOfertaFlag
-                        ? 'border-emerald-500/40 bg-emerald-500/10 hover:border-emerald-500/60'
+                        ? 'border-success/40 bg-success/10 hover:border-success/60'
                         : 'border-transparent hover:border-border hover:bg-bg-inset',
                   )}
                 >
@@ -227,7 +227,7 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
                     <span className="ml-1 truncate text-text-faint">{it.bo.descripcionSolicitada}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-1.5">
-                    {nSel > 0 && <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">{nSel} lote{nSel > 1 ? 's' : ''}</span>}
+                    {nSel > 0 && <span className="rounded-full bg-success/20 px-1.5 py-0.5 text-[10px] font-semibold text-success">{nSel} lote{nSel > 1 ? 's' : ''}</span>}
                     <span className="font-medium tabular-nums">{formatNumber(num(it.bo.cantidadPendiente))}</span>
                   </span>
                 </button>
@@ -243,7 +243,7 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
                 const sel = seleccion.get(it.k);
                 if (!sel) return null;
                 return [...sel.entries()].map(([k, f]) => (
-                  <div key={k} className="flex items-center justify-between gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2 py-1 text-[11px]">
+                  <div key={k} className="flex items-center justify-between gap-2 rounded-md border border-success/30 bg-success/5 px-2 py-1 text-[11px]">
                     <span className="min-w-0 truncate"><span className="font-medium">{f.materialSugerido}</span> · Lote {f.lote || '—'}</span>
                     <button type="button" title="Quitar de la selección" onClick={() => quitarSeleccion(it.k, k)}><X className="size-3.5 text-text-faint hover:text-danger" /></button>
                   </div>
@@ -254,7 +254,7 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
               <button
                 type="button"
                 onClick={copiarDatosOferta}
-                className="flex items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400"
+                className="flex items-center gap-1.5 rounded-md border border-success/40 bg-success/10 px-2.5 py-1.5 text-xs font-medium text-success hover:bg-success/20 dark:text-success"
               >
                 <Copy className="size-3.5" /> Copiar datos de oferta
               </button>

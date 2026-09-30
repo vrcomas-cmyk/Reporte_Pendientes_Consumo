@@ -19,7 +19,7 @@ import { usePersistedState } from '@/hooks/usePersistedState';
 
 function pct(a: number, b: number) {
   const p = b ? (a / b - 1) * 100 : a ? 100 : 0;
-  return <span className={p >= 0 ? 'text-emerald-500' : 'text-danger'}>{p >= 0 ? '▲' : '▼'} {Math.abs(p).toFixed(1)}%</span>;
+  return <span className={p >= 0 ? 'text-success' : 'text-danger'}>{p >= 0 ? '▲' : '▼'} {Math.abs(p).toFixed(1)}%</span>;
 }
 
 const qLabelOf = (k: number) => {
@@ -282,8 +282,8 @@ export function AnalisisPage() {
         <ClearFiltersButton onClear={clearFilters} />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <StatTile label={`Fact. ${k.refLbl} (últ. mes completo)`} value={formatCurrency(k.mesPrevImp)} sub={<>{pct(k.mesPrevImp, k.mesPrevAnt)} vs año ant.</>} />
+      <div className="grid grid-cols-2 items-stretch gap-2 lg:grid-cols-4">
+        <StatTile emphasis="hero" label={`Fact. ${k.refLbl} (últ. mes completo)`} value={formatCurrency(k.mesPrevImp)} sub={<>{pct(k.mesPrevImp, k.mesPrevAnt)} vs año ant.</>} />
         <StatTile label="Q corriente (a la fecha)" value={formatCurrency(k.qImp)} sub={<>{pct(k.qImp, k.qAnt)} vs año ant.</>} />
         <StatTile label="Clientes activos (≤3m)" value={formatNumber(k.activos3m)} sub={`de ${formatNumber(A.conc.nClientes)} en 12m`} />
         <StatTile label="Concentración 12m" value={`${(A.conc.top5 * 100).toFixed(0)}% top 5`} sub={`${(A.conc.top10 * 100).toFixed(0)}% top 10`} />
@@ -380,7 +380,7 @@ export function AnalisisPage() {
                   copyItems={[{ label: 'Pedido', value: o.pedido }, { label: 'Cliente', value: o.razon }, { label: 'Material', value: o.mat }]}
                 >
                   <TableRow
-                    className={`cursor-pointer ${o.bloqueado ? 'bg-amber-400/20 hover:bg-amber-400/30' : ''}`}
+                    className={`cursor-pointer ${o.bloqueado ? 'bg-danger/10 hover:bg-danger/15 [&>td:first-child]:shadow-[inset_3px_0_0_var(--danger)]' : ''}`}
                     title="Doble clic para ver detalle"
                     onDoubleClick={() => open({ type: 'pedido', pedido: o.pedido })}
                   >

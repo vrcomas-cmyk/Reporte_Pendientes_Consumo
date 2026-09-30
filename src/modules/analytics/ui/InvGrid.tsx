@@ -10,7 +10,7 @@ export function InvGrid({ items }: { items: [string, number, number?][] }) {
         <div key={k} className="rounded-md border border-border px-2.5 py-1.5">
           <p className="text-[11px] text-text-faint">{k}</p>
           <p className="font-mono text-sm">{formatNumber(v)}</p>
-          {!!transito && transito > 0 && <p className="text-[10px] text-emerald-500">↻+{formatNumber(transito)}</p>}
+          {!!transito && transito > 0 && <p className="text-[10px] text-success">↻+{formatNumber(transito)}</p>}
         </div>
       ))}
     </div>

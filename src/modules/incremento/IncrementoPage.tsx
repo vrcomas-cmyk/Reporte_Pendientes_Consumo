@@ -51,6 +51,7 @@ const FLAG_LABEL: Record<ImpactoFlag, string> = {
  * tiles y cualquier ranking de rentabilidad, para leer "lo urgente" antes
  * que "lo que va bien". */
 const RENT_ORDEN: RentabilidadClase[] = ['baja', 'media', 'alta', 'estrategica'];
+const RENT_TONE: Record<RentabilidadClase, 'success' | 'warning' | 'danger' | 'info'> = { alta: 'success', media: 'warning', baja: 'danger', estrategica: 'info' };
 const RENT_LABEL: Record<RentabilidadClase, string> = { alta: '🟢 Alta', media: '🟡 Media', baja: '🔴 Baja', estrategica: '⭐ Estratégica' };
 
 function pctTxt(n: number, digits = 1): string {
@@ -76,7 +77,7 @@ function Kpi({ label, value, icon: Icon, tone = 'default', sub, size = 'sm' }: {
         size === 'lg' ? 'size-8' : 'size-6',
         tone === 'warning' && 'bg-warning/15 text-warning',
         tone === 'danger' && 'bg-danger/15 text-danger',
-        tone === 'default' && 'bg-accent-soft text-accent',
+        tone === 'default' && 'bg-bg-inset text-text-muted',
       )}
       >
         <Icon className={size === 'lg' ? 'size-4' : 'size-3.5'} />
@@ -611,8 +612,8 @@ export function IncrementoPage() {
                   </div>
                 </Card>
               </div>
-              <Card className="mt-4 flex items-start gap-3 bg-accent-soft/40 p-4">
-                <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent">
+              <Card className="mt-4 flex items-start gap-3 border-warning/30 bg-warning/5 p-4">
+                <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-warning/15 text-warning">
                   <AlertTriangle className="size-4" />
                 </div>
                 <div>
@@ -687,7 +688,7 @@ export function IncrementoPage() {
             <TabsContent value="rentabilidad">
               <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
                 {RENT_ORDEN.map((c) => (
-                  <StatTile key={c} label={RENT_LABEL[c]} value={formatNumber(impacto.rentabilidadResumen[c])} />
+                  <StatTile key={c} label={RENT_LABEL[c].replace(/^\S+\s/, '')} value={formatNumber(impacto.rentabilidadResumen[c])} tone={impacto.rentabilidadResumen[c] > 0 ? RENT_TONE[c] : undefined} />
                 ))}
               </div>
               <div className="grid gap-4 lg:grid-cols-2">
@@ -750,7 +751,7 @@ export function IncrementoPage() {
                           </TableCell>
                           <TableCell className="text-right">{formatNumber(c.piezasPeriodo)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(c.ventaPeriodo)}</TableCell>
-                          <TableCell className="text-right text-danger">{formatCurrency(c.impactoPeriodo)}</TableCell>
+                          <TableCell className={`text-right ${signTone(c.impactoPeriodo)}`}>{formatCurrency(c.impactoPeriodo)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

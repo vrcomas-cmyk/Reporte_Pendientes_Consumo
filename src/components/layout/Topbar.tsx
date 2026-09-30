@@ -1,4 +1,4 @@
-import { Moon, Sun, CheckCircle2, AlertCircle, Search, RefreshCcw, Menu } from 'lucide-react';
+import { Moon, Sun, Palette,CheckCircle2, AlertCircle, Search, RefreshCcw, Menu } from 'lucide-react';
 import { useUiStore } from '@/store/uiStore';
 import { useDataStore } from '@/store/dataStore';
 import { useReportSheetsSyncStore } from '@/store/reportSheetsSyncStore';
@@ -43,7 +43,10 @@ function titleFor(path: string): string {
 export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNav: () => void }) {
   const theme = useUiStore((s) => s.theme);
   const toggleTheme = useUiStore((s) => s.toggleTheme);
+  const skin = useUiStore((s) => s.skin);
+  const toggleSkin = useUiStore((s) => s.toggleSkin);
   const catalog = useDataStore((s) => s.catalog);
+  const catalogError = useDataStore((s) => s.catalogError);
   const activeAnalysis = useDataStore((s) => s.activeAnalysis);
   const sheetsSyncing = useReportSheetsSyncStore((s) => s.syncing);
   const sheetsProgress = useReportSheetsSyncStore((s) => s.progress);
@@ -90,7 +93,18 @@ export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNa
           sheetsError={sheetsError}
           activeAnalysis={activeAnalysis}
           catalog={catalog}
+          catalogError={catalogError}
         />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleSkin}
+          aria-label="Cambiar estilo visual"
+          title={skin === 'apple' ? 'Estilo Apple — clic para volver al clásico' : 'Estilo clásico — clic para probar Apple'}
+          className={skin === 'apple' ? 'text-accent' : undefined}
+        >
+          <Palette className="size-4" />
+        </Button>
         <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Cambiar tema">
           {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </Button>
@@ -111,19 +125,22 @@ interface SyncStatusProps {
   sheetsError: string | null;
   activeAnalysis: AnalysisResult | null;
   catalog: CatalogSnapshot | null;
+  catalogError: string | null;
 }
 
 /** Single collapsed indicator for report + catalog sync state — replaces two
  * always-expanded badges that competed with the page title on every screen.
  * Worst-of-both tone/label up front; both lines of detail (with timestamps)
  * live in the popover, opened on demand instead of always on. */
-function SyncStatus({ sheetsSyncing, sheetsProgress, sheetsError, activeAnalysis, catalog }: SyncStatusProps) {
-  const tone = sheetsError ? 'danger' : sheetsSyncing || !activeAnalysis || !catalog ? 'warning' : 'success';
+function SyncStatus({ sheetsSyncing, sheetsProgress, sheetsError, activeAnalysis, catalog, catalogError }: SyncStatusProps) {
+  const tone = sheetsError ? 'danger' : sheetsSyncing || catalogError || !activeAnalysis || !catalog ? 'warning' : 'success';
   const summary = sheetsSyncing
     ? (sheetsProgress?.message ?? 'Sincronizando…')
     : sheetsError
       ? 'Reporte: error de sync'
-      : !activeAnalysis && !catalog
+      : catalogError && catalog
+        ? 'Catálogo sin actualizar'
+        : !activeAnalysis && !catalog
         ? 'Sin datos cargados'
         : !activeAnalysis
           ? 'Reporte no cargado'
@@ -170,6 +187,11 @@ function SyncStatus({ sheetsSyncing, sheetsProgress, sheetsError, activeAnalysis
             <p className="text-text-muted">
               {catalog ? <>Sincronizado · {formatDateTime(catalog.loadedAt)}</> : 'Aún no cargado'}
             </p>
+            {catalogError && (
+              <p className="mt-0.5 text-warning">
+                No se pudo actualizar: {catalogError} Se usa el último catálogo guardado; se reintenta solo.
+              </p>
+            )}
           </div>
         </div>
       </PopoverContent>

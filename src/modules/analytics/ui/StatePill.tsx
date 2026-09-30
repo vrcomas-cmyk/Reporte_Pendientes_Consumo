@@ -6,11 +6,12 @@ import type { Tendencia } from '@/core/resumenFac';
 
 // Maps the legacy semantic color classes to Tailwind utility combos.
 const CLS: Record<string, string> = {
-  verde: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+  verde: 'bg-success/15 text-success',
   rojo: 'bg-danger/15 text-danger',
   amb: 'bg-warning/15 text-warning',
-  azul: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
-  vio: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
+  // 'azul' = condicion normal / neutra. Accent queda reservado a interaccion.
+  azul: 'bg-bg-inset text-text',
+  vio: 'bg-info/15 text-info',
   gris: 'bg-bg-inset text-text-muted',
 };
 
@@ -29,7 +30,7 @@ export const StatePill = memo(function StatePill({ label, cls }: { label: string
  * Estable — mismo criterio en toda la app (`tendenciaTexto`, TREND_MESES). */
 export const TrendBadge = memo(function TrendBadge({ t }: { t: Tendencia }) {
   const Icon = t.dir === 'up' ? TrendingUp : t.dir === 'down' ? TrendingDown : Minus;
-  const color = t.dir === 'up' ? 'text-emerald-500' : t.dir === 'down' ? 'text-danger' : 'text-text-faint';
+  const color = t.dir === 'up' ? 'text-success' : t.dir === 'down' ? 'text-danger' : 'text-text-faint';
   return (
     <TooltipHint text="Compara el importe facturado de los últimos 3 meses completos vs. los 3 meses anteriores a esos: ▲ En aumento (+10% o más), ▼ En decremento (-10% o más), — Estable.">
       <span tabIndex={0} className={cn('inline-flex items-center gap-1 text-xs font-medium outline-none', color)}>

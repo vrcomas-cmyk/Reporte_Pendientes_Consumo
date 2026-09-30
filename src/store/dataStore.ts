@@ -5,6 +5,9 @@ import { DEFAULT_SETTINGS } from '@/core/types';
 interface DataState {
   catalog: CatalogSnapshot | null;
   catalogLoading: boolean;
+  /** Último error de la sincronización automática/manual del catálogo (`null` = OK).
+   * El catálogo cacheado sigue usándose; esto solo hace visible que está desactualizado. */
+  catalogError: string | null;
   activeAnalysis: AnalysisResult | null;
   /** Último sync del Sheet "Incremento de costos" (módulo `/incremento`) —
    * restaurado en el bootstrap de AppShell junto al catálogo. `null` hasta
@@ -22,6 +25,7 @@ interface DataState {
 
   setCatalog: (c: CatalogSnapshot | null) => void;
   setCatalogLoading: (v: boolean) => void;
+  setCatalogError: (e: string | null) => void;
   setActiveAnalysis: (a: AnalysisResult | null) => void;
   setIncremento: (i: IncrementoSnapshot | null) => void;
   setProgress: (p: ProcessingProgress) => void;
@@ -34,6 +38,7 @@ export { DEFAULT_SETTINGS };
 export const useDataStore = create<DataState>((set) => ({
   catalog: null,
   catalogLoading: false,
+  catalogError: null,
   activeAnalysis: null,
   incremento: null,
   progress: { phase: 'idle', percent: 0, message: '' },
@@ -42,6 +47,7 @@ export const useDataStore = create<DataState>((set) => ({
 
   setCatalog: (c) => set({ catalog: c }),
   setCatalogLoading: (v) => set({ catalogLoading: v }),
+  setCatalogError: (e) => set({ catalogError: e }),
   setActiveAnalysis: (a) => set({ activeAnalysis: a }),
   setIncremento: (i) => set({ incremento: i }),
   setProgress: (p) => set({ progress: p }),

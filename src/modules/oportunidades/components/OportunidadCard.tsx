@@ -44,11 +44,11 @@ export function OportunidadCard({ o }: { o: Oportunidad }) {
       <button type="button" className="text-left" onClick={() => open({ type: 'materialHub', material: o.material, lote: o.lote })}>
         <div className="flex items-center gap-1.5">
           <span title={PRIORIDAD_LABEL[o.prioridad]} className={cn('size-1.5 shrink-0 rounded-full', PRIORIDAD_DOT[o.prioridad])} />
-          <span className="font-mono text-xs text-accent">{o.material}</span>
+          <span className="font-mono text-xs text-text">{o.material}</span>
         </div>
         <p className="mt-0.5 line-clamp-2 font-medium text-text">{o.descripcion || o.material}</p>
       </button>
-      <div className="mt-1.5"><StatePill label={CONDICION_LABEL[o.condicion]} cls={o.condicion === 'corta-caducidad' ? 'rojo' : o.condicion === 'danado' ? 'amb' : 'azul'} /></div>
+      <div className="mt-1.5"><StatePill label={CONDICION_LABEL[o.condicion]} cls={o.condicion === 'corta-caducidad' ? 'rojo' : o.condicion === 'danado' ? 'rojo' : 'azul'} /></div>
       <p className="mt-1.5 text-xs text-text-muted">{formatNumber(o.cantidadDisponible)} unid.</p>
       {dias != null && (
         <p className="mt-0.5 flex items-center gap-1 text-xs text-text-muted">

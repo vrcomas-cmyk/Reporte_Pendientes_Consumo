@@ -33,8 +33,8 @@ function ExcepcionesMaterial({ dest }: { dest: string }) {
         {overrides.map((r) => (
           <div key={r.id ?? r.material} className="rounded-lg border border-border bg-bg-elevated">
             <div className="flex items-center justify-between px-3 pt-2">
-              <span className="font-mono text-xs text-accent">{r.material}</span>
-              <button type="button" onClick={() => r.id != null && removeRegla(r.id)} className="text-text-faint hover:text-red-500" title="Eliminar excepción"><Trash2 className="size-3.5" /></button>
+              <span className="font-mono text-xs text-text">{r.material}</span>
+              <button type="button" onClick={() => r.id != null && removeRegla(r.id)} className="text-text-faint hover:text-danger" title="Eliminar excepción"><Trash2 className="size-3.5" /></button>
             </div>
             <div className="p-3 pt-1"><ReglaMaterialForm dest={dest} material={r.material ?? ''} existing={r} /></div>
           </div>
@@ -48,7 +48,7 @@ function ExcepcionesMaterial({ dest }: { dest: string }) {
           ) : (
             <div>
               <div className="mb-1.5 flex items-center gap-2">
-                <span className="font-mono text-xs text-accent">{nuevo}</span>
+                <span className="font-mono text-xs text-text">{nuevo}</span>
                 <button type="button" className="text-xs text-text-faint hover:text-text" onClick={() => setNuevo(null)}>Cambiar</button>
               </div>
               <ReglaMaterialForm dest={dest} material={nuevo} onSaved={() => { setAdding(false); setNuevo(null); }} />

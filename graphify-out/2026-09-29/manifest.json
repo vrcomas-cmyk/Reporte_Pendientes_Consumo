@@ -2840,23 +2840,23 @@
     "semantic_hash": ""
   },
   "src/core/analisisDirectivo.test.ts": {
-    "mtime": 1790624454.297684,
-    "ast_hash": "d881a7d1667f83a948283d7c4d196225",
+    "mtime": 1790694702.540591,
+    "ast_hash": "e137e081c0a1ed1e9257b344167d2b5b",
     "semantic_hash": ""
   },
   "src/core/analisisDirectivo.ts": {
-    "mtime": 1790624401.882271,
-    "ast_hash": "889c5d64fc993e30dbe35b60d140897b",
+    "mtime": 1790694544.4554532,
+    "ast_hash": "ba3b36f54669a55185a8611e24570610",
     "semantic_hash": ""
   },
   "src/modules/analisisDirectivo/AnalisisDirectivoPage.tsx": {
-    "mtime": 1790625079.0287497,
-    "ast_hash": "9ca6c05322cf2d9be1046581a63d0f32",
+    "mtime": 1790694659.8502958,
+    "ast_hash": "35721ca570cabcfe6153cdf47c369992",
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/DumbbellChart.tsx": {
-    "mtime": 1790621741.7714026,
-    "ast_hash": "17dd17557397fc307d46f8d14d5db3d1",
+    "mtime": 1790694578.4825428,
+    "ast_hash": "961b0575b9ced6fcff7f4fbb5b463a0b",
     "semantic_hash": ""
   },
   "supabase/migrations/0011_analisis_directivo.sql": {
@@ -2865,13 +2865,18 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/YearComparisonChart.tsx": {
-    "mtime": 1790623818.5448592,
-    "ast_hash": "045a182d8299afc6532d3e31be4c96ee",
+    "mtime": 1790694601.4245174,
+    "ast_hash": "fb9b00247a5106336f06864026e6dafa",
     "semantic_hash": ""
   },
   "src/components/ui/multi-select.tsx": {
     "mtime": 1790624338.9595585,
     "ast_hash": "3f38b932e523c3ae97a3fa921dcc1d2f",
+    "semantic_hash": ""
+  },
+  "src/modules/analisisDirectivo/FacturacionMensualCard.tsx": {
+    "mtime": 1790694660.0133119,
+    "ast_hash": "6633db7745777cfa176e5225f870c838",
     "semantic_hash": ""
   }
 }
