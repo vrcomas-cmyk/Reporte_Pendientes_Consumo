@@ -13,6 +13,17 @@ export const mesKey = (m: unknown): number => {
   return x.length === 2 ? +x[1] * 12 + +x[0] : 0;
 };
 
+/** ¿"mm/aaaa" válido (mes 1–12)? Filtra filas con basura en "Mes y año"
+ * (p.ej. columnas corridas por un cambio de esquema de la hoja). */
+export const esMesValido = (m: unknown): boolean => {
+  const x = /^(\d{1,2})\/(\d{4})$/.exec(norm(m));
+  return !!x && +x[1] >= 1 && +x[1] <= 12;
+};
+
+/** "Mes y año" a `mm/aaaa` canónico (acepta "7/2026", fechas dd/mm/aaaa o ISO);
+ * si no se reconoce devuelve el texto tal cual (lo detecta `esMesValido`). */
+export const mesCanon = (v: unknown): string => aMesAnio(v) || norm(v);
+
 export interface SeriePoint {
   mes: string;
   cant: number;
@@ -46,6 +57,13 @@ export interface RFIndex {
   matMinYr: Map<string, number>;
   curmes: string;
   rows: ResumenFacRow[];
+  /** Suma mensual de TODAS las filas de mes válido, sin exigir material /
+   * solicitante / destinatario — la fuente única de "ventas del mes" (los
+   * índices `mat`/`solic`/`dest` descartan filas con esa clave vacía). */
+  total: Serie;
+  /** Importe de filas que NO entran a cada índice por clave vacía — para
+   * reconciliar `total` contra la suma por material / cliente. */
+  sinClave: { material: number; solicitante: number; destinatario: number };
 }
 
 const RFC = {
@@ -73,6 +91,8 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
   const solicGpoV = new Map<string, string>();
   const solicGpoC = new Map<string, string>();
   const matMinYr = new Map<string, number>();
+  const totalMap = new Map<string, SeriePoint>();
+  const sinClave = { material: 0, solicitante: 0, destinatario: 0 };
   let maxk = 0;
   let maxmes = '';
 
@@ -106,8 +126,8 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
   };
 
   for (const r of rows) {
-    const mes = norm(r[RFC.mes]);
-    if (!mes) continue;
+    const mes = mesCanon(r[RFC.mes]);
+    if (!esMesValido(mes)) continue;
     const k = mesKey(mes);
     if (k > maxk) {
       maxk = k;
@@ -117,13 +137,18 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
   const curYear = (maxmes.split('/')[1] || '').trim();
 
   for (const r of rows) {
-    const mes = norm(r[RFC.mes]);
-    if (!mes) continue;
+    const mes = mesCanon(r[RFC.mes]);
+    if (!esMesValido(mes)) continue;
     const c = num(r[RFC.cant]);
     const i = num(r[RFC.imp]);
     const d = norm(r[RFC.dest]);
     const s = norm(r[RFC.solic]);
     const m = norm(r[RFC.material]);
+    const tot = totalMap.get(mes) || { mes, cant: 0, imp: 0 };
+    tot.cant += c; tot.imp += i; totalMap.set(mes, tot);
+    if (!m) sinClave.material += i;
+    if (!s) sinClave.solicitante += i;
+    if (!d) sinClave.destinatario += i;
     add(matDest, d + '||' + m, mes, c, i);
     add(solic, s, mes, c, i);
     add(dest, d, mes, c, i);
@@ -168,6 +193,8 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
     matMinYr,
     curmes: maxmes,
     rows,
+    total: toSerie(totalMap),
+    sinClave,
   };
 }
 
@@ -192,8 +219,8 @@ export const serieMatCentro = (rf: RFIndex | null, m: unknown, centro: unknown):
   const byMes = new Map<string, SeriePoint>();
   for (const r of rf.rows) {
     if (norm(r[RFC.material]) !== mat || norm(r[RFC.centro]) !== c) continue;
-    const mes = norm(r[RFC.mes]);
-    if (!mes) continue;
+    const mes = mesCanon(r[RFC.mes]);
+    if (!esMesValido(mes)) continue;
     const cur = byMes.get(mes) || { mes, cant: 0, imp: 0 };
     cur.cant += num(r[RFC.cant]);
     cur.imp += num(r[RFC.imp]);
@@ -225,11 +252,39 @@ export function mesesDisponibles(rf: RFIndex | null): string[] {
   if (!rf) return [];
   const set = new Set<string>();
   for (const r of rf.rows) {
-    const mes = norm(r.mesAno);
-    if (mes) set.add(mes);
+    const mes = mesCanon(r.mesAno);
+    if (esMesValido(mes)) set.add(mes);
   }
   return [...set].sort((a, b) => mesKey(a) - mesKey(b));
 }
+
+/** Auditoría de carga: suma DIRECTA de `rf.rows` por mes (sin pasar por los
+ * índices), para comparar contra la hoja Resumen_Fac y contra lo que muestra
+ * cada módulo. `filasInvalidas` = filas con "Mes y año" no reconocible (no
+ * entran a ningún total). */
+export interface AuditoriaMes { mes: string; filas: number; imp: number; cant: number }
+export function auditoriaFacturacion(rf: RFIndex | null): { total: number; filas: number; filasInvalidas: number; impInvalido: number; meses: AuditoriaMes[] } {
+  const out = { total: 0, filas: 0, filasInvalidas: 0, impInvalido: 0, meses: [] as AuditoriaMes[] };
+  if (!rf) return out;
+  const by = new Map<string, AuditoriaMes>();
+  for (const r of rf.rows) {
+    out.filas++;
+    const mes = norm(r[RFC.mes]);
+    const imp = num(r[RFC.imp]);
+    if (!esMesValido(mes)) { out.filasInvalidas++; out.impInvalido += imp; continue; }
+    const key = String(mesKey(mes));
+    const o = by.get(key) ?? { mes: mesLabelNum(mes), filas: 0, imp: 0, cant: 0 };
+    o.filas++; o.imp += imp; o.cant += num(r[RFC.cant]);
+    by.set(key, o);
+    out.total += imp;
+  }
+  out.meses = [...by.entries()].sort((a, b) => +a[0] - +b[0]).map(([, v]) => v);
+  return out;
+}
+const mesLabelNum = (m: string): string => {
+  const [mm, yy] = m.split('/');
+  return String(+mm).padStart(2, '0') + '/' + yy;
+};
 
 // ---- date utilities ---------------------------------------------------------
 const MESES = [
@@ -265,7 +320,7 @@ export function aMesAnio(v: unknown): string {
   const s = String(v == null ? '' : v).trim();
   if (!s) return '';
   let m = s.match(/^(\d{1,2})\/(\d{4})$/);
-  if (m) return s;
+  if (m) return String(m[1]).padStart(2, '0') + '/' + m[2];
   m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (m) {
     let y = +m[3];
@@ -402,7 +457,8 @@ export function comparativa(serie: Serie, refMes = hoyMes()): Comparativa {
   const list = serie || [];
   const val = (mm: number, yy: number) => {
     const key = String(mm).padStart(2, '0') + '/' + yy;
-    const f = list.find((s) => s.mes === key);
+    const k = yy * 12 + mm;
+    const f = list.find((s) => mesKey(s.mes) === k);
     return f ? { mes: key, cant: f.cant, imp: f.imp } : { mes: key, cant: 0, imp: 0 };
   };
   const [cm, cy] = String(refMes).split('/').map(Number);
@@ -449,7 +505,8 @@ export interface ConsumoInfo {
 export function consumoDe(serie: Serie, curmes: string): ConsumoInfo {
   const tnd = clasificarEstado(serie, false);
   if (!serie || !serie.length) return { tipo: 'nada', tnd };
-  const cur = serie.find((s) => s.mes === curmes);
+  const curK = mesKey(curmes);
+  const cur = serie.find((s) => mesKey(s.mes) === curK);
   if (cur && (cur.cant > 0 || cur.imp > 0)) return { tipo: 'actual', mes: curmes, cant: cur.cant, imp: cur.imp, tnd };
   return { tipo: 'previo', ultimo: serie[serie.length - 1], penultimo: serie[serie.length - 2] || null, tnd };
 }

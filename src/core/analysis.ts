@@ -17,6 +17,7 @@ import type {
 import { normCode, buildEnrich, type EnrichIndex } from './enrich';
 import { evaluarCortaCaducidad } from './inventoryRules';
 import { sinFuente } from './buildBO';
+import { esMesValido, mesCanon, mesKey } from './resumenFac';
 
 /** Normalizes a "Condición" value for matching between the daily report and
  *  the catalog (trim, deaccent, uppercase). */
@@ -251,13 +252,14 @@ export function topEjecutivos(sugerencias: Sugerencia[], catalog: CatalogSnapsho
 export function monthlyInvoicing(rows: ResumenFacRow[]): MonthlyInvoicing[] {
   const byMonth = new Map<string, MonthlyInvoicing>();
   for (const r of rows) {
-    if (!r.mesAno) continue;
-    const cur = byMonth.get(r.mesAno) ?? { mes: r.mesAno, importe: 0, cantidad: 0 };
+    const mes = mesCanon(r.mesAno);
+    if (!esMesValido(mes)) continue;
+    const cur = byMonth.get(mes) ?? { mes, importe: 0, cantidad: 0 };
     cur.importe += r.importeFacturado;
     cur.cantidad += r.cantidadFacturada;
-    byMonth.set(r.mesAno, cur);
+    byMonth.set(mes, cur);
   }
-  return [...byMonth.values()].sort((a, b) => a.mes.localeCompare(b.mes));
+  return [...byMonth.values()].sort((a, b) => mesKey(a.mes) - mesKey(b.mes));
 }
 
 /** Simple heatmap: rows = sector, cols = center, value = summed inventory.

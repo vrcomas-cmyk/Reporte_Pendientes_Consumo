@@ -12,7 +12,7 @@
 import type { RFIndex, Serie } from './resumenFac';
 import { mesKey, hoyMes } from './resumenFac';
 import type { EnrichIndex } from './enrich';
-import { buildAnalisisPredicates, type AnalisisFilters, type ClienteAna } from './comercial';
+import { buildAnalisisPredicates, matSeriesFiltradas, hayFiltroAnalisis, type AnalisisFilters, type ClienteAna } from './comercial';
 import type { BOItem } from './buildBO';
 import { buildPeriodo, type PeriodoAnalisis } from './incremento';
 import { norm } from '@/lib/text';
@@ -38,41 +38,6 @@ function sumaSerieEnRango(serie: Serie, periodo: PeriodoAnalisis): { imp: number
     if (k >= periodo.kIni && k <= periodo.kFin) { imp += p.imp; cant += p.cant; }
   }
   return { imp, cant };
-}
-
-/** ¿Hay algún filtro que dependa de QUIÉN compró (no de qué material)? Si sí,
- * `rf.mat` (ya agregado por todos los clientes) no sirve y hay que reconstruir
- * las series por material sumando solo a los clientes que pasan el filtro. */
-function hayFiltroCliente(filters: AnalisisFilters): boolean {
-  return !!(filters.ejecutivo || filters.grupoCliente || filters.grupoClientes?.length);
-}
-
-/** Series mensuales POR MATERIAL respetando TODOS los filtros: sin filtro de
- * cliente devuelve `rf.mat` tal cual (rápido, como antes); con filtro de
- * cliente (Grupo cliente / Ejecutivo) recorre `rf.solicMats` sumando solo los
- * clientes que pasan `clientePasa` y los materiales que pasan `matPasa`. Así
- * Venta, Margen, curvas anuales y serie mensual reaccionan a Grupo cliente. */
-function matSeriesFiltradas(
-  rf: RFIndex, filters: AnalisisFilters, matPasa: (m: string) => boolean, clientePasa: (c: string) => boolean,
-): Map<string, Serie> {
-  if (!hayFiltroCliente(filters)) return rf.mat;
-  const acc = new Map<string, Map<string, { mes: string; cant: number; imp: number }>>();
-  rf.solicMats.forEach((porMat, code) => {
-    if (!clientePasa(code)) return;
-    porMat.forEach((serie, m) => {
-      if (!matPasa(m)) return;
-      let mm = acc.get(m);
-      if (!mm) { mm = new Map(); acc.set(m, mm); }
-      for (const p of serie) {
-        const o = mm.get(p.mes) ?? { mes: p.mes, cant: 0, imp: 0 };
-        o.cant += p.cant; o.imp += p.imp;
-        mm.set(p.mes, o);
-      }
-    });
-  });
-  const out = new Map<string, Serie>();
-  acc.forEach((mm, m) => out.set(m, [...mm.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes))));
-  return out;
 }
 
 export interface SectorComparado {
@@ -289,6 +254,19 @@ export function analisisDirectivo(
     }
   });
 
+  // Sin filtros, el total de ventas es la suma DIRECTA de Resumen_Fac por mes
+  // (`rf.total`): las filas sin material no entran al recorrido por material de
+  // arriba. Esa venta se suma y se marca como "sin costo" (no hay material al
+  // que aplicarle costo) en vez de perderse.
+  if (!hayFiltroAnalisis(filters)) {
+    const ajusta = (t: Totales, periodo: PeriodoAnalisis): Totales => {
+      const directo = sumaSerieEnRango(rf.total, periodo);
+      return { ...t, imp: directo.imp, cant: directo.cant, impSinCosto: t.impSinCosto + (directo.imp - t.imp) };
+    };
+    totalA = ajusta(totalA, periodoA);
+    totalB = ajusta(totalB, periodoB);
+  }
+
   const porSector: SectorComparado[] = [...new Set([...secA.keys(), ...secB.keys()])]
     .map((sector) => ({ sector, a: secA.get(sector) || ZERO, b: secB.get(sector) || ZERO }))
     .sort((x, y) => (y.b.imp - y.a.imp) - (x.b.imp - x.a.imp));
@@ -484,6 +462,7 @@ export function serieAnualComparada(rf: RFIndex, enrich: EnrichIndex, filters: A
 /** Serie mensual TOTAL (todo el historial) con todos los filtros aplicados —
  * la línea "Serie del filtro" de la tarjeta Facturación mensual. */
 export function serieMensualFiltrada(rf: RFIndex, enrich: EnrichIndex, filters: AnalisisFilters): Serie {
+  if (!hayFiltroAnalisis(filters)) return rf.total.map((p) => ({ ...p })); // suma directa de Resumen_Fac
   const { matPasa, clientePasa } = buildAnalisisPredicates(rf, enrich, filters);
   const acc = new Map<string, { mes: string; cant: number; imp: number }>();
   matSeriesFiltradas(rf, filters, matPasa, clientePasa).forEach((serie, m) => {
@@ -513,7 +492,7 @@ export function clientesDeMes(rf: RFIndex, enrich: EnrichIndex, filters: Analisi
   const { matPasa, clientePasa } = buildAnalisisPredicates(rf, enrich, filters);
   const acc = new Map<string, ClienteMesRow>();
   for (const r of rf.rows) {
-    if (norm(r.mesAno) !== mes) continue;
+    if (mesKey(norm(r.mesAno)) !== mesKey(mes)) continue;
     const solic = norm(r.solicitante), dest = norm(r.destinatario), material = norm(r.material);
     if (!matPasa(material) || !clientePasa(solic)) continue;
     const key = `${solic}||${dest}||${material}`;

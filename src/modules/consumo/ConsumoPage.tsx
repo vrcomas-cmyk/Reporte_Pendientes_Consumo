@@ -16,8 +16,8 @@ import { usePanelStore } from '@/store/panelStore';
 import { StatePill, TrendBadge, AbcBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, MonthRangeFilter, ClearFiltersButton, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { dateSortValue } from '@/lib/fechas';
 import { COLS_CONSUMO } from './columns';
-import { ESTADOS, mesKey, mesLabel, clasificarEstado, tendenciaTexto, mesRefQAnterior, mesAnterior, hoyMes, type Serie, type Estado, type Tendencia } from '@/core/resumenFac';
-import { norm, num, searchNorm, consumoEnrich, consumoSerie, matchesQueryNormalized, RC, pickField } from '@/modules/analytics/helpers';
+import { ESTADOS, auditoriaFacturacion, mesKey, mesLabel, clasificarEstado, tendenciaTexto, mesRefQAnterior, mesAnterior, hoyMes, type Serie, type Estado, type Tendencia } from '@/core/resumenFac';
+import { norm, num, searchNorm, consumoEnrich, consumoSerie, serieFacturada, paresSoloFacturacion, matchesQueryNormalized, RC, pickField } from '@/modules/analytics/helpers';
 import type { ConsumoRow } from '@/core/types';
 import { buildFromConsumo } from '@/services/solicitudService';
 import { useSolicitarDialog } from '@/modules/solicitudes/useSolicitarDialog';
@@ -59,6 +59,7 @@ export function ConsumoPage() {
   const [gruposOpen, setGruposOpen] = useState(false);
   const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>('consumo.periodo', 'corriente');
   const [dispersionOpen, setDispersionOpen] = useState(false);
+  const [cuadreOpen, setCuadreOpen] = useState(false);
   const [clearTick, setClearTick] = useState(0);
   // "Pegar materiales" estilo SAP — aditivo, no toca los filtros de arriba.
   const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('consumo.pasteCodes', []);
@@ -85,9 +86,12 @@ export function ConsumoPage() {
   // render. At ~80k rows that's the single biggest cost in this view. Compute
   // it once per row here (indexed by row identity, memoized on data + catalog
   // identity) and read from the index everywhere else.
+  // Pares con facturación en Resumen_Fac que no están en Reporte de Consumo —
+  // solo alimentan los agregados (ver `paresSoloFacturacion`), no la tabla.
+  const sinteticas = useMemo(() => paresSoloFacturacion(a.rf, rows), [a.rf, rows]);
   const statusIndex = useMemo(() => {
     const m = new Map<ConsumoRow, { status: Estado; tend: Tendencia; meses: number[] }>();
-    for (const r of rows) {
+    for (const r of [...rows, ...sinteticas]) {
       const serie = consumoSerie(a.rf, r);
       // Meses (escala mesKey) en los que esta fila REALMENTE facturó — base
       // del filtro de periodo, que es por mes/año y sale de Resumen de
@@ -101,7 +105,7 @@ export function ConsumoPage() {
       m.set(r, { status: clasificarEstado(serie.length ? serie : null, false), tend: tendenciaTexto(serie), meses });
     }
     return m;
-  }, [rows, a.rf]);
+  }, [rows, sinteticas, a.rf]);
   const statusOf = (r: ConsumoRow) => statusIndex.get(r) ?? { status: clasificarEstado(null, false), tend: tendenciaTexto([]), meses: [] as number[] };
 
   // Perf: precompute each row's lowercased/accent-stripped searchable text
@@ -109,9 +113,9 @@ export function ConsumoPage() {
   // filter pass (i.e. every keystroke) across ~80k rows.
   const searchIndex = useMemo(() => {
     const m = new Map<ConsumoRow, string>();
-    for (const r of rows) m.set(r, searchNorm(`${r.material} ${r.textoMaterial} ${r.razonSocial} ${r.solicitante} ${r.destinatario}`));
+    for (const r of [...rows, ...sinteticas]) m.set(r, searchNorm(`${r.material} ${r.textoMaterial} ${r.razonSocial} ${r.solicitante} ${r.destinatario}`));
     return m;
-  }, [rows]);
+  }, [rows, sinteticas]);
 
   const filterCols: FilterColumn<ConsumoRow>[] = useMemo(() => [
     { key: 'cliente', label: 'Cliente (razón social)', get: (r) => r.razonSocial },
@@ -140,25 +144,31 @@ export function ConsumoPage() {
   const rangoHiK = useMemo(() => (periodoMeses.hasta ? mesKey(periodoMeses.hasta) : null), [periodoMeses.hasta]);
   const rangoActivo = rangoLoK != null || rangoHiK != null;
 
+  const pasaFiltros = (r: ConsumoRow): boolean => {
+    if (estado && statusOf(r).status.key !== estado) return false;
+    if (clase && claseDe(r) !== clase) return false;
+    if (gerente && !a.enrich.sectorDeGerente(ce.sector(r), gerente)) return false;
+    if (!passesFilters(r, filterCols, quick)) return false;
+    if (rangoActivo) {
+      const meses = statusOf(r).meses;
+      if (!meses.some((k) => (rangoLoK == null || k >= rangoLoK) && (rangoHiK == null || k <= rangoHiK))) return false;
+    }
+    if (q) {
+      const hay = searchIndex.get(r) ?? '';
+      if (!matchesQueryNormalized(q, hay)) return false;
+    }
+    if (!matchesCodes(pasteCodes, r.material)) return false;
+    return true;
+  };
   const filtered = useMemo(() => {
-    return rows.filter((r) => {
-      if (estado && statusOf(r).status.key !== estado) return false;
-      if (clase && claseDe(r) !== clase) return false;
-      if (gerente && !a.enrich.sectorDeGerente(ce.sector(r), gerente)) return false;
-      if (!passesFilters(r, filterCols, quick)) return false;
-      if (rangoActivo) {
-        const meses = statusOf(r).meses;
-        if (!meses.some((k) => (rangoLoK == null || k >= rangoLoK) && (rangoHiK == null || k <= rangoHiK))) return false;
-      }
-      if (q) {
-        const hay = searchIndex.get(r) ?? '';
-        if (!matchesQueryNormalized(q, hay)) return false;
-      }
-      if (!matchesCodes(pasteCodes, r.material)) return false;
-      return true;
-    });
+    return rows.filter(pasaFiltros);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, q, estado, clase, gerente, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, searchIndex, filterCols, a.abc, pasteCodes]);
+  // Universo de los AGREGADOS: filas reales + pares solo-Resumen_Fac que pasan
+  // los mismos filtros, para que los totales cuadren contra Resumen_Fac.
+  const filteredAgg = useMemo(() => [...filtered, ...sinteticas.filter(pasaFiltros)],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filtered, sinteticas, q, estado, clase, gerente, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, filterCols, a.abc, pasteCodes]);
 
   const kpis = useMemo(() => {
     const cnt = (k: string) => filtered.filter((r) => statusOf(r).status.key === k).length;
@@ -166,6 +176,8 @@ export function ConsumoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, statusIndex]);
 
+  // Hay algún filtro que acote filas (el rango de periodo se maneja aparte en aggSerie).
+  const sinFiltros = !estado && !clase && !gerente && !quick.length && !q && !pasteCodes.length && !prefiltro;
   const aggSerie = useMemo<Serie>(() => {
     // Guard against outlier/corrupt month values (e.g. a mis-parsed date far in the
     // past or future) blowing out the chart's month range: when unfiltered across
@@ -174,13 +186,23 @@ export function ConsumoPage() {
     // empty chart. Restrict aggregation to a sane window around the current period —
     // o al rango del filtro de periodo, si hay uno activo.
     const curK = mesKey(a.rf?.curmes || hoyMes());
+    // Sin ningún filtro activo el total es la suma DIRECTA de Resumen_Fac
+    // (`rf.total`, incluye filas sin material/cliente) — cuadra exacto con la hoja.
+    if (a.rf && sinFiltros) {
+      return a.rf.total.filter((p) => {
+        const pk = mesKey(p.mes);
+        if (!pk) return false;
+        if (rangoActivo) return !((rangoLoK != null && pk < rangoLoK) || (rangoHiK != null && pk > rangoHiK));
+        return Math.abs(pk - curK) <= 36;
+      });
+    }
     const seen = new Set<string>();
     const bucket = new Map<string, { mes: string; cant: number; imp: number }>();
-    for (const r of filtered) {
+    for (const r of filteredAgg) {
       const k = norm(r.destinatario) + '||' + norm(r.material);
       if (seen.has(k)) continue;
       seen.add(k);
-      for (const p of consumoSerie(a.rf, r)) {
+      for (const p of serieFacturada(a.rf, r)) {
         const pk = mesKey(p.mes);
         if (!pk) continue;
         if (rangoActivo) {
@@ -192,7 +214,7 @@ export function ConsumoPage() {
       }
     }
     return [...bucket.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
-  }, [filtered, a.rf, rangoActivo, rangoLoK, rangoHiK]);
+  }, [filteredAgg, a.rf, sinFiltros, rangoActivo, rangoLoK, rangoHiK]);
 
   // Total facturado del periodo visible: suma exacta de los mismos buckets que
   // pinta EvolChart, así el card nunca puede discrepar de la gráfica.
@@ -233,9 +255,13 @@ export function ConsumoPage() {
     const impMesPrev = mesMap.get(baseK - 12) || 0;
     const pctMes = impMesPrev ? ((impMesCur - impMesPrev) / impMesPrev) * 100 : (impMesCur ? 100 : 0);
 
-    const [cm, cy] = baseMes.split('/').map(Number);
-    let qStartK = cy * 12 + (Math.floor((cm - 1) / 3) * 3 + 1);
-    if (periodo === 'anterior') qStartK -= 3; // shift a full quarter back, not just one month
+    const [, cy] = baseMes.split('/').map(Number);
+    // El trimestre se ancla en HOY (no en baseMes): "anterior" = el trimestre
+    // inmediato previo al actual (en oct-2026: Q3 vs Q3 del año anterior),
+    // sin volver a restar tras haber retrocedido ya un mes.
+    const [nm, ny] = now.split('/').map(Number);
+    let qStartK = ny * 12 + (Math.floor((nm - 1) / 3) * 3 + 1);
+    if (periodo === 'anterior') qStartK -= 3;
     let impQCur = 0, impQPrev = 0;
     for (let i = 0; i < 3; i++) { impQCur += mesMap.get(qStartK + i) || 0; impQPrev += mesMap.get(qStartK + i - 12) || 0; }
     const pctQ = impQPrev ? ((impQCur - impQPrev) / impQPrev) * 100 : (impQCur ? 100 : 0);
@@ -254,16 +280,24 @@ export function ConsumoPage() {
     return { baseMes, impMesCur, impMesPrev, pctMes, impQCur, impQPrev, pctQ, qLabel: `Q${qNum} ${qYear}`, impYtdCur, impYtdPrev, pctYtd, ytdLabel };
   }, [aggSerie, periodo, rangoActivo, rangoHiK]);
 
+  // Cuadre contra Resumen_Fac: suma directa de las filas cargadas por mes vs.
+  // lo que usa esta pantalla — para detectar si falta data en la carga.
+  const auditoria = useMemo(() => auditoriaFacturacion(a.rf), [a.rf]);
+  const cuadreFilas = useMemo(() => {
+    const usado = new Map(aggSerie.map((p) => [mesKey(p.mes), p.imp]));
+    return auditoria.meses.slice(-6).map((m) => ({ ...m, usado: usado.get(mesKey(m.mes)) ?? 0 }));
+  }, [auditoria, aggSerie]);
+
   // #18: click a month bar -> snapshot the clients that invoiced that month under the
   // currently active filters (generalizes legacy openClientesMes beyond a single material).
   const clientesDeMes = (mes: string) => {
     const seen = new Set<string>();
     const out: { razon: string; solic: string; dest: string; material: string; cant: number; imp: number }[] = [];
-    for (const r of filtered) {
+    for (const r of filteredAgg) {
       const k = norm(r.destinatario) + '||' + norm(r.material);
       if (seen.has(k)) continue;
       seen.add(k);
-      for (const p of consumoSerie(a.rf, r)) {
+      for (const p of serieFacturada(a.rf, r)) {
         if (p.mes === mes && (p.cant || p.imp)) {
           out.push({ razon: r.razonSocial, solic: r.solicitante, dest: r.destinatario, material: r.material, cant: p.cant, imp: p.imp });
         }
@@ -280,12 +314,12 @@ export function ConsumoPage() {
     const nMeses = rangoActivo && rangoLoK != null && rangoHiK != null ? Math.max(1, rangoHiK - rangoLoK + 1) : 12;
     const seen = new Set<string>();
     const acc = new Map<string, { imp: number; cant: number }>();
-    for (const r of filtered) {
+    for (const r of filteredAgg) {
       const k = norm(r.destinatario) + '||' + norm(r.material);
       if (seen.has(k)) continue;
       seen.add(k);
       let sumImp = 0, sumCant = 0;
-      for (const p of consumoSerie(a.rf, r)) { const mk = mesKey(p.mes); if (mk >= lo && mk <= hi) { sumImp += p.imp; sumCant += p.cant; } }
+      for (const p of serieFacturada(a.rf, r)) { const mk = mesKey(p.mes); if (mk >= lo && mk <= hi) { sumImp += p.imp; sumCant += p.cant; } }
       if (sumImp) {
         const m = norm(r.material);
         const o = acc.get(m) || { imp: 0, cant: 0 };
@@ -296,7 +330,7 @@ export function ConsumoPage() {
     return [...acc.entries()]
       .map(([m, s]) => ({ code: m, desc: a.rf?.matTexto.get(m) || '', val: s.imp / nMeses, valSub: s.cant / nMeses }))
       .sort((x, y) => y.val - x.val).slice(0, 10);
-  }, [filtered, a.rf, rangoActivo, rangoLoK, rangoHiK]);
+  }, [filteredAgg, a.rf, rangoActivo, rangoLoK, rangoHiK]);
 
   // Dispersión de precios entre clientes distintos, para el mismo material,
   // acotada a los materiales visibles bajo el filtro actual — así "Buscar" o
@@ -316,14 +350,14 @@ export function ConsumoPage() {
     const nMeses = rangoActivo && rangoLoK != null && rangoHiK != null ? Math.max(1, rangoHiK - rangoLoK + 1) : 12;
     const seen = new Set<string>();
     const bySector = new Map<string, Map<string, { mes: string; cant: number; imp: number }>>();
-    for (const r of filtered) {
+    for (const r of filteredAgg) {
       const k = norm(r.destinatario) + '||' + norm(r.material);
       if (seen.has(k)) continue;
       seen.add(k);
       const sector = ce.sector(r) || '(sin sector)';
       let bucket = bySector.get(sector);
       if (!bucket) { bucket = new Map(); bySector.set(sector, bucket); }
-      for (const p of consumoSerie(a.rf, r)) {
+      for (const p of serieFacturada(a.rf, r)) {
         const c = bucket.get(p.mes) || { mes: p.mes, cant: 0, imp: 0 };
         c.cant += p.cant; c.imp += p.imp; bucket.set(p.mes, c);
       }
@@ -335,7 +369,7 @@ export function ConsumoPage() {
       const t = tendenciaTexto(serie);
       return { code: sector, desc: t.txt, val: imp12 / nMeses, valSub: cant12 / nMeses } ;
     }).filter((x) => x.val > 0).sort((x, y) => y.val - x.val).slice(0, 10);
-  }, [filtered, a.rf, ce, rangoActivo, rangoLoK, rangoHiK]);
+  }, [filteredAgg, a.rf, ce, rangoActivo, rangoLoK, rangoHiK]);
 
   // #6: nueva/reactiva counts for both the current AND the previous quarter, always
   // relative to today's date (mesRefQAnterior derives the previous-quarter reference
@@ -348,7 +382,7 @@ export function ConsumoPage() {
     // solicitante (cualquier material de ese grupo), aunque el usuario haya
     // filtrado a un material/cliente/sector específico.
     const matsPorSolic = new Map<string, Set<string>>();
-    for (const r of filtered) {
+    for (const r of filteredAgg) {
       const s = norm(r.solicitante), g = ce.grupoArt(r) || '(sin grupo)';
       if (!s) continue;
       pairs.add(s + '~~' + g);
@@ -385,7 +419,7 @@ export function ConsumoPage() {
       o.imp12 += impVentana / nMeses * 12; o.solics++; // columna se etiqueta "Fact. 12m" — se anualiza para que siga comparable con nMeses distinto de 12
     });
     return [...gsum.values()].filter((x) => x.nueva || x.reactiva || x.nuevaPrev || x.reactivaPrev).sort((x, y) => y.nueva + y.reactiva - (x.nueva + x.reactiva));
-  }, [filtered, a.rf, ce, rangoActivo, rangoLoK, rangoHiK]);
+  }, [filteredAgg, a.rf, ce, rangoActivo, rangoLoK, rangoHiK]);
 
   const sortAcc = useMemo(() => ({
     cliente: (r: ConsumoRow) => r.razonSocial,
@@ -519,7 +553,7 @@ export function ConsumoPage() {
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <div className="rounded-xl border border-border p-3">
-          <div className="text-xs font-medium text-text-faint">Mes {mesLabel(comparativas.baseMes)} vs mismo mes año anterior</div>
+          <div className="text-xs font-medium text-text-faint">{periodo === 'anterior' && 'Periodo anterior · '}Mes {mesLabel(comparativas.baseMes)} vs mismo mes año anterior</div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="font-display text-xl font-semibold">{formatCurrency(comparativas.impMesCur)}</span>
             <span className={`text-sm font-medium ${comparativas.pctMes >= 0 ? 'text-success' : 'text-danger'}`}>{comparativas.pctMes >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctMes).toFixed(1)}%</span>
@@ -527,7 +561,7 @@ export function ConsumoPage() {
           <div className="text-[11px] text-text-faint">vs {formatCurrency(comparativas.impMesPrev)} año anterior</div>
         </div>
         <div className="rounded-xl border border-border p-3">
-          <div className="text-xs font-medium text-text-faint">{comparativas.qLabel} vs mismo trimestre año anterior</div>
+          <div className="text-xs font-medium text-text-faint">{periodo === 'anterior' && 'Periodo anterior · '}{comparativas.qLabel} vs mismo trimestre año anterior</div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="font-display text-xl font-semibold">{formatCurrency(comparativas.impQCur)}</span>
             <span className={`text-sm font-medium ${comparativas.pctQ >= 0 ? 'text-success' : 'text-danger'}`}>{comparativas.pctQ >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctQ).toFixed(1)}%</span>
@@ -535,13 +569,42 @@ export function ConsumoPage() {
           <div className="text-[11px] text-text-faint">vs {formatCurrency(comparativas.impQPrev)} año anterior</div>
         </div>
         <div className="rounded-xl border border-border p-3">
-          <div className="text-xs font-medium text-text-faint">{comparativas.ytdLabel} vs mismo periodo año anterior</div>
+          <div className="text-xs font-medium text-text-faint">{periodo === 'anterior' && 'Periodo anterior · '}{comparativas.ytdLabel} vs mismo periodo año anterior</div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="font-display text-xl font-semibold">{formatCurrency(comparativas.impYtdCur)}</span>
             <span className={`text-sm font-medium ${comparativas.pctYtd >= 0 ? 'text-success' : 'text-danger'}`}>{comparativas.pctYtd >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctYtd).toFixed(1)}%</span>
           </div>
           <div className="text-[11px] text-text-faint">vs {formatCurrency(comparativas.impYtdPrev)} año anterior</div>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-border">
+        <button onClick={() => setCuadreOpen(!cuadreOpen)} className="flex w-full items-center justify-between p-3 text-sm font-medium">
+          <span>Cuadre contra Resumen_Fac · {formatNumber(auditoria.filas)} filas cargadas{auditoria.filasInvalidas ? ` · ${formatNumber(auditoria.filasInvalidas)} con mes inválido` : ''}</span>
+          <ChevronDown className={`size-4 transition-transform ${cuadreOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {cuadreOpen && (
+          <div className="border-t border-border p-3 text-xs">
+            <p className="mb-2 text-text-faint">
+              “Resumen_Fac” = suma directa de las filas cargadas (compárala con la hoja). “Esta pantalla” = lo que usan las tarjetas y la gráfica
+              {sinFiltros ? '' : ' — hay filtros activos, por eso puede ser menor'}.
+              {auditoria.filasInvalidas > 0 && ` Filas con “Mes y año” no reconocible: ${formatNumber(auditoria.filasInvalidas)} (${formatCurrency(auditoria.impInvalido)}), no entran a ningún total.`}
+              {a.rf && (a.rf.sinClave.material || a.rf.sinClave.solicitante || a.rf.sinClave.destinatario) ? ` Importe sin material: ${formatCurrency(a.rf.sinClave.material)} · sin solicitante: ${formatCurrency(a.rf.sinClave.solicitante)} · sin destinatario: ${formatCurrency(a.rf.sinClave.destinatario)}.` : ''}
+            </p>
+            <table className="w-full tabular-nums">
+              <thead><tr className="text-left text-text-faint"><th>Mes</th><th className="text-right">Filas</th><th className="text-right">Resumen_Fac</th><th className="text-right">Esta pantalla</th><th className="text-right">Diferencia</th></tr></thead>
+              <tbody>
+                {cuadreFilas.map((m) => (
+                  <tr key={m.mes}>
+                    <td>{m.mes}</td><td className="text-right">{formatNumber(m.filas)}</td>
+                    <td className="text-right">{formatCurrency(m.imp)}</td><td className="text-right">{formatCurrency(m.usado)}</td>
+                    <td className={`text-right ${Math.abs(m.imp - m.usado) < 0.5 ? 'text-success' : 'text-danger'}`}>{formatCurrency(m.imp - m.usado)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-start gap-3">
@@ -558,8 +621,8 @@ export function ConsumoPage() {
         <EvolChart serie={aggSerie} height={160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes) })} />
       </div>
 
-      <Ranking title="Sectores · fact. prom 12m" items={rankSector} money wide onRow={(s) => open({ type: 'sector', sector: s })} />
-      <Ranking title="Materiales · fact. prom 12m" items={rankMat} money wide onRow={(m) => open({ type: 'material', material: m })} />
+      <Ranking collapsible storageKey="consumo.rankSector.open" title="Sectores · fact. prom 12m" items={rankSector} money wide onRow={(s) => open({ type: 'sector', sector: s })} />
+      <Ranking collapsible storageKey="consumo.rankMat.open" title="Materiales · fact. prom 12m" items={rankMat} money wide onRow={(m) => open({ type: 'material', material: m })} />
 
       <div className="rounded-xl border border-border">
         <button
