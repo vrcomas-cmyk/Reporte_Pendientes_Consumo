@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "src/core/analysis.ts": {
-    "mtime": 1790791083.2624483,
-    "ast_hash": "281698c2626b080d37f99dd35845c456",
+    "mtime": 1790866041.8857706,
+    "ast_hash": "39c588905b11c01d136663c870bd3049",
     "semantic_hash": ""
   },
   "src/core/buildBO.ts": {
@@ -100,8 +100,8 @@
     "semantic_hash": ""
   },
   "src/core/resumenFac.ts": {
-    "mtime": 1790791084.0336745,
-    "ast_hash": "4b24282750f6f7743dcd27796669c1ab",
+    "mtime": 1790866035.9112523,
+    "ast_hash": "abfa7c947ba44d20d764369e9b17d9d5",
     "semantic_hash": ""
   },
   "src/core/resumenSin.ts": {
@@ -165,13 +165,13 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/helpers.ts": {
-    "mtime": 1790791085.2207036,
-    "ast_hash": "d214296c0b322ef2aea458ae3662fd03",
+    "mtime": 1790867650.4573128,
+    "ast_hash": "299b6bd214e2a10c1d10edbf4945521f",
     "semantic_hash": ""
   },
   "src/modules/consumo/ConsumoPage.tsx": {
-    "mtime": 1790826067.096062,
-    "ast_hash": "8c36e0918ce799cb4f5cee0d6561edc8",
+    "mtime": 1790867657.9347782,
+    "ast_hash": "55bb0de77104f86da1db4ec94ba78d99",
     "semantic_hash": ""
   },
   "src/modules/dashboard/DashboardPage.tsx": {
@@ -540,8 +540,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/CeldaPanel.tsx": {
-    "mtime": 1790833107.8465564,
-    "ast_hash": "76fe8150a3557d14ff8821d042576546",
+    "mtime": 1790834946.5778532,
+    "ast_hash": "0fb1078230f69549a4f0d6e9c3bc89ca",
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/ClienteDetallePanel.tsx": {
@@ -640,8 +640,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/Ranking.tsx": {
-    "mtime": 1790791085.9828217,
-    "ast_hash": "c40633dac0802e76ee32dbfd28ade184",
+    "mtime": 1790866069.3872411,
+    "ast_hash": "2b4d0cf0ef5eaa04b012aeef914dfa16",
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/StatTile.tsx": {
@@ -685,8 +685,8 @@
     "semantic_hash": ""
   },
   "src/core/comercial.ts": {
-    "mtime": 1790791083.4143898,
-    "ast_hash": "b81e8f2240ead17741ff9ce4393e9a23",
+    "mtime": 1790867679.308118,
+    "ast_hash": "fc03edecb6c9702ba4349be80219c08e",
     "semantic_hash": ""
   },
   "src/hooks/useAuth.ts": {
@@ -760,8 +760,8 @@
     "semantic_hash": ""
   },
   "src/services/reportSheetsService.ts": {
-    "mtime": 1790791087.7342253,
-    "ast_hash": "bc2f5d3cee4fef7142c66b84b163e909",
+    "mtime": 1790867694.9317415,
+    "ast_hash": "335996143414c7835b99efbda82723cc",
     "semantic_hash": ""
   },
   "docs/apps-script-report-sheets.md": {
@@ -2270,7 +2270,7 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/AbcBadge.tsx": {
-    "mtime": 1790831187.5908475,
+    "mtime": 1790835651.527659,
     "ast_hash": "6d282e792ed6f3bc96316c2f1460f88b",
     "semantic_hash": ""
   },
@@ -2715,8 +2715,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/InvCondCeldaPanel.tsx": {
-    "mtime": 1790792120.0240047,
-    "ast_hash": "24efde8c887c9500b15a5a2c4e5f4581",
+    "mtime": 1790834950.0490127,
+    "ast_hash": "af8908558e6c085adff2129d6c64bdc7",
     "semantic_hash": ""
   },
   "src/components/ui/filter-chip.tsx": {
@@ -2845,8 +2845,8 @@
     "semantic_hash": ""
   },
   "src/core/analisisDirectivo.ts": {
-    "mtime": 1790791083.2203212,
-    "ast_hash": "3de9ea3c76594250aed93a70e73d43b8",
+    "mtime": 1790867679.3024545,
+    "ast_hash": "7c693a2f1e1d6505c281f618cf5e5b3d",
     "semantic_hash": ""
   },
   "src/modules/analisisDirectivo/AnalisisDirectivoPage.tsx": {
@@ -2922,6 +2922,21 @@
   "src/modules/analytics/panels/MaterialNavControl.tsx": {
     "mtime": 1790833078.0298164,
     "ast_hash": "3e1ecd777a2f5864f9a41c0f67028c48",
+    "semantic_hash": ""
+  },
+  "src/lib/mergeRecentMonth.test.ts": {
+    "mtime": 1790866141.073108,
+    "ast_hash": "908d55f920ff7d1b6f120845c4bf5be1",
+    "semantic_hash": ""
+  },
+  "src/lib/mergeRecentMonth.ts": {
+    "mtime": 1790866140.425891,
+    "ast_hash": "c38adf977c44d22d6047386190a243f3",
+    "semantic_hash": ""
+  },
+  "src/modules/analytics/helpers.test.ts": {
+    "mtime": 1790867717.8865435,
+    "ast_hash": "749bb2fd0c68ea64e20ec6b48fb87116",
     "semantic_hash": ""
   }
 }

@@ -1,6 +1,7 @@
 import { reportRepository } from '@/repositories';
 import { buildFromSheetsInWorker } from '@/services/analysisService';
 import type { TabRows } from '@/workers/analysisWorker';
+import { mergeRecentMonth } from '@/lib/mergeRecentMonth';
 import { getCachedTab, putCachedTab, clearCachedTabs } from '@/repositories/sheetsCache';
 import { fetchSnapshotManifest, fetchTabSnapshot, type SnapshotManifest } from '@/services/reportSnapshotService';
 import { logInfo, logWarn } from '@/lib/logError';
@@ -543,9 +544,6 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
       if (role !== 'resumenFac') return null;
       const cached = await getCachedTab(tab);
       if (!cached || !cached.rows.length) return null;
-      const monthColIdx = cached.headers.indexOf(RESUMEN_FAC_MONTH_COL);
-      if (monthColIdx === -1) return null;
-
       const monthVal = currentMonthValue();
       let fresh: TabRows;
       try {
@@ -554,9 +552,13 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
         logWarn(`Mes corriente de "${tab}" falló, se intentará la descarga completa: ${e instanceof Error ? e.message : String(e)}`);
         return null;
       }
-      const keptRows = cached.rows.filter((r) => String(r[monthColIdx] ?? '').trim() !== monthVal);
-      logInfo('report-sheets-sync-recent-month', `${tab}: ${fresh.rows.length} filas de ${monthVal} + ${keptRows.length} históricas en caché`);
-      return { headers: cached.headers, rows: [...keptRows, ...fresh.rows], rowCount: keptRows.length + fresh.rows.length };
+      const merged = mergeRecentMonth(cached, fresh, monthVal);
+      if (!merged) return null;
+      if (cached.headers.join('') !== fresh.headers.join('')) {
+        logWarn(`Esquema de "${tab}" cambió (columnas distintas a la caché); se reacomodó la caché por nombre de columna.`);
+      }
+      logInfo('report-sheets-sync-recent-month', `${tab}: ${fresh.rows.length} filas de ${monthVal} + ${merged.rows.length - fresh.rows.length} históricas en caché`);
+      return merged;
     }
 
     async function processTab(role: SheetRole, tab: string, index: number): Promise<void> {
@@ -652,8 +654,13 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
       // Resumen_Fac's ~488k-row scale — JSON.stringify re-walks each value
       // through its stringify machinery (quoting/escaping every string,
       // formatting every number) where a plain join just concatenates.
+      //
+      // EXCEPCIÓN: Resumen_Fac NO se deduplica. No es salida de fórmula, y dos
+      // renglones idénticos (mismo cliente/material/mes/cantidad/importe) son
+      // facturas distintas legítimas — colapsarlas subcontaba la facturación
+      // en TODOS los módulos (no cuadraba contra la hoja).
       const dedupSeen = new Set<string>();
-      const dedupedRows = tabRows.rows.filter((row) => {
+      const dedupedRows = role === 'resumenFac' ? tabRows.rows : tabRows.rows.filter((row) => {
         const key = dedupKey(row);
         if (dedupSeen.has(key)) return false;
         dedupSeen.add(key);

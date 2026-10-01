@@ -95,6 +95,47 @@ export function buildAnalisisPredicates(
   return { matPasa, clientePasa };
 }
 
+/** ¿Hay algún filtro que dependa de QUIÉN compró (no de qué material)? Si sí,
+ * `rf.mat` (ya agregado por todos los clientes) no sirve y hay que reconstruir
+ * las series por material sumando solo a los clientes que pasan el filtro. */
+export function hayFiltroCliente(filters: AnalisisFilters): boolean {
+  return !!(filters.ejecutivo || filters.grupoCliente || filters.grupoClientes?.length);
+}
+
+/** ¿Hay CUALQUIER filtro activo (material o cliente)? Sin filtros, los totales
+ * salen directo de `rf.total` (suma de todas las filas de Resumen_Fac). */
+export function hayFiltroAnalisis(filters?: AnalisisFilters): boolean {
+  return !!(filters && (filters.ejecutivo || filters.grupoCliente || filters.grupoClientes?.length || filters.sector || filters.grupoArticulo || filters.gerente));
+}
+
+/** Series mensuales POR MATERIAL respetando TODOS los filtros: sin filtro de
+ * cliente devuelve `rf.mat` tal cual (rápido, como antes); con filtro de
+ * cliente (Grupo cliente / Ejecutivo) recorre `rf.solicMats` sumando solo los
+ * clientes que pasan `clientePasa` y los materiales que pasan `matPasa`. Así
+ * Venta, Margen, curvas anuales y serie mensual reaccionan a Grupo cliente. */
+export function matSeriesFiltradas(
+  rf: RFIndex, filters: AnalisisFilters, matPasa: (m: string) => boolean, clientePasa: (c: string) => boolean,
+): Map<string, Serie> {
+  if (!hayFiltroCliente(filters)) return rf.mat;
+  const acc = new Map<string, Map<string, { mes: string; cant: number; imp: number }>>();
+  rf.solicMats.forEach((porMat, code) => {
+    if (!clientePasa(code)) return;
+    porMat.forEach((serie, m) => {
+      if (!matPasa(m)) return;
+      let mm = acc.get(m);
+      if (!mm) { mm = new Map(); acc.set(m, mm); }
+      for (const p of serie) {
+        const o = mm.get(p.mes) ?? { mes: p.mes, cant: 0, imp: 0 };
+        o.cant += p.cant; o.imp += p.imp;
+        mm.set(p.mes, o);
+      }
+    });
+  });
+  const out = new Map<string, Serie>();
+  acc.forEach((mm, m) => out.set(m, [...mm.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes))));
+  return out;
+}
+
 export function analisisVentas(rf: RFIndex | null, bo: BOItem[], enrich: EnrichIndex, filters?: AnalisisFilters): AnalisisResult | null {
   if (!rf) return null;
   const R = refK();
@@ -105,8 +146,12 @@ export function analisisVentas(rf: RFIndex | null, bo: BOItem[], enrich: EnrichI
 
   const { matPasa, clientePasa } = buildAnalisisPredicates(rf, enrich, filters);
 
+  // Series por material respetando TAMBIÉN los filtros de cliente (Ejecutivo /
+  // Grupo cliente); sin ellos devuelve `rf.mat` tal cual.
+  const matSeries = matSeriesFiltradas(rf, filters ?? {}, matPasa, clientePasa);
+
   const tot = new Map<number, { cant: number; imp: number }>();
-  rf.mat.forEach((serie, m) => {
+  matSeries.forEach((serie, m) => {
     if (!matPasa(m)) return;
     serie.forEach((x) => {
       const k = mesKey(x.mes);
@@ -116,9 +161,11 @@ export function analisisVentas(rf: RFIndex | null, bo: BOItem[], enrich: EnrichI
       tot.set(k, o);
     });
   });
-  const serieTotal: Serie = [...tot.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([k, v]) => ({ mes: kToLbl(k), cant: v.cant, imp: v.imp }));
+  const serieTotal: Serie = hayFiltroAnalisis(filters)
+    ? [...tot.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([k, v]) => ({ mes: kToLbl(k), cant: v.cant, imp: v.imp }))
+    : rf.total.map((p) => ({ ...p })); // suma directa de Resumen_Fac, incluye filas sin material
 
   const ejecDe = (c: string) => enrich.ejecutivoNombre(rf.solicGpoV.get(c) || '') || '';
   const grupoDe = (c: string) => enrich.grupoCliente(rf.solicGpoC.get(c) || '') || (rf.solicGpoC.get(c) || '');
@@ -144,7 +191,7 @@ export function analisisVentas(rf: RFIndex | null, bo: BOItem[], enrich: EnrichI
     .slice(0, 12);
 
   const mats: MatAna[] = [];
-  rf.mat.forEach((serie, m) => {
+  matSeries.forEach((serie, m) => {
     if (!matPasa(m)) return;
     const A = a3(serie);
     const P = p3(serie);
@@ -154,7 +201,7 @@ export function analisisVentas(rf: RFIndex | null, bo: BOItem[], enrich: EnrichI
   const matCaen = mats.filter((x) => x.p3 > 0 && x.a3 < x.p3 * 0.85).sort((a, b) => b.p3 - b.a3 - (a.p3 - a.a3)).slice(0, 12);
 
   const secMap = new Map<string, SectorAna>();
-  rf.mat.forEach((serie, m) => {
+  matSeries.forEach((serie, m) => {
     if (!matPasa(m)) return;
     const A = a3(serie);
     const P = p3(serie);

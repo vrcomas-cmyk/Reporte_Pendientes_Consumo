@@ -102,6 +102,40 @@ export function consumoSerie(rf: RFIndex | null, r: ConsumoRow): Serie {
   const s = serieMatDest(rf, r.destinatario, r.material);
   return s.length ? s : serieDeConsumo(r.raw, RC_SERIE);
 }
+/** Serie para TOTALES de facturación: Resumen_Fac puro (sin el respaldo de 2
+ * puntos de Reporte de Consumo que usa `consumoSerie` para Estado/Tendencia),
+ * así los agregados cuadran exacto contra Resumen_Fac. Sin `rf` cargado cae al
+ * respaldo para no dejar la vista vacía. */
+export function serieFacturada(rf: RFIndex | null, r: ConsumoRow): Serie {
+  return rf ? serieMatDest(rf, r.destinatario, r.material) : serieDeConsumo(r.raw, RC_SERIE);
+}
+
+/** Filas SINTÉTICAS de Consumo para cada par destinatario||material que SÍ
+ * tiene facturación en Resumen_Fac pero NO aparece en "Reporte de Consumo".
+ * Sin ellas los agregados de Consumo (facturado del periodo, comparativas,
+ * rankings) omiten esa venta y no cuadran contra Resumen_Fac. Solo para
+ * agregados — la tabla sigue mostrando únicamente las filas reales. */
+export function paresSoloFacturacion(rf: RFIndex | null, consumo: ConsumoRow[]): ConsumoRow[] {
+  if (!rf) return [];
+  const existentes = new Set<string>();
+  for (const r of consumo) existentes.add(consumoKey(r.destinatario, r.material));
+  const vistos = new Set<string>();
+  const out: ConsumoRow[] = [];
+  for (const f of rf.rows) {
+    const k = consumoKey(f.destinatario, f.material);
+    if (!norm(f.material) || existentes.has(k) || vistos.has(k)) continue;
+    vistos.add(k);
+    out.push({
+      centro: f.centro, grpCliente: f.gpoCte, gpoVdor: f.gpoVdor, solicitante: f.solicitante,
+      destinatario: f.destinatario, razonSocial: f.razonSocial, material: f.material, textoMaterial: f.textoMaterial,
+      consumoActual: 0, consumoPromedioMensual: 0, um: '', tendencia: '', ultimoMesFacturacion: '',
+      cantidadUltima: 0, importeUltima: 0, precioMin: 0, precioMax: 0, precioProm: 0, precioUnitarioUltima: 0,
+      raw: {},
+    });
+  }
+  return out;
+}
+
 export function consumoStatus(rf: RFIndex | null, r: ConsumoRow): Estado {
   const s = consumoSerie(rf, r);
   return clasificarEstado(s.length ? s : null, false);

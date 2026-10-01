@@ -1,8 +1,10 @@
 import { memo, useMemo } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { cn, formatCurrency, formatNumber } from '@/lib/utils';
+import { usePersistedState } from '@/hooks/usePersistedState';
 
 /** Ranking de items (code/desc/val) con barra de progreso y, opcionalmente, layout wide con rows de dos líneas. */
-export const Ranking = memo(function Ranking({ title, items, money = false, onRow, wide = false, className }: {
+export const Ranking = memo(function Ranking({ title, items, money = false, onRow, wide = false, className, collapsible = false, storageKey = 'ranking.open' }: {
   title: string;
   /** `valSub` is an optional second metric shown under `val` (e.g. avg
    * quantity under avg importe) — plain formatNumber, never currency. */
@@ -11,13 +13,27 @@ export const Ranking = memo(function Ranking({ title, items, money = false, onRo
   onRow?: (code: string) => void;
   wide?: boolean;
   className?: string;
+  /** Encabezado clicable que colapsa/expande la lista (abierto por defecto). */
+  collapsible?: boolean;
+  /** Clave de persistencia del estado abierto/cerrado (única por ranking). */
+  storageKey?: string;
 }) {
+  const [openState, setOpen] = usePersistedState<boolean>(storageKey, true);
+  const open = !collapsible || openState;
   const max = useMemo(() => Math.max(1, ...items.map((i) => i.val)), [items]);
   if (wide) {
     return (
       <div className={cn('rounded-xl border border-border p-3', className)}>
-        <h4 className="mb-2 text-xs font-semibold text-text-muted">{title}</h4>
-        <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
+        {collapsible ? (
+          <button type="button" onClick={() => setOpen(!openState)} aria-expanded={open}
+            className={cn('flex w-full items-center justify-between text-xs font-semibold text-text-muted', open && 'mb-2')}>
+            <span>{title}</span>
+            <ChevronDown className={cn('size-4 transition-transform', open && 'rotate-180')} />
+          </button>
+        ) : (
+          <h4 className="mb-2 text-xs font-semibold text-text-muted">{title}</h4>
+        )}
+        {open && <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
           {items.length === 0 && <p className="text-xs text-text-faint">Sin datos.</p>}
           {items.map((it) => (
             <button
@@ -39,7 +55,7 @@ export const Ranking = memo(function Ranking({ title, items, money = false, onRo
               </div>
             </button>
           ))}
-        </div>
+        </div>}
       </div>
     );
   }

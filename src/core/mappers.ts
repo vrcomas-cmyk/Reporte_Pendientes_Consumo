@@ -12,6 +12,7 @@ import type {
 } from './types';
 import { CENTERS } from './types';
 import { norm, numLoose } from '@/lib/text';
+import { mesCanon } from './resumenFac';
 import { normHeader } from './roleDetection';
 
 // Raw xlsx rows come back as Record<string, unknown> with header keys.
@@ -285,7 +286,7 @@ export function mapResumenFac(r: Row): ResumenFacRow {
     destinatario: str(r['Destinatario']),
     material: str(r['Material']),
     textoMaterial: str(r['Texto de material']),
-    mesAno: str(r['Mes y año']),
+    mesAno: mesCanon(r['Mes y año']),
     cantidadFacturada: num(r['Cantidad facturada']),
     importeFacturado: num(r['Importe facturado']),
     gpoCte: str(r['Gpo. Cte.']),
