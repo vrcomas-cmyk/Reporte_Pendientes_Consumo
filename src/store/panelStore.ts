@@ -30,7 +30,13 @@ export type Panel =
   | { type: 'mesClientesFiltro'; mes: string; rows: { razon: string; solic: string; dest: string; material: string; cant: number; imp: number }[] }
   | { type: 'sector'; sector: string }
   | { type: 'grupo'; grupo: string }
-  | { type: 'celda'; material: string; centro: string }
+  // `origen: 'resumenSin'` (desde el módulo Inventario): el inventario de otros
+  // centros + "Solicitar" se muestra en un panel lateral izquierdo, acotado a
+  // `centrosVisibles` (los centros que el usuario dejó visibles en la tabla;
+  // undefined = todos). `lista`: materiales en el orden/filtro de la tabla al
+  // abrir, para recorrerlos con ◀/▶ (ver MaterialNavControl). Snapshots, igual
+  // que `mesClientesFiltro.rows`.
+  | { type: 'celda'; material: string; centro: string; origen?: 'resumenSin'; centrosVisibles?: string[]; lista?: string[] }
   // Detalle de una celda del reporte "Inv Condición" (InvConsolidado): a
   // diferencia de `celda` (que prioriza el desglose de Resumen Sin
   // Sugerencias), este SIEMPRE muestra el desglose por lote desde

@@ -14,6 +14,7 @@ import { ClientesMesPanel, MesClientesFiltroPanel } from './panels/ClientesMesPa
 import { SectorPanel } from './panels/SectorPanel';
 import { GrupoPanel } from './panels/GrupoPanel';
 import { CeldaPanel } from './panels/CeldaPanel';
+import { MaterialInventarioLateral } from './panels/MaterialInventario';
 import { InvCondCeldaPanel } from './panels/InvCondCeldaPanel';
 import { MaterialTotalesPanel } from './panels/MaterialTotalesPanel';
 import { ClienteDetallePanel } from './panels/ClienteDetallePanel';
@@ -81,18 +82,28 @@ export function PanelHost() {
   const back = usePanelStore((s) => s.back);
   const close = usePanelStore((s) => s.close);
   const push = usePanelStore((s) => s.push);
+  const replaceTop = usePanelStore((s) => s.replaceTop);
   const a = useAnalytics();
   const panel = stack[stack.length - 1];
+  // Detalle de celda abierto desde Inventario (Resumen Sin): panel lateral
+  // izquierdo con "Otros centros" + "Solicitar desde inventario".
+  const lateral = panel?.type === 'celda' && panel.origen === 'resumenSin' ? panel : null;
 
   return (
     <Sheet open={!!panel} onOpenChange={(o) => !o && close()}>
-      <SheetContent className={`w-full max-w-4xl ${panel && EXTRA_WIDE.has(panel.type) ? 'sm:max-w-[100rem]' : panel && WIDE.has(panel.type) ? 'sm:max-w-7xl' : 'sm:max-w-4xl'}`}>
+      <SheetContent className={`w-full max-w-4xl ${lateral ? 'lg:max-w-[min(80rem,calc(100vw_-_20rem))]' : ''} ${panel && EXTRA_WIDE.has(panel.type) ? 'sm:max-w-[100rem]' : panel && WIDE.has(panel.type) ? 'sm:max-w-7xl' : 'sm:max-w-4xl'}`}>
         {stack.length > 1 && (
           <button onClick={back} className="mb-3 inline-flex items-center gap-1 text-sm text-text-muted hover:text-text">
             <ArrowLeft className="size-4" /> Atrás
           </button>
         )}
         {panel && <PanelBody panel={panel} a={a} push={push} />}
+        {/* Dentro del mismo Dialog: foco, click-fuera y cierre compartidos con el detalle. */}
+        {lateral && (
+          <aside className="fixed inset-y-0 right-[min(80rem,calc(100vw_-_20rem))] z-50 hidden w-80 overflow-y-auto border-r border-border bg-bg-elevated p-5 shadow-xl lg:block">
+            <MaterialInventarioLateral a={a} material={lateral.material} centrosVisibles={lateral.centrosVisibles} centroActivo={lateral.centro} onSelectCentro={(c) => replaceTop({ ...lateral, centro: c })} />
+          </aside>
+        )}
       </SheetContent>
     </Sheet>
   );

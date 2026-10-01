@@ -453,10 +453,10 @@ export function SugerenciasPage() {
     <div className="flex h-full flex-col gap-3 overflow-auto p-5">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="font-display text-2xl font-semibold">Pedidos</h2>
+          <h2 className="font-display text-2xl font-semibold">Pedidos Vivos en Sistema</h2>
           <p className="text-sm text-text-muted">
             {agrupado
-              ? <>Órdenes pendientes deduplicadas (BO) · {formatNumber(filtered.length)} renglones</>
+              ? <>Órdenes pendientes por facturar (BO) · {formatNumber(filtered.length)} renglones</>
               : <>Detalle por fuente, sin agrupar · {formatNumber(flatRaw.length)} renglones</>}
           </p>
         </div>
@@ -487,9 +487,8 @@ export function SugerenciasPage() {
       <div className="flex flex-wrap items-start gap-3">
         <div className="inline-grid grid-cols-2 content-start gap-2">
           <StatTile emphasis="hero" label="Importe pendiente" value={formatCurrency(kpis.impTot)} sub={<><span className="mr-1 inline-block size-1.5 rounded-full bg-success" />{formatCurrency(kpis.impTot - kpis.impBloq)} libre · <span className="mr-1 inline-block size-1.5 rounded-full bg-danger" />{formatCurrency(kpis.impBloq)} bloqueado</>} />
-          <StatTile compact label="Cant. pendiente" value={formatNumber(kpis.pendTot)} sub={<><span className="mr-1 inline-block size-1.5 rounded-full bg-success" />{formatNumber(kpis.pendTot - kpis.pendBloq)} · <span className="mr-1 inline-block size-1.5 rounded-full bg-danger" />{formatNumber(kpis.pendBloq)}</>} />
+          <StatTile compact label="Cant. pendiente" value={formatNumber(kpis.pendTot)} sub={<><span className="mr-1 inline-block size-1.5 rounded-full bg-success" />{formatNumber(kpis.pendTot - kpis.pendBloq)} libre · <span className="mr-1 inline-block size-1.5 rounded-full bg-danger" />{formatNumber(kpis.pendBloq)} bloqueado</>} />
           <StatTile compact label="Renglones BO" value={formatNumber(filtered.length)} />
-          {!fuenteOculto && <StatTile compact label="Con fuentes" value={formatNumber(kpis.conF)} />}
         </div>
         <Ranking title="Top 10 material por importe pendiente" items={kpis.rk} money wide onRow={(m) => open({ type: 'material', material: m })} className="min-w-[420px] flex-1" />
       </div>
@@ -548,7 +547,7 @@ export function SugerenciasPage() {
         {!fuenteOculto && (
           <label className="flex h-9 items-center gap-1.5 rounded-md border border-border bg-bg-elevated px-2 text-sm" title="Para fuente Corta caducidad, exige centro sugerido 1031/1022/1017 o igual al centro del pedido. Otras fuentes no se filtran.">
             <input type="checkbox" checked={centroValido} onChange={(ev) => setCentroValido(ev.target.checked)} />
-            Centro válido (Corta cad.)
+            Centro con sugerencias
           </label>
         )}
         {!fuenteOculto && (

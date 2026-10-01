@@ -5,9 +5,13 @@ import { Section, SugTable, ConsumoTable, PrecioCondicionBox } from './_shared';
 import { MaterialInventarioSection } from './MaterialInventario';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { invGen } from '@/core/resumenSin';
-import { serieMaterial, serieMatCentro } from '@/core/resumenFac';
+import { serieMaterial, serieMatCentro, rfTieneCentro } from '@/core/resumenFac';
 import { almacenesDeCondicion } from '@/core/inventoryRules';
 import { sugFor, consFor, norm } from '../helpers';
+import { useNombresStore, useVistaCentrosStore } from '@/store/nombresStore';
+import { etiquetaCentro, etiquetaAlmacen } from '@/lib/nombres';
+import { usePanelStore } from '@/store/panelStore';
+import { MaterialNavControl } from './MaterialNavControl';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import type { Panel } from '@/store/panelStore';
 import type { Analytics } from '../AnalyticsContext';
@@ -15,6 +19,20 @@ import type { Analytics } from '../AnalyticsContext';
 /** Panel — Detalle por material+centro: inventario, desglose por almacén, tendencia y sugerencias/consumo en ese centro. */
 export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: 'celda' }>; a: Analytics; push: (p: Panel) => void }) {
   const { rss, bo, rf, result } = a;
+  const nombresCentros = useNombresStore((s) => s.centros);
+  const nombresAlm = useNombresStore((s) => s.almacenes);
+  const mostrarNombres = useVistaCentrosStore((s) => s.mostrarNombres);
+  const centroTxt = etiquetaCentro(panel.centro, nombresCentros, mostrarNombres);
+  // Desde Inventario (Resumen Sin) el inventario de otros centros + Solicitar
+  // viven en el panel lateral izquierdo (ver PanelHost).
+  const inventarioEnLateral = panel.origen === 'resumenSin';
+  const replaceTop = usePanelStore((s) => s.replaceTop);
+  // Navegación entre materiales (solo desde Inventario): mismo centro, otro material.
+  const nav = inventarioEnLateral ? (
+    <div className="mb-3">
+      <MaterialNavControl rss={rss} material={panel.material} lista={panel.lista} irA={(m) => replaceTop({ ...panel, material: m })} />
+    </div>
+  ) : null;
   const condicionMat = a.invCondicion.find((r) => norm(r.material) === norm(panel.material))?.condicion || '';
   const almacenesAplicables = new Set(almacenesDeCondicion(condicionMat).map(norm));
   const sug = sugFor(bo, panel.material, panel.centro);
@@ -28,13 +46,22 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
   // (InvDetalle / lotes de corta caducidad) para no dejar el panel vacío.
   if (!rss || !co) {
     const lotesCelda = a.lotes.filter((l) => norm(l.material) === norm(panel.material) && norm(l.centro) === norm(panel.centro));
-    if (!lotesCelda.length) return <p>Celda no encontrada.</p>;
+    if (!lotesCelda.length) {
+      return (
+        <div>
+          {nav}
+          <h2 className="font-display text-lg font-semibold">{panel.material} · Centro {centroTxt}</h2>
+          <p className="mt-2 text-sm text-text-muted">Este material no tiene inventario ni registro en este centro.</p>
+        </div>
+      );
+    }
     const porAlmacen = new Map<string, number>();
     for (const l of lotesCelda) porAlmacen.set(l.almacen, (porAlmacen.get(l.almacen) || 0) + l.cantidadDisp);
     const total = [...porAlmacen.values()].reduce((s, v) => s + v, 0);
     return (
       <div>
-        <h2 className="font-display text-lg font-semibold">{panel.material} · Centro {panel.centro}</h2>
+        {nav}
+        <h2 className="font-display text-lg font-semibold">{panel.material} · Centro {centroTxt}</h2>
         <p className="mt-1 text-sm text-text-muted">{lotesCelda[0].textoBreve}</p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <StatTile label="Inv. (lotes)" value={formatNumber(total)} />
@@ -47,7 +74,7 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
               <TableBody>
                 {[...porAlmacen.entries()].sort(([x], [y]) => x.localeCompare(y)).map(([alm, v]) => (
                   <TableRow key={alm}>
-                    <TableCell>{alm}{almacenesAplicables.has(norm(alm)) && <StatePill label="aplica" cls="verde" />}</TableCell>
+                    <TableCell>{etiquetaAlmacen(alm, nombresAlm)}{almacenesAplicables.has(norm(alm)) && <StatePill label="aplica" cls="verde" />}</TableCell>
                     <TableCell className="text-right">{formatNumber(v)}</TableCell>
                   </TableRow>
                 ))}
@@ -65,7 +92,7 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
         <div className="mt-3">
           <Button variant="outline" size="sm" onClick={() => push({ type: 'materialTotales', material: panel.material })}>Ver totales del material</Button>
         </div>
-        <MaterialInventarioSection a={a} material={panel.material} />
+        {!inventarioEnLateral && <MaterialInventarioSection a={a} material={panel.material} />}
       </div>
     );
   }
@@ -73,7 +100,8 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
   const alms = [...co.alm.values()].sort((x, y) => String(x.alm).localeCompare(String(y.alm)));
   return (
     <div>
-      <h2 className="font-display text-lg font-semibold">{panel.material} · Centro {panel.centro}</h2>
+      {nav}
+      <h2 className="font-display text-lg font-semibold">{panel.material} · Centro {centroTxt}</h2>
       <p className="mt-1 text-sm text-text-muted">{mo!.desc}</p>
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatTile label="Inv. general" value={formatNumber(invGen(co))} />
@@ -89,7 +117,7 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
             <TableBody>
               {alms.map((al, i) => (
                 <TableRow key={i}>
-                  <TableCell>{al.alm}{almacenesAplicables.has(norm(al.alm)) && <StatePill label="aplica" cls="verde" />}</TableCell>
+                  <TableCell>{etiquetaAlmacen(al.alm, nombresAlm)}{almacenesAplicables.has(norm(al.alm)) && <StatePill label="aplica" cls="verde" />}</TableCell>
                   <TableCell className="text-right">{formatNumber(al.inv)}</TableCell>
                   <TableCell className="text-right">{al.pend ? formatNumber(al.pend) : '—'}</TableCell>
                   <TableCell className="text-right">{al.transito ? formatNumber(al.transito) : '—'}</TableCell>
@@ -106,7 +134,7 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
         const serieCentro = serieMatCentro(rf, panel.material, panel.centro);
         const usaCentro = serieCentro.length > 0;
         return (
-          <Section title={usaCentro ? `Tendencia del material · Centro ${panel.centro}` : 'Tendencia del material (general — sin historia en este centro)'}>
+          <Section title={usaCentro ? `Tendencia del material · Centro ${centroTxt}` : rfTieneCentro(rf) ? 'Tendencia del material (general — sin historia en este centro)' : 'Tendencia del material (general — los datos cargados de Resumen_Fac no traen la columna Centro: actualiza Resumen_Fac en vivo desde Carga)'}>
             <EvolChart serie={usaCentro ? serieCentro : serieMaterial(rf, panel.material)} height={180} />
           </Section>
         );
@@ -121,7 +149,7 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
       <div className="mt-3">
         <Button variant="outline" size="sm" onClick={() => push({ type: 'materialTotales', material: panel.material })}>Ver totales del material</Button>
       </div>
-      <MaterialInventarioSection a={a} material={panel.material} />
+      {!inventarioEnLateral && <MaterialInventarioSection a={a} material={panel.material} />}
     </div>
   );
 }

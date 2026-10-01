@@ -18,6 +18,11 @@ import { supabase } from '@/lib/supabaseClient';
 import { PESOS_DEFAULT, CRITERIO_LABELS, type CriterioKey } from '@/core/scoring';
 import { loadScoringWeights, saveScoringWeight, SCORING_WEIGHT_PREFIX } from '@/services/scoringWeightsService';
 import { useScoringWeightsStore } from '@/store/scoringWeightsStore';
+import { loadNombres, saveNombres, NOMBRES_PREFIX, type NombresKind } from '@/services/nombresService';
+import { useNombresStore } from '@/store/nombresStore';
+import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
+import { CENTERS } from '@/core/types';
+import type { NombresMap } from '@/lib/nombres';
 
 export function AdminPage() {
   return (
@@ -33,12 +38,14 @@ export function AdminPage() {
           <TabsTrigger value="overrides">Overrides por usuario</TabsTrigger>
           <TabsTrigger value="conectores">Conectores</TabsTrigger>
           <TabsTrigger value="compatibilidad">Compatibilidad</TabsTrigger>
+          <TabsTrigger value="nombres">Nombres</TabsTrigger>
         </TabsList>
         <TabsContent value="usuarios"><UsuariosTab /></TabsContent>
         <TabsContent value="roles"><PermissionsTab subjectType="role" /></TabsContent>
         <TabsContent value="overrides"><PermissionsTab subjectType="user" /></TabsContent>
         <TabsContent value="conectores"><ConectoresTab /></TabsContent>
         <TabsContent value="compatibilidad"><PesosTab /></TabsContent>
+        <TabsContent value="nombres"><NombresTab /></TabsContent>
       </Tabs>
     </div>
   );
@@ -96,6 +103,95 @@ function PesosTab() {
             <Button size="sm" disabled={busyKey === key} onClick={() => handleSave(key)}>Guardar</Button>
           </div>
         ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Nombres: alias de centros y almacenes (1001 = Tijuana, 1030 = Multicanal…).
+// Se guardan como JSON en `degasa_connectors` (ver nombresService). Los
+// códigos se precargan de los datos cargados y se pueden agregar otros.
+// ---------------------------------------------------------------------------
+function NombresTab() {
+  const a = useAnalytics();
+  const invalidate = useNombresStore((s) => s.invalidate);
+  const [drafts, setDrafts] = useState<Record<NombresKind, NombresMap>>({ centros: {}, almacenes: {} });
+  const [busy, setBusy] = useState<NombresKind | null>(null);
+
+  useEffect(() => {
+    void loadNombres().then(setDrafts).catch((e) => toast.error('No se pudieron cargar los nombres', e instanceof Error ? e.message : String(e)));
+  }, []);
+
+  const codigos = (kind: NombresKind): string[] => {
+    const set = new Set<string>(Object.keys(drafts[kind]));
+    if (kind === 'centros') {
+      CENTERS.forEach((c) => set.add(c));
+      a.rss?.centros.forEach((c) => set.add(c));
+    } else {
+      ['1030', '1031', '1032', '1060'].forEach((c) => set.add(c));
+      a.rss?.mats.forEach((mo) => mo.centros.forEach((co) => co.alm.forEach((al) => { if (al.alm && al.alm !== '—') set.add(al.alm); })));
+    }
+    return [...set].sort();
+  };
+
+  const handleSave = async (kind: NombresKind) => {
+    setBusy(kind);
+    try {
+      const { data } = await supabase.auth.getUser();
+      await saveNombres(kind, drafts[kind], data.user?.email ?? 'admin');
+      invalidate();
+      toast.success('Guardado', kind === 'centros' ? 'Los nombres de centros ya están activos.' : 'Los nombres de almacenes ya están activos.');
+    } catch (e) {
+      toast.error('No se pudo guardar', e instanceof Error ? e.message : String(e));
+    } finally { setBusy(null); }
+  };
+
+  const bloque = (kind: NombresKind, titulo: string, descripcion: string) => (
+    <NombresCard
+      key={kind} titulo={titulo} descripcion={descripcion} codigos={codigos(kind)} valores={drafts[kind]} busy={busy === kind}
+      onChange={(code, v) => setDrafts((d) => ({ ...d, [kind]: { ...d[kind], [code]: v } }))}
+      onSave={() => handleSave(kind)}
+    />
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      {bloque('centros', 'Nombres de centros', 'Los usuarios pueden alternar en Inventario entre ver solo el código (1001) o código + nombre (1001 (Tijuana)).')}
+      {bloque('almacenes', 'Nombres de almacenes', 'Siempre se muestran junto al código en el desglose por almacén: 1030 (Multicanal).')}
+    </div>
+  );
+}
+
+function NombresCard({ titulo, descripcion, codigos, valores, busy, onChange, onSave }: {
+  titulo: string; descripcion: string; codigos: string[]; valores: NombresMap; busy: boolean;
+  onChange: (code: string, v: string) => void; onSave: () => void;
+}) {
+  const [nuevo, setNuevo] = useState('');
+  const agregar = () => {
+    const code = nuevo.trim();
+    if (!code) return;
+    onChange(code, valores[code] ?? ' ');
+    setNuevo('');
+  };
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{titulo}</CardTitle>
+        <CardDescription>{descripcion}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        {codigos.map((code) => (
+          <div key={code} className="flex items-center gap-3">
+            <label className="w-24 font-mono text-sm text-text">{code}</label>
+            <Input value={valores[code] ?? ''} onChange={(e) => onChange(code, e.target.value)} placeholder="Sin nombre" className="max-w-xs" />
+          </div>
+        ))}
+        <div className="flex items-center gap-3 border-t border-border pt-3">
+          <Input value={nuevo} onChange={(e) => setNuevo(e.target.value)} placeholder="Agregar código…" className="w-24 font-mono text-sm" />
+          <Button size="sm" variant="outline" onClick={agregar} disabled={!nuevo.trim()}>Agregar</Button>
+          <Button size="sm" className="ml-auto" disabled={busy} onClick={onSave}>Guardar</Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -375,7 +471,7 @@ function ConectoresTab() {
     // Los pesos del score (fase 5) viven en la misma tabla pero tienen su
     // propia pestaña "Compatibilidad" con mejor UX (números, no URLs) — se
     // excluyen aquí para no duplicar la edición en dos lugares.
-    const rows = (await listConnectors()).filter((r) => !r.key.startsWith(SCORING_WEIGHT_PREFIX));
+    const rows = (await listConnectors()).filter((r) => !r.key.startsWith(SCORING_WEIGHT_PREFIX) && !r.key.startsWith(NOMBRES_PREFIX));
     setConnectors(rows);
     setDrafts(Object.fromEntries(rows.map((r) => [r.key, r.value ?? ''])));
   }, []);

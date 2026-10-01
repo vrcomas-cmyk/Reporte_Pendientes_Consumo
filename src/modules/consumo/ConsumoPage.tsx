@@ -58,6 +58,7 @@ export function ConsumoPage() {
   const [periodoMeses, setPeriodoMeses] = usePersistedState<{ desde: string; hasta: string }>('consumo.periodoMeses', { desde: '', hasta: '' });
   const [gruposOpen, setGruposOpen] = useState(false);
   const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>('consumo.periodo', 'corriente');
+  const [dispersionOpen, setDispersionOpen] = useState(false);
   const [clearTick, setClearTick] = useState(0);
   // "Pegar materiales" estilo SAP — aditivo, no toca los filtros de arriba.
   const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('consumo.pasteCodes', []);
@@ -330,9 +331,9 @@ export function ConsumoPage() {
     return [...bySector.entries()].map(([sector, bucket]) => {
       const serie = [...bucket.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
       let imp12 = 0, cant12 = 0;
-      serie.forEach((x) => { const mk = mesKey(x.mes); if (mk >= lo && mk <= hi) { imp12 += x.imp; cant12 += x.cant; } });
+      serie.forEach((x) => { const mk = mesKey(x.mes); if (mk >= lo && mk <= hi) { imp12 += x.imp; cant12 += x.cant; }}) ;
       const t = tendenciaTexto(serie);
-      return { code: sector, desc: t.txt, val: imp12 / nMeses, valSub: cant12 / nMeses };
+      return { code: sector, desc: t.txt, val: imp12 / nMeses, valSub: cant12 / nMeses } ;
     }).filter((x) => x.val > 0).sort((x, y) => y.val - x.val).slice(0, 10);
   }, [filtered, a.rf, ce, rangoActivo, rangoLoK, rangoHiK]);
 
@@ -446,7 +447,7 @@ export function ConsumoPage() {
   return (
     <div className="flex h-full flex-col gap-3 overflow-auto p-5">
       <div className="flex items-start justify-between gap-2">
-        <div><h2 className="font-display text-2xl font-semibold">Reporte de Consumo</h2>
+        <div><h2 className="font-display text-2xl font-semibold">Histórico de Facturación</h2>
           <p className="text-sm text-text-muted">{formatNumber(filtered.length)} de {formatNumber(rows.length)} registros</p></div>
         <div className="flex items-center gap-2">
           <ColumnVisibilityControl columns={COLS_CONSUMO} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
@@ -479,7 +480,6 @@ export function ConsumoPage() {
         </div>
       )}
       <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
-
       <div className="rounded-xl border border-border border-t-2 border-t-accent bg-bg-elevated p-4 shadow-sm">
         <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
           Facturado en el periodo{facturadoPeriodo.meses ? ` · ${facturadoPeriodo.desde} – ${facturadoPeriodo.hasta}` : ''}
@@ -504,11 +504,18 @@ export function ConsumoPage() {
             <span className="ml-1.5 text-[11px] text-text-faint">{formatNumber(facturadoPeriodo.promCantQ)} u.</span>
           </div>
         </div>
+        
         <div className="text-[11px] text-text-faint">
           {facturadoPeriodo.meses} {facturadoPeriodo.meses === 1 ? 'mes' : 'meses'} con movimiento · {formatNumber(filtered.length)} líneas del filtro actual
           {!rangoActivo && ' · ventana por defecto: últimos 36 meses (usa "Último mes fact." para acotar)'}
         </div>
       </div>
+
+            <div className="ml-auto flex items-center gap-1 rounded-md border border-border p-0.5 text-xs">
+          <button onClick={() => setPeriodo('corriente')} className={`rounded px-2 py-1 ${periodo === 'corriente' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo corriente</button>
+          <button onClick={() => setPeriodo('anterior')} className={`rounded px-2 py-1 ${periodo === 'anterior' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo anterior</button>
+        </div>
+
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <div className="rounded-xl border border-border p-3">
@@ -542,11 +549,7 @@ export function ConsumoPage() {
           <StatTile compact label="Al corriente" value={formatNumber(kpis.corriente)} />
           <StatTile compact label="En riesgo" value={formatNumber(kpis.riesgo)} tone={kpis.riesgo > 0 ? 'danger' : undefined} />
           <StatTile compact label="Reactivación" value={formatNumber(kpis.reactiva)} tone="info" />
-          <StatTile compact label="Nueva compra" value={formatNumber(kpis.nueva)} tone="info" />
-        </div>
-        <div className="ml-auto flex items-center gap-1 rounded-md border border-border p-0.5 text-xs">
-          <button onClick={() => setPeriodo('corriente')} className={`rounded px-2 py-1 ${periodo === 'corriente' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo corriente</button>
-          <button onClick={() => setPeriodo('anterior')} className={`rounded px-2 py-1 ${periodo === 'anterior' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo anterior</button>
+          <StatTile compact label="Nueva compra" value={formatNumber(kpis.nueva)} tone="success" />
         </div>
       </div>
 
@@ -558,33 +561,99 @@ export function ConsumoPage() {
       <Ranking title="Sectores · fact. prom 12m" items={rankSector} money wide onRow={(s) => open({ type: 'sector', sector: s })} />
       <Ranking title="Materiales · fact. prom 12m" items={rankMat} money wide onRow={(m) => open({ type: 'material', material: m })} />
 
-      <div className="rounded-xl border border-border p-3">
-        <h4 className="mb-2 text-xs font-semibold text-text-muted">
-          Dispersión de precios entre clientes · mismo material, precio muy distinto · {dispersionShown.length}
-        </h4>
-        {dispersionShown.length === 0 ? (
-          <p className="text-xs text-text-faint">Sin dispersión detectada (o ningún material del filtro actual tiene 2+ clientes con precio vigente).</p>
-        ) : (
-          <Table wrapperClassName="max-h-64">
-            <TableHeader><TableRow>
-              <TableHead>Material</TableHead>
-              <TableHead className="text-right">Spread</TableHead>
-              <TableHead>Paga menos</TableHead>
-              <TableHead>Paga más</TableHead>
-              <TableHead className="text-right"># Clientes</TableHead>
-            </TableRow></TableHeader>
-            <TableBody>
-              {dispersionShown.map((e) => (
-                <TableRow key={e.material} className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'material', material: e.material })}>
-                  <TableCell><Chip onClick={() => open({ type: 'material', material: e.material })}>{e.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{e.descripcion}</div></TableCell>
-                  <TableCell className="text-right"><span className={e.spread > 1 ? 'text-danger font-medium' : 'text-warning font-medium'}>+{(e.spread * 100).toFixed(0)}%</span></TableCell>
-                  <TableCell className="max-w-48 truncate">{e.clienteMin.razonSocial || e.clienteMin.destinatario}<div className="text-[11px] text-text-faint">{formatCurrency(e.clienteMin.precioUnitario)}</div></TableCell>
-                  <TableCell className="max-w-48 truncate">{e.clienteMax.razonSocial || e.clienteMax.destinatario}<div className="text-[11px] text-text-faint">{formatCurrency(e.clienteMax.precioUnitario)}</div></TableCell>
-                  <TableCell className="text-right">{e.nClientes}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+      <div className="rounded-xl border border-border">
+        <button
+          onClick={() => setDispersionOpen(!dispersionOpen)}
+          className="flex w-full items-center justify-between p-3 text-sm font-medium"
+        >
+          <span>
+            Dispersión de precios entre clientes · mismo material, precio muy distinto · {dispersionShown.length}
+          </span>
+
+          <ChevronDown
+            className={`size-4 transition-transform ${
+              dispersionOpen ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+
+        {dispersionOpen && (
+          <div className="border-t border-border">
+            {dispersionShown.length === 0 ? (
+              <p className="p-3 text-xs text-text-faint">
+                Sin dispersión detectada (o ningún material del filtro actual tiene 2+ clientes con precio vigente).
+              </p>
+            ) : (
+              <Table wrapperClassName="max-h-64">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Material</TableHead>
+                    <TableHead className="text-right">Spread</TableHead>
+                    <TableHead>Paga menos</TableHead>
+                    <TableHead>Paga más</TableHead>
+                    <TableHead className="text-right"># Clientes</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {dispersionShown.map((e) => (
+                    <TableRow
+                      key={e.material}
+                      className="cursor-pointer"
+                      title="Doble clic para ver detalle"
+                      onDoubleClick={() =>
+                        open({ type: 'material', material: e.material })
+                      }
+                    >
+                      <TableCell>
+                        <Chip
+                          onClick={() =>
+                            open({ type: 'material', material: e.material })
+                          }
+                        >
+                          {e.material}
+                        </Chip>
+
+                        <div className="max-w-64 truncate text-[11px] text-text-faint">
+                          {e.descripcion}
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="text-right">
+                        <span
+                          className={
+                            e.spread > 1
+                              ? 'font-medium text-danger'
+                              : 'font-medium text-warning'
+                          }
+                        >
+                          +{(e.spread * 100).toFixed(0)}%
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="max-w-48 truncate">
+                        {e.clienteMin.razonSocial || e.clienteMin.destinatario}
+                        <div className="text-[11px] text-text-faint">
+                          {formatCurrency(e.clienteMin.precioUnitario)}
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="max-w-48 truncate">
+                        {e.clienteMax.razonSocial || e.clienteMax.destinatario}
+                        <div className="text-[11px] text-text-faint">
+                          {formatCurrency(e.clienteMax.precioUnitario)}
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="text-right">
+                        {e.nClientes}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
         )}
       </div>
 

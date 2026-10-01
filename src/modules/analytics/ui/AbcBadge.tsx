@@ -3,10 +3,10 @@ import { cn } from '@/lib/utils';
 import type { AbcClass } from '@/core/abc';
 
 const CLS: Record<AbcClass, string> = {
-  // Clasificacion, no alerta: jerarquia por peso de texto, sin colores semanticos.
-  A: 'bg-text/10 font-semibold text-text',
-  B: 'bg-bg-inset text-text-muted',
-  C: 'bg-bg-inset text-text-faint',
+  // Un color por clase (tokens del tema, claro/oscuro): A verde, B azul, C ambar.
+  A: 'bg-success/15 text-success',
+  B: 'bg-info/15 text-info',
+  C: 'bg-warning/15 text-warning',
 };
 
 const TITLE: Record<AbcClass, string> = {

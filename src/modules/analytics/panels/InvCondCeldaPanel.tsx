@@ -7,7 +7,7 @@ import { MaterialInventarioSection } from './MaterialInventario';
 import { formatNumber, formatCurrency, formatFechaCaducidad } from '@/lib/utils';
 import { almacenesDeCondicion } from '@/core/inventoryRules';
 import { pendPorCondicion, transitoPorCondicion, impPendPorCondicion, esLentoPorCondicion, type RSSAlmacen } from '@/core/resumenSin';
-import { serieMaterial, serieMatCentro } from '@/core/resumenFac';
+import { serieMaterial, serieMatCentro, rfTieneCentro } from '@/core/resumenFac';
 import { norm, sugFor, consFor } from '../helpers';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { buildFromInvDetalle, buildFromResumenSin } from '@/services/solicitudService';
@@ -205,7 +205,7 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
         )}
       </Section>
 
-      <Section title={usaCentro ? `Tendencia del material · Centro ${panel.centro}` : 'Tendencia del material (general — sin historia en este centro)'}>
+      <Section title={usaCentro ? `Tendencia del material · Centro ${panel.centro}` : rfTieneCentro(a.rf) ? 'Tendencia del material (general — sin historia en este centro)' : 'Tendencia del material (general — los datos cargados de Resumen_Fac no traen la columna Centro: actualiza Resumen_Fac en vivo desde Carga)'}>
         <EvolChart serie={usaCentro ? serieCentro : serieMaterial(a.rf, panel.material)} height={180} />
       </Section>
 
