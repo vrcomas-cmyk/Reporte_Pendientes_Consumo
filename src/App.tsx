@@ -12,6 +12,7 @@ import { PanelHost } from '@/modules/analytics/PanelHost';
 import { useSolicitudStore } from '@/store/solicitudStore';
 import { useConocimientoStore } from '@/store/conocimientoStore';
 import { useScoringWeightsStore } from '@/store/scoringWeightsStore';
+import { useNombresStore } from '@/store/nombresStore';
 
 // Only the shell (AppShell/Topbar/Sidebar) stays eager for instant first
 // paint. Every route, INCLUDING Dashboard, is code-split so its JS — and
@@ -61,11 +62,13 @@ function App() {
   const hydrateSolicitudes = useSolicitudStore((s) => s.hydrate);
   const hydrateConocimiento = useConocimientoStore((s) => s.hydrate);
   const hydrateScoringWeights = useScoringWeightsStore((s) => s.hydrate);
+  const hydrateNombres = useNombresStore((s) => s.hydrate);
   useEffect(() => {
     void hydrateSolicitudes();
     void hydrateConocimiento();
     void hydrateScoringWeights();
-  }, [hydrateSolicitudes, hydrateConocimiento, hydrateScoringWeights]);
+    void hydrateNombres();
+  }, [hydrateSolicitudes, hydrateConocimiento, hydrateScoringWeights, hydrateNombres]);
 
   return (
     <QueryClientProvider client={queryClient}>

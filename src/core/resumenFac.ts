@@ -201,6 +201,20 @@ export const serieMatCentro = (rf: RFIndex | null, m: unknown, centro: unknown):
   }
   return [...byMes.values()].sort((a, b) => mesKey(a.mes) - mesKey(b.mes));
 };
+const tieneCentroCache = new WeakMap<RFIndex, boolean>();
+/** ¿Alguna fila de Resumen_Fac trae el campo "Centro" con valor? Falso cuando
+ * los datos en caché son anteriores a que se agregara la columna a la hoja
+ * (snapshot nocturno / caché local) — en ese caso la tendencia por centro no
+ * puede calcularse y hay que refrescar Resumen_Fac en vivo desde Carga. */
+export const rfTieneCentro = (rf: RFIndex | null): boolean => {
+  if (!rf) return false;
+  let v = tieneCentroCache.get(rf);
+  if (v === undefined) {
+    v = rf.rows.some((r) => !!norm(r[RFC.centro]));
+    tieneCentroCache.set(rf, v);
+  }
+  return v;
+};
 export const precioMinAnioMaterial = (rf: RFIndex | null, m: unknown): number | null =>
   rf ? rf.matMinYr.get(norm(m)) ?? null : null;
 

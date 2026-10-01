@@ -10977,8 +10977,8 @@
       "source_location": "L145",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_isadvisoryfinding",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 91,
+      "community_name": "@duckdb/duckdb-wasm",
       "norm_label": "isadvisoryfinding()"
     },
     {
@@ -11021,8 +11021,8 @@
       "source_location": "L186",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_depthisset",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "depthisset()"
     },
     {
@@ -11241,8 +11241,8 @@
       "source_location": "L384",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_normalizeignorerule",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 91,
+      "community_name": "@duckdb/duckdb-wasm",
       "norm_label": "normalizeignorerule()"
     },
     {
@@ -11384,8 +11384,8 @@
       "source_location": "L567",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_mergeignorevalues",
-      "community": 78,
-      "community_name": "enrich.ts",
+      "community": 113,
+      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "mergeignorevalues()"
     },
     {
@@ -11395,8 +11395,8 @@
       "source_location": "L578",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_ignorevaluefileskey",
-      "community": 78,
-      "community_name": "enrich.ts",
+      "community": 113,
+      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "ignorevaluefileskey()"
     },
     {
@@ -11472,8 +11472,8 @@
       "source_location": "L695",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_ensuresession",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "ensuresession()"
     },
     {
@@ -11483,8 +11483,8 @@
       "source_location": "L702",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_ensurefile",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "ensurefile()"
     },
     {
@@ -11494,8 +11494,8 @@
       "source_location": "L710",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_bumpeditcount",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "bumpeditcount()"
     },
     {
@@ -11505,8 +11505,8 @@
       "source_location": "L720",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_touchfile",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "touchfile()"
     },
     {
@@ -11516,8 +11516,8 @@
       "source_location": "L725",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_suppressionnotice",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "suppressionnotice()"
     },
     {
@@ -11549,8 +11549,8 @@
       "source_location": "L783",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_filterfindings",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 91,
+      "community_name": "@duckdb/duckdb-wasm",
       "norm_label": "filterfindings()"
     },
     {
@@ -11560,8 +11560,8 @@
       "source_location": "L802",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_splitfindingsbytier",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 91,
+      "community_name": "@duckdb/duckdb-wasm",
       "norm_label": "splitfindingsbytier()"
     },
     {
@@ -11571,8 +11571,8 @@
       "source_location": "L819",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_peredittieringactive",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "peredittieringactive()"
     },
     {
@@ -11582,8 +11582,8 @@
       "source_location": "L824",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_isignoredfindingvalue",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 91,
+      "community_name": "@duckdb/duckdb-wasm",
       "norm_label": "isignoredfindingvalue()"
     },
     {
@@ -11593,8 +11593,8 @@
       "source_location": "L839",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_findingmatchesscopedignorefile",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 91,
+      "community_name": "@duckdb/duckdb-wasm",
       "norm_label": "findingmatchesscopedignorefile()"
     },
     {
@@ -11604,8 +11604,8 @@
       "source_location": "L853",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_extractfindingignorevalue",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 91,
+      "community_name": "@duckdb/duckdb-wasm",
       "norm_label": "extractfindingignorevalue()"
     },
     {
@@ -11615,8 +11615,8 @@
       "source_location": "L868",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_extractfindingignorevalueraw",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 91,
+      "community_name": "@duckdb/duckdb-wasm",
       "norm_label": "extractfindingignorevalueraw()"
     },
     {
@@ -11626,8 +11626,8 @@
       "source_location": "L899",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_extractmotionignorevalue",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 91,
+      "community_name": "@duckdb/duckdb-wasm",
       "norm_label": "extractmotionignorevalue()"
     },
     {
@@ -11637,8 +11637,8 @@
       "source_location": "L917",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_cleanignorevaluedisplay",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 91,
+      "community_name": "@duckdb/duckdb-wasm",
       "norm_label": "cleanignorevaluedisplay()"
     },
     {
@@ -11648,8 +11648,8 @@
       "source_location": "L925",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_dedupeagainstcache",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "dedupeagainstcache()"
     },
     {
@@ -11659,8 +11659,8 @@
       "source_location": "L949",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_rememberfindings",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "rememberfindings()"
     },
     {
@@ -11670,8 +11670,8 @@
       "source_location": "L956",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_findingcachekey",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "findingcachekey()"
     },
     {
@@ -11681,8 +11681,8 @@
       "source_location": "L966",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_rendertemplate",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "rendertemplate()"
     },
     {
@@ -11692,8 +11692,8 @@
       "source_location": "L997",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_rendergroupedtemplate",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "rendergroupedtemplate()"
     },
     {
@@ -11703,8 +11703,8 @@
       "source_location": "L1037",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_clampgroupedtobudget",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "clampgroupedtobudget()"
     },
     {
@@ -11714,8 +11714,8 @@
       "source_location": "L1060",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_clamptobudget",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "clamptobudget()"
     },
     {
@@ -11725,8 +11725,8 @@
       "source_location": "L1083",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_formatfindingline",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "formatfindingline()"
     },
     {
@@ -11736,8 +11736,8 @@
       "source_location": "L1097",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_formatfindingignorecommand",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 91,
+      "community_name": "@duckdb/duckdb-wasm",
       "norm_label": "formatfindingignorecommand()"
     },
     {
@@ -11747,8 +11747,8 @@
       "source_location": "L1109",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_quotecommandarg",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 91,
+      "community_name": "@duckdb/duckdb-wasm",
       "norm_label": "quotecommandarg()"
     },
     {
@@ -11758,8 +11758,8 @@
       "source_location": "L1115",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_relativize",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "relativize()"
     },
     {
@@ -11791,8 +11791,8 @@
       "source_location": "L1167",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_resolveharness",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "resolveharness()"
     },
     {
@@ -11802,8 +11802,8 @@
       "source_location": "L1192",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_parsegithubtoolargs",
-      "community": 367,
-      "community_name": "normalizeGitHubEvent",
+      "community": 113,
+      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "parsegithubtoolargs()"
     },
     {
@@ -11813,8 +11813,8 @@
       "source_location": "L1215",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_lookslikeapplypatch",
-      "community": 367,
-      "community_name": "normalizeGitHubEvent",
+      "community": 113,
+      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "lookslikeapplypatch()"
     },
     {
@@ -11824,8 +11824,8 @@
       "source_location": "L1229",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_applypatchtext",
-      "community": 367,
-      "community_name": "normalizeGitHubEvent",
+      "community": 113,
+      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "applypatchtext()"
     },
     {
@@ -11835,8 +11835,8 @@
       "source_location": "L1242",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_normalizegithubevent",
-      "community": 367,
-      "community_name": "normalizeGitHubEvent",
+      "community": 113,
+      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "normalizegithubevent()"
     },
     {
@@ -11846,8 +11846,8 @@
       "source_location": "L1274",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_normalizehookevent",
-      "community": 367,
-      "community_name": "normalizeGitHubEvent",
+      "community": 113,
+      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "normalizehookevent()"
     },
     {
@@ -11857,8 +11857,8 @@
       "source_location": "L1299",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_envprojectdir",
-      "community": 367,
-      "community_name": "normalizeGitHubEvent",
+      "community": 113,
+      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "envprojectdir()"
     },
     {
@@ -12011,8 +12011,8 @@
       "source_location": "L1514",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_rendercleanack",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "rendercleanack()"
     },
     {
@@ -12022,8 +12022,8 @@
       "source_location": "L1520",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_renderpendingack",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "renderpendingack()"
     },
     {
@@ -12033,8 +12033,8 @@
       "source_location": "L1530",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_shouldemitackforfile",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "shouldemitackforfile()"
     },
     {
@@ -12066,8 +12066,8 @@
       "source_location": "L1567",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_directivefooter",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "directivefooter()"
     },
     {
@@ -12077,8 +12077,8 @@
       "source_location": "L1588",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_runhook",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "runhook()"
     },
     {
@@ -12099,8 +12099,8 @@
       "source_location": "L2085",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_hook_lib_payload",
-      "community": 113,
-      "community_name": ".claude/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 2,
+      "community_name": "resumenFac.ts",
       "norm_label": "payload()"
     },
     {
@@ -14948,8 +14948,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_session",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": ".claude/skills/impeccable/scripts/live-browser-session.js"
     },
     {
@@ -14959,8 +14959,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_session_createlivebrowsersessionstate",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "createlivebrowsersessionstate()"
     },
     {
@@ -14981,8 +14981,8 @@
       "source_location": "L157",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_shouldadvancephase",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "shouldadvancephase()"
     },
     {
@@ -14992,8 +14992,8 @@
       "source_location": "L205",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_writescrolly",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "writescrolly()"
     },
     {
@@ -15003,8 +15003,8 @@
       "source_location": "L206",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_readscrolly",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "readscrolly()"
     },
     {
@@ -15014,8 +15014,8 @@
       "source_location": "L207",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_clearscrolly",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "clearscrolly()"
     },
     {
@@ -15289,8 +15289,8 @@
       "source_location": "L918",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_stripmanualeditruntimestate",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 89,
+      "community_name": "text.ts",
       "norm_label": "stripmanualeditruntimestate()"
     },
     {
@@ -15300,8 +15300,8 @@
       "source_location": "L941",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_sanitizedcontextouterhtml",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 89,
+      "community_name": "text.ts",
       "norm_label": "sanitizedcontextouterhtml()"
     },
     {
@@ -15311,8 +15311,8 @@
       "source_location": "L948",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_extractcontext",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "extractcontext()"
     },
     {
@@ -15410,8 +15410,8 @@
       "source_location": "L1141",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_showbar",
-      "community": 119,
-      "community_name": "buildInsertConfigureRow",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "showbar()"
     },
     {
@@ -15443,8 +15443,8 @@
       "source_location": "L1219",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_applyconfigurebarchrome",
-      "community": 119,
-      "community_name": "buildInsertConfigureRow",
+      "community": 144,
+      "community_name": "initPageChat",
       "norm_label": "applyconfigurebarchrome()"
     },
     {
@@ -15839,8 +15839,8 @@
       "source_location": "L1802",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_cursorforinsertaxis",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 26,
+      "community_name": "button.tsx",
       "norm_label": "cursorforinsertaxis()"
     },
     {
@@ -15916,8 +15916,8 @@
       "source_location": "L1872",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_clampplaceholdersize",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 75,
+      "community_name": "Toaster.tsx",
       "norm_label": "clampplaceholdersize()"
     },
     {
@@ -15938,8 +15938,8 @@
       "source_location": "L1886",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_resizeplaceholderfromedge",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 75,
+      "community_name": "Toaster.tsx",
       "norm_label": "resizeplaceholderfromedge()"
     },
     {
@@ -16048,8 +16048,8 @@
       "source_location": "L2067",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_buildinsertplaceholdersnapshotfromdom",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "buildinsertplaceholdersnapshotfromdom()"
     },
     {
@@ -16411,8 +16411,8 @@
       "source_location": "L2984",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_recoveremptycycling",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "recoveremptycycling()"
     },
     {
@@ -16433,8 +16433,8 @@
       "source_location": "L3084",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_getmountedsveltecomponentanchor",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "getmountedsveltecomponentanchor()"
     },
     {
@@ -16488,8 +16488,8 @@
       "source_location": "L3155",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_applyparamdefaults",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "applyparamdefaults()"
     },
     {
@@ -16543,8 +16543,8 @@
       "source_location": "L3372",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_unwrapmixedcontenttextnodes",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 89,
+      "community_name": "text.ts",
       "norm_label": "unwrapmixedcontenttextnodes()"
     },
     {
@@ -16664,8 +16664,8 @@
       "source_location": "L3530",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_buildlocatorforleaf",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 89,
+      "community_name": "text.ts",
       "norm_label": "buildlocatorforleaf()"
     },
     {
@@ -16675,8 +16675,8 @@
       "source_location": "L3556",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_sourcehintforelement",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 89,
+      "community_name": "text.ts",
       "norm_label": "sourcehintforelement()"
     },
     {
@@ -16686,8 +16686,8 @@
       "source_location": "L3572",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_parsesourceloc",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 89,
+      "community_name": "text.ts",
       "norm_label": "parsesourceloc()"
     },
     {
@@ -16697,8 +16697,8 @@
       "source_location": "L3580",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_documentrefforelement",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 89,
+      "community_name": "text.ts",
       "norm_label": "documentrefforelement()"
     },
     {
@@ -16763,8 +16763,8 @@
       "source_location": "L3635",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_copyeditleafcontext",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 89,
+      "community_name": "text.ts",
       "norm_label": "copyeditleafcontext()"
     },
     {
@@ -16785,8 +16785,8 @@
       "source_location": "L3669",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_copyeditcontainercontext",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 89,
+      "community_name": "text.ts",
       "norm_label": "copyeditcontainercontext()"
     },
     {
@@ -16796,8 +16796,8 @@
       "source_location": "L3681",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_forbiddenmanualtextchars",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 89,
+      "community_name": "text.ts",
       "norm_label": "forbiddenmanualtextchars()"
     },
     {
@@ -16807,8 +16807,8 @@
       "source_location": "L3689",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_applyediting",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 89,
+      "community_name": "text.ts",
       "norm_label": "applyediting()"
     },
     {
@@ -17038,8 +17038,8 @@
       "source_location": "L4035",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_maybeshowfirstsavetoast",
-      "community": 144,
-      "community_name": "initPageChat",
+      "community": 89,
+      "community_name": "text.ts",
       "norm_label": "maybeshowfirstsavetoast()"
     },
     {
@@ -17269,8 +17269,8 @@
       "source_location": "L4434",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_usesshadowchromeroot",
-      "community": 359,
-      "community_name": "StatTile.tsx",
+      "community": 26,
+      "community_name": "button.tsx",
       "norm_label": "usesshadowchromeroot()"
     },
     {
@@ -17280,8 +17280,8 @@
       "source_location": "L4439",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_setimportantstyle",
-      "community": 359,
-      "community_name": "StatTile.tsx",
+      "community": 26,
+      "community_name": "button.tsx",
       "norm_label": "setimportantstyle()"
     },
     {
@@ -17291,8 +17291,8 @@
       "source_location": "L4443",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_initeditbadgehitproxies",
-      "community": 359,
-      "community_name": "StatTile.tsx",
+      "community": 26,
+      "community_name": "button.tsx",
       "norm_label": "initeditbadgehitproxies()"
     },
     {
@@ -17302,8 +17302,8 @@
       "source_location": "L4465",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_styleeditbadgeproxy",
-      "community": 359,
-      "community_name": "StatTile.tsx",
+      "community": 26,
+      "community_name": "button.tsx",
       "norm_label": "styleeditbadgeproxy()"
     },
     {
@@ -17313,8 +17313,8 @@
       "source_location": "L4491",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_proxymouseevent",
-      "community": 359,
-      "community_name": "StatTile.tsx",
+      "community": 26,
+      "community_name": "button.tsx",
       "norm_label": "proxymouseevent()"
     },
     {
@@ -17324,8 +17324,8 @@
       "source_location": "L4513",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_bindeditbadgeproxy",
-      "community": 359,
-      "community_name": "StatTile.tsx",
+      "community": 26,
+      "community_name": "button.tsx",
       "norm_label": "bindeditbadgeproxy()"
     },
     {
@@ -17335,8 +17335,8 @@
       "source_location": "L4544",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_editbadgeproxytargets",
-      "community": 359,
-      "community_name": "StatTile.tsx",
+      "community": 26,
+      "community_name": "button.tsx",
       "norm_label": "editbadgeproxytargets()"
     },
     {
@@ -17346,8 +17346,8 @@
       "source_location": "L4555",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_synceditbadgehitproxies",
-      "community": 359,
-      "community_name": "StatTile.tsx",
+      "community": 26,
+      "community_name": "button.tsx",
       "norm_label": "synceditbadgehitproxies()"
     },
     {
@@ -17357,8 +17357,8 @@
       "source_location": "L4589",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_initeditbadge",
-      "community": 359,
-      "community_name": "StatTile.tsx",
+      "community": 26,
+      "community_name": "button.tsx",
       "norm_label": "initeditbadge()"
     },
     {
@@ -17368,8 +17368,8 @@
       "source_location": "L4617",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_positioneditbadge",
-      "community": 359,
-      "community_name": "StatTile.tsx",
+      "community": 26,
+      "community_name": "button.tsx",
       "norm_label": "positioneditbadge()"
     },
     {
@@ -17610,8 +17610,8 @@
       "source_location": "L4979",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_buildpickedanchorsnapshot",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "buildpickedanchorsnapshot()"
     },
     {
@@ -17676,8 +17676,8 @@
       "source_location": "L5105",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_issvelteinsertmanifest",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "issvelteinsertmanifest()"
     },
     {
@@ -17687,8 +17687,8 @@
       "source_location": "L5109",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_findliveelementforsveltemanifest",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "findliveelementforsveltemanifest()"
     },
     {
@@ -17720,8 +17720,8 @@
       "source_location": "L5155",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_resolvecomponentmoduleurl",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "resolvecomponentmoduleurl()"
     },
     {
@@ -17731,8 +17731,8 @@
       "source_location": "L5159",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_loadsvelteruntime",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "loadsvelteruntime()"
     },
     {
@@ -17885,8 +17885,8 @@
       "source_location": "L5358",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_mountsveltecomponentvariant",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "mountsveltecomponentvariant()"
     },
     {
@@ -17896,8 +17896,8 @@
       "source_location": "L5414",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_teardownsveltecomponentsession",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "teardownsveltecomponentsession()"
     },
     {
@@ -17907,8 +17907,8 @@
       "source_location": "L5430",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_applyoriginalattrstosvelteanchor",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "applyoriginalattrstosvelteanchor()"
     },
     {
@@ -17918,8 +17918,8 @@
       "source_location": "L5445",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_commitacceptedsveltecomponenttodom",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "commitacceptedsveltecomponenttodom()"
     },
     {
@@ -17940,8 +17940,8 @@
       "source_location": "L5593",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_waitforsveltecomponenttargetandretry",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "waitforsveltecomponenttargetandretry()"
     },
     {
@@ -17951,8 +17951,8 @@
       "source_location": "L5613",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_abortsveltecomponentinjection",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "abortsveltecomponentinjection()"
     },
     {
@@ -18149,8 +18149,8 @@
       "source_location": "L6043",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_removevariantstatestylesheet",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "removevariantstatestylesheet()"
     },
     {
@@ -18160,8 +18160,8 @@
       "source_location": "L6047",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_showoriginalduringdiscard",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "showoriginalduringdiscard()"
     },
     {
@@ -18171,8 +18171,8 @@
       "source_location": "L6060",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_resolvescrolllockanchortop",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "resolvescrolllockanchortop()"
     },
     {
@@ -18182,8 +18182,8 @@
       "source_location": "L6069",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_startscrolllock",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "startscrolllock()"
     },
     {
@@ -18193,8 +18193,8 @@
       "source_location": "L6188",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_stopscrolllock",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "stopscrolllock()"
     },
     {
@@ -18237,8 +18237,8 @@
       "source_location": "L6357",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_connectsse",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "connectsse()"
     },
     {
@@ -18270,8 +18270,8 @@
       "source_location": "L6567",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_checkpointpayload",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "checkpointpayload()"
     },
     {
@@ -18281,8 +18281,8 @@
       "source_location": "L6587",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_sendcheckpoint",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "sendcheckpoint()"
     },
     {
@@ -18380,8 +18380,8 @@
       "source_location": "L6934",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_handlego",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "handlego()"
     },
     {
@@ -18402,8 +18402,8 @@
       "source_location": "L7014",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_handleinsertcreate",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "handleinsertcreate()"
     },
     {
@@ -18501,8 +18501,8 @@
       "source_location": "L7246",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_shoulduseancestorcropshaderproxy",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "shoulduseancestorcropshaderproxy()"
     },
     {
@@ -18556,8 +18556,8 @@
       "source_location": "L7380",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_captureandemit",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "captureandemit()"
     },
     {
@@ -18644,8 +18644,8 @@
       "source_location": "L7641",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_compileshader",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "compileshader()"
     },
     {
@@ -18677,8 +18677,8 @@
       "source_location": "L7674",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_showshaderbitmapfallback",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "showshaderbitmapfallback()"
     },
     {
@@ -18688,8 +18688,8 @@
       "source_location": "L7693",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_showshaderoverlay",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "showshaderoverlay()"
     },
     {
@@ -18699,8 +18699,8 @@
       "source_location": "L7805",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_handleaccept",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 119,
+      "community_name": "buildInsertConfigureRow",
       "norm_label": "handleaccept()"
     },
     {
@@ -18710,8 +18710,8 @@
       "source_location": "L7868",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_maybecompleteacceptedsession",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "maybecompleteacceptedsession()"
     },
     {
@@ -18721,8 +18721,8 @@
       "source_location": "L7887",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_scheduleacceptcleanup",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "scheduleacceptcleanup()"
     },
     {
@@ -18754,8 +18754,8 @@
       "source_location": "L7931",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_accepteddomalreadyclean",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "accepteddomalreadyclean()"
     },
     {
@@ -18765,8 +18765,8 @@
       "source_location": "L7938",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_ensureaccepteddomclean",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "ensureaccepteddomclean()"
     },
     {
@@ -18776,8 +18776,8 @@
       "source_location": "L7964",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_findacceptedruntimewrappers",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "findacceptedruntimewrappers()"
     },
     {
@@ -18787,8 +18787,8 @@
       "source_location": "L7972",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_restoreaccepteddomfromsnapshot",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "restoreaccepteddomfromsnapshot()"
     },
     {
@@ -18798,8 +18798,8 @@
       "source_location": "L7994",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_reloadaftermissingaccepteddom",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 184,
+      "community_name": ".claude/skills/impeccable/scripts/live/manual-edit-routes.mjs",
       "norm_label": "reloadaftermissingaccepteddom()"
     },
     {
@@ -18809,8 +18809,8 @@
       "source_location": "L8000",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_cleanupacceptedsession",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "cleanupacceptedsession()"
     },
     {
@@ -18831,8 +18831,8 @@
       "source_location": "L8044",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_handlediscard",
-      "community": 144,
-      "community_name": "initPageChat",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "handlediscard()"
     },
     {
@@ -18853,8 +18853,8 @@
       "source_location": "L8066",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_resetsessionfilemeta",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "resetsessionfilemeta()"
     },
     {
@@ -18886,8 +18886,8 @@
       "source_location": "L8109",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_normalizepagepath",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "normalizepagepath()"
     },
     {
@@ -18897,8 +18897,8 @@
       "source_location": "L8118",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_pagematchescurrent",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "pagematchescurrent()"
     },
     {
@@ -18908,8 +18908,8 @@
       "source_location": "L8123",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_isterminalsessionsummary",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "isterminalsessionsummary()"
     },
     {
@@ -18919,8 +18919,8 @@
       "source_location": "L8127",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_findactivesessionsummary",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "findactivesessionsummary()"
     },
     {
@@ -18996,8 +18996,8 @@
       "source_location": "L8256",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_clearsession",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "clearsession()"
     },
     {
@@ -19007,8 +19007,8 @@
       "source_location": "L8263",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_marksessionhandled",
-      "community": 65,
-      "community_name": "@tailwindcss/vite",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "marksessionhandled()"
     },
     {
@@ -19029,8 +19029,8 @@
       "source_location": "L8272",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_clearhandled",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 65,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "clearhandled()"
     },
     {
@@ -19040,8 +19040,8 @@
       "source_location": "L8276",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_cleanup",
-      "community": 91,
-      "community_name": "@duckdb/duckdb-wasm",
+      "community": 108,
+      "community_name": "ResultsPage.tsx",
       "norm_label": "cleanup()"
     },
     {
@@ -19117,8 +19117,8 @@
       "source_location": "L8586",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_savepickpref",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 26,
+      "community_name": "button.tsx",
       "norm_label": "savepickpref()"
     },
     {
@@ -19260,8 +19260,8 @@
       "source_location": "L8814",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_ispageeditableelement",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 144,
+      "community_name": "initPageChat",
       "norm_label": "ispageeditableelement()"
     },
     {
@@ -19271,8 +19271,8 @@
       "source_location": "L8820",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_isinlineeditactive",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 144,
+      "community_name": "initPageChat",
       "norm_label": "isinlineeditactive()"
     },
     {
@@ -19282,8 +19282,8 @@
       "source_location": "L8824",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_ispageeditableactive",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 144,
+      "community_name": "initPageChat",
       "norm_label": "ispageeditableactive()"
     },
     {
@@ -19304,8 +19304,8 @@
       "source_location": "L8839",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_shouldsteerautofocus",
-      "community": 108,
-      "community_name": "ResultsPage.tsx",
+      "community": 144,
+      "community_name": "initPageChat",
       "norm_label": "shouldsteerautofocus()"
     },
     {
@@ -19953,8 +19953,8 @@
       "source_location": "L10483",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_loaddesignprefs",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 28,
+      "community_name": "ProcessingPage.tsx",
       "norm_label": "loaddesignprefs()"
     },
     {
@@ -19975,8 +19975,8 @@
       "source_location": "L10506",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_initdesignpanel",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 28,
+      "community_name": "ProcessingPage.tsx",
       "norm_label": "initdesignpanel()"
     },
     {
@@ -19986,8 +19986,8 @@
       "source_location": "L10556",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_designpanelcss",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 28,
+      "community_name": "ProcessingPage.tsx",
       "norm_label": "designpanelcss()"
     },
     {
@@ -19997,8 +19997,8 @@
       "source_location": "L10831",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_renderdesignchrome",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 28,
+      "community_name": "ProcessingPage.tsx",
       "norm_label": "renderdesignchrome()"
     },
     {
@@ -20008,8 +20008,8 @@
       "source_location": "L10850",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_builddesignheader",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 28,
+      "community_name": "ProcessingPage.tsx",
       "norm_label": "builddesignheader()"
     },
     {
@@ -20019,8 +20019,8 @@
       "source_location": "L10889",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_toggledesignpanel",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 28,
+      "community_name": "ProcessingPage.tsx",
       "norm_label": "toggledesignpanel()"
     },
     {
@@ -20030,8 +20030,8 @@
       "source_location": "L10899",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_browser_fetchdesignsystem",
-      "community": 26,
-      "community_name": "button.tsx",
+      "community": 28,
+      "community_name": "ProcessingPage.tsx",
       "norm_label": "fetchdesignsystem()"
     },
     {
@@ -20855,8 +20855,8 @@
       "source_location": "L558",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_commit_manual_edits_clearappliedentries",
-      "community": 122,
-      "community_name": ".claude/skills/impeccable/scripts/live-commit-manual-edits.mjs",
+      "community": 44,
+      "community_name": "dexie",
       "norm_label": "clearappliedentries()"
     },
     {
@@ -24914,8 +24914,8 @@
       "source_location": "L130",
       "_origin": "ast",
       "id": "claude_skills_impeccable_scripts_live_manual_edits_buffer_countbypage",
-      "community": 122,
-      "community_name": ".claude/skills/impeccable/scripts/live-commit-manual-edits.mjs",
+      "community": 44,
+      "community_name": "dexie",
       "norm_label": "countbypage()"
     },
     {
@@ -28687,8 +28687,8 @@
       "source_location": "L87",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_context_loadcontext",
-      "community": 208,
-      "community_name": "resolveLiveInjectionAnchor",
+      "community": 367,
+      "community_name": "normalizeGitHubEvent",
       "norm_label": "loadcontext()"
     },
     {
@@ -29259,8 +29259,8 @@
       "source_location": "L943",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_context_extractplatform",
-      "community": 208,
-      "community_name": "resolveLiveInjectionAnchor",
+      "community": 367,
+      "community_name": "normalizeGitHubEvent",
       "norm_label": "extractplatform()"
     },
     {
@@ -31239,8 +31239,8 @@
       "source_location": "L480",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_design_system_designsystemstartdir",
-      "community": 83,
-      "community_name": "SolicitudesPage.tsx",
+      "community": 127,
+      "community_name": ".opencode/skills/impeccable/scripts/detector/detect-antipatterns.mjs",
       "norm_label": "designsystemstartdir()"
     },
     {
@@ -31261,8 +31261,8 @@
       "source_location": "L524",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_design_system_loaddesignsystemfortarget",
-      "community": 83,
-      "community_name": "SolicitudesPage.tsx",
+      "community": 127,
+      "community_name": ".opencode/skills/impeccable/scripts/detector/detect-antipatterns.mjs",
       "norm_label": "loaddesignsystemfortarget()"
     },
     {
@@ -31547,8 +31547,8 @@
       "source_location": "L65",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_isbrandfontonowndomain",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 186,
+      "community_name": "el",
       "norm_label": "isbrandfontonowndomain()"
     },
     {
@@ -31558,8 +31558,8 @@
       "source_location": "L675",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_isneutralcolor",
-      "community": 186,
-      "community_name": "el",
+      "community": 158,
+      "community_name": "parseAnyColor",
       "norm_label": "isneutralcolor()"
     },
     {
@@ -31668,8 +31668,8 @@
       "source_location": "L822",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkborders",
-      "community": 186,
-      "community_name": "el",
+      "community": 158,
+      "community_name": "parseAnyColor",
       "norm_label": "checkborders()"
     },
     {
@@ -31756,8 +31756,8 @@
       "source_location": "L1109",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_isaccentcolor",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 181,
+      "community_name": "resolveLengthPx",
       "norm_label": "isaccentcolor()"
     },
     {
@@ -31767,8 +31767,8 @@
       "source_location": "L1153",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_resolveheroheadingsizepx",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 181,
+      "community_name": "resolveLengthPx",
       "norm_label": "resolveheroheadingsizepx()"
     },
     {
@@ -31778,8 +31778,8 @@
       "source_location": "L1188",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkheroeyebrow",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 181,
+      "community_name": "resolveLengthPx",
       "norm_label": "checkheroeyebrow()"
     },
     {
@@ -32141,8 +32141,8 @@
       "source_location": "L2529",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_istabcontextelement",
-      "community": 186,
-      "community_name": "el",
+      "community": 158,
+      "community_name": "parseAnyColor",
       "norm_label": "istabcontextelement()"
     },
     {
@@ -32152,8 +32152,8 @@
       "source_location": "L2550",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_isstatuscontextelement",
-      "community": 186,
-      "community_name": "el",
+      "community": 158,
+      "community_name": "parseAnyColor",
       "norm_label": "isstatuscontextelement()"
     },
     {
@@ -32163,8 +32163,8 @@
       "source_location": "L2558",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkelementbordersdom",
-      "community": 186,
-      "community_name": "el",
+      "community": 158,
+      "community_name": "parseAnyColor",
       "norm_label": "checkelementbordersdom()"
     },
     {
@@ -32174,8 +32174,8 @@
       "source_location": "L2588",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkelementpseudostripedom",
-      "community": 186,
-      "community_name": "el",
+      "community": 158,
+      "community_name": "parseAnyColor",
       "norm_label": "checkelementpseudostripedom()"
     },
     {
@@ -32240,8 +32240,8 @@
       "source_location": "L2774",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkelementheroeyebrowdom",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 181,
+      "community_name": "resolveLengthPx",
       "norm_label": "checkelementheroeyebrowdom()"
     },
     {
@@ -32438,8 +32438,8 @@
       "source_location": "L3278",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_isnumberedsectionlabelcandidate",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 181,
+      "community_name": "resolveLengthPx",
       "norm_label": "isnumberedsectionlabelcandidate()"
     },
     {
@@ -32493,8 +32493,8 @@
       "source_location": "L3398",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkemdashoveruse",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 186,
+      "community_name": "el",
       "norm_label": "checkemdashoveruse()"
     },
     {
@@ -32504,8 +32504,8 @@
       "source_location": "L3408",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkemdashoverusedom",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 186,
+      "community_name": "el",
       "norm_label": "checkemdashoverusedom()"
     },
     {
@@ -32548,8 +32548,8 @@
       "source_location": "L3530",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_resolvefontsizepx",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "resolvefontsizepx()"
     },
     {
@@ -32570,8 +32570,8 @@
       "source_location": "L3568",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_csscoloristransparent",
-      "community": 181,
-      "community_name": "resolveLengthPx",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "csscoloristransparent()"
     },
     {
@@ -32581,8 +32581,8 @@
       "source_location": "L3577",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_colorsnearlymatch",
-      "community": 181,
-      "community_name": "resolveLengthPx",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "colorsnearlymatch()"
     },
     {
@@ -32592,8 +32592,8 @@
       "source_location": "L3590",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_getcomputedstylefor",
-      "community": 181,
-      "community_name": "resolveLengthPx",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "getcomputedstylefor()"
     },
     {
@@ -32603,8 +32603,8 @@
       "source_location": "L3600",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_hasvisiblebackgroundboundary",
-      "community": 181,
-      "community_name": "resolveLengthPx",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "hasvisiblebackgroundboundary()"
     },
     {
@@ -32614,8 +32614,8 @@
       "source_location": "L3619",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_hasmeaningfuldirecttext",
-      "community": 181,
-      "community_name": "resolveLengthPx",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "hasmeaningfuldirecttext()"
     },
     {
@@ -32625,8 +32625,8 @@
       "source_location": "L3627",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_textdescendantsflushsides",
-      "community": 181,
-      "community_name": "resolveLengthPx",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "textdescendantsflushsides()"
     },
     {
@@ -32636,8 +32636,8 @@
       "source_location": "L3652",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_isvisuallyhidden",
-      "community": 181,
-      "community_name": "resolveLengthPx",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "isvisuallyhidden()"
     },
     {
@@ -32647,8 +32647,8 @@
       "source_location": "L3674",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkquality",
-      "community": 181,
-      "community_name": "resolveLengthPx",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "checkquality()"
     },
     {
@@ -32669,8 +32669,8 @@
       "source_location": "L4057",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkpagequalityfromdoc",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 186,
+      "community_name": "el",
       "norm_label": "checkpagequalityfromdoc()"
     },
     {
@@ -32680,8 +32680,8 @@
       "source_location": "L4078",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkpagequalitydom",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 186,
+      "community_name": "el",
       "norm_label": "checkpagequalitydom()"
     },
     {
@@ -32691,8 +32691,8 @@
       "source_location": "L4088",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkelementquality",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "checkelementquality()"
     },
     {
@@ -32702,8 +32702,8 @@
       "source_location": "L4097",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkelementborders",
-      "community": 186,
-      "community_name": "el",
+      "community": 158,
+      "community_name": "parseAnyColor",
       "norm_label": "checkelementborders()"
     },
     {
@@ -32757,8 +32757,8 @@
       "source_location": "L4298",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkelementheroeyebrow",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 181,
+      "community_name": "resolveLengthPx",
       "norm_label": "checkelementheroeyebrow()"
     },
     {
@@ -32801,8 +32801,8 @@
       "source_location": "L4365",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checktypography",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 186,
+      "community_name": "el",
       "norm_label": "checktypography()"
     },
     {
@@ -32955,8 +32955,8 @@
       "source_location": "L4966",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkoversizedh1",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "checkoversizedh1()"
     },
     {
@@ -32966,8 +32966,8 @@
       "source_location": "L4984",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkelementoversizedh1",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "checkelementoversizedh1()"
     },
     {
@@ -32977,8 +32977,8 @@
       "source_location": "L4991",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkelementoversizedh1dom",
-      "community": 77,
-      "community_name": "LocalReportRepository",
+      "community": 74,
+      "community_name": "SupabaseReportRepository",
       "norm_label": "checkelementoversizedh1dom()"
     },
     {
@@ -33516,8 +33516,8 @@
       "source_location": "L6458",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_islikelyhashedclass",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "islikelyhashedclass()"
     },
     {
@@ -33527,8 +33527,8 @@
       "source_location": "L6466",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_buildselectorsegment",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "buildselectorsegment()"
     },
     {
@@ -33538,8 +33538,8 @@
       "source_location": "L6497",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_generateselector",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "generateselector()"
     },
     {
@@ -33549,8 +33549,8 @@
       "source_location": "L6532",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_getdirecttext",
-      "community": 158,
-      "community_name": "parseAnyColor",
+      "community": 48,
+      "community_name": "mappers.ts",
       "norm_label": "getdirecttext()"
     },
     {
@@ -33560,8 +33560,8 @@
       "source_location": "L6539",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_getdirecttextrect",
-      "community": 158,
-      "community_name": "parseAnyColor",
+      "community": 48,
+      "community_name": "mappers.ts",
       "norm_label": "getdirecttextrect()"
     },
     {
@@ -33571,8 +33571,8 @@
       "source_location": "L6567",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_collectvisualcontrastreasons",
-      "community": 158,
-      "community_name": "parseAnyColor",
+      "community": 48,
+      "community_name": "mappers.ts",
       "norm_label": "collectvisualcontrastreasons()"
     },
     {
@@ -33582,8 +33582,8 @@
       "source_location": "L6622",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_collectvisualcontrastcandidates",
-      "community": 158,
-      "community_name": "parseAnyColor",
+      "community": 48,
+      "community_name": "mappers.ts",
       "norm_label": "collectvisualcontrastcandidates()"
     },
     {
@@ -33813,8 +33813,8 @@
       "source_location": "L7172",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_iselementhidden",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "iselementhidden()"
     },
     {
@@ -33824,8 +33824,8 @@
       "source_location": "L7179",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_serializefindings",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "serializefindings()"
     },
     {
@@ -33857,8 +33857,8 @@
       "source_location": "L7239",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_normalizebrowserfontname",
-      "community": 186,
-      "community_name": "el",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "normalizebrowserfontname()"
     },
     {
@@ -33868,8 +33868,8 @@
       "source_location": "L7248",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_browserprimaryfont",
-      "community": 186,
-      "community_name": "el",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "browserprimaryfont()"
     },
     {
@@ -33879,8 +33879,8 @@
       "source_location": "L7256",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_browserdesignsystemconfig",
-      "community": 186,
-      "community_name": "el",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "browserdesignsystemconfig()"
     },
     {
@@ -33890,8 +33890,8 @@
       "source_location": "L7278",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_browsercolorsclose",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "browsercolorsclose()"
     },
     {
@@ -33901,8 +33901,8 @@
       "source_location": "L7287",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_isbrowserdesigncolorallowed",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "isbrowserdesigncolorallowed()"
     },
     {
@@ -33912,8 +33912,8 @@
       "source_location": "L7298",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_isbrowsertransparentcss",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "isbrowsertransparentcss()"
     },
     {
@@ -33923,8 +33923,8 @@
       "source_location": "L7305",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_isbrowserdesignradiusallowed",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "isbrowserdesignradiusallowed()"
     },
     {
@@ -33934,8 +33934,8 @@
       "source_location": "L7316",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_browserradiustokens",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "browserradiustokens()"
     },
     {
@@ -33945,8 +33945,8 @@
       "source_location": "L7324",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_browserhasdirecttext",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "browserhasdirecttext()"
     },
     {
@@ -33956,8 +33956,8 @@
       "source_location": "L7328",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_browsersampletext",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "browsersampletext()"
     },
     {
@@ -33967,8 +33967,8 @@
       "source_location": "L7333",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_shouldskipdesignelement",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "shouldskipdesignelement()"
     },
     {
@@ -33978,8 +33978,8 @@
       "source_location": "L7338",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkelementdesignsystemdom",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "checkelementdesignsystemdom()"
     },
     {
@@ -33989,8 +33989,8 @@
       "source_location": "L7397",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_decodebrowsergooglefamily",
-      "community": 186,
-      "community_name": "el",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "decodebrowsergooglefamily()"
     },
     {
@@ -34000,8 +34000,8 @@
       "source_location": "L7406",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_checkbrowserdesignsystemsources",
-      "community": 186,
-      "community_name": "el",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "checkbrowserdesignsystemsources()"
     },
     {
@@ -34077,8 +34077,8 @@
       "source_location": "L7686",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_scanresultmeta",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "scanresultmeta()"
     },
     {
@@ -34088,8 +34088,8 @@
       "source_location": "L7692",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_postserializedfindings",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "postserializedfindings()"
     },
     {
@@ -34165,8 +34165,8 @@
       "source_location": "L7821",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_detect_antipatterns_browser_renderbrowserfindings",
-      "community": 164,
-      "community_name": "runHook",
+      "community": 77,
+      "community_name": "LocalReportRepository",
       "norm_label": "renderbrowserfindings()"
     },
     {
@@ -35705,8 +35705,8 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkborders",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "checkborders()"
     },
     {
@@ -35716,8 +35716,8 @@
       "source_location": "L79",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_isemojionlytext",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "isemojionlytext()"
     },
     {
@@ -35771,8 +35771,8 @@
       "source_location": "L234",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkicontile",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "checkicontile()"
     },
     {
@@ -36167,8 +36167,8 @@
       "source_location": "L1570",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_readownbackgroundcolor",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "readownbackgroundcolor()"
     },
     {
@@ -36178,8 +36178,8 @@
       "source_location": "L1595",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_resolvebackground",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "resolvebackground()"
     },
     {
@@ -36189,8 +36189,8 @@
       "source_location": "L1672",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_resolvegradientstops",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "resolvegradientstops()"
     },
     {
@@ -36222,8 +36222,8 @@
       "source_location": "L1736",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_istabcontextelement",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "istabcontextelement()"
     },
     {
@@ -36233,8 +36233,8 @@
       "source_location": "L1757",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_isstatuscontextelement",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "isstatuscontextelement()"
     },
     {
@@ -36244,8 +36244,8 @@
       "source_location": "L1765",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkelementbordersdom",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "checkelementbordersdom()"
     },
     {
@@ -36255,8 +36255,8 @@
       "source_location": "L1795",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkelementpseudostripedom",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "checkelementpseudostripedom()"
     },
     {
@@ -36266,8 +36266,8 @@
       "source_location": "L1861",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_readpseudosurfacedom",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "readpseudosurfacedom()"
     },
     {
@@ -36277,8 +36277,8 @@
       "source_location": "L1878",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkelementcolorsdom",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "checkelementcolorsdom()"
     },
     {
@@ -36288,8 +36288,8 @@
       "source_location": "L1918",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkelementicontiledom",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "checkelementicontiledom()"
     },
     {
@@ -36310,8 +36310,8 @@
       "source_location": "L1966",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_domaccentdashpseudo",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "domaccentdashpseudo()"
     },
     {
@@ -36354,8 +36354,8 @@
       "source_location": "L2063",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_oklchtorgb",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "oklchtorgb()"
     },
     {
@@ -36365,8 +36365,8 @@
       "source_location": "L2068",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_oklabtorgb",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "oklabtorgb()"
     },
     {
@@ -36376,8 +36376,8 @@
       "source_location": "L2088",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_hsltorgb",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "hsltorgb()"
     },
     {
@@ -36387,8 +36387,8 @@
       "source_location": "L2107",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_hwbtorgb",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "hwbtorgb()"
     },
     {
@@ -36431,8 +36431,8 @@
       "source_location": "L2241",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_compositecolorover",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "compositecolorover()"
     },
     {
@@ -36442,8 +36442,8 @@
       "source_location": "L2255",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_parseanycolor",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "parseanycolor()"
     },
     {
@@ -36453,8 +36453,8 @@
       "source_location": "L2338",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_parsecolorresolved",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "parsecolorresolved()"
     },
     {
@@ -36651,8 +36651,8 @@
       "source_location": "L2639",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkelementglowdom",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "checkelementglowdom()"
     },
     {
@@ -36695,8 +36695,8 @@
       "source_location": "L2763",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_resolvelengthpx",
-      "community": 0,
-      "community_name": "mappers.ts",
+      "community": 83,
+      "community_name": "SolicitudesPage.tsx",
       "norm_label": "resolvelengthpx()"
     },
     {
@@ -36849,8 +36849,8 @@
       "source_location": "L3304",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkelementborders",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "checkelementborders()"
     },
     {
@@ -36860,8 +36860,8 @@
       "source_location": "L3339",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkelementcolors",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "checkelementcolors()"
     },
     {
@@ -36871,8 +36871,8 @@
       "source_location": "L3417",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkelementhovercontrast",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "checkelementhovercontrast()"
     },
     {
@@ -36882,8 +36882,8 @@
       "source_location": "L3457",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkelementicontile",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "checkelementicontile()"
     },
     {
@@ -36937,8 +36937,8 @@
       "source_location": "L3561",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkelementglow",
-      "community": 127,
-      "community_name": ".opencode/skills/impeccable/scripts/detector/detect-antipatterns.mjs",
+      "community": 33,
+      "community_name": "ConsumoPage.tsx",
       "norm_label": "checkelementglow()"
     },
     {
@@ -37047,8 +37047,8 @@
       "source_location": "L4000",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_isrepeatedtextcontainer",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "isrepeatedtextcontainer()"
     },
     {
@@ -37091,8 +37091,8 @@
       "source_location": "L4100",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_iscreamcolor",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "iscreamcolor()"
     },
     {
@@ -37113,8 +37113,8 @@
       "source_location": "L4122",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_creamfromclasslist",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "creamfromclasslist()"
     },
     {
@@ -37124,8 +37124,8 @@
       "source_location": "L4134",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_rules_checks_checkcreampalette",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "checkcreampalette()"
     },
     {
@@ -37641,8 +37641,8 @@
       "source_location": "L54",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_shared_color_parsergb",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "parsergb()"
     },
     {
@@ -37674,8 +37674,8 @@
       "source_location": "L74",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_detector_shared_color_parsegradientcolors",
-      "community": 2,
-      "community_name": "resumenFac.ts",
+      "community": 0,
+      "community_name": "mappers.ts",
       "norm_label": "parsegradientcolors()"
     },
     {
@@ -39170,8 +39170,8 @@
       "source_location": "L145",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_isadvisoryfinding",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "isadvisoryfinding()"
     },
     {
@@ -39313,8 +39313,8 @@
       "source_location": "L265",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_resolveprojectplatform",
-      "community": 208,
-      "community_name": "resolveLiveInjectionAnchor",
+      "community": 367,
+      "community_name": "normalizeGitHubEvent",
       "norm_label": "resolveprojectplatform()"
     },
     {
@@ -39423,8 +39423,8 @@
       "source_location": "L375",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_normalizeignorevalue",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "normalizeignorevalue()"
     },
     {
@@ -39434,8 +39434,8 @@
       "source_location": "L384",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_normalizeignorerule",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "normalizeignorerule()"
     },
     {
@@ -39566,8 +39566,8 @@
       "source_location": "L539",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_normalizeignorevalueentries",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "normalizeignorevalueentries()"
     },
     {
@@ -39742,8 +39742,8 @@
       "source_location": "L783",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_filterfindings",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "filterfindings()"
     },
     {
@@ -39753,8 +39753,8 @@
       "source_location": "L802",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_splitfindingsbytier",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "splitfindingsbytier()"
     },
     {
@@ -39775,8 +39775,8 @@
       "source_location": "L824",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_isignoredfindingvalue",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "isignoredfindingvalue()"
     },
     {
@@ -39786,8 +39786,8 @@
       "source_location": "L839",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_findingmatchesscopedignorefile",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "findingmatchesscopedignorefile()"
     },
     {
@@ -39797,8 +39797,8 @@
       "source_location": "L853",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_extractfindingignorevalue",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "extractfindingignorevalue()"
     },
     {
@@ -39808,8 +39808,8 @@
       "source_location": "L868",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_extractfindingignorevalueraw",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "extractfindingignorevalueraw()"
     },
     {
@@ -39819,8 +39819,8 @@
       "source_location": "L899",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_extractmotionignorevalue",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "extractmotionignorevalue()"
     },
     {
@@ -39830,8 +39830,8 @@
       "source_location": "L917",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_cleanignorevaluedisplay",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "cleanignorevaluedisplay()"
     },
     {
@@ -39874,8 +39874,8 @@
       "source_location": "L966",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_rendertemplate",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "rendertemplate()"
     },
     {
@@ -39885,8 +39885,8 @@
       "source_location": "L997",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_rendergroupedtemplate",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "rendergroupedtemplate()"
     },
     {
@@ -39896,8 +39896,8 @@
       "source_location": "L1037",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_clampgroupedtobudget",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "clampgroupedtobudget()"
     },
     {
@@ -39907,8 +39907,8 @@
       "source_location": "L1060",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_clamptobudget",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "clamptobudget()"
     },
     {
@@ -39918,8 +39918,8 @@
       "source_location": "L1083",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_formatfindingline",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "formatfindingline()"
     },
     {
@@ -39929,8 +39929,8 @@
       "source_location": "L1097",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_formatfindingignorecommand",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "formatfindingignorecommand()"
     },
     {
@@ -39940,8 +39940,8 @@
       "source_location": "L1109",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_quotecommandarg",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "quotecommandarg()"
     },
     {
@@ -39995,8 +39995,8 @@
       "source_location": "L1192",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_parsegithubtoolargs",
-      "community": 114,
-      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 346,
+      "community_name": "zustand",
       "norm_label": "parsegithubtoolargs()"
     },
     {
@@ -40006,8 +40006,8 @@
       "source_location": "L1215",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_lookslikeapplypatch",
-      "community": 114,
-      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 346,
+      "community_name": "zustand",
       "norm_label": "lookslikeapplypatch()"
     },
     {
@@ -40017,8 +40017,8 @@
       "source_location": "L1229",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_applypatchtext",
-      "community": 114,
-      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 346,
+      "community_name": "zustand",
       "norm_label": "applypatchtext()"
     },
     {
@@ -40028,8 +40028,8 @@
       "source_location": "L1242",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_normalizegithubevent",
-      "community": 114,
-      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 346,
+      "community_name": "zustand",
       "norm_label": "normalizegithubevent()"
     },
     {
@@ -40039,8 +40039,8 @@
       "source_location": "L1274",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_normalizehookevent",
-      "community": 114,
-      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 346,
+      "community_name": "zustand",
       "norm_label": "normalizehookevent()"
     },
     {
@@ -40050,8 +40050,8 @@
       "source_location": "L1299",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_envprojectdir",
-      "community": 114,
-      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 346,
+      "community_name": "zustand",
       "norm_label": "envprojectdir()"
     },
     {
@@ -40094,8 +40094,8 @@
       "source_location": "L1321",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_haspathtraversal",
-      "community": 114,
-      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 359,
+      "community_name": "StatTile.tsx",
       "norm_label": "haspathtraversal()"
     },
     {
@@ -40105,8 +40105,8 @@
       "source_location": "L1325",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_isinsideproject",
-      "community": 114,
-      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 359,
+      "community_name": "StatTile.tsx",
       "norm_label": "isinsideproject()"
     },
     {
@@ -40116,8 +40116,8 @@
       "source_location": "L1335",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_parsestaticstyleimports",
-      "community": 114,
-      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 359,
+      "community_name": "StatTile.tsx",
       "norm_label": "parsestaticstyleimports()"
     },
     {
@@ -40127,8 +40127,8 @@
       "source_location": "L1350",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_colocatedstylesheets",
-      "community": 114,
-      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 359,
+      "community_name": "StatTile.tsx",
       "norm_label": "colocatedstylesheets()"
     },
     {
@@ -40138,8 +40138,8 @@
       "source_location": "L1369",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_normalizescantargets",
-      "community": 114,
-      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 359,
+      "community_name": "StatTile.tsx",
       "norm_label": "normalizescantargets()"
     },
     {
@@ -40149,8 +40149,8 @@
       "source_location": "L1393",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_expandscantargets",
-      "community": 114,
-      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
+      "community": 359,
+      "community_name": "StatTile.tsx",
       "norm_label": "expandscantargets()"
     },
     {
@@ -40259,8 +40259,8 @@
       "source_location": "L1567",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_hook_lib_directivefooter",
-      "community": 74,
-      "community_name": "SupabaseReportRepository",
+      "community": 114,
+      "community_name": ".opencode/skills/impeccable/scripts/hook-lib.mjs",
       "norm_label": "directivefooter()"
     },
     {
@@ -47453,8 +47453,8 @@
       "source_location": "L8814",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_live_browser_ispageeditableelement",
-      "community": 120,
-      "community_name": "initPageChat",
+      "community": 109,
+      "community_name": "setLiveState",
       "norm_label": "ispageeditableelement()"
     },
     {
@@ -47464,8 +47464,8 @@
       "source_location": "L8820",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_live_browser_isinlineeditactive",
-      "community": 120,
-      "community_name": "initPageChat",
+      "community": 109,
+      "community_name": "setLiveState",
       "norm_label": "isinlineeditactive()"
     },
     {
@@ -47475,8 +47475,8 @@
       "source_location": "L8824",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_live_browser_ispageeditableactive",
-      "community": 120,
-      "community_name": "initPageChat",
+      "community": 109,
+      "community_name": "setLiveState",
       "norm_label": "ispageeditableactive()"
     },
     {
@@ -47497,8 +47497,8 @@
       "source_location": "L8839",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_scripts_live_browser_shouldsteerautofocus",
-      "community": 120,
-      "community_name": "initPageChat",
+      "community": 109,
+      "community_name": "setLiveState",
       "norm_label": "shouldsteerautofocus()"
     },
     {
@@ -61544,8 +61544,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_core_precios_test",
-      "community": 366,
-      "community_name": "precios.ts",
+      "community": 95,
+      "community_name": "react",
       "norm_label": "precios.test.ts"
     },
     {
@@ -61555,8 +61555,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "src_core_precios_test_mkrow",
-      "community": 366,
-      "community_name": "precios.ts",
+      "community": 95,
+      "community_name": "react",
       "norm_label": "mkrow()"
     },
     {
@@ -61566,8 +61566,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_core_precios",
-      "community": 366,
-      "community_name": "precios.ts",
+      "community": 95,
+      "community_name": "react",
       "norm_label": "precios.ts"
     },
     {
@@ -61577,8 +61577,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "src_core_precios_preciocliente",
-      "community": 366,
-      "community_name": "precios.ts",
+      "community": 95,
+      "community_name": "react",
       "norm_label": "preciocliente"
     },
     {
@@ -61588,8 +61588,8 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "src_core_precios_preciodispersionentry",
-      "community": 366,
-      "community_name": "precios.ts",
+      "community": 95,
+      "community_name": "react",
       "norm_label": "preciodispersionentry"
     },
     {
@@ -61599,8 +61599,8 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "src_core_precios_buildpreciodispersion",
-      "community": 366,
-      "community_name": "precios.ts",
+      "community": 95,
+      "community_name": "react",
       "norm_label": "buildpreciodispersion()"
     },
     {
@@ -62655,7 +62655,7 @@
       "source_location": "L64",
       "_origin": "ast",
       "id": "src_core_types_invdetallerow",
-      "community": 95,
+      "community": 59,
       "community_name": "react",
       "norm_label": "invdetallerow"
     },
@@ -62666,8 +62666,8 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "src_core_types_sugerencia",
-      "community": 95,
-      "community_name": "react",
+      "community": 146,
+      "community_name": "resolveVarRefs",
       "norm_label": "sugerencia"
     },
     {
@@ -62688,8 +62688,8 @@
       "source_location": "L132",
       "_origin": "ast",
       "id": "src_core_types_consumorow",
-      "community": 366,
-      "community_name": "precios.ts",
+      "community": 95,
+      "community_name": "react",
       "norm_label": "consumorow"
     },
     {
@@ -63964,8 +63964,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_lib_text_test",
-      "community": 356,
-      "community_name": "ClientesMesPanel.tsx",
+      "community": 358,
+      "community_name": "CalculatorWidget.tsx",
       "norm_label": "text.test.ts"
     },
     {
@@ -63975,8 +63975,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_lib_text",
-      "community": 356,
-      "community_name": "ClientesMesPanel.tsx",
+      "community": 358,
+      "community_name": "CalculatorWidget.tsx",
       "norm_label": "text.ts"
     },
     {
@@ -63986,8 +63986,8 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "src_lib_text_norm",
-      "community": 356,
-      "community_name": "ClientesMesPanel.tsx",
+      "community": 358,
+      "community_name": "CalculatorWidget.tsx",
       "norm_label": "norm()"
     },
     {
@@ -63997,8 +63997,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "src_lib_text_num",
-      "community": 356,
-      "community_name": "ClientesMesPanel.tsx",
+      "community": 358,
+      "community_name": "CalculatorWidget.tsx",
       "norm_label": "num()"
     },
     {
@@ -64008,8 +64008,8 @@
       "source_location": "L36",
       "_origin": "ast",
       "id": "src_lib_text_numloose",
-      "community": 356,
-      "community_name": "ClientesMesPanel.tsx",
+      "community": 358,
+      "community_name": "CalculatorWidget.tsx",
       "norm_label": "numloose()"
     },
     {
@@ -65196,8 +65196,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "src_modules_analytics_panels_grupopanel_grupopanel",
-      "community": 356,
-      "community_name": "ClientesMesPanel.tsx",
+      "community": 1,
+      "community_name": "PanelHost.tsx",
       "norm_label": "grupopanel()"
     },
     {
@@ -65292,7 +65292,7 @@
       "label": "PRINCIPALES",
       "file_type": "code",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L17",
+      "source_location": "L18",
       "_origin": "ast",
       "id": "src_modules_analytics_panels_materialinventario_principales",
       "community": 1,
@@ -65303,7 +65303,7 @@
       "label": "useMaterialInventario()",
       "file_type": "code",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L22",
+      "source_location": "L23",
       "_origin": "ast",
       "id": "src_modules_analytics_panels_materialinventario_usematerialinventario",
       "community": 1,
@@ -65314,7 +65314,7 @@
       "label": "PuntoSolicitar",
       "file_type": "code",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L59",
+      "source_location": "L60",
       "_origin": "ast",
       "id": "src_modules_analytics_panels_materialinventario_puntosolicitar",
       "community": 1,
@@ -65325,7 +65325,7 @@
       "label": "SolicitarGrid()",
       "file_type": "code",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L63",
+      "source_location": "L64",
       "_origin": "ast",
       "id": "src_modules_analytics_panels_materialinventario_solicitargrid",
       "community": 1,
@@ -65336,7 +65336,7 @@
       "label": "MaterialInventarioSection()",
       "file_type": "code",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L99",
+      "source_location": "L100",
       "_origin": "ast",
       "id": "src_modules_analytics_panels_materialinventario_materialinventariosection",
       "community": 1,
@@ -65347,7 +65347,7 @@
       "label": "MaterialInventarioLateral()",
       "file_type": "code",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L127",
+      "source_location": "L128",
       "_origin": "ast",
       "id": "src_modules_analytics_panels_materialinventario_materialinventariolateral",
       "community": 1,
@@ -65603,8 +65603,8 @@
       "source_location": "L45",
       "_origin": "ast",
       "id": "src_modules_analytics_panels_shared_subfilter",
-      "community": 1,
-      "community_name": "PanelHost.tsx",
+      "community": 356,
+      "community_name": "ClientesMesPanel.tsx",
       "norm_label": "subfilter()"
     },
     {
@@ -66065,8 +66065,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_daterangefilter",
-      "community": 368,
-      "community_name": "DateRangeFilter.tsx",
+      "community": 341,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "daterangefilter.tsx"
     },
     {
@@ -66076,8 +66076,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_daterangefilter_isotodmy",
-      "community": 368,
-      "community_name": "DateRangeFilter.tsx",
+      "community": 341,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "isotodmy()"
     },
     {
@@ -66087,8 +66087,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_daterangefilter_dmytoiso",
-      "community": 368,
-      "community_name": "DateRangeFilter.tsx",
+      "community": 341,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "dmytoiso()"
     },
     {
@@ -66098,8 +66098,8 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_daterangefilter_maskdmy",
-      "community": 368,
-      "community_name": "DateRangeFilter.tsx",
+      "community": 341,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "maskdmy()"
     },
     {
@@ -66109,8 +66109,8 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_daterangefilter_datefield",
-      "community": 368,
-      "community_name": "DateRangeFilter.tsx",
+      "community": 341,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "datefield()"
     },
     {
@@ -66120,8 +66120,8 @@
       "source_location": "L75",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_daterangefilter_daterangefilter",
-      "community": 368,
-      "community_name": "DateRangeFilter.tsx",
+      "community": 341,
+      "community_name": "@tailwindcss/vite",
       "norm_label": "daterangefilter()"
     },
     {
@@ -66439,8 +66439,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_puenteventachart",
-      "community": 346,
-      "community_name": "zustand",
+      "community": 7,
+      "community_name": "react",
       "norm_label": "puenteventachart.tsx"
     },
     {
@@ -66450,8 +66450,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_puenteventachart_paso",
-      "community": 346,
-      "community_name": "zustand",
+      "community": 7,
+      "community_name": "react",
       "norm_label": "paso"
     },
     {
@@ -66461,8 +66461,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_puenteventachart_compacto",
-      "community": 346,
-      "community_name": "zustand",
+      "community": 7,
+      "community_name": "react",
       "norm_label": "compacto()"
     },
     {
@@ -66472,8 +66472,8 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_puenteventachart_puenteventachart",
-      "community": 346,
-      "community_name": "zustand",
+      "community": 7,
+      "community_name": "react",
       "norm_label": "puenteventachart"
     },
     {
@@ -66582,8 +66582,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_stattile",
-      "community": 7,
-      "community_name": "react",
+      "community": 363,
+      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
       "norm_label": "stattile.tsx"
     },
     {
@@ -66593,8 +66593,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_stattile_tiletone",
-      "community": 7,
-      "community_name": "react",
+      "community": 363,
+      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
       "norm_label": "tiletone"
     },
     {
@@ -66604,8 +66604,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_stattile_text",
-      "community": 7,
-      "community_name": "react",
+      "community": 363,
+      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
       "norm_label": "text"
     },
     {
@@ -66615,8 +66615,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_stattile_top_border",
-      "community": 7,
-      "community_name": "react",
+      "community": 363,
+      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
       "norm_label": "top_border"
     },
     {
@@ -66626,8 +66626,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "src_modules_analytics_ui_stattile_tonename",
-      "community": 7,
-      "community_name": "react",
+      "community": 363,
+      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
       "norm_label": "tonename()"
     },
     {
@@ -68595,8 +68595,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_modules_solicitudes_solicitarcontextmenu",
-      "community": 7,
-      "community_name": "react",
+      "community": 366,
+      "community_name": "precios.ts",
       "norm_label": "solicitarcontextmenu.tsx"
     },
     {
@@ -68606,8 +68606,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "src_modules_solicitudes_solicitarcontextmenu_copyitem",
-      "community": 7,
-      "community_name": "react",
+      "community": 366,
+      "community_name": "precios.ts",
       "norm_label": "copyitem"
     },
     {
@@ -68617,8 +68617,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "src_modules_solicitudes_solicitarcontextmenu_solicitarcontextmenuprops",
-      "community": 7,
-      "community_name": "react",
+      "community": 366,
+      "community_name": "precios.ts",
       "norm_label": "solicitarcontextmenuprops"
     },
     {
@@ -68628,8 +68628,8 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "src_modules_solicitudes_solicitarcontextmenu_solicitarcontextmenu",
-      "community": 7,
-      "community_name": "react",
+      "community": 366,
+      "community_name": "precios.ts",
       "norm_label": "solicitarcontextmenu()"
     },
     {
@@ -75646,8 +75646,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_colorize",
-      "community": 155,
-      "community_name": ".claude/skills/impeccable/reference/live.md",
+      "community": 164,
+      "community_name": "runHook",
       "norm_label": ".claude/skills/impeccable/reference/colorize.md"
     },
     {
@@ -75657,8 +75657,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_colorize_visitor_mode",
-      "community": 155,
-      "community_name": ".claude/skills/impeccable/reference/live.md",
+      "community": 164,
+      "community_name": "runHook",
       "norm_label": "visitor mode"
     },
     {
@@ -75668,8 +75668,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_colorize_audit_before_choosing",
-      "community": 155,
-      "community_name": ".claude/skills/impeccable/reference/live.md",
+      "community": 164,
+      "community_name": "runHook",
       "norm_label": "audit before choosing"
     },
     {
@@ -75679,8 +75679,8 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_colorize_choose_a_strategy",
-      "community": 155,
-      "community_name": ".claude/skills/impeccable/reference/live.md",
+      "community": 164,
+      "community_name": "runHook",
       "norm_label": "choose a strategy"
     },
     {
@@ -75690,8 +75690,8 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_colorize_apply_at_system_scale",
-      "community": 155,
-      "community_name": ".claude/skills/impeccable/reference/live.md",
+      "community": 164,
+      "community_name": "runHook",
       "norm_label": "apply at system scale"
     },
     {
@@ -75701,8 +75701,8 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_colorize_contrast_and_perception",
-      "community": 155,
-      "community_name": ".claude/skills/impeccable/reference/live.md",
+      "community": 164,
+      "community_name": "runHook",
       "norm_label": "contrast and perception"
     },
     {
@@ -75712,8 +75712,8 @@
       "source_location": "L67",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_colorize_verify",
-      "community": 155,
-      "community_name": ".claude/skills/impeccable/reference/live.md",
+      "community": 164,
+      "community_name": "runHook",
       "norm_label": "verify"
     },
     {
@@ -75723,8 +75723,8 @@
       "source_location": "L78",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_colorize_live_mode_signature_params",
-      "community": 155,
-      "community_name": ".claude/skills/impeccable/reference/live.md",
+      "community": 164,
+      "community_name": "runHook",
       "norm_label": "live-mode signature params"
     },
     {
@@ -79320,8 +79320,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_typeset",
-      "community": 123,
-      "community_name": ".claude/skills/impeccable/reference/layout.md",
+      "community": 155,
+      "community_name": ".claude/skills/impeccable/reference/live.md",
       "norm_label": ".claude/skills/impeccable/reference/typeset.md"
     },
     {
@@ -79331,8 +79331,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_typeset_visitor_mode",
-      "community": 123,
-      "community_name": ".claude/skills/impeccable/reference/layout.md",
+      "community": 155,
+      "community_name": ".claude/skills/impeccable/reference/live.md",
       "norm_label": "visitor mode"
     },
     {
@@ -79342,8 +79342,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_typeset_two_isolated_assessments",
-      "community": 123,
-      "community_name": ".claude/skills/impeccable/reference/layout.md",
+      "community": 155,
+      "community_name": ".claude/skills/impeccable/reference/live.md",
       "norm_label": "two isolated assessments"
     },
     {
@@ -79353,8 +79353,8 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_typeset_set_the_system",
-      "community": 123,
-      "community_name": ".claude/skills/impeccable/reference/layout.md",
+      "community": 155,
+      "community_name": ".claude/skills/impeccable/reference/live.md",
       "norm_label": "set the system"
     },
     {
@@ -79364,8 +79364,8 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_typeset_apply",
-      "community": 123,
-      "community_name": ".claude/skills/impeccable/reference/layout.md",
+      "community": 155,
+      "community_name": ".claude/skills/impeccable/reference/live.md",
       "norm_label": "apply"
     },
     {
@@ -79375,8 +79375,8 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_typeset_verify",
-      "community": 123,
-      "community_name": ".claude/skills/impeccable/reference/layout.md",
+      "community": 155,
+      "community_name": ".claude/skills/impeccable/reference/live.md",
       "norm_label": "verify"
     },
     {
@@ -79386,8 +79386,8 @@
       "source_location": "L72",
       "_origin": "ast",
       "id": "claude_skills_impeccable_reference_typeset_live_mode_signature_params",
-      "community": 123,
-      "community_name": ".claude/skills/impeccable/reference/layout.md",
+      "community": 155,
+      "community_name": ".claude/skills/impeccable/reference/live.md",
       "norm_label": "live-mode signature params"
     },
     {
@@ -83599,8 +83599,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_colorize",
-      "community": 363,
-      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
+      "community": 157,
+      "community_name": ".opencode/skills/impeccable/reference/live.md",
       "norm_label": ".opencode/skills/impeccable/reference/colorize.md"
     },
     {
@@ -83610,8 +83610,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_colorize_visitor_mode",
-      "community": 363,
-      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
+      "community": 157,
+      "community_name": ".opencode/skills/impeccable/reference/live.md",
       "norm_label": "visitor mode"
     },
     {
@@ -83621,8 +83621,8 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_colorize_audit_before_choosing",
-      "community": 363,
-      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
+      "community": 157,
+      "community_name": ".opencode/skills/impeccable/reference/live.md",
       "norm_label": "audit before choosing"
     },
     {
@@ -83632,8 +83632,8 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_colorize_choose_a_strategy",
-      "community": 363,
-      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
+      "community": 157,
+      "community_name": ".opencode/skills/impeccable/reference/live.md",
       "norm_label": "choose a strategy"
     },
     {
@@ -83643,8 +83643,8 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_colorize_apply_at_system_scale",
-      "community": 363,
-      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
+      "community": 157,
+      "community_name": ".opencode/skills/impeccable/reference/live.md",
       "norm_label": "apply at system scale"
     },
     {
@@ -83654,8 +83654,8 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_colorize_contrast_and_perception",
-      "community": 363,
-      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
+      "community": 157,
+      "community_name": ".opencode/skills/impeccable/reference/live.md",
       "norm_label": "contrast and perception"
     },
     {
@@ -83665,8 +83665,8 @@
       "source_location": "L67",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_colorize_verify",
-      "community": 363,
-      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
+      "community": 157,
+      "community_name": ".opencode/skills/impeccable/reference/live.md",
       "norm_label": "verify"
     },
     {
@@ -83676,8 +83676,8 @@
       "source_location": "L78",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_colorize_live_mode_signature_params",
-      "community": 363,
-      "community_name": ".opencode/skills/impeccable/reference/colorize.md",
+      "community": 157,
+      "community_name": ".opencode/skills/impeccable/reference/live.md",
       "norm_label": "live-mode signature params"
     },
     {
@@ -87273,8 +87273,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_typeset",
-      "community": 157,
-      "community_name": ".opencode/skills/impeccable/reference/live.md",
+      "community": 125,
+      "community_name": ".opencode/skills/impeccable/reference/layout.md",
       "norm_label": ".opencode/skills/impeccable/reference/typeset.md"
     },
     {
@@ -87284,8 +87284,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_typeset_visitor_mode",
-      "community": 157,
-      "community_name": ".opencode/skills/impeccable/reference/live.md",
+      "community": 125,
+      "community_name": ".opencode/skills/impeccable/reference/layout.md",
       "norm_label": "visitor mode"
     },
     {
@@ -87295,8 +87295,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_typeset_two_isolated_assessments",
-      "community": 157,
-      "community_name": ".opencode/skills/impeccable/reference/live.md",
+      "community": 125,
+      "community_name": ".opencode/skills/impeccable/reference/layout.md",
       "norm_label": "two isolated assessments"
     },
     {
@@ -87306,8 +87306,8 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_typeset_set_the_system",
-      "community": 157,
-      "community_name": ".opencode/skills/impeccable/reference/live.md",
+      "community": 125,
+      "community_name": ".opencode/skills/impeccable/reference/layout.md",
       "norm_label": "set the system"
     },
     {
@@ -87317,8 +87317,8 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_typeset_apply",
-      "community": 157,
-      "community_name": ".opencode/skills/impeccable/reference/live.md",
+      "community": 125,
+      "community_name": ".opencode/skills/impeccable/reference/layout.md",
       "norm_label": "apply"
     },
     {
@@ -87328,8 +87328,8 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_typeset_verify",
-      "community": 157,
-      "community_name": ".opencode/skills/impeccable/reference/live.md",
+      "community": 125,
+      "community_name": ".opencode/skills/impeccable/reference/layout.md",
       "norm_label": "verify"
     },
     {
@@ -87339,8 +87339,8 @@
       "source_location": "L72",
       "_origin": "ast",
       "id": "opencode_skills_impeccable_reference_typeset_live_mode_signature_params",
-      "community": 157,
-      "community_name": ".opencode/skills/impeccable/reference/live.md",
+      "community": 125,
+      "community_name": ".opencode/skills/impeccable/reference/layout.md",
       "norm_label": "live-mode signature params"
     },
     {
@@ -262712,7 +262712,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L15",
+      "source_location": "L16",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_modules_analytics_panels_materialinventario",
@@ -262952,7 +262952,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L15",
+      "source_location": "L16",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_modules_analytics_panels_materialinventario",
@@ -266201,7 +266201,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L127",
+      "source_location": "L128",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_modules_analytics_panels_materialinventario",
@@ -266212,7 +266212,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L99",
+      "source_location": "L100",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_modules_analytics_panels_materialinventario",
@@ -266223,7 +266223,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L17",
+      "source_location": "L18",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_modules_analytics_panels_materialinventario",
@@ -266234,7 +266234,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L59",
+      "source_location": "L60",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_modules_analytics_panels_materialinventario",
@@ -266245,7 +266245,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L63",
+      "source_location": "L64",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_modules_analytics_panels_materialinventario",
@@ -266256,7 +266256,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L22",
+      "source_location": "L23",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_modules_analytics_panels_materialinventario",
@@ -266316,7 +266316,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L135",
+      "source_location": "L136",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_modules_analytics_panels_materialinventario_materialinventariolateral",
@@ -266328,7 +266328,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "src/modules/analytics/panels/MaterialInventario.tsx",
-      "source_location": "L101",
+      "source_location": "L102",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_modules_analytics_panels_materialinventario_materialinventariosection",

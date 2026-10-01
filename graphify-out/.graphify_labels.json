@@ -362,13 +362,12 @@
   "360": "button.tsx",
   "361": ".opencode/skills/impeccable/scripts/lib/staleness-notice.mjs",
   "362": "tabs.tsx",
-  "363": "YearComparisonChart.tsx",
+  "363": ".opencode/skills/impeccable/reference/colorize.md",
   "364": "AnalisisDirectivoPage.tsx",
-  "365": "SolicitudesPage.tsx",
-  "366": "CentrosFiltroBar.tsx",
-  "367": "ScoreBar.tsx",
-  "368": "sugerencias/columns.ts",
-  "369": "incremento/columns.ts",
-  "370": "HubLinks.tsx",
-  "371": "ScoreExplain.tsx"
+  "365": ".opencode/skills/impeccable/scripts/live/source-lock.mjs",
+  "366": "precios.ts",
+  "367": "normalizeGitHubEvent",
+  "368": "tailwindcss",
+  "369": "dexie",
+  "370": "zustand"
 }

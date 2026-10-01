@@ -2835,8 +2835,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/MaterialInventario.tsx": {
-    "mtime": 1790833107.8330028,
-    "ast_hash": "e103df39b7e4cece1e0c50ebd4bc48a5",
+    "mtime": 1790833311.1363266,
+    "ast_hash": "e5dd8cadd81bd327f2eef908614536ae",
     "semantic_hash": ""
   },
   "src/core/analisisDirectivo.test.ts": {

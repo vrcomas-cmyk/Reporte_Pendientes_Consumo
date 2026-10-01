@@ -48,14 +48,14 @@
   --ring: #0284c7;
 
   /* Paleta categorica de graficas (orden fijo, ver lib/chartColors.ts) */
-  --chart-1: #2a78d6;
-  --chart-2: #1baf7a;
-  --chart-3: #eda100;
-  --chart-4: #008300;
-  --chart-5: #4a3aa7;
-  --chart-6: #e34948;
-  --chart-7: #e87ba4;
-  --chart-8: #eb6834;
+  --chart-1: #0a84ff;
+  --chart-2: #30d158;
+  --chart-3: #ea04ff;
+  --chart-4: #ffd60a;
+  --chart-5: #5e5ce6;
+  --chart-6: #ff453a;
+  --chart-7: #ff375f;
+  --chart-8: #ff9f0a;
 
   /* Rampa secuencial (heatmap), de menor a mayor magnitud */
   --seq-1: #cde2fb;
@@ -101,14 +101,14 @@
   --danger: #f06464;
   --ring: #38bdf8;
 
-  --chart-1: #3987e5;
-  --chart-2: #199e70;
-  --chart-3: #c98500;
-  --chart-4: #008300;
-  --chart-5: #9085e9;
-  --chart-6: #e66767;
-  --chart-7: #d55181;
-  --chart-8: #d95926;
+  --chart-1: #0a84ff;
+  --chart-2: #30d158;
+  --chart-3: #ffd60a;
+  --chart-4: #f264ff;
+  --chart-5: #5e5ce6;
+  --chart-6: #ff453a;
+  --chart-7: #ff375f;
+  --chart-8: #ff9f0a;
 
   --glass: #1c1c1b;
   --glass-alpha: 0.8;
@@ -142,14 +142,14 @@
   --ring: #007aff;
 
   /* Colores de sistema de Apple, en el mismo orden categorico */
-  --chart-1: #007aff;
-  --chart-2: #32ade6;
-  --chart-3: #ffcc00;
-  --chart-4: #34c759;
-  --chart-5: #5856d6;
-  --chart-6: #ff3b30;
-  --chart-7: #ff2d55;
-  --chart-8: #ff9500;
+  --chart-1: #0a84ff;
+  --chart-2: #30d158;
+  --chart-3: #ea04ff;
+  --chart-4: #ffd60a;
+  --chart-5: #5e5ce6;
+  --chart-6: #ff453a;
+  --chart-7: #ff375f;
+  --chart-8: #ff9f0a;
 
   --seq-1: #d6e8ff;
   --seq-2: #a8cfff;
@@ -195,9 +195,9 @@
   --ring: #38bdf8;
 
   --chart-1: #0a84ff;
-  --chart-2: #64d2ff;
+  --chart-2: #30d158;
   --chart-3: #ffd60a;
-  --chart-4: #30d158;
+  --chart-4: #f264ff;
   --chart-5: #5e5ce6;
   --chart-6: #ff453a;
   --chart-7: #ff375f;

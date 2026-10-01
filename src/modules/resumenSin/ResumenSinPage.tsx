@@ -32,6 +32,8 @@ import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu
 import { useSolicitudStore } from '@/store/solicitudStore';
 import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import { useNombresStore, useVistaCentrosStore } from '@/store/nombresStore';
+import { etiquetaCentro } from '@/lib/nombres';
 
 export function ResumenSinPage() {
   const bootstrapped = useDataStore((s) => s.bootstrapped);
@@ -50,6 +52,10 @@ export function ResumenSinPage() {
   // "Pegar materiales" estilo SAP — filtro ADITIVO: no toca ninguno de los
   // filtros de arriba, solo acota la lista a los códigos pegados (si hay alguno).
   const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('resumenSin.pasteCodes', []);
+  const nombresCentros = useNombresStore((s) => s.centros);
+  const mostrarNombres = useVistaCentrosStore((s) => s.mostrarNombres);
+  const setMostrarNombres = useVistaCentrosStore((s) => s.setMostrarNombres);
+  const lblCentro = (c: string) => etiquetaCentro(c, nombresCentros, mostrarNombres);
   const zoom = useZoom('resumen_sin_zoom');
   const clearFilters = () => {
     setQ(''); setGerente(''); setCentroFiltro(''); setQuick([]); setPendFiltro(''); setLentoFiltro(''); setTransitoFiltro(''); setCoberturaFiltro(''); setPasteCodes([]);
@@ -140,11 +146,14 @@ export function ResumenSinPage() {
   }), [list, a.enrich]);
   const { sorted, sortKey, dir, toggleSort } = useSort(list, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
+  // Materiales en el orden/filtro de la tabla: base de ◀/▶ en el detalle de celda.
+  const listaMateriales = useMemo(() => sorted.map((m) => m.material), [sorted]);
 
   const colVis = useColumnVisibility('resumenSin_columnas');
   const columnDefs: ColDef[] = useMemo(
-    () => (rss ? rss.centros.map((c) => ({ key: `centro_${c}`, label: `Centro ${c}` })) : []),
-    [rss],
+    () => (rss ? rss.centros.map((c) => ({ key: `centro_${c}`, label: `Centro ${lblCentro(c)}` })) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rss, nombresCentros, mostrarNombres],
   );
   const savedViews = useSavedViews<{ quick: ActiveFilter[]; centroFiltro: string; pendFiltro: typeof pendFiltro; lentoFiltro: typeof lentoFiltro; transitoFiltro: typeof transitoFiltro; coberturaFiltro: typeof coberturaFiltro; hidden: string[]; pasteCodes?: string[] }>('resumenSin_vistas');
   const applyView = (state: { quick: ActiveFilter[]; centroFiltro: string; pendFiltro: typeof pendFiltro; lentoFiltro: typeof lentoFiltro; transitoFiltro: typeof transitoFiltro; coberturaFiltro: typeof coberturaFiltro; hidden: string[]; pasteCodes?: string[] }) => {
@@ -165,6 +174,9 @@ export function ResumenSinPage() {
   const centros = (centroFiltro ? centrosAll.filter((c) => c === '1031' || c === centroFiltro) : centrosAll)
     .filter((c) => colVis.isVisible(`centro_${c}`));
   const colCount = 7 + centros.length;
+  // El panel lateral de inventario respeta el filtro de centro / columnas
+  // ocultas de esta tabla; sin filtros muestra todos los centros.
+  const centrosVisibles = centroFiltro || centros.length < centrosAll.length ? centros : undefined;
 
   const exportar = () => {
     const out: Record<string, unknown>[] = [];
@@ -180,7 +192,7 @@ export function ResumenSinPage() {
           ? quiebreMitigadoPorTransito(peor, co) ? `${COBERTURA_LABEL.quiebre} (en tránsito)` : COBERTURA_LABEL[peor]
           : '';
         out.push({
-          Material: mo.material, UM: a.enrich.matUm(mo.material), Descripción: mo.desc, Centro: centro,
+          Material: mo.material, UM: a.enrich.matUm(mo.material), Descripción: mo.desc, Centro: centro, 'Nombre centro': nombresCentros[centro] || '',
           'Inv. general (1030+1031+1060)': ig, Pendiente: co.pend, 'En tránsito': co.transito,
           Lento: esLento(co, rss.curMes) ? 'Sí' : '',
           Cobertura: coberturaTxt,
@@ -235,7 +247,7 @@ export function ResumenSinPage() {
         <GerenteSelect enrich={a.enrich} value={gerente} onChange={setGerente} />
         <select value={centroFiltro} onChange={(e) => setCentroFiltro(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
           <option value="">Todos los centros</option>
-          {centrosAll.filter((c) => c !== '1031').map((c) => <option key={c} value={c}>Solo Centro {c} (+1031)</option>)}
+          {centrosAll.filter((c) => c !== '1031').map((c) => <option key={c} value={c}>Solo Centro {lblCentro(c)} (+1031)</option>)}
         </select>
         <PasteCodesFilter value={pasteCodes} onChange={setPasteCodes} label="material" />
         <p className="text-xs text-text-faint">Celda = inv. del centro · <span className="text-danger">Pend</span> pendiente · <AlertTriangle className="inline size-3 text-warning" /> lento (≥6m sin mov.)</p>
@@ -272,6 +284,10 @@ export function ResumenSinPage() {
           <option value="exceso">{COBERTURA_LABEL.exceso}</option>
           <option value="sano">{COBERTURA_LABEL.sano}</option>
         </select>
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-muted" title="Muestra el nombre de cada centro junto al código (los nombres se configuran en Administración → Nombres).">
+          <input type="checkbox" checked={mostrarNombres} onChange={(e) => setMostrarNombres(e.target.checked)} className="size-3.5 accent-accent" />
+          Mostrar nombres de centro
+        </label>
         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-muted" title="Muestra u oculta los estados (Quiebre, Exceso, Inmovilizado…) debajo del inventario y el pendiente de cada celda.">
           <input type="checkbox" checked={mostrarEstados} onChange={(e) => setMostrarEstados(e.target.checked)} className="size-3.5 accent-accent" />
           Mostrar estados
@@ -291,7 +307,7 @@ export function ResumenSinPage() {
                 <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort} filter={<ColumnFilterMenu column={filterCols[2]} rows={list} active={quick} onChange={setQuick} />}>Sector/Grupo</SortableTableHead>
                 <TableHead title="Compara la facturación de los últimos 3 meses completos vs. los 3 anteriores: En aumento (+10%), En decremento (-10%) o Estable.">Tendencia</TableHead>
                 <SortableTableHead sortKey="status" activeKey={sortKey} dir={dir} onSort={toggleSort} filter={<ColumnFilterMenu column={filterCols[5]} rows={list} active={quick} onChange={setQuick} />} title="Estatus de revisión reportado por el centro para este material.">Status Revisión</SortableTableHead>
-                {centros.map((c) => <TableHead key={c} className="text-right" title={`Inventario general (1030+1031+1060) de este material en el centro ${c}. El ícono ⚠ indica "lento" (≥6 meses sin movimiento) y "+N" indica cantidad en tránsito.`}>C {c}</TableHead>)}
+                {centros.map((c) => <TableHead key={c} className="text-right" title={`Inventario general (1030+1031+1060) de este material en el centro ${c}. El ícono ⚠ indica "lento" (≥6 meses sin movimiento) y "+N" indica cantidad en tránsito.`}>C {c}{mostrarNombres && nombresCentros[c] && <div className="text-[11px] font-normal text-text-faint">{nombresCentros[c]}</div>}</TableHead>)}
                 <SortableTableHead sortKey="invtot" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Suma del inventario general de este material en todos los centros.">Inv. total</SortableTableHead>
                 <SortableTableHead sortKey="pendtot" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Suma de la cantidad pendiente de este material en todos los centros.">Pend. total</SortableTableHead>
               </TableRow>
@@ -342,12 +358,12 @@ export function ResumenSinPage() {
                           key={c}
                           onSolicitar={onSolicitar}
                           solicitado={cellSolicitada}
-                          label={`${mo.material} · Centro ${c}`}
-                          onVerDetalle={() => open({ type: 'celda', material: mo.material, centro: c })}
+                          label={`${mo.material} · Centro ${lblCentro(c)}`}
+                          onVerDetalle={() => open({ type: 'celda', material: mo.material, centro: c, origen: 'resumenSin', centrosVisibles, lista: listaMateriales })}
                           copyItems={copyItems}
                         >
                         <TableCell className="text-right">
-                          <Chip onClick={() => open({ type: 'celda', material: mo.material, centro: c })}>{formatNumber(ig)}</Chip>
+                          <Chip onClick={() => open({ type: 'celda', material: mo.material, centro: c, origen: 'resumenSin', centrosVisibles, lista: listaMateriales })}>{formatNumber(ig)}</Chip>
                           {co.transito > 0 && <span className="text-success"> +{formatNumber(co.transito)}</span>}
                           {esLento(co, rss.curMes) && <span title="Lento: sin movimiento hace ≥6 meses y sin pendiente en este centro."><AlertTriangle className="ml-1 inline size-3 text-warning" /></span>}
                           {co.pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(co.pend)}</div>}
