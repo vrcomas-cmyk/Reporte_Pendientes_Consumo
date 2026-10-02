@@ -7,7 +7,11 @@ import { cn } from '@/lib/utils';
  * valores de una lista — con búsqueda y "Todos"/"Ninguno". Vacío (`[]`)
  * significa "sin filtro" (todos), igual que los `<select>` de una sola
  * opción usan `''` para "todos" en el resto de la app. */
-export function MultiSelect({ label, options, selected, onChange, allLabel = 'todos', emptyOption = true }: {
+/** Con listas enormes (miles de materiales) solo se dibujan las primeras N
+ * coincidencias — el resto se alcanza refinando la búsqueda. */
+const MAX_RENDER = 300;
+
+export function MultiSelect({ label, options, selected, onChange, allLabel = 'todos', emptyOption = true, optionLabel, summary }: {
   label: string;
   options: string[];
   selected: string[];
@@ -15,19 +19,33 @@ export function MultiSelect({ label, options, selected, onChange, allLabel = 'to
   /** Texto de "sin filtro" cuando `selected` está vacío, p.ej. "Grupo cliente (todos)". */
   allLabel?: string;
   emptyOption?: boolean;
+  /** Texto mostrado (y buscable) de cada opción; el valor sigue siendo el de `options`.
+   * P.ej. "código · descripción" para materiales. */
+  optionLabel?: (value: string) => string;
+  /** Texto del resumen en el botón cuando hay selección (reemplaza "Label (N)"),
+   * p.ej. "todos menos Gobierno". */
+  summary?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
+  const textoDe = (v: string) => (optionLabel ? optionLabel(v) : v);
   const visibles = useMemo(
-    () => (q.trim() ? options.filter((o) => o.toLowerCase().includes(q.trim().toLowerCase())) : options),
-    [options, q],
+    () => {
+      const t = q.trim().toLowerCase();
+      return t ? options.filter((o) => textoDe(o).toLowerCase().includes(t)) : options;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [options, q, optionLabel],
   );
+  const dibujadas = visibles.length > MAX_RENDER ? visibles.slice(0, MAX_RENDER) : visibles;
   const selSet = useMemo(() => new Set(selected), [selected]);
   const toggle = (v: string) => onChange(selSet.has(v) ? selected.filter((x) => x !== v) : [...selected, v]);
   const triggerLabel = selected.length === 0
     ? `${label} (${allLabel})`
-    : selected.length === 1
-      ? `${label}: ${selected[0]}`
+    : summary
+      ? `${label}: ${summary}`
+      : selected.length === 1
+      ? `${label}: ${textoDe(selected[0])}`
       : `${label} (${selected.length})`;
 
   return (
@@ -62,7 +80,7 @@ export function MultiSelect({ label, options, selected, onChange, allLabel = 'to
         </div>
         <div className="max-h-64 overflow-y-auto">
           {visibles.length === 0 && <p className="px-1 py-2 text-xs text-text-muted">Sin resultados.</p>}
-          {visibles.map((v) => {
+          {dibujadas.map((v) => {
             const on = selSet.has(v);
             return (
               <button
@@ -74,10 +92,13 @@ export function MultiSelect({ label, options, selected, onChange, allLabel = 'to
                 <span className={cn('flex size-3.5 shrink-0 items-center justify-center rounded border', on ? 'border-accent bg-accent text-accent-fg' : 'border-border')}>
                   {on && <Check className="size-2.5" />}
                 </span>
-                <span className="min-w-0 truncate">{v}</span>
+                <span className="min-w-0 truncate" title={textoDe(v)}>{textoDe(v)}</span>
               </button>
             );
           })}
+          {visibles.length > dibujadas.length && (
+            <p className="px-1 py-2 text-[11px] text-text-faint">Mostrando {dibujadas.length} de {visibles.length} — escribe para refinar. “Seleccionar visibles” toma las {visibles.length}.</p>
+          )}
         </div>
       </PopoverContent>
     </Popover>

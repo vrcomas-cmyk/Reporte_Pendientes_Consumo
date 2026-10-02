@@ -15,6 +15,7 @@ import type { EnrichIndex } from './enrich';
 import { buildAnalisisPredicates, matSeriesFiltradas, hayFiltroAnalisis, type AnalisisFilters, type ClienteAna } from './comercial';
 import type { BOItem } from './buildBO';
 import { buildPeriodo, type PeriodoAnalisis } from './incremento';
+import { proyectarMesCorriente } from './proyeccion';
 import { norm } from '@/lib/text';
 
 export type { PeriodoAnalisis };
@@ -401,6 +402,9 @@ export interface MesAnual {
   margen: number | null;
   /** true en los meses de proyección (línea punteada) — el año sigue en curso y no hay dato real todavía. */
   esProyeccion: boolean;
+  /** Solo en el mes corriente (parcial): lo facturado a la fecha. `imp`/`margen` traen entonces la PROYECCIÓN de cierre del mes. */
+  acumImp?: number;
+  acumMargen?: number;
 }
 
 export interface AnioComparado {
@@ -417,28 +421,64 @@ export interface AnioComparado {
  * mismo `matPasa` que Finanzas. Si `anio` es el año del mes más reciente en
  * `rf` (`curmes`) y todavía faltan meses por cerrar, esos meses se llenan con
  * el promedio de los meses ya reales (`esProyeccion: true`) para poder
- * dibujar la línea punteada de "cómo se espera que quede" el año. */
-export function serieAnualComparada(rf: RFIndex, enrich: EnrichIndex, filters: AnalisisFilters, anio: number): AnioComparado {
+ * dibujar la línea punteada de "cómo se espera que quede" el año.
+ *
+ * El MES CORRIENTE (el de `hoy`) está parcial: dibujarlo como dato real hace
+ * que la línea se desplome frente a los meses cerrados y, además, sesgaba a la
+ * baja el promedio que proyecta el resto del año. Por eso, si hay meses
+ * cerrados previos, ese mes pasa a `esProyeccion` con la proyección de cierre
+ * (`proyectarMesCorriente`: ritmo + tendencia de los últimos 3 meses cerrados)
+ * y el promedio de proyección se calcula solo con meses cerrados. Lo facturado
+ * a la fecha queda en `acumImp`/`acumMargen`. */
+export function serieAnualComparada(rf: RFIndex, enrich: EnrichIndex, filters: AnalisisFilters, anio: number, hoy: Date = new Date()): AnioComparado {
   const { matPasa, clientePasa } = buildAnalisisPredicates(rf, enrich, filters);
-  const impPorMes = new Array(13).fill(0) as number[]; // índice 1-12
-  const margenPorMes = new Array(13).fill(0) as number[];
-  const conDato = new Array(13).fill(false) as boolean[];
+  // Todos los meses (no solo `anio`): la tendencia del mes corriente puede
+  // necesitar meses cerrados del año anterior (p.ej. proyectar enero).
+  const porK = new Map<number, { imp: number; margen: number }>();
   matSeriesFiltradas(rf, filters, matPasa, clientePasa).forEach((serie, m) => {
     if (!matPasa(m)) return;
     const costo = enrich.matCosto(m);
     for (const p of serie) {
+      if (p.imp <= 0) continue;
       const k = mesKey(p.mes);
-      const y = Math.floor((k - 1) / 12);
-      const mn = ((k - 1) % 12) + 1;
-      if (y !== anio || p.imp <= 0) continue;
-      impPorMes[mn] += p.imp;
-      if (costo > 0) margenPorMes[mn] += p.imp - costo * p.cant;
-      conDato[mn] = true;
+      const o = porK.get(k) ?? { imp: 0, margen: 0 };
+      o.imp += p.imp;
+      if (costo > 0) o.margen += p.imp - costo * p.cant;
+      porK.set(k, o);
     }
   });
-  const mesesConDato = conDato.filter(Boolean).length;
-  const promedioImpReal = mesesConDato ? impPorMes.reduce((s, v, i) => (conDato[i] ? s + v : s), 0) / mesesConDato : 0;
-  const promedioMargenReal = mesesConDato ? margenPorMes.reduce((s, v, i) => (conDato[i] ? s + v : s), 0) / mesesConDato : 0;
+  const impPorMes = new Array(13).fill(0) as number[]; // índice 1-12
+  const margenPorMes = new Array(13).fill(0) as number[];
+  const conDato = new Array(13).fill(false) as boolean[];
+  porK.forEach((v, k) => {
+    if (Math.floor((k - 1) / 12) !== anio) return;
+    const mn = ((k - 1) % 12) + 1;
+    impPorMes[mn] = v.imp; margenPorMes[mn] = v.margen; conDato[mn] = true;
+  });
+
+  // Mes corriente parcial (solo si `anio` es el año de `hoy`) y su proyección.
+  const hoyK = hoy.getFullYear() * 12 + hoy.getMonth() + 1;
+  const mesParcial = anio === hoy.getFullYear() ? hoy.getMonth() + 1 : 0;
+  let proyImp: ReturnType<typeof proyectarMesCorriente> = null;
+  let proyMargen: ReturnType<typeof proyectarMesCorriente> = null;
+  if (mesParcial) {
+    const ks = [...porK.keys()];
+    if (ks.some((k) => k < hoyK)) {
+      const minK = Math.min(...ks);
+      const cerrados = (campo: 'imp' | 'margen') => [hoyK - 3, hoyK - 2, hoyK - 1].filter((k) => k >= minK).map((k) => porK.get(k)?.[campo] ?? 0);
+      const parcial = porK.get(hoyK);
+      proyImp = proyectarMesCorriente(cerrados('imp'), parcial?.imp ?? 0, hoy);
+      proyMargen = proyectarMesCorriente(cerrados('margen'), parcial?.margen ?? 0, hoy);
+      // Sin tendencia ni lo facturado, la proyección sería 0: mejor el promedio (comportamiento previo).
+      if (!proyImp || !proyMargen || proyImp.proyectado <= 0) { proyImp = null; proyMargen = null; }
+    }
+  }
+  const parcialActivo = !!proyImp && !!proyMargen;
+
+  const mesesBase = conDato.map((c, i) => c && !(parcialActivo && i === mesParcial));
+  const mesesConDato = mesesBase.filter(Boolean).length;
+  const promedioImpReal = mesesConDato ? impPorMes.reduce((s, v, i) => (mesesBase[i] ? s + v : s), 0) / mesesConDato : 0;
+  const promedioMargenReal = mesesConDato ? margenPorMes.reduce((s, v, i) => (mesesBase[i] ? s + v : s), 0) / mesesConDato : 0;
 
   const anioActual = Math.floor((mesKey(rf.curmes) - 1) / 12);
   const mesActual = ((mesKey(rf.curmes) - 1) % 12) + 1;
@@ -447,33 +487,51 @@ export function serieAnualComparada(rf: RFIndex, enrich: EnrichIndex, filters: A
 
   const meses: MesAnual[] = [];
   for (let mn = 1; mn <= 12; mn++) {
-    const enCurso = esAnioEnCurso && mn > ultimoMesConDato;
+    if (parcialActivo && mn === mesParcial) {
+      meses.push({
+        mesNum: mn, label: MES_ABREV[mn - 1], imp: proyImp!.proyectado, margen: proyMargen!.proyectado,
+        esProyeccion: true, acumImp: proyImp!.acumulado, acumMargen: proyMargen!.acumulado,
+      });
+      continue;
+    }
+    // Meses posteriores al corriente, cuando el corriente se proyecta, siguen al promedio.
+    const proyectado = (esAnioEnCurso && mn > ultimoMesConDato) || (parcialActivo && mn > mesParcial);
     meses.push({
       mesNum: mn,
       label: MES_ABREV[mn - 1],
-      imp: enCurso ? (mesesConDato ? promedioImpReal : null) : (conDato[mn] ? impPorMes[mn] : (mn <= ultimoMesConDato ? 0 : null)),
-      margen: enCurso ? (mesesConDato ? promedioMargenReal : null) : (conDato[mn] ? margenPorMes[mn] : (mn <= ultimoMesConDato ? 0 : null)),
-      esProyeccion: enCurso,
+      imp: proyectado ? (mesesConDato ? promedioImpReal : null) : (conDato[mn] ? impPorMes[mn] : (mn <= ultimoMesConDato ? 0 : null)),
+      margen: proyectado ? (mesesConDato ? promedioMargenReal : null) : (conDato[mn] ? margenPorMes[mn] : (mn <= ultimoMesConDato ? 0 : null)),
+      esProyeccion: proyectado,
     });
   }
-  return { anio, meses, promedioImpReal, promedioMargenReal, esAnioEnCurso };
+  return { anio, meses, promedioImpReal, promedioMargenReal, esAnioEnCurso: esAnioEnCurso || parcialActivo };
 }
 
 /** Serie mensual TOTAL (todo el historial) con todos los filtros aplicados —
- * la línea "Serie del filtro" de la tarjeta Facturación mensual. */
+ * la línea "Serie del filtro" de la tarjeta Facturación mensual. Cada punto
+ * trae también `margen` (rendimiento aproximado: importe − costo vigente ×
+ * cantidad, solo materiales con costo en catálogo — mismo criterio que
+ * `serieAnualComparada`). */
 export function serieMensualFiltrada(rf: RFIndex, enrich: EnrichIndex, filters: AnalisisFilters): Serie {
-  if (!hayFiltroAnalisis(filters)) return rf.total.map((p) => ({ ...p })); // suma directa de Resumen_Fac
+  const filtrado = hayFiltroAnalisis(filters);
   const { matPasa, clientePasa } = buildAnalisisPredicates(rf, enrich, filters);
   const acc = new Map<string, { mes: string; cant: number; imp: number }>();
+  const margenPorMes = new Map<string, number>();
   matSeriesFiltradas(rf, filters, matPasa, clientePasa).forEach((serie, m) => {
     if (!matPasa(m)) return;
+    const costo = enrich.matCosto(m);
     for (const p of serie) {
-      const o = acc.get(p.mes) ?? { mes: p.mes, cant: 0, imp: 0 };
-      o.cant += p.cant; o.imp += p.imp;
-      acc.set(p.mes, o);
+      if (filtrado) {
+        const o = acc.get(p.mes) ?? { mes: p.mes, cant: 0, imp: 0 };
+        o.cant += p.cant; o.imp += p.imp;
+        acc.set(p.mes, o);
+      }
+      if (costo > 0 && p.imp > 0) margenPorMes.set(p.mes, (margenPorMes.get(p.mes) ?? 0) + p.imp - costo * p.cant);
     }
   });
-  return [...acc.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
+  // Sin filtros, importe y cantidad salen directo de `rf.total` (suma de todas las filas de Resumen_Fac).
+  const base = filtrado ? [...acc.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes)) : rf.total.map((p) => ({ ...p }));
+  return base.map((p) => ({ ...p, margen: margenPorMes.get(p.mes) ?? 0 }));
 }
 
 export interface ClienteMesRow {

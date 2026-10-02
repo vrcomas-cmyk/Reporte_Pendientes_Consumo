@@ -20,6 +20,9 @@ import { loadScoringWeights, saveScoringWeight, SCORING_WEIGHT_PREFIX } from '@/
 import { useScoringWeightsStore } from '@/store/scoringWeightsStore';
 import { loadNombres, saveNombres, NOMBRES_PREFIX, type NombresKind } from '@/services/nombresService';
 import { useNombresStore } from '@/store/nombresStore';
+import { loadGruposExcluidos, saveGruposExcluidos, FILTROS_PREFIX } from '@/services/gruposExcluidosService';
+import { useGruposExcluidosStore } from '@/store/gruposExcluidosStore';
+import { useDataStore } from '@/store/dataStore';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { CENTERS } from '@/core/types';
 import type { NombresMap } from '@/lib/nombres';
@@ -39,6 +42,7 @@ export function AdminPage() {
           <TabsTrigger value="conectores">Conectores</TabsTrigger>
           <TabsTrigger value="compatibilidad">Compatibilidad</TabsTrigger>
           <TabsTrigger value="nombres">Nombres</TabsTrigger>
+          <TabsTrigger value="filtros">Filtros</TabsTrigger>
         </TabsList>
         <TabsContent value="usuarios"><UsuariosTab /></TabsContent>
         <TabsContent value="roles"><PermissionsTab subjectType="role" /></TabsContent>
@@ -46,6 +50,7 @@ export function AdminPage() {
         <TabsContent value="conectores"><ConectoresTab /></TabsContent>
         <TabsContent value="compatibilidad"><PesosTab /></TabsContent>
         <TabsContent value="nombres"><NombresTab /></TabsContent>
+        <TabsContent value="filtros"><FiltrosTab /></TabsContent>
       </Tabs>
     </div>
   );
@@ -191,6 +196,81 @@ function NombresCard({ titulo, descripcion, codigos, valores, busy, onChange, on
           <Input value={nuevo} onChange={(e) => setNuevo(e.target.value)} placeholder="Agregar código…" className="w-24 font-mono text-sm" />
           <Button size="sm" variant="outline" onClick={agregar} disabled={!nuevo.trim()}>Agregar</Button>
           <Button size="sm" className="ml-auto" disabled={busy} onClick={onSave}>Guardar</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Filtros: grupos de cliente que los reportes EXCLUYEN por defecto en su filtro
+// de Grupo cliente (Consumo, Análisis, Análisis Directivo, Incremento — no
+// Pedidos/Sugerencias). Por defecto: 18 = GOBIERNO. El usuario siempre puede
+// incluirlos a mano en el filtro. Se guardan por CÓDIGO (Gpo. Cte.) como JSON
+// en `degasa_connectors` (ver gruposExcluidosService).
+// ---------------------------------------------------------------------------
+function FiltrosTab() {
+  const catalog = useDataStore((s) => s.catalog);
+  const invalidate = useGruposExcluidosStore((s) => s.invalidate);
+  const [excluidos, setExcluidos] = useState<string[]>([]);
+  const [cargado, setCargado] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void loadGruposExcluidos()
+      .then((c) => { setExcluidos(c); setCargado(true); })
+      .catch((e) => toast.error('No se pudo cargar la configuración', e instanceof Error ? e.message : String(e)));
+  }, []);
+
+  // Un grupo por código (Gpo. Cte.) del catálogo de Ejecutivos, más los códigos
+  // ya configurados que el catálogo cargado no traiga.
+  const grupos = (() => {
+    const m = new Map<string, string>();
+    for (const e of catalog?.ejecutivos ?? []) {
+      const code = String(e.gpoCte ?? '').trim();
+      if (code && !m.has(code)) m.set(code, String(e.grupoCliente ?? '').trim());
+    }
+    for (const code of excluidos) if (!m.has(code)) m.set(code, '');
+    return [...m.entries()].sort(([a], [b]) => (Number(a) - Number(b)) || a.localeCompare(b));
+  })();
+
+  const toggle = (code: string) => setExcluidos((cur) => (cur.includes(code) ? cur.filter((c) => c !== code) : [...cur, code]));
+
+  const handleSave = async () => {
+    setBusy(true);
+    try {
+      const { data } = await supabase.auth.getUser();
+      await saveGruposExcluidos(excluidos, data.user?.email ?? 'admin');
+      invalidate();
+      toast.success('Guardado', 'Los reportes ya excluyen esos grupos por defecto.');
+    } catch (e) {
+      toast.error('No se pudo guardar', e instanceof Error ? e.message : String(e));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Grupos de cliente excluidos por defecto</CardTitle>
+        <CardDescription>
+          Al entrar a Consumo, Análisis, Análisis Directivo e Incremento, el filtro de Grupo cliente parte en «todos menos» los grupos marcados aquí
+          (por defecto 18 = GOBIERNO). Se excluye solo el grupo marcado — «GOBIERNO» no incluye a «GOBIERNO DESCENTRALIZADO» ni a «GOBIERNO A». Cada persona
+          puede incluirlos a mano desde el filtro; Pedidos/Sugerencias no se ve afectado.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-1">
+        {!cargado && <p className="text-sm text-text-muted">Cargando…</p>}
+        {cargado && grupos.length === 0 && <p className="text-sm text-text-muted">No hay grupos de cliente: carga el catálogo para listarlos.</p>}
+        {grupos.map(([code, nombre]) => (
+          <label key={code} className="flex cursor-pointer items-center gap-3 rounded px-1.5 py-1 text-sm hover:bg-bg-inset">
+            <input type="checkbox" checked={excluidos.includes(code)} onChange={() => toggle(code)} />
+            <span className="w-10 font-mono text-text-muted">{code}</span>
+            <span>{nombre || <span className="text-text-faint">(sin nombre en el catálogo)</span>}</span>
+          </label>
+        ))}
+        <div className="mt-2 flex items-center gap-3 border-t border-border pt-3">
+          <span className="text-xs text-text-faint">{excluidos.length ? `${excluidos.length} grupo(s) excluido(s)` : 'Ninguno excluido: los reportes parten en «todos».'}</span>
+          <Button size="sm" className="ml-auto" disabled={busy || !cargado} onClick={handleSave}>Guardar</Button>
         </div>
       </CardContent>
     </Card>
@@ -471,7 +551,7 @@ function ConectoresTab() {
     // Los pesos del score (fase 5) viven en la misma tabla pero tienen su
     // propia pestaña "Compatibilidad" con mejor UX (números, no URLs) — se
     // excluyen aquí para no duplicar la edición en dos lugares.
-    const rows = (await listConnectors()).filter((r) => !r.key.startsWith(SCORING_WEIGHT_PREFIX) && !r.key.startsWith(NOMBRES_PREFIX));
+    const rows = (await listConnectors()).filter((r) => !r.key.startsWith(SCORING_WEIGHT_PREFIX) && !r.key.startsWith(NOMBRES_PREFIX) && !r.key.startsWith(FILTROS_PREFIX));
     setConnectors(rows);
     setDrafts(Object.fromEntries(rows.map((r) => [r.key, r.value ?? ''])));
   }, []);

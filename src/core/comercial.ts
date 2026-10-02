@@ -63,6 +63,13 @@ export interface AnalisisFilters {
   grupoClientes?: string[];
   sector?: string;
   grupoArticulo?: string;
+  /** Multi-select de material (código) — acota a esos materiales. Análisis
+   * Directivo; vacío/ausente = sin filtro. */
+  materiales?: string[];
+  /** Multi-select de sector — si trae algún valor, GANA sobre `sector`. */
+  sectores?: string[];
+  /** Multi-select de grupo de artículo — si trae algún valor, GANA sobre `grupoArticulo`. */
+  gruposArticulo?: string[];
   /** Gerente de marca: acota a los sectores a su cargo (pestaña GERENCIA DE MARCA). */
   gerente?: string;
 }
@@ -77,10 +84,16 @@ export function buildAnalisisPredicates(
   enrich: EnrichIndex,
   filters?: AnalisisFilters,
 ): { matPasa: (m: string) => boolean; clientePasa: (c: string) => boolean } {
+  const materialesSet = filters?.materiales?.length ? new Set(filters.materiales) : null;
+  const sectoresSet = filters?.sectores?.length ? new Set(filters.sectores) : null;
+  const gruposArtSet = filters?.gruposArticulo?.length ? new Set(filters.gruposArticulo) : null;
   const matPasa = (m: string) => {
+    if (materialesSet && !materialesSet.has(m)) return false;
     if (filters?.gerente && !enrich.sectorDeGerente(enrich.matSector(m), filters.gerente)) return false;
-    if (filters?.sector && (enrich.matSector(m) || '(sin sector)') !== filters.sector) return false;
-    if (filters?.grupoArticulo && (enrich.matGrupo(m) || '(sin grupo)') !== filters.grupoArticulo) return false;
+    if (sectoresSet) { if (!sectoresSet.has(enrich.matSector(m) || '(sin sector)')) return false; }
+    else if (filters?.sector && (enrich.matSector(m) || '(sin sector)') !== filters.sector) return false;
+    if (gruposArtSet) { if (!gruposArtSet.has(enrich.matGrupo(m) || '(sin grupo)')) return false; }
+    else if (filters?.grupoArticulo && (enrich.matGrupo(m) || '(sin grupo)') !== filters.grupoArticulo) return false;
     return true;
   };
   const ejecDe = (c: string) => enrich.ejecutivoNombre(rf.solicGpoV.get(c) || '') || '';
@@ -88,7 +101,7 @@ export function buildAnalisisPredicates(
   const grupoClientesSet = filters?.grupoClientes?.length ? new Set(filters.grupoClientes) : null;
   const clientePasa = (c: string) => {
     if (filters?.ejecutivo && ejecDe(c) !== filters.ejecutivo) return false;
-    if (grupoClientesSet) { if (!grupoClientesSet.has(grupoDe(c))) return false; }
+    if (grupoClientesSet) { if (!grupoClientesSet.has(grupoDe(c) || '(sin grupo)')) return false; }
     else if (filters?.grupoCliente && grupoDe(c) !== filters.grupoCliente) return false;
     return true;
   };
@@ -105,7 +118,7 @@ export function hayFiltroCliente(filters: AnalisisFilters): boolean {
 /** ¿Hay CUALQUIER filtro activo (material o cliente)? Sin filtros, los totales
  * salen directo de `rf.total` (suma de todas las filas de Resumen_Fac). */
 export function hayFiltroAnalisis(filters?: AnalisisFilters): boolean {
-  return !!(filters && (filters.ejecutivo || filters.grupoCliente || filters.grupoClientes?.length || filters.sector || filters.grupoArticulo || filters.gerente));
+  return !!(filters && (filters.ejecutivo || filters.grupoCliente || filters.grupoClientes?.length || filters.sector || filters.grupoArticulo || filters.materiales?.length || filters.sectores?.length || filters.gruposArticulo?.length || filters.gerente));
 }
 
 /** Series mensuales POR MATERIAL respetando TODOS los filtros: sin filtro de

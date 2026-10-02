@@ -134,6 +134,46 @@ describe('analisisDirectivo', () => {
     expect(r.porGrupoCliente.map((g) => g.grupo).sort()).toEqual(['G1', 'G3']);
   });
 
+  describe('filtros multi de material', () => {
+    const rows = [
+      row({ solicitante: 'C1', gpoCte: 'G1', material: 'M1', mesAno: '01/2026', importeFacturado: 100 }),
+      row({ solicitante: 'C2', gpoCte: 'G1', material: 'M2', mesAno: '01/2026', importeFacturado: 200 }),
+      row({ solicitante: 'C3', gpoCte: 'G2', material: 'M3', mesAno: '01/2026', importeFacturado: 400 }),
+      row({ solicitante: 'C4', gpoCte: 'G2', material: 'M4', mesAno: '01/2026', importeFacturado: 800 }),
+    ];
+    const sector = (m: unknown) => (m === 'M1' || m === 'M2' ? 'SecA' : m === 'M3' ? 'SecB' : 'SecC');
+    const grupo = (m: unknown) => (m === 'M1' ? 'GA1' : m === 'M2' ? 'GA2' : 'GA3');
+    const enrich = mkEnrich({ grupoCliente: (g) => String(g), matSector: sector, matGrupo: grupo });
+    const periodo = buildPeriodo('01/2026', '01/2026');
+    const venta = (f: Parameters<typeof analisisDirectivo>[3]) => analisisDirectivo(buildRF(rows), [], enrich, f, periodo, periodo)!.totalA.imp;
+
+    it('materiales: solo suma los códigos elegidos', () => {
+      expect(venta({ materiales: ['M1', 'M3'] })).toBe(500);
+      expect(venta({ materiales: ['M4'] })).toBe(800);
+    });
+
+    it('sectores: elegir varios a la vez', () => {
+      expect(venta({ sectores: ['SecA', 'SecB'] })).toBe(700);
+    });
+
+    it('gruposArticulo: elegir varios a la vez', () => {
+      expect(venta({ gruposArticulo: ['GA1', 'GA3'] })).toBe(1300);
+    });
+
+    it('el multi gana sobre el single', () => {
+      expect(venta({ sector: 'SecC', sectores: ['SecA'] })).toBe(300);
+    });
+
+    it('se combinan entre sí y con grupoClientes (AND entre filtros)', () => {
+      expect(venta({ sectores: ['SecA', 'SecB'], materiales: ['M2', 'M3', 'M4'] })).toBe(600);
+      expect(venta({ materiales: ['M1', 'M2', 'M3'], grupoClientes: ['G2'] })).toBe(400);
+    });
+
+    it('arreglos vacíos no filtran', () => {
+      expect(venta({ materiales: [], sectores: [], gruposArticulo: [] })).toBe(1500);
+    });
+  });
+
   it('porGrupoCliente agrega venta y margen por grupo de cliente', () => {
     const rows = [
       row({ solicitante: 'C1', gpoCte: 'G1', material: 'M1', mesAno: '01/2026', importeFacturado: 100, cantidadFacturada: 10 }),
@@ -249,7 +289,7 @@ describe('analisisDirectivo', () => {
       expect(analisisDirectivo(rf, [], enrich, {}, periodo, periodo)!.totalA.imp).toBe(800);
       expect(serieAnualComparada(rf, enrich, f, 2026).meses[0].imp).toBe(100);
       const serie = serieMensualFiltrada(rf, enrich, f);
-      expect(serie).toEqual([{ mes: '01/2026', cant: 10, imp: 100 }]);
+      expect(serie).toEqual([{ mes: '01/2026', cant: 10, imp: 100, margen: 0 }]);
     });
 
     it('clientesDeMes lista quién compró qué en el mes bajo los filtros, mayor importe primero', () => {
@@ -340,5 +380,83 @@ describe('analisisDirectivo', () => {
       expect(texto).toContain('Retención de cartera');
       expect(texto).toContain('concentran');
     });
+  });
+});
+
+describe('mes corriente: margen y proyección', () => {
+  const rowsBase = [
+    row({ material: 'M1', mesAno: '07/2026', cantidadFacturada: 10, importeFacturado: 100 }),
+    row({ material: 'M1', mesAno: '08/2026', cantidadFacturada: 20, importeFacturado: 200 }),
+    row({ material: 'M1', mesAno: '09/2026', cantidadFacturada: 30, importeFacturado: 300 }),
+    row({ material: 'M1', mesAno: '10/2026', cantidadFacturada: 5, importeFacturado: 50 }), // mes en curso, parcial
+  ];
+  const enrich = mkEnrich({ matCosto: () => 4 });
+  const hoy = new Date(2026, 9, 16); // 16-oct-2026: 15/31 transcurrido
+
+  it('serieMensualFiltrada trae el margen aprox. de cada mes (importe − costo × cantidad)', () => {
+    const serie = serieMensualFiltrada(buildRF(rowsBase), enrich, {});
+    expect(serie.map((p) => p.margen)).toEqual([100 - 40, 200 - 80, 300 - 120, 50 - 20]);
+  });
+
+  it('el margen respeta los filtros y omite materiales sin costo', () => {
+    const rf = buildRF([...rowsBase, row({ material: 'SINCOSTO', mesAno: '09/2026', cantidadFacturada: 1, importeFacturado: 999 })]);
+    const e = mkEnrich({ matCosto: (m) => (m === 'M1' ? 4 : 0) });
+    const sep = serieMensualFiltrada(rf, e, {}).find((p) => p.mes === '09/2026')!;
+    expect(sep.imp).toBe(1299);
+    expect(sep.margen).toBe(180); // solo M1
+  });
+
+  it('el mes corriente se proyecta (esProyeccion) y conserva lo facturado a la fecha', () => {
+    const r = serieAnualComparada(buildRF(rowsBase), enrich, {}, 2026, hoy);
+    const oct = r.meses[9];
+    expect(oct.esProyeccion).toBe(true);
+    expect(oct.acumImp).toBe(50);
+    // tendencia = prom(100,200,300) = 200 → 50 + (1 − 15/31)·200
+    expect(oct.imp).toBeCloseTo(50 + (1 - 15 / 31) * 200, 6);
+    expect(oct.imp!).toBeGreaterThan(oct.acumImp!);
+    expect(r.meses[8].esProyeccion).toBe(false); // septiembre, cerrado
+    expect(r.esAnioEnCurso).toBe(true);
+  });
+
+  it('el promedio de proyección usa solo meses cerrados (el parcial no lo sesga)', () => {
+    const r = serieAnualComparada(buildRF(rowsBase), enrich, {}, 2026, hoy);
+    expect(r.promedioImpReal).toBe(200); // (100+200+300)/3, sin octubre
+    expect(r.meses[10].imp).toBe(200); // noviembre sigue al promedio
+    expect(r.meses[10].esProyeccion).toBe(true);
+  });
+
+  it('la tendencia de enero toma los últimos meses cerrados del año anterior', () => {
+    const rf = buildRF([
+      row({ mesAno: '10/2025', importeFacturado: 300, cantidadFacturada: 1 }),
+      row({ mesAno: '11/2025', importeFacturado: 300, cantidadFacturada: 1 }),
+      row({ mesAno: '12/2025', importeFacturado: 300, cantidadFacturada: 1 }),
+    ]);
+    const r = serieAnualComparada(rf, enrich, {}, 2026, new Date(2026, 0, 2));
+    expect(r.meses[0].esProyeccion).toBe(true);
+    expect(r.meses[0].imp!).toBeGreaterThan(250); // ≈ tendencia 300, no 0
+  });
+
+  it('un año ya cerrado no se proyecta', () => {
+    const r = serieAnualComparada(buildRF(rowsBase), enrich, {}, 2025, hoy);
+    expect(r.meses.every((m) => !m.esProyeccion)).toBe(true);
+  });
+});
+
+describe('grupoClientes: clientes sin grupo', () => {
+  const rows = [
+    row({ solicitante: 'C1', gpoCte: 'G1', mesAno: '01/2026', importeFacturado: 100 }),
+    row({ solicitante: 'C2', gpoCte: '', mesAno: '01/2026', importeFacturado: 200 }),
+    row({ solicitante: 'C3', gpoCte: 'GOB', mesAno: '01/2026', importeFacturado: 400 }),
+  ];
+  const enrich = mkEnrich({ grupoCliente: (g) => String(g) });
+  const periodo = buildPeriodo('01/2026', '01/2026');
+  const venta = (grupoClientes: string[]) => analisisDirectivo(buildRF(rows), [], enrich, { grupoClientes }, periodo, periodo)!.totalA.imp;
+
+  it('"(sin grupo)" selecciona a los clientes sin grupo asignado', () => {
+    expect(venta(['(sin grupo)'])).toBe(200);
+  });
+
+  it('todos menos un grupo (default sin Gobierno) conserva a los clientes sin grupo', () => {
+    expect(venta(['G1', '(sin grupo)'])).toBe(300);
   });
 });

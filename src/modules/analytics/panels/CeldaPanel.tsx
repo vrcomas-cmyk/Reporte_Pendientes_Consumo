@@ -4,7 +4,9 @@ import { StatTile, EvolChart, StatePill } from '../ui';
 import { Section, SugTable, ConsumoTable, PrecioCondicionBox } from './_shared';
 import { MaterialInventarioSection } from './MaterialInventario';
 import { formatCurrency, formatNumber } from '@/lib/utils';
-import { invGen } from '@/core/resumenSin';
+import { invGen, coberturaEstado, COBERTURA_LABEL, COBERTURA_CLS } from '@/core/resumenSin';
+import { promedioPeriodo } from '@/core/facMensual';
+import { PromedioPeriodoSection, periodoCompleto, usePeriodoProm } from './PromedioPeriodoSection';
 import { serieMaterial, serieMatCentro, rfTieneCentro } from '@/core/resumenFac';
 import { almacenesDeCondicion } from '@/core/inventoryRules';
 import { sugFor, consFor, norm } from '../helpers';
@@ -23,6 +25,9 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
   const nombresAlm = useNombresStore((s) => s.almacenes);
   const mostrarNombres = useVistaCentrosStore((s) => s.mostrarNombres);
   const centroTxt = etiquetaCentro(panel.centro, nombresCentros, mostrarNombres);
+  // Un solo periodo para todo el módulo (no por material): al navegar entre
+  // materiales con las flechas se conserva el rango elegido.
+  const { periodo: periodoProm, setPeriodo: setPeriodoProm, esDefault: periodoDefault } = usePeriodoProm(a);
   // Desde Inventario (Resumen Sin) el inventario de otros centros + Solicitar
   // viven en el panel lateral izquierdo (ver PanelHost).
   const inventarioEnLateral = panel.origen === 'resumenSin';
@@ -98,6 +103,7 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
   }
 
   const alms = [...co.alm.values()].sort((x, y) => String(x.alm).localeCompare(String(y.alm)));
+  const conPeriodo = !!a.facMensual && periodoCompleto(periodoProm);
   return (
     <div>
       {nav}
@@ -110,22 +116,38 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
         <StatTile label="Importe pend." value={formatCurrency(co.impPend)} />
       </div>
       <PrecioCondicionBox a={a} material={panel.material} />
+      <PromedioPeriodoSection a={a} material={panel.material} centro={panel.centro} periodo={periodoProm} esDefault={periodoDefault} onChange={setPeriodoProm} />
       <Section title="Desglose por almacén">
         <div>
           <Table wrapperClassName="max-h-64 rounded-lg border border-border">
-            <TableHeader><TableRow><TableHead>Almacén</TableHead><TableHead className="text-right">Inv.</TableHead><TableHead className="text-right">Pend.</TableHead><TableHead className="text-right">Tránsito</TableHead><TableHead className="text-right">Prom.</TableHead><TableHead>Último</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Almacén</TableHead><TableHead className="text-right">Inv.</TableHead><TableHead className="text-right">Pend.</TableHead><TableHead className="text-right">Tránsito</TableHead>
+                {conPeriodo && <TableHead className="text-right" title={`Cantidad facturada ÷ meses de ${periodoProm.desde} a ${periodoProm.hasta} (Fac_Mensual_CAM), de este almacén.`}>Prom. mensual</TableHead>}
+                {conPeriodo && <TableHead className="text-right" title="Inventario del almacén ÷ promedio del periodo.">Meses inv.</TableHead>}
+                {conPeriodo && <TableHead title="Cobertura recalculada con el promedio del periodo.">Cobertura</TableHead>}
+                <TableHead>Último</TableHead><TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
-              {alms.map((al, i) => (
-                <TableRow key={i}>
-                  <TableCell>{etiquetaAlmacen(al.alm, nombresAlm)}{almacenesAplicables.has(norm(al.alm)) && <StatePill label="aplica" cls="verde" />}</TableCell>
-                  <TableCell className="text-right">{formatNumber(al.inv)}</TableCell>
-                  <TableCell className="text-right">{al.pend ? formatNumber(al.pend) : '—'}</TableCell>
-                  <TableCell className="text-right">{al.transito ? formatNumber(al.transito) : '—'}</TableCell>
-                  <TableCell className="text-right">{formatNumber(al.prom)}</TableCell>
-                  <TableCell>{al.ultMes || '—'}</TableCell>
-                  <TableCell>{al.status ? <StatePill label={al.status} cls="amb" /> : '—'}</TableCell>
-                </TableRow>
-              ))}
+              {alms.map((al, i) => {
+                const pp = conPeriodo ? promedioPeriodo(a.facMensual, { material: panel.material, centro: panel.centro, almacen: al.alm }, periodoProm.desde, periodoProm.hasta) : null;
+                const mesesPp = pp && pp.promedio > 0 ? al.inv / pp.promedio : 0;
+                const cob = pp ? coberturaEstado(mesesPp, pp.promedio, al.inv) : null;
+                return (
+                  <TableRow key={i}>
+                    <TableCell>{etiquetaAlmacen(al.alm, nombresAlm)}{almacenesAplicables.has(norm(al.alm)) && <StatePill label="aplica" cls="verde" />}</TableCell>
+                    <TableCell className="text-right">{formatNumber(al.inv)}</TableCell>
+                    <TableCell className="text-right">{al.pend ? formatNumber(al.pend) : '—'}</TableCell>
+                    <TableCell className="text-right">{al.transito ? formatNumber(al.transito) : '—'}</TableCell>
+                    {pp && <TableCell className="text-right font-medium">{formatNumber(pp.promedio)}</TableCell>}
+                    {pp && <TableCell className="text-right">{pp.promedio > 0 ? formatNumber(mesesPp) : '—'}</TableCell>}
+                    {cob && <TableCell><StatePill label={COBERTURA_LABEL[cob]} cls={COBERTURA_CLS[cob]} /></TableCell>}
+                    <TableCell>{al.ultMes || '—'}</TableCell>
+                    <TableCell>{al.status ? <StatePill label={al.status} cls="amb" /> : '—'}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

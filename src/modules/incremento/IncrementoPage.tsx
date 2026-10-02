@@ -6,6 +6,7 @@ import {
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { GerenteSelect } from '@/components/ui/gerente-select';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -17,6 +18,8 @@ import { useDataStore } from '@/store/dataStore';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { usePanelStore } from '@/store/panelStore';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import { useGruposPorDefecto } from '@/hooks/useGruposPorDefecto';
+import { SIN_GRUPO_CLIENTE } from '@/lib/gruposCliente';
 import { useSort } from '@/hooks/useSort';
 import { toast } from '@/store/toastStore';
 import {
@@ -126,13 +129,14 @@ interface IncrementoFiltersState {
   sector: string;
   grupoArticulo: string;
   ejecutivo: string;
-  /** Canal — reutiliza "Grupo de cliente" del catálogo (Ejecutivos), ya
-   * capturado para todo el negocio (gobierno, hospitales, distribuidores…),
-   * sin inventar un catálogo de canal nuevo. */
-  grupoCliente: string;
+  /** (Legado) Canal de un solo valor — ya no se usa: el Canal (Grupo de
+   * cliente del catálogo) es multi-selección y vive aparte en
+   * `useGruposSinGobierno`, con "todos menos Gobierno" por defecto. Se conserva
+   * opcional para no romper estado/vistas guardados antes de este cambio. */
+  grupoCliente?: string;
   clase: string;
 }
-const FILTROS_VACIOS: IncrementoFiltersState = { sector: '', grupoArticulo: '', ejecutivo: '', grupoCliente: '', clase: '' };
+const FILTROS_VACIOS: IncrementoFiltersState = { sector: '', grupoArticulo: '', ejecutivo: '', clase: '' };
 
 export function IncrementoPage() {
   const a = useAnalytics();
@@ -146,15 +150,18 @@ export function IncrementoPage() {
   const [filters, setFilters] = usePersistedState<IncrementoFiltersState>('incremento.filtros', FILTROS_VACIOS);
   const [tab, setTab] = usePersistedState('incremento.tab', 'resumen');
 
-  const savedViews = useSavedViews<{ periodo: { desde: string; hasta: string }; filters: IncrementoFiltersState }>('incremento_vistas');
-  const applyView = (state: { periodo: { desde: string; hasta: string }; filters: IncrementoFiltersState }) => {
+  const savedViews = useSavedViews<{ periodo: { desde: string; hasta: string }; filters: IncrementoFiltersState; grupoClientes?: string[] }>('incremento_vistas');
+  const applyView = (state: { periodo: { desde: string; hasta: string }; filters: IncrementoFiltersState; grupoClientes?: string[] }) => {
     setPeriodoInput(state.periodo);
     setFilters(state.filters);
+    // Vistas viejas guardaban un solo canal (o '' = todos).
+    setGrupoClientes(state.grupoClientes ?? (state.filters.grupoCliente ? [state.filters.grupoCliente] : []));
   };
   const [clearTick, setClearTick] = useState(0);
   const clearFilters = () => {
     setQ('');
     setFilters(FILTROS_VACIOS);
+    reiniciarGrupos(); // vuelve a "todos menos los excluidos por Administración"
     setClearTick((n) => n + 1); // remonta DebouncedSearch — ver su comentario sobre por qué no es controlado
   };
 
@@ -233,18 +240,24 @@ export function IncrementoPage() {
     const sectores = new Set(impactoSinFiltros.skus.map((s) => a.enrich.matSector(s.material) || '(sin sector)'));
     const gArts = new Set(impactoSinFiltros.skus.map((s) => a.enrich.matGrupo(s.material) || '(sin grupo)'));
     const ejecs = new Set(impactoSinFiltros.porEjecutivo.map((g) => g.key).filter((k) => k !== '(sin ejecutivo)'));
-    const canales = new Set(impactoSinFiltros.porCanal.map((g) => g.key).filter((k) => k !== '(sin canal)'));
+    // '(sin canal)' = clientes sin grupo: se ofrece como '(sin grupo)' (la etiqueta que entiende el filtro).
+    const canales = new Set(impactoSinFiltros.porCanal.map((g) => (g.key === '(sin canal)' ? SIN_GRUPO_CLIENTE : g.key)));
     return {
       sectorOptions: [...sectores].sort(), grupoArticuloOptions: [...gArts].sort(),
       ejecOptions: [...ejecs].sort(), canalOptions: [...canales].sort(),
     };
   }, [impactoSinFiltros, a.enrich]);
 
+  // Canal (Grupo cliente): por defecto todos MENOS los grupos que Administración
+  // → Filtros excluya (18 = GOBIERNO) cada vez que se entra al módulo (no se
+  // persiste); un grupo excluido solo entra si se elige a mano.
+  const [grupoClientes, setGrupoClientes, reiniciarGrupos, grupoResumen] = useGruposPorDefecto(canalOptions);
+
   const impacto = useMemo(() => {
     if (!impactoSinFiltros || !periodo) return null;
-    if (!filters.ejecutivo && !filters.gerente && !filters.sector && !filters.grupoArticulo && !filters.grupoCliente) return impactoSinFiltros;
+    if (!filters.ejecutivo && !filters.gerente && !filters.sector && !filters.grupoArticulo && !grupoClientes.length) return impactoSinFiltros;
     const analisisFilters: AnalisisFilters = {
-      ejecutivo: filters.ejecutivo, gerente: filters.gerente, sector: filters.sector, grupoArticulo: filters.grupoArticulo, grupoCliente: filters.grupoCliente,
+      ejecutivo: filters.ejecutivo, gerente: filters.gerente, sector: filters.sector, grupoArticulo: filters.grupoArticulo, grupoClientes,
     };
     return buildIncrementoImpacto(
       a.incrementoRows,
@@ -255,7 +268,7 @@ export function IncrementoPage() {
       analisisFilters,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [impactoSinFiltros, a.incrementoRows, a.rf, a.enrich, a.abc, a.rss, a.bo, materiales, periodo, filters.ejecutivo, filters.gerente, filters.sector, filters.grupoArticulo, filters.grupoCliente]);
+  }, [impactoSinFiltros, a.incrementoRows, a.rf, a.enrich, a.abc, a.rss, a.bo, materiales, periodo, filters.ejecutivo, filters.gerente, filters.sector, filters.grupoArticulo, grupoClientes]);
 
   const skusShown = useMemo(() => {
     if (!impacto) return [];
@@ -417,7 +430,7 @@ export function IncrementoPage() {
             <SavedViewsControl
               views={savedViews.views}
               onApply={applyView}
-              onSave={(name) => savedViews.save(name, { periodo: periodoEfectivo, filters })}
+              onSave={(name) => savedViews.save(name, { periodo: periodoEfectivo, filters, grupoClientes })}
               onRemove={savedViews.remove}
             />
             <ColumnVisibilityControl columns={COLS_INCREMENTO} hidden={columnVis.hidden} toggle={columnVis.toggle} reset={columnVis.reset} />
@@ -488,9 +501,7 @@ export function IncrementoPage() {
           <Select value={filters.ejecutivo} onChange={(ev) => setFilters({ ...filters, ejecutivo: ev.target.value })} className="w-auto">
             <option value="">Ejecutivo (todos)</option>{ejecOptions.map((v) => <option key={v} value={v}>{v}</option>)}
           </Select>
-          <Select value={filters.grupoCliente} onChange={(ev) => setFilters({ ...filters, grupoCliente: ev.target.value })} className="w-auto">
-            <option value="">Canal (todos)</option>{canalOptions.map((v) => <option key={v} value={v}>{v}</option>)}
-          </Select>
+          <MultiSelect label="Canal" options={canalOptions} selected={grupoClientes} onChange={setGrupoClientes} summary={grupoResumen} />
           <Select value={filters.clase} onChange={(ev) => setFilters({ ...filters, clase: ev.target.value })} className="w-auto">
             <option value="">Clase ABC (todas)</option><option value="A">A</option><option value="B">B</option><option value="C">C</option>
           </Select>
@@ -500,7 +511,7 @@ export function IncrementoPage() {
             filtro elegido aparece como chip removible, no solo dentro del
             <select> (que en algunos navegadores/zoom no siempre se nota
             resaltado a simple vista). */}
-        {(filters.gerente || filters.sector || filters.grupoArticulo || filters.ejecutivo || filters.grupoCliente || filters.clase) && (
+        {(filters.gerente || filters.sector || filters.grupoArticulo || filters.ejecutivo || grupoClientes.length > 0 || filters.clase) && (
           <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
             <span className="text-[11px] text-text-faint">Filtrando por:</span>
             {filters.gerente && (
@@ -515,8 +526,8 @@ export function IncrementoPage() {
             {filters.ejecutivo && (
               <FilterChip active onClear={() => setFilters({ ...filters, ejecutivo: '' })}>Ejecutivo: {filters.ejecutivo}</FilterChip>
             )}
-            {filters.grupoCliente && (
-              <FilterChip active onClear={() => setFilters({ ...filters, grupoCliente: '' })}>Canal: {filters.grupoCliente}</FilterChip>
+            {grupoClientes.length > 0 && (
+              <FilterChip active onClear={() => setGrupoClientes([])}>Canal: {grupoResumen}</FilterChip>
             )}
             {filters.clase && (
               <FilterChip active onClear={() => setFilters({ ...filters, clase: '' })}>Clase: {filters.clase}</FilterChip>
@@ -773,7 +784,7 @@ export function IncrementoPage() {
                   <Ranking
                     title="Canal (grupo de cliente) por impacto"
                     items={impacto.porCanal.slice(0, 15).map((g) => ({ code: g.key, desc: `${g.nSkus} cliente(s)`, val: Math.abs(g.impactoPeriodo) }))}
-                    money onRow={(canal) => setFilters({ ...filters, grupoCliente: canal === '(sin canal)' ? '' : canal })}
+                    money onRow={(canal) => setGrupoClientes([canal === '(sin canal)' ? SIN_GRUPO_CLIENTE : canal])}
                   />
                 </Card>
               </div>

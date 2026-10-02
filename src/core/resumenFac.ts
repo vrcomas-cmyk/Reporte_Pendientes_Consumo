@@ -28,6 +28,8 @@ export interface SeriePoint {
   mes: string;
   cant: number;
   imp: number;
+  /** Rendimiento aproximado del mes (importe − costo vigente × cantidad). Solo lo llenan las series que lo calculan (Análisis Directivo). */
+  margen?: number;
 }
 export type Serie = SeriePoint[];
 

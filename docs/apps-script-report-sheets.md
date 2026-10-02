@@ -1,7 +1,7 @@
 # Apps Script — leer el reporte diario desde Google Sheets
 
-El portal lee 4 pestañas ("Todas las Sugerencias", "Resumen Sin Sugerencias",
-"Reporte de Consumo", "Resumen_Fac") del Sheet
+El portal lee 5 pestañas ("Todas las Sugerencias", "Resumen Sin Sugerencias",
+"Reporte de Consumo", "Fac_Mensual_CAM", "Resumen_Fac") del Sheet
 `1OULGx8ZWdSR1w9JIPrccW3ci_-MZeQ5DckNjo2pSk_c` vía un `doGet` de Apps Script
 (ver `src/services/reportSheetsService.ts`). Es de **solo lectura** — distinto
 del script del catálogo (`VITE_APPSCRIPT_URL`, otro spreadsheet) y del `doPost`

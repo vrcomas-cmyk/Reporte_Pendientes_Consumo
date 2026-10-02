@@ -6,7 +6,9 @@ import { Section, PrecioCondicionBox, SugTable, ConsumoTable } from './_shared';
 import { MaterialInventarioSection } from './MaterialInventario';
 import { formatNumber, formatCurrency, formatFechaCaducidad } from '@/lib/utils';
 import { almacenesDeCondicion } from '@/core/inventoryRules';
-import { pendPorCondicion, transitoPorCondicion, impPendPorCondicion, esLentoPorCondicion, type RSSAlmacen } from '@/core/resumenSin';
+import { pendPorCondicion, transitoPorCondicion, impPendPorCondicion, esLentoPorCondicion, coberturaEstado, COBERTURA_LABEL, COBERTURA_CLS, type RSSAlmacen } from '@/core/resumenSin';
+import { promedioPeriodo } from '@/core/facMensual';
+import { PromedioPeriodoSection, periodoCompleto, usePeriodoProm } from './PromedioPeriodoSection';
 import { serieMaterial, serieMatCentro, rfTieneCentro } from '@/core/resumenFac';
 import { norm, sugFor, consFor } from '../helpers';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
@@ -61,6 +63,9 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
 
   const serieCentro = serieMatCentro(a.rf, panel.material, panel.centro);
   const usaCentro = serieCentro.length > 0;
+
+  const { periodo: periodoProm, setPeriodo: setPeriodoProm, esDefault: periodoDefault } = usePeriodoProm(a);
+  const conPeriodo = !!a.facMensual && periodoCompleto(periodoProm);
 
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
@@ -131,6 +136,7 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
         <StatTile label="Lotes" value={formatNumber(lotes.length)} />
       </div>
       <PrecioCondicionBox a={a} material={panel.material} />
+      <PromedioPeriodoSection a={a} material={panel.material} centro={panel.centro} periodo={periodoProm} esDefault={periodoDefault} onChange={setPeriodoProm} />
 
       <Section title="Desglose por almacén (según condición)">
         <p className="mb-2 text-xs text-text-faint">Clic derecho en una fila = Solicitar / Copiar.</p>
@@ -139,9 +145,13 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
         ) : (
           <div>
             <Table wrapperClassName="max-h-64 rounded-lg border border-border">
-              <TableHeader><TableRow><TableHead>Almacén</TableHead><TableHead className="text-right">Inv.</TableHead><TableHead className="text-right">Pend.</TableHead><TableHead className="text-right">Tránsito</TableHead><TableHead className="text-right">Prom.</TableHead><TableHead>Último</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Almacén</TableHead><TableHead className="text-right">Inv.</TableHead><TableHead className="text-right">Pend.</TableHead><TableHead className="text-right">Tránsito</TableHead>{conPeriodo && <TableHead className="text-right" title={`Cantidad facturada ÷ meses de ${periodoProm.desde} a ${periodoProm.hasta} (Fac_Mensual_CAM), de este almacén.`}>Prom. mensual</TableHead>}{conPeriodo && <TableHead className="text-right" title="Inventario del almacén ÷ promedio mensual del periodo.">Meses inv.</TableHead>}{conPeriodo && <TableHead>Cobertura</TableHead>}<TableHead>Último</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
               <TableBody>
-                {almsAplicables.map((al, i) => (
+                {almsAplicables.map((al, i) => {
+                  const pp = conPeriodo ? promedioPeriodo(a.facMensual, { material: panel.material, centro: panel.centro, almacen: al.alm }, periodoProm.desde, periodoProm.hasta) : null;
+                  const mesesPp = pp && pp.promedio > 0 ? al.inv / pp.promedio : 0;
+                  const cob = pp ? coberturaEstado(mesesPp, pp.promedio, al.inv) : null;
+                  return (
                   <SolicitarContextMenu
                     key={i}
                     label={`${panel.material} · Alm ${al.alm}`}
@@ -154,12 +164,15 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
                       <TableCell className="text-right">{formatNumber(al.inv)}</TableCell>
                       <TableCell className="text-right">{al.pend ? formatNumber(al.pend) : '—'}</TableCell>
                       <TableCell className="text-right">{al.transito ? formatNumber(al.transito) : '—'}</TableCell>
-                      <TableCell className="text-right">{formatNumber(al.prom)}</TableCell>
+                      {pp && <TableCell className="text-right font-medium">{formatNumber(pp.promedio)}</TableCell>}
+                      {pp && <TableCell className="text-right">{pp.promedio > 0 ? formatNumber(mesesPp) : '—'}</TableCell>}
+                      {cob && <TableCell><StatePill label={COBERTURA_LABEL[cob]} cls={COBERTURA_CLS[cob]} /></TableCell>}
                       <TableCell>{al.ultMes || '—'}</TableCell>
                       <TableCell>{al.status ? <StatePill label={al.status} cls="amb" /> : '—'}</TableCell>
                     </TableRow>
                   </SolicitarContextMenu>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

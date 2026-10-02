@@ -3,6 +3,7 @@ import { Download } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { GerenteSelect } from '@/components/ui/gerente-select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { formatCurrency, formatNumber } from '@/lib/utils';
@@ -16,6 +17,8 @@ import { mesKey, mesAnterior, hoyMes } from '@/core/resumenFac';
 import { buildAbc, summarizeAbc, type AbcEntry } from '@/core/abc';
 import { norm, num } from '@/modules/analytics/helpers';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import { useGruposPorDefecto } from '@/hooks/useGruposPorDefecto';
+import { SIN_GRUPO_CLIENTE } from '@/lib/gruposCliente';
 
 function pct(a: number, b: number) {
   const p = b ? (a / b - 1) * 100 : a ? 100 : 0;
@@ -33,7 +36,6 @@ export function AnalisisPage() {
   const open = usePanelStore((s) => s.open);
 
   const [ejecutivo, setEjecutivo] = usePersistedState('analisis.ejecutivo', '');
-  const [grupoCliente, setGrupoCliente] = usePersistedState('analisis.grupoCliente', '');
   const [sector, setSector] = usePersistedState('analisis.sector', '');
   const [gerente, setGerente] = usePersistedState('analisis.gerente', '');
   const [grupoArticulo, setGrupoArticulo] = usePersistedState('analisis.grupoArticulo', '');
@@ -41,15 +43,18 @@ export function AnalisisPage() {
   const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>('analisis.periodo', 'corriente');
 
   // Vistas guardadas: snapshot de los 4 filtros + toggles, persistido entre sesiones.
-  type AnalisisViewState = { ejecutivo: string; grupoCliente: string; sector: string; grupoArticulo: string; soloNoDetenido: boolean; periodo: 'corriente' | 'anterior' };
+  type AnalisisViewState = { ejecutivo: string; grupoCliente?: string; grupoClientes?: string[]; sector: string; grupoArticulo: string; soloNoDetenido: boolean; periodo: 'corriente' | 'anterior' };
   const savedViews = useSavedViews<AnalisisViewState>('analisis_vistas');
   const applyView = (state: AnalisisViewState) => {
-    setEjecutivo(state.ejecutivo); setGrupoCliente(state.grupoCliente); setSector(state.sector);
+    setEjecutivo(state.ejecutivo);
+    // Vistas viejas guardaban un solo grupo ('' = todos); las nuevas, la lista.
+    setGrupoClientes(state.grupoClientes ?? (state.grupoCliente ? [state.grupoCliente] : []));
+    setSector(state.sector);
     setGrupoArticulo(state.grupoArticulo); setSoloNoDetenido(state.soloNoDetenido); setPeriodo(state.periodo);
   };
-  const saveCurrentView = (name: string) => savedViews.save(name, { ejecutivo, grupoCliente, sector, grupoArticulo, soloNoDetenido, periodo });
+  const saveCurrentView = (name: string) => savedViews.save(name, { ejecutivo, grupoClientes, sector, grupoArticulo, soloNoDetenido, periodo });
   const clearFilters = () => {
-    setEjecutivo(''); setGrupoCliente(''); setSector(''); setGerente(''); setGrupoArticulo(''); setSoloNoDetenido(false);
+    setEjecutivo(''); reiniciarGrupos(); setSector(''); setGerente(''); setGrupoArticulo(''); setSoloNoDetenido(false);
   };
 
   // Opciones distintas para los 4 filtros, tomadas de las mismas fuentes
@@ -62,7 +67,7 @@ export function AnalisisPage() {
         const ej = a.enrich.ejecutivoNombre(a.rf!.solicGpoV.get(code) || '');
         if (ej) ejecs.add(ej);
         const gc = a.enrich.grupoCliente(a.rf!.solicGpoC.get(code) || '') || a.rf!.solicGpoC.get(code) || '';
-        if (gc) grupos.add(gc);
+        grupos.add(gc || SIN_GRUPO_CLIENTE);
       });
       a.rf.mat.forEach((_serie, m) => {
         sectores.add(a.enrich.matSector(m) || '(sin sector)');
@@ -78,10 +83,15 @@ export function AnalisisPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [a.rf, a.enrich]);
 
+  // Grupo cliente: por defecto todos MENOS los grupos que Administración →
+  // Filtros excluya (18 = GOBIERNO) cada vez que se entra al módulo (no se
+  // persiste); un grupo excluido solo entra si se elige a mano.
+  const [grupoClientes, setGrupoClientes, reiniciarGrupos, grupoResumen] = useGruposPorDefecto(grupoClienteOptions);
+
   const A = useMemo(() => {
-    const filters: AnalisisFilters = { ejecutivo, grupoCliente, sector, grupoArticulo, gerente };
+    const filters: AnalisisFilters = { ejecutivo, grupoClientes, sector, grupoArticulo, gerente };
     return analisisVentas(a.rf, a.bo, a.enrich, filters);
-  }, [a.rf, a.bo, a.enrich, ejecutivo, grupoCliente, sector, grupoArticulo, gerente]);
+  }, [a.rf, a.bo, a.enrich, ejecutivo, grupoClientes, sector, grupoArticulo, gerente]);
 
   // #5: solicitantes con al menos un pedido pendiente + fuente disponible —
   // reactivar a un "cliente en riesgo" es más fácil si ya hay con qué surtirlo.
@@ -128,9 +138,9 @@ export function AnalisisPage() {
   // consistentes entre sí y con los filtros activos.
   const abcFiltrado = useMemo(() => {
     if (!a.rf) return { materiales: [] as AbcEntry[], clientes: [] as AbcEntry[] };
-    const predicates = buildAnalisisPredicates(a.rf, a.enrich, { ejecutivo, grupoCliente, sector, grupoArticulo });
+    const predicates = buildAnalisisPredicates(a.rf, a.enrich, { ejecutivo, grupoClientes, sector, grupoArticulo });
     return buildAbc(a.rf, predicates);
-  }, [a.rf, a.enrich, ejecutivo, grupoCliente, sector, grupoArticulo]);
+  }, [a.rf, a.enrich, ejecutivo, grupoClientes, sector, grupoArticulo]);
   const abcMaterialesSummary = useMemo(() => summarizeAbc(abcFiltrado.materiales), [abcFiltrado.materiales]);
   const abcClientesSummary = useMemo(() => summarizeAbc(abcFiltrado.clientes), [abcFiltrado.clientes]);
   const [abcTab, setAbcTab] = usePersistedState<'materiales' | 'clientes'>('analisis.abcTab', 'materiales');
@@ -269,9 +279,7 @@ export function AnalisisPage() {
         <Select value={ejecutivo} onChange={(ev) => setEjecutivo(ev.target.value)} className="w-auto">
           <option value="">Ejecutivo (todos)</option>{ejecOptions.map((v) => <option key={v} value={v}>{v}</option>)}
         </Select>
-        <Select value={grupoCliente} onChange={(ev) => setGrupoCliente(ev.target.value)} className="w-auto">
-          <option value="">Grupo cliente (todos)</option>{grupoClienteOptions.map((v) => <option key={v} value={v}>{v}</option>)}
-        </Select>
+        <MultiSelect label="Grupo cliente" options={grupoClienteOptions} selected={grupoClientes} onChange={setGrupoClientes} summary={grupoResumen} />
         <GerenteSelect enrich={a.enrich} value={gerente} onChange={setGerente} />
         <Select value={sector} onChange={(ev) => setSector(ev.target.value)} className="w-auto">
           <option value="">Sector (todos)</option>{sectorOptions.map((v) => <option key={v} value={v}>{v}</option>)}

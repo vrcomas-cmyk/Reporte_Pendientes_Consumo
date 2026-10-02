@@ -13,6 +13,7 @@ import { useSolicitudStore } from '@/store/solicitudStore';
 import { useConocimientoStore } from '@/store/conocimientoStore';
 import { useScoringWeightsStore } from '@/store/scoringWeightsStore';
 import { useNombresStore } from '@/store/nombresStore';
+import { useGruposExcluidosStore } from '@/store/gruposExcluidosStore';
 
 // Only the shell (AppShell/Topbar/Sidebar) stays eager for instant first
 // paint. Every route, INCLUDING Dashboard, is code-split so its JS — and
@@ -63,12 +64,14 @@ function App() {
   const hydrateConocimiento = useConocimientoStore((s) => s.hydrate);
   const hydrateScoringWeights = useScoringWeightsStore((s) => s.hydrate);
   const hydrateNombres = useNombresStore((s) => s.hydrate);
+  const hydrateGruposExcluidos = useGruposExcluidosStore((s) => s.hydrate);
   useEffect(() => {
     void hydrateSolicitudes();
     void hydrateConocimiento();
     void hydrateScoringWeights();
     void hydrateNombres();
-  }, [hydrateSolicitudes, hydrateConocimiento, hydrateScoringWeights, hydrateNombres]);
+    void hydrateGruposExcluidos();
+  }, [hydrateSolicitudes, hydrateConocimiento, hydrateScoringWeights, hydrateNombres, hydrateGruposExcluidos]);
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -23,7 +23,8 @@ function TooltipAnual({ active, payload, anios, colores }: {
     const real = row[`y${a.anio}`] as number | null | undefined;
     const proy = row[`y${a.anio}_proy`] as number | null | undefined;
     const esProy = real == null && proy != null;
-    return { anio: a.anio, valor: real ?? proy ?? null, esProy };
+    const acum = row[`y${a.anio}_acum`] as number | null | undefined;
+    return { anio: a.anio, valor: real ?? proy ?? null, esProy, acum: esProy ? acum ?? null : null };
   });
   return (
     <div
@@ -41,6 +42,7 @@ function TooltipAnual({ active, payload, anios, colores }: {
                 <span className="inline-block size-2.5 rounded-full" style={{ background: colores[i % colores.length] }} />
                 <span className="font-medium tabular-nums">{v.anio}</span>
                 {v.esProy && <span className="text-[10px] text-text-faint">proyectado</span>}
+                {v.acum != null && <span className="text-[10px] text-text-faint">· a la fecha {formatCurrency(v.acum)}</span>}
               </span>
               <span className="flex items-center gap-2">
                 <span className="tabular-nums">{v.valor == null ? '—' : formatCurrency(v.valor)}</span>
@@ -93,6 +95,9 @@ export const YearComparisonChart = memo(function YearComparisonChart({ anios, me
       // línea se conecte) y sigue con el promedio en los meses proyectados.
       anio.meses.forEach((m, i) => {
         if (m.esProyeccion) filas[i][proyKey] = metric === 'imp' ? m.imp : m.margen;
+        // Mes corriente: lo facturado a la fecha (punto hueco) — su `imp`/`margen` ya es la proyección de cierre.
+        const acum = metric === 'imp' ? m.acumImp : m.acumMargen;
+        if (m.esProyeccion && acum !== undefined) filas[i][`y${anio.anio}_acum`] = acum;
       });
       if (ultimoRealIdx >= 0 && ultimoRealIdx < 11 && anio.esAnioEnCurso) filas[ultimoRealIdx][proyKey] = filas[ultimoRealIdx][realKey];
     });
@@ -139,6 +144,18 @@ export const YearComparisonChart = memo(function YearComparisonChart({ anios, me
               dot={false}
               activeDot={{ r: 5 }}
               connectNulls
+              legendType="none"
+              isAnimationActive={false}
+            />
+          ))}
+          {anios.filter((a) => a.meses.some((m) => m.acumImp !== undefined)).map((anio) => (
+            <Line
+              key={`y${anio.anio}_acum`}
+              dataKey={`y${anio.anio}_acum`}
+              name={`${anio.anio} · a la fecha`}
+              stroke="none"
+              dot={{ r: 4, strokeWidth: 2, stroke: colores[anios.indexOf(anio) % colores.length], fill: CHART_UI.surface }}
+              activeDot={false}
               legendType="none"
               isAnimationActive={false}
             />
