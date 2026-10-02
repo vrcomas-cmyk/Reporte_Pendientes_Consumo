@@ -28,6 +28,7 @@ const REPORT_TABS: Partial<Record<SheetRole, string>> = {
   resumenSinSugerencias: 'Resumen Sin Sugerencias',
   reporteConsumo: 'Reporte de Consumo',
   resumenFac: 'Resumen_Fac',
+  facMensualCam: 'Fac_Mensual_CAM',
 };
 export const REPORT_SHEET_ROLES = Object.keys(REPORT_TABS) as SheetRole[];
 
@@ -41,7 +42,7 @@ export const REPORT_SHEET_ROLES = Object.keys(REPORT_TABS) as SheetRole[];
  * tiempo total de sync se vuelva la suma de las 4 pestañas.
  * Todo reporte nuevo que se agregue a `REPORT_TABS` debe entrar aquí ANTES de
  * `resumenFac` — ver docs/apps-script-report-sheets.md §Prioridad de carga. */
-const ROLE_PRIORITY: SheetRole[] = ['sugerencias', 'resumenSinSugerencias', 'reporteConsumo', 'resumenFac'];
+const ROLE_PRIORITY: SheetRole[] = ['sugerencias', 'resumenSinSugerencias', 'reporteConsumo', 'facMensualCam', 'resumenFac'];
 
 function byPriority(roles: SheetRole[]): SheetRole[] {
   return [...roles].sort((a, b) => {
@@ -660,7 +661,9 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
       // facturas distintas legítimas — colapsarlas subcontaba la facturación
       // en TODOS los módulos (no cuadraba contra la hoja).
       const dedupSeen = new Set<string>();
-      const dedupedRows = role === 'resumenFac' ? tabRows.rows : tabRows.rows.filter((row) => {
+      // Fac_Mensual_CAM tampoco: renglones idénticos pueden ser facturación
+      // legítima distinta (mismo centro/almacén/material/mes y misma cantidad).
+      const dedupedRows = role === 'resumenFac' || role === 'facMensualCam' ? tabRows.rows : tabRows.rows.filter((row) => {
         const key = dedupKey(row);
         if (dedupSeen.has(key)) return false;
         dedupSeen.add(key);

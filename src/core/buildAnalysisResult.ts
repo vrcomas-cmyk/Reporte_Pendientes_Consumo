@@ -3,6 +3,7 @@ import {
   mapResumenSinSugerencia,
   mapConsumo,
   mapResumenFac,
+  mapFacMensualCam,
   mapInvConsolidado,
   mapInvDetalle,
 } from './mappers';
@@ -63,6 +64,7 @@ export function buildAnalysisResult(params: BuildAnalysisResultParams): Analysis
   );
   const consumo = pick('reporteConsumo', findSheetByRole(sheets, 'reporteConsumo').map(mapConsumo), previous?.consumo);
   const resumenFac = pick('resumenFac', findSheetByRole(sheets, 'resumenFac').map(mapResumenFac), previous?.resumenFac);
+  const facMensualCam = pick('facMensualCam', findSheetByRole(sheets, 'facMensualCam').map(mapFacMensualCam), previous?.facMensualCam);
   const inventarioCondicion = pick(
     'inventarioCondicion',
     findSheetByRole(sheets, 'inventarioCondicion').map(mapInvConsolidado),
@@ -145,6 +147,7 @@ export function buildAnalysisResult(params: BuildAnalysisResultParams): Analysis
     resumenSinSugerencias,
     consumo,
     resumenFac,
+    facMensualCam,
     inventarioCondicion,
     lotesCortaCaducidad,
     kpis,

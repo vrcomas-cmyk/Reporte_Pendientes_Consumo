@@ -60,8 +60,8 @@ export function FacturacionMensualCard({ anios, serieFiltro, onMonth }: {
           <p className="text-sm font-semibold text-text-muted">Facturación mensual</p>
           <p className="text-[11px] text-text-faint">
             {vista === 'anios'
-              ? 'Un color por año — pasa el cursor sobre un mes para comparar los años entre sí.'
-              : 'Total mensual de todo el historial con los filtros de arriba — clic en un mes para ver los clientes.'}
+              ? 'Un color por año — pasa el cursor sobre un mes para comparar los años entre sí. Punteado = proyección (el mes en curso cierra donde indica el ritmo + tendencia; el punto hueco es lo facturado a la fecha).'
+              : 'Venta y rendimiento mensual de todo el historial con los filtros de arriba — clic en un mes para ver los clientes. El mes en curso va punteado hacia su cierre estimado.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -81,7 +81,7 @@ export function FacturacionMensualCard({ anios, serieFiltro, onMonth }: {
             onChange={setVista}
             opciones={[
               { key: 'anios', label: 'Comparativo por año', hint: 'Como la gráfica del Panel, pero con una línea por año y proyección del año en curso.' },
-              { key: 'filtro', label: 'Serie del filtro', hint: 'Como "Facturación mensual (filtro)" de Consumo: una sola línea con el total mensual bajo los filtros actuales.' },
+              { key: 'filtro', label: 'Serie del filtro', hint: 'Como "Facturación mensual (filtro)" de Consumo: el total mensual bajo los filtros actuales, con su rendimiento aproximado y la proyección del mes en curso.' },
             ]}
           />
         </div>

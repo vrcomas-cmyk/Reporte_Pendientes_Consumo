@@ -171,6 +171,18 @@ export interface ResumenFacRow {
   centro: string;
 }
 
+/** A row from "Fac_Mensual_CAM" — facturación mensual por Centro/Almacén/Material
+ * (fuente del "promedio por periodo" en el detalle de Inventario). */
+export interface FacMensualCamRow {
+  centro: string;
+  almacen: string;
+  material: string;
+  textoMaterial: string;
+  mesAno: string;
+  cantidad: number;
+  importe: number;
+}
+
 /** A row from the "Incremento de costos" Google Sheet — proveedor-notified
  * cost increase per material, at piece and box granularity. Not part of the
  * daily report or the sync catalog; its own connector (see
@@ -209,6 +221,7 @@ export type SheetRole =
   | 'resumenSinSugerencias'
   | 'reporteConsumo'
   | 'resumenFac'
+  | 'facMensualCam'
   | 'inventarioCondicion'
   | 'lotesCortaCaducidad';
 
@@ -310,6 +323,8 @@ export interface AnalysisResult {
   resumenSinSugerencias: ResumenSinSugerenciaRow[];
   consumo: ConsumoRow[];
   resumenFac: ResumenFacRow[];
+  /** Opcional: análisis guardados antes de la pestaña "Fac_Mensual_CAM" no lo traen. */
+  facMensualCam?: FacMensualCamRow[];
   inventarioCondicion: InvConsolidadoRow[];
   lotesCortaCaducidad: InvDetalleRow[];
   kpis: DashboardKpis;

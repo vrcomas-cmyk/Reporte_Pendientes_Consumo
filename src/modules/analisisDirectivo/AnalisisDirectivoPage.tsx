@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { Download, TrendingUp, TrendingDown, Minus, DollarSign, PiggyBank, Users, UserPlus, UserCheck, UserMinus, ShieldCheck, Trophy, AlertTriangle, Sparkles, CalendarDays } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { GerenteSelect } from '@/components/ui/gerente-select';
@@ -14,10 +13,11 @@ import { formatCurrency, formatNumber, cn } from '@/lib/utils';
 import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import { useGruposPorDefecto } from '@/hooks/useGruposPorDefecto';
 import { usePanelStore } from '@/store/panelStore';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { analisisDirectivo, buildPeriodo, narrativaDirectivo, serieAnualComparada, serieMensualFiltrada, clientesDeMes, type ClienteMovimiento } from '@/core/analisisDirectivo';
-import type { AnalisisFilters } from '@/core/comercial';
+import { buildAnalisisPredicates, type AnalisisFilters } from '@/core/comercial';
 
 // ---------------------------------------------------------------------------
 // Convenciones de color (ver skill frontend-design): verde = mejoró, rojo =
@@ -70,9 +70,12 @@ const anioDe = (mmAaaa: string): number => +mmAaaa.split('/')[1] || 0;
 export function AnalisisDirectivoPage() {
   const a = useAnalytics();
   const [gerente, setGerente] = usePersistedState('analisisDirectivo.gerente', '');
-  const [sector, setSector] = usePersistedState('analisisDirectivo.sector', '');
-  const [grupoArticulo, setGrupoArticulo] = usePersistedState('analisisDirectivo.grupoArticulo', '');
-  const [grupoClientes, setGrupoClientes] = usePersistedState<string[]>('analisisDirectivo.grupoClientes', []);
+  // Sector / Grupo artículo / Material son multi-selección (vacío = todos).
+  // Claves nuevas (`.sectores`, `.gruposArticulo`): las viejas guardaban un
+  // string de una sola opción y no son compatibles con un arreglo.
+  const [sectores, setSectores] = usePersistedState<string[]>('analisisDirectivo.sectores', []);
+  const [gruposArticulo, setGruposArticulo] = usePersistedState<string[]>('analisisDirectivo.gruposArticulo', []);
+  const [materiales, setMateriales] = usePersistedState<string[]>('analisisDirectivo.materiales', []);
   const [periodoA, setPeriodoA] = usePersistedState('analisisDirectivo.periodoA', { desde: '', hasta: '' });
   const [periodoB, setPeriodoB] = usePersistedState('analisisDirectivo.periodoB', { desde: '', hasta: '' });
   // Años a comparar en "Evolución anual" — independiente de Periodo A/B, para
@@ -81,12 +84,6 @@ export function AnalisisDirectivoPage() {
   // años disponibles; un array explícito (incluso vacío) es lo que el
   // usuario eligió a mano.
   const [aniosSel, setAniosSel] = usePersistedState<number[] | null>('analisisDirectivo.anios', null);
-
-  const listo = !!(periodoA.desde && periodoA.hasta && periodoB.desde && periodoB.hasta);
-  const filters: AnalisisFilters = useMemo(
-    () => ({ gerente: gerente || undefined, sector: sector || undefined, grupoArticulo: grupoArticulo || undefined, grupoClientes: grupoClientes.length ? grupoClientes : undefined }),
-    [gerente, sector, grupoArticulo, grupoClientes],
-  );
 
   // Opciones de los filtros — sobre el universo COMPLETO de Resumen_Fac (no
   // sobre lo ya filtrado), mismo criterio que /analisis, para que la lista no
@@ -100,6 +97,36 @@ export function AnalisisDirectivoPage() {
     return { sectorOptions: [...secs].sort(), grupoArticuloOptions: [...garts].sort(), grupoClienteOptions: [...grps].sort() };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [a.rf, a.enrich]);
+
+  // Grupo cliente: por defecto TODOS MENOS los grupos que Administración →
+  // Filtros excluya (18 = GOBIERNO) cada vez que se entra al módulo (no se
+  // persiste); un grupo excluido solo entra si se elige a mano en el filtro.
+  const [grupoClientes, setGrupoClientes, , grupoResumen] = useGruposPorDefecto(grupoClienteOptions);
+
+  const listo = !!(periodoA.desde && periodoA.hasta && periodoB.desde && periodoB.hasta);
+  const filters: AnalisisFilters = useMemo(
+    () => ({
+      gerente: gerente || undefined,
+      sectores: sectores.length ? sectores : undefined,
+      gruposArticulo: gruposArticulo.length ? gruposArticulo : undefined,
+      materiales: materiales.length ? materiales : undefined,
+      grupoClientes: grupoClientes.length ? grupoClientes : undefined,
+    }),
+    [gerente, sectores, gruposArticulo, materiales, grupoClientes],
+  );
+
+  // Materiales ofrecidos: los de Resumen_Fac que pasan Gerente/Sector/Grupo
+  // artículo (para no listar miles de códigos ajenos a lo ya acotado), más los
+  // ya seleccionados aunque un filtro posterior los deje fuera.
+  const materialOptions = useMemo(() => {
+    if (!a.rf) return [];
+    const { matPasa } = buildAnalisisPredicates(a.rf, a.enrich, { gerente: gerente || undefined, sectores, gruposArticulo });
+    const out = new Set<string>(materiales);
+    a.rf.mat.forEach((_s, m) => { if (matPasa(m)) out.add(m); });
+    return [...out].sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a.rf, a.enrich, gerente, sectores, gruposArticulo, materiales]);
+  const materialLabel = (m: string) => { const t = a.rf?.matTexto.get(m); return t ? `${m} · ${t}` : m; };
 
   const resultado = useMemo(() => {
     if (!listo || !a.rf) return null;
@@ -184,17 +211,10 @@ export function AnalisisDirectivoPage() {
         <div title="Acota todo el análisis a los sectores que ese gerente tiene a su cargo (pestaña GERENCIA DE MARCA).">
           <GerenteSelect enrich={a.enrich} value={gerente} onChange={setGerente} />
         </div>
-        <div title="Acota a un sector específico del catálogo.">
-          <Select value={sector} onChange={(ev) => setSector(ev.target.value)} className="w-auto">
-            <option value="">Sector (todos)</option>{sectorOptions.map((v) => <option key={v} value={v}>{v}</option>)}
-          </Select>
-        </div>
-        <div title="Acota a un grupo de artículo específico del catálogo.">
-          <Select value={grupoArticulo} onChange={(ev) => setGrupoArticulo(ev.target.value)} className="w-auto">
-            <option value="">Grupo artículo (todos)</option>{grupoArticuloOptions.map((v) => <option key={v} value={v}>{v}</option>)}
-          </Select>
-        </div>
-        <MultiSelect label="Grupo cliente" options={grupoClienteOptions} selected={grupoClientes} onChange={setGrupoClientes} />
+        <MultiSelect label="Sector" options={sectorOptions} selected={sectores} onChange={setSectores} />
+        <MultiSelect label="Grupo artículo" options={grupoArticuloOptions} selected={gruposArticulo} onChange={setGruposArticulo} />
+        <MultiSelect label="Material" options={materialOptions} selected={materiales} onChange={setMateriales} optionLabel={materialLabel} />
+        <MultiSelect label="Grupo cliente" options={grupoClienteOptions} selected={grupoClientes} onChange={setGrupoClientes} summary={grupoResumen} />
         <div className="h-6 w-px bg-border" />
         <div title="Periodo base de la comparación — normalmente el más antiguo (ej. el año o mes pasado).">
           <MonthRangeFilter label="Periodo A" desde={periodoA.desde} hasta={periodoA.hasta} onChange={setPeriodoA} />
@@ -264,7 +284,7 @@ export function AnalisisDirectivoPage() {
                 <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <StatTile
                     hero icon={Sparkles} label={`Proyección cierre ${anioActual.anio}`} value={formatCurrency(proyeccionCierre)}
-                    hint={`Suma de los meses ya facturados de ${anioActual.anio} + el promedio mensual real (${formatCurrency(anioActual.promedioImpReal)}) aplicado a los meses que faltan. Es "si el ritmo se mantiene", no un pronóstico estadístico.`}
+                    hint={`Suma de los meses ya cerrados de ${anioActual.anio} + el cierre estimado del mes en curso (lo facturado a la fecha más lo que falta al promedio de los últimos 3 meses) + el promedio mensual real (${formatCurrency(anioActual.promedioImpReal)}) aplicado a los meses que faltan. Es "si el ritmo se mantiene", no un pronóstico estadístico.`}
                   />
                   {totalAnioAnterior != null && (
                     <StatTile
@@ -275,7 +295,7 @@ export function AnalisisDirectivoPage() {
                   )}
                   <StatTile
                     icon={CalendarDays} label="Meses reales considerados" value={String(anioActual.meses.filter((m) => !m.esProyeccion).length)}
-                    hint="Cuántos meses de Resumen_Fac ya tienen dato real para este año — entre más meses, más confiable el promedio de proyección."
+                    hint="Cuántos meses cerrados de Resumen_Fac tienen dato real para este año (el mes en curso no cuenta, va proyectado) — entre más meses, más confiable el promedio de proyección."
                   />
                 </div>
               )}
@@ -287,7 +307,7 @@ export function AnalisisDirectivoPage() {
               />
               {anioActual && (
                 <p className="mt-1.5 text-[11px] text-text-faint">
-                  La línea punteada de {anioActual.anio} proyecta los meses que faltan al promedio mensual real hasta ahora ({formatCurrency(anioActual.promedioImpReal)}/mes) — no es un pronóstico, es "si el ritmo se mantiene".
+                  La línea punteada de {anioActual.anio} proyecta el mes en curso a su cierre estimado (ritmo del mes + promedio de los últimos 3 meses) y los que faltan al promedio mensual de los meses cerrados ({formatCurrency(anioActual.promedioImpReal)}/mes) — no es un pronóstico, es "si el ritmo se mantiene".
                 </p>
               )}
             </div>

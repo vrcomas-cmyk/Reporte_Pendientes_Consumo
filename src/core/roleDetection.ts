@@ -28,6 +28,9 @@ export function roleOf(headers: string[]): SheetRole | null {
   if (has('Material base', 'Fuente', 'Pedido')) return 'sugerencias';
   if (has('Cantidad_Pendiente', 'Suma inventario', 'Centro', 'Almacen')) return 'resumenSinSugerencias';
   if (has('Consumo_actual', 'Ultimo mes facturacion')) return 'reporteConsumo';
+  // Fac_Mensual_CAM comparte "Mes y año"/"Importe facturado" con Resumen_Fac:
+  // va ANTES, distinguida por "Almacén" + "Cantidad facturada" (Resumen_Fac no la trae).
+  if (has('Mes y año', 'Cantidad facturada', 'Material', 'Almacén') && !H.has(normHeader('Solicitante'))) return 'facMensualCam';
   if (has('Mes y año', 'Importe facturado', 'Material')) return 'resumenFac';
   if (has('Condicion', 'Material') && H.has(normHeader('Disponible 1031-1030')) && !H.has(normHeader('Inv Suma')))
     return 'inventarioCondicion';
@@ -44,6 +47,7 @@ export const ROLE_LABEL: Record<SheetRole, string> = {
   resumenSinSugerencias: 'Resumen Sin Sugerencias',
   reporteConsumo: 'Reporte de Consumo',
   resumenFac: 'Resumen de Facturación',
+  facMensualCam: 'Facturación mensual por almacén',
   inventarioCondicion: 'Inventario por Condición',
   lotesCortaCaducidad: 'Detalle Lotes Corta Caducidad',
 };

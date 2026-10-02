@@ -3,6 +3,7 @@ import { useDataStore } from '@/store/dataStore';
 import { buildRF, mesesDisponibles, type RFIndex } from '@/core/resumenFac';
 import { buildBO, type BOItem } from '@/core/buildBO';
 import { buildRSS, type RSSIndex } from '@/core/resumenSin';
+import { buildFacMensual, type FacMensualIndex } from '@/core/facMensual';
 import { buildEnrich, type EnrichIndex } from '@/core/enrich';
 import { applyCatalogPriceFallback } from '@/core/analysis';
 import { buildAbc, type AbcResult } from '@/core/abc';
@@ -15,6 +16,10 @@ export interface Analytics {
   bo: BOItem[];
   boByKey: Map<string, BOItem>;
   rss: RSSIndex | null;
+  /** Facturación mensual por Centro/Almacén/Material (pestaña "Fac_Mensual_CAM")
+   * — base del promedio por periodo en el detalle de Inventario. `null` si no
+   * se ha sincronizado. */
+  facMensual: FacMensualIndex | null;
   enrich: EnrichIndex;
   /** Inventory-by-condition rows for the current view: the daily "Inventario por
    * condición" sheet when present (else the catalog's InvConsolidado), with each
@@ -54,7 +59,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     const incrementoRows = incremento?.rows ?? [];
     if (!result) {
       return {
-        result: null, rf: null, bo: [], boByKey: new Map(), rss: null, enrich,
+        result: null, rf: null, bo: [], boByKey: new Map(), rss: null, facMensual: null, enrich,
         invCondicion: [], invConsolidadoCatalog, lotes: [], curmes: '', abc: buildAbc(null), precioDispersion: [],
         incrementoRows, mesesDisponibles: [],
       };
@@ -63,6 +68,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     const bo = result.sugerencias.length ? buildBO(result.sugerencias, rf) : [];
     const boByKey = new Map(bo.map((it) => [it.k, it]));
     const rss = result.resumenSinSugerencias.length ? buildRSS(result.resumenSinSugerencias) : null;
+    const facMensual = result.facMensualCam?.length ? buildFacMensual(result.facMensualCam) : null;
     // Inventory pivot prefers the daily report's "Inventario por condicion";
     // lot detail merges catalog InvDetalle with the report's short-expiry lots.
     const invCondicionRaw = result.inventarioCondicion.length ? result.inventarioCondicion : invConsolidadoCatalog;
@@ -71,7 +77,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     const abc = buildAbc(rf);
     const precioDispersion = result.consumo.length ? buildPrecioDispersion(result.consumo) : [];
     return {
-      result, rf, bo, boByKey, rss, enrich, invCondicion, invConsolidadoCatalog, lotes, curmes: rf?.curmes ?? '', abc, precioDispersion,
+      result, rf, bo, boByKey, rss, facMensual, enrich, invCondicion, invConsolidadoCatalog, lotes, curmes: rf?.curmes ?? '', abc, precioDispersion,
       incrementoRows, mesesDisponibles: mesesDisponibles(rf),
     };
   }, [result, catalog, incremento]);

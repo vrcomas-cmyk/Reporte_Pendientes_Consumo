@@ -29,6 +29,8 @@ import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
 import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { useQuickFilters } from '@/hooks/useQuickFilters';
+import { useGruposExcluidos } from '@/hooks/useGruposPorDefecto';
+import { gruposPorDefecto } from '@/lib/gruposCliente';
 
 // #2: combined date+qty cell, same pattern as the existing "Última" column.
 function fechaCantCell(fecha: string, cant: number) {
@@ -52,7 +54,38 @@ export function ConsumoPage() {
   const [clase, setClase] = usePersistedState('consumo.clase', '');
   const [gerente, setGerente] = usePersistedState('consumo.gerente', '');
   const claseDe = (r: ConsumoRow) => a.abc.classByMaterial.get(norm(r.material)) || '';
-  const [quick, setQuick] = useQuickFilters('consumo.quick');
+  const [quickGuardado, setQuickGuardado] = useQuickFilters('consumo.quick');
+  // Grupo cliente: filtro SIEMPRE activo con "todos menos los grupos excluidos en
+  // Administración → Filtros" (18 = GOBIERNO) por defecto en cada entrada al módulo. Mientras no se toque (`grupoTocado` = false) el
+  // chip se inyecta aquí sobre lo guardado — lo persistido/URL de una visita
+  // anterior no cuenta, así un grupo excluido solo aparece si se elige a mano. Un link
+  // con `?f=…grupocli…` explícito sí se respeta.
+  const grupoOpciones = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) { const g = ce.grupoCli(r); if (g) s.add(g); }
+    return [...s].sort();
+  }, [rows, ce]);
+  const gruposExcluidos = useGruposExcluidos();
+  const grupoDefault = useMemo(() => gruposPorDefecto(grupoOpciones, gruposExcluidos), [grupoOpciones, gruposExcluidos]);
+  const [grupoTocado, setGrupoTocado] = useState(() => /[?&]f=[^&]*grupocli/.test(window.location.search));
+  const quick = useMemo<ActiveFilter[]>(
+    () => (grupoTocado || !grupoDefault.length
+      ? quickGuardado
+      : [{ col: 'grupocli', values: grupoDefault }, ...quickGuardado.filter((f) => f.col !== 'grupocli')]),
+    [quickGuardado, grupoTocado, grupoDefault],
+  );
+  const setQuick = (v: ActiveFilter[]) => {
+    if (!grupoTocado && grupoDefault.length) {
+      const g = v.find((f) => f.col === 'grupocli');
+      // Sin cambios en el grupo: se guarda sin el chip (sigue siendo el default).
+      if (g && g.values.length === grupoDefault.length && g.values.every((x) => grupoDefault.includes(x))) {
+        setQuickGuardado(v.filter((f) => f.col !== 'grupocli'));
+        return;
+      }
+      setGrupoTocado(true);
+    }
+    setQuickGuardado(v);
+  };
   // Meses ('mm/aaaa') de Resumen de Facturación que acotan el periodo
   // visualizado — no una fecha real, los datos de facturación no tienen día.
   const [periodoMeses, setPeriodoMeses] = usePersistedState<{ desde: string; hasta: string }>('consumo.periodoMeses', { desde: '', hasta: '' });
@@ -64,7 +97,7 @@ export function ConsumoPage() {
   // "Pegar materiales" estilo SAP — aditivo, no toca los filtros de arriba.
   const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('consumo.pasteCodes', []);
   const clearFilters = () => {
-    setQ(''); setEstado(''); setClase(''); setGerente(''); setQuick([]); setPeriodoMeses({ desde: '', hasta: '' }); setPasteCodes([]);
+    setQ(''); setEstado(''); setClase(''); setGerente(''); setGrupoTocado(false); setQuickGuardado([]); setPeriodoMeses({ desde: '', hasta: '' }); setPasteCodes([]);
     setClearTick((n) => n + 1);
   };
   const colVis = useColumnVisibility('consumo_columnas');
@@ -450,6 +483,11 @@ export function ConsumoPage() {
 
   const addQuick = (field: string, value: string) => {
     if (!value) return;
+    // Con el default (todos menos los excluidos) activo, clic en un grupo = enfocar ESE grupo.
+    if (field === 'grupocli' && !grupoTocado && grupoDefault.length) {
+      setQuick([...quick.filter((f) => f.col !== 'grupocli'), { col: 'grupocli', values: [value] }]);
+      return;
+    }
     const i = quick.findIndex((f) => f.col === field);
     if (i < 0) { setQuick([...quick, { col: field, values: [value] }]); return; }
     if (quick[i].values.includes(value)) return;

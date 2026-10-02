@@ -8,6 +8,7 @@ import type {
   ResumenSinSugerenciaRow,
   ConsumoRow,
   ResumenFacRow,
+  FacMensualCamRow,
   IncrementoCostoRow,
 } from './types';
 import { CENTERS } from './types';
@@ -292,6 +293,21 @@ export function mapResumenFac(r: Row): ResumenFacRow {
     gpoCte: str(r['Gpo. Cte.']),
     gpoVdor: str(r['Gpo. Vdor.']),
     centro: str(r['Centro']),
+  };
+}
+
+/** Pestaña "Fac_Mensual_CAM": Centro, Almacén, Material, Texto de material,
+ * Periodo, Mes y año, Cantidad facturada, Importe facturado. El periodo se
+ * toma de "Mes y año" (no de "Periodo"). */
+export function mapFacMensualCam(r: Row): FacMensualCamRow {
+  return {
+    centro: str(pick(r, 'Centro')),
+    almacen: str(pick(r, 'Almacén')),
+    material: str(pick(r, 'Material')),
+    textoMaterial: str(pick(r, 'Texto de material')),
+    mesAno: mesCanon(pick(r, 'Mes y año')),
+    cantidad: num(pick(r, 'Cantidad facturada')),
+    importe: num(pick(r, 'Importe facturado')),
   };
 }
 
