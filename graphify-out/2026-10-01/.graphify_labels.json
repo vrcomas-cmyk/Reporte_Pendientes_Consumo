@@ -349,6 +349,7 @@
   "347": "@radix-ui/react-alert-dialog",
   "348": "react-router-dom",
   "349": "Toaster.tsx",
+  "350": "gruposExcluidosService.ts",
   "351": "LocalClienteConocimientoRepository",
   "352": "MonthRangeFilter.tsx",
   "353": "gerente-select.tsx",
@@ -358,6 +359,8 @@
   "357": "YearComparisonChart.tsx",
   "358": "CalculatorWidget.tsx",
   "359": "StatTile.tsx",
+  "360": "@radix-ui/react-tooltip",
   "361": ".opencode/skills/impeccable/scripts/lib/staleness-notice.mjs",
+  "362": "@supabase/supabase-js",
   "364": "AnalisisDirectivoPage.tsx"
 }

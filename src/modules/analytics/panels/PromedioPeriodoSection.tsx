@@ -51,9 +51,13 @@ export function PromedioPeriodoSection({ a, material, centro, periodo, esDefault
   const centroProm = listo ? promedioPeriodo(a.facMensual, { material, centro }, periodo.desde, periodo.hasta) : null;
   const fueraDeRango = listo && rango && (mesKey(periodo.hasta) < rango.min || mesKey(periodo.desde) > rango.max);
 
+  // Los botones 3m/6m/12m terminan siempre en el último mes CERRADO con dato:
+  // el mes corriente está incompleto y sesgaría el promedio a la baja. Solo
+  // entra si el usuario lo teclea a mano en el filtro de periodo.
+  const finPreset = rango ? Math.min(rango.max, mesKey(mesAnterior(hoyMes()))) : 0;
   const aplicarPreset = (n: number) => {
     if (!rango) return;
-    onChange({ desde: mesDeKey(rango.max - n + 1), hasta: mesDeKey(rango.max) });
+    onChange({ desde: mesDeKey(finPreset - n + 1), hasta: mesDeKey(finPreset) });
   };
 
   return (
@@ -66,14 +70,14 @@ export function PromedioPeriodoSection({ a, material, centro, periodo, esDefault
         <>
           <div className="flex flex-wrap items-center gap-3">
             <MonthRangeFilter label="Periodo" desde={periodo.desde} hasta={periodo.hasta} onChange={onChange} />
-            <div className="flex items-center gap-1" title={`Termina en el último mes con dato (${rango ? mesDeKey(rango.max) : '—'}).`}>
+            <div className="flex items-center gap-1" title={`Termina en el último mes cerrado con dato (${rango ? mesDeKey(finPreset) : '—'}); no incluye el mes corriente.`}>
               {PRESETS.map((n) => (
                 <Button key={n} type="button" variant="outline" size="sm" onClick={() => aplicarPreset(n)}>{n}m</Button>
               ))}
             </div>
           </div>
           <p className="mt-1.5 text-[11px] text-text-faint">
-            Promedio mensual = cantidad facturada ÷ meses de calendario del periodo (los meses sin facturación cuentan como 0). Fuente: Fac_Mensual_CAM, columna “Mes y año”
+            Promedio mensual = cantidad facturada ÷ meses de calendario del periodo.”
             {rango && <> · datos de {mesDeKey(rango.min)} a {mesDeKey(rango.max)}</>}.
           </p>
           {esDefault && listo && <p className="mt-1.5 text-[11px] text-text-faint">Periodo predeterminado: últimos 12 meses cerrados. Cámbialo arriba.</p>}

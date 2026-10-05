@@ -314,6 +314,8 @@ export function InventarioPage() {
   }), [a.enrich]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
+  // Materiales (únicos) en el orden/filtro de la tabla, para recorrerlos con ◀/▶ en el detalle de celda.
+  const listaMateriales = useMemo(() => [...new Set(sorted.map((r) => r.material))], [sorted]);
   const visibleCenters = useMemo(() => CENTERS.filter((c) => colVis.isVisible(`centro_${c}`)), [colVis]);
   const colCount = (isAdmin ? 1 : 0) + 5
     + (colVis.isVisible('disp3130') ? 1 : 0) + (colVis.isVisible('disp3132') ? 1 : 0)
@@ -540,7 +542,7 @@ export function InventarioPage() {
                       const lento = a.rss ? esLentoPorCondicion(co, r.condicion, a.rss.curMes) : false;
                       return (
                         <TableCell key={c} className="text-right">
-                          <Chip onClick={() => open({ type: 'invCondCelda', material: r.material, centro: c })}>{formatNumber(invCond(r, c))}</Chip>
+                          <Chip onClick={() => open({ type: 'invCondCelda', material: r.material, centro: c, lista: listaMateriales })}>{formatNumber(invCond(r, c))}</Chip>
                           {transito > 0 && <span className="text-success"> +{formatNumber(transito)}</span>}
                           {lento && <span title="Lento: sin consumo hace ≥6 meses y sin pendiente aplicable en este centro."><AlertTriangle className="ml-1 inline size-3 text-warning" /></span>}
                           {pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(pend)}</div>}

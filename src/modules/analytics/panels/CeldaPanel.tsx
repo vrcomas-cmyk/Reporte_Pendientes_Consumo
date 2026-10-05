@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { StatTile, EvolChart, StatePill } from '../ui';
@@ -13,7 +14,8 @@ import { sugFor, consFor, norm } from '../helpers';
 import { useNombresStore, useVistaCentrosStore } from '@/store/nombresStore';
 import { etiquetaCentro, etiquetaAlmacen } from '@/lib/nombres';
 import { usePanelStore } from '@/store/panelStore';
-import { MaterialNavControl } from './MaterialNavControl';
+import { MaterialNavControl, type OpcionMaterial } from './MaterialNavControl';
+import { CostoTile } from './CostoMaterial';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import type { Panel } from '@/store/panelStore';
 import type { Analytics } from '../AnalyticsContext';
@@ -33,9 +35,10 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
   const inventarioEnLateral = panel.origen === 'resumenSin';
   const replaceTop = usePanelStore((s) => s.replaceTop);
   // Navegación entre materiales (solo desde Inventario): mismo centro, otro material.
+  const opcionesNav = useMemo<OpcionMaterial[]>(() => (rss ? [...rss.mats.values()].map((m) => ({ material: m.material, desc: m.desc })) : []), [rss]);
   const nav = inventarioEnLateral ? (
     <div className="mb-3">
-      <MaterialNavControl rss={rss} material={panel.material} lista={panel.lista} irA={(m) => replaceTop({ ...panel, material: m })} />
+      <MaterialNavControl opciones={opcionesNav} material={panel.material} lista={panel.lista} irA={(m) => replaceTop({ ...panel, material: m })} />
     </div>
   ) : null;
   const condicionMat = a.invCondicion.find((r) => norm(r.material) === norm(panel.material))?.condicion || '';
@@ -70,6 +73,7 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
         <p className="mt-1 text-sm text-text-muted">{lotesCelda[0].textoBreve}</p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <StatTile label="Inv. (lotes)" value={formatNumber(total)} />
+          <CostoTile a={a} material={panel.material} />
         </div>
         <PrecioCondicionBox a={a} material={panel.material} />
         <Section title="Desglose por almacén (desde lotes)">
@@ -114,6 +118,7 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
         <StatTile label="Pendiente" value={formatNumber(co.pend)} tone="text-danger" />
         <StatTile label="En tránsito" value={formatNumber(co.transito)} tone="text-warning" />
         <StatTile label="Importe pend." value={formatCurrency(co.impPend)} />
+        <CostoTile a={a} material={panel.material} />
       </div>
       <PrecioCondicionBox a={a} material={panel.material} />
       <PromedioPeriodoSection a={a} material={panel.material} centro={panel.centro} periodo={periodoProm} esDefault={periodoDefault} onChange={setPeriodoProm} />

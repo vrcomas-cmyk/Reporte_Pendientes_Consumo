@@ -76,7 +76,8 @@ export async function fetchTabSnapshot(entry: SnapshotTabEntry): Promise<TabRows
     const buf = new Uint8Array(await res.arrayBuffer());
     const part = await csvGzToTabRows(buf);
     headers = part.headers;
-    rows.push(...part.rows);
+    // Ciclo, no spread: `push(...100k filas)` puede desbordar la pila de V8.
+    for (const r of part.rows) rows.push(r);
   }
   return { headers, rows, rowCount: entry.rowCount ?? rows.length };
 }

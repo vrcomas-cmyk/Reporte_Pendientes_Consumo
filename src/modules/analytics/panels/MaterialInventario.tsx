@@ -57,11 +57,11 @@ function useMaterialInventario(a: Analytics, material: string) {
   return { mat, principales, otros, transito, condiciones, puntos };
 }
 
-type PuntoSolicitar = ReturnType<typeof useMaterialInventario>['puntos'][number];
+export interface PuntoSolicitar { titulo: string; centro: string; almacen: string; cantidad: number; nota?: string }
 
 /** "Solicitar desde inventario (click derecho)": grid de puntos con menú
  * contextual. `tituloDe` permite pintar nombres de centro/almacén. */
-function SolicitarGrid({ a, material, mat, puntos, condiciones, tituloDe }: {
+export function SolicitarGrid({ a, material, mat, puntos, condiciones, tituloDe }: {
   a: Analytics; material: string; mat: string; puntos: PuntoSolicitar[]; condiciones: string; tituloDe: (p: PuntoSolicitar) => string;
 }) {
   const solicitar = useSolicitarDialog();
@@ -81,6 +81,7 @@ function SolicitarGrid({ a, material, mat, puntos, condiciones, tituloDe }: {
             <div className="cursor-context-menu rounded-md border border-border px-2.5 py-1.5">
               <p className="text-[11px] text-text-faint">{tituloDe(p)}</p>
               <p className="font-mono text-sm">{formatNumber(p.cantidad)}</p>
+              {p.nota && <p className="text-[10px] text-warning">{p.nota}</p>}
               {condiciones && <p className="text-[10px] text-text-faint">{condiciones}</p>}
             </div>
           </SolicitarContextMenu>

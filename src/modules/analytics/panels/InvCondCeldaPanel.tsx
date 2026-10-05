@@ -1,12 +1,15 @@
-import { AlertTriangle } from 'lucide-react';
+import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { StatTile, StatePill, EvolChart } from '../ui';
-import { Section, PrecioCondicionBox, SugTable, ConsumoTable } from './_shared';
-import { MaterialInventarioSection } from './MaterialInventario';
+import { Section, PrecioCondicionBox, SugTable, ConsumoTable, vigenciaTxt } from './_shared';
+import { InvCondLateral } from './InvCondLateral';
+import { MaterialNavControl, type OpcionMaterial } from './MaterialNavControl';
+import { CostoTile } from './CostoMaterial';
+import { usePanelStore } from '@/store/panelStore';
 import { formatNumber, formatCurrency, formatFechaCaducidad } from '@/lib/utils';
 import { almacenesDeCondicion } from '@/core/inventoryRules';
-import { pendPorCondicion, transitoPorCondicion, impPendPorCondicion, esLentoPorCondicion, coberturaEstado, COBERTURA_LABEL, COBERTURA_CLS, type RSSAlmacen } from '@/core/resumenSin';
+import { pendPorCondicion, transitoPorCondicion, impPendPorCondicion, coberturaEstado, COBERTURA_LABEL, COBERTURA_CLS, type RSSAlmacen } from '@/core/resumenSin';
 import { promedioPeriodo } from '@/core/facMensual';
 import { PromedioPeriodoSection, periodoCompleto, usePeriodoProm } from './PromedioPeriodoSection';
 import { serieMaterial, serieMatCentro, rfTieneCentro } from '@/core/resumenFac';
@@ -17,7 +20,7 @@ import { useSolicitarDialog } from '@/modules/solicitudes/useSolicitarDialog';
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
 import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
-import { CENTERS, type InvDetalleRow } from '@/core/types';
+import type { InvDetalleRow } from '@/core/types';
 import type { Panel } from '@/store/panelStore';
 import type { Analytics } from '../AnalyticsContext';
 
@@ -34,7 +37,8 @@ import type { Analytics } from '../AnalyticsContext';
 export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: 'invCondCelda' }>; a: Analytics; push: (p: Panel) => void }) {
   const condicionMat = a.invCondicion.find((r) => norm(r.material) === norm(panel.material))?.condicion || '';
   const almacenesAplicables = new Set(almacenesDeCondicion(condicionMat).map(norm));
-  const lotes = a.lotes.filter((l) => norm(l.material) === norm(panel.material) && norm(l.centro) === norm(panel.centro));
+  const lotesMaterial = useMemo(() => a.lotes.filter((l) => norm(l.material) === norm(panel.material)), [a.lotes, panel.material]);
+  const lotes = useMemo(() => lotesMaterial.filter((l) => norm(l.centro) === norm(panel.centro)), [lotesMaterial, panel.centro]);
   const totalAplica = lotes.filter((l) => almacenesAplicables.has(norm(l.almacen))).reduce((s, l) => s + l.cantidadDisp, 0);
   const totalTodos = lotes.reduce((s, l) => s + l.cantidadDisp, 0);
   const desc = lotes[0]?.textoBreve || a.rss?.mats.get(norm(panel.material))?.desc || '';
@@ -67,6 +71,13 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
   const { periodo: periodoProm, setPeriodo: setPeriodoProm, esDefault: periodoDefault } = usePeriodoProm(a);
   const conPeriodo = !!a.facMensual && periodoCompleto(periodoProm);
 
+  const replaceTop = usePanelStore((s) => s.replaceTop);
+  // Materiales a los que se puede saltar con el buscador: los de Inv Condición.
+  const opcionesNav = useMemo<OpcionMaterial[]>(() => {
+    const m = new Map<string, OpcionMaterial>();
+    for (const r of a.invCondicion) if (!m.has(norm(r.material))) m.set(norm(r.material), { material: r.material, desc: r.textoBreve });
+    return [...m.values()];
+  }, [a.invCondicion]);
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
   const yaSolicitado = solicitudesList.some((s) => s.origen === 'inventario' && norm(s.sourceKey.split('|')[1]) === norm(panel.material));
@@ -80,161 +91,137 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
   };
   const onSolicitarLote = (l: InvDetalleRow) => solicitar.abrir(buildFromInvDetalle(l, a.enrich));
 
-  // Mismo dato que la celda del centro actual en la tabla de "Inv
-  // Condición" (Inv/Pend/Tránsito/lento), pero para los OTROS centros —
-  // para no obligar a cerrar el panel y volver a la tabla solo para
-  // comparar dónde más hay (o falta) inventario de este material.
-  const invRow = a.invCondicion.find((r) => norm(r.material) === norm(panel.material));
-  const otrosCentros = CENTERS
-    .filter((c) => norm(c) !== norm(panel.centro))
-    .map((c) => {
-      const coC = mo?.centros.get(c);
-      return {
-        centro: c,
-        inv: invRow?.invByCenter[c] || 0,
-        pend: pendPorCondicion(coC, condicionMat),
-        transito: transitoPorCondicion(coC, condicionMat),
-        lento: a.rss ? esLentoPorCondicion(coC, condicionMat, a.rss.curMes) : false,
-      };
-    });
-
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-      <aside className="shrink-0 lg:sticky lg:top-0 lg:w-52">
-        <Section title="Otros centros (según condición)">
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-            {otrosCentros.map((o) => (
-              <button
-                key={o.centro}
-                type="button"
-                onClick={() => push({ type: 'invCondCelda', material: panel.material, centro: o.centro })}
-                className="rounded-md border border-border px-2.5 py-1.5 text-left hover:border-accent"
-              >
-                <p className="text-[11px] text-text-faint">Inv {o.centro}</p>
-                <p className="font-mono text-sm">
-                  {formatNumber(o.inv)}
-                  {o.transito > 0 && <span className="text-success"> +{formatNumber(o.transito)}</span>}
-                  {o.lento && <AlertTriangle className="ml-1 inline size-3 text-warning" />}
-                </p>
-                {o.pend > 0 && <p className="text-[11px] text-danger">Pend {formatNumber(o.pend)}</p>}
-              </button>
-            ))}
-          </div>
-        </Section>
-      </aside>
-      <div className="min-w-0 flex-1">
+    <div>
+      <div className="mb-3">
+        <MaterialNavControl opciones={opcionesNav} material={panel.material} lista={panel.lista} irA={(m) => replaceTop({ ...panel, material: m })} />
+      </div>
+      {/* Pantallas angostas: el panel izquierdo (fijo en PanelHost, solo lg+) va aquí arriba. */}
+      <div className="mb-4 lg:hidden">
+        <InvCondLateral a={a} material={panel.material} centro={panel.centro} onSelectCentro={(c) => replaceTop({ ...panel, centro: c })} />
+      </div>
       <h2 className="font-display text-lg font-semibold">{panel.material} · Centro {panel.centro}</h2>
       <p className="mt-1 text-sm text-text-muted">{desc} · Condición: {condicionMat || '—'}</p>
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <StatTile label="Inv. según condición" value={formatNumber(totalAplica)} />
-        <StatTile label="Pendiente" value={formatNumber(pend)} tone="text-danger" />
-        <StatTile label="En tránsito" value={formatNumber(transito)} tone="text-warning" />
-        <StatTile label="Importe pend." value={formatCurrency(impPend)} />
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <StatTile label="Inv. total (todos los almacenes)" value={formatNumber(totalTodos)} />
-        <StatTile label="Lotes" value={formatNumber(lotes.length)} />
-      </div>
-      <PrecioCondicionBox a={a} material={panel.material} />
-      <PromedioPeriodoSection a={a} material={panel.material} centro={panel.centro} periodo={periodoProm} esDefault={periodoDefault} onChange={setPeriodoProm} />
-
-      <Section title="Desglose por almacén (según condición)">
-        <p className="mb-2 text-xs text-text-faint">Clic derecho en una fila = Solicitar / Copiar.</p>
-        {almsAplicables.length === 0 ? (
-          <p className="text-sm text-text-muted">Sin inventario, pendiente ni tránsito en los almacenes aplicables a esta condición en este centro.</p>
-        ) : (
-          <div>
-            <Table wrapperClassName="max-h-64 rounded-lg border border-border">
-              <TableHeader><TableRow><TableHead>Almacén</TableHead><TableHead className="text-right">Inv.</TableHead><TableHead className="text-right">Pend.</TableHead><TableHead className="text-right">Tránsito</TableHead>{conPeriodo && <TableHead className="text-right" title={`Cantidad facturada ÷ meses de ${periodoProm.desde} a ${periodoProm.hasta} (Fac_Mensual_CAM), de este almacén.`}>Prom. mensual</TableHead>}{conPeriodo && <TableHead className="text-right" title="Inventario del almacén ÷ promedio mensual del periodo.">Meses inv.</TableHead>}{conPeriodo && <TableHead>Cobertura</TableHead>}<TableHead>Último</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {almsAplicables.map((al, i) => {
-                  const pp = conPeriodo ? promedioPeriodo(a.facMensual, { material: panel.material, centro: panel.centro, almacen: al.alm }, periodoProm.desde, periodoProm.hasta) : null;
-                  const mesesPp = pp && pp.promedio > 0 ? al.inv / pp.promedio : 0;
-                  const cob = pp ? coberturaEstado(mesesPp, pp.promedio, al.inv) : null;
-                  return (
-                  <SolicitarContextMenu
-                    key={i}
-                    label={`${panel.material} · Alm ${al.alm}`}
-                    solicitado={yaSolicitado}
-                    onSolicitar={() => onSolicitarAlm(al)}
-                    copyItems={[{ label: 'Material', value: panel.material }, { label: 'Centro', value: panel.centro }, { label: 'Almacén', value: al.alm }]}
-                  >
-                    <TableRow className="cursor-context-menu">
-                      <TableCell>{al.alm}<StatePill label="aplica" cls="verde" /></TableCell>
-                      <TableCell className="text-right">{formatNumber(al.inv)}</TableCell>
-                      <TableCell className="text-right">{al.pend ? formatNumber(al.pend) : '—'}</TableCell>
-                      <TableCell className="text-right">{al.transito ? formatNumber(al.transito) : '—'}</TableCell>
-                      {pp && <TableCell className="text-right font-medium">{formatNumber(pp.promedio)}</TableCell>}
-                      {pp && <TableCell className="text-right">{pp.promedio > 0 ? formatNumber(mesesPp) : '—'}</TableCell>}
-                      {cob && <TableCell><StatePill label={COBERTURA_LABEL[cob]} cls={COBERTURA_CLS[cob]} /></TableCell>}
-                      <TableCell>{al.ultMes || '—'}</TableCell>
-                      <TableCell>{al.status ? <StatePill label={al.status} cls="amb" /> : '—'}</TableCell>
+      <div className="mt-3 grid gap-x-4 lg:grid-cols-2 lg:items-start">
+        {/* Panel central: inventario, costo, precio por condición y lotes. */}
+        <div className="min-w-0">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <StatTile label="Inv. según condición" value={formatNumber(totalAplica)} />
+            <StatTile label="Pendiente" value={formatNumber(pend)} tone="text-danger" />
+            <StatTile label="En tránsito" value={formatNumber(transito)} tone="text-warning" />
+            <StatTile label="Importe pend." value={formatCurrency(impPend)} />
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <StatTile label="Inv. total (todos los almacenes)" value={formatNumber(totalTodos)} />
+            <StatTile label="Lotes" value={formatNumber(lotes.length)} />
+            <CostoTile a={a} material={panel.material} />
+          </div>
+          <PrecioCondicionBox a={a} material={panel.material} />
+          <Section title="Detalle de lotes (InvDetalle)">
+            <p className="mb-2 text-xs text-text-faint">Clic derecho en una fila = Solicitar / Copiar.</p>
+            {lotes.length === 0 ? (
+              <p className="text-sm text-text-muted">Sin lotes en InvDetalle para este material y centro.</p>
+            ) : (
+              <div>
+                <Table wrapperClassName="max-h-96 rounded-lg border border-border">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Almacén</TableHead><TableHead>Lote</TableHead>
+                      <TableHead className="text-right">Disp.</TableHead><TableHead>Vence</TableHead>
                     </TableRow>
-                  </SolicitarContextMenu>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {lotes
+                      .slice()
+                      .sort((x, y) => x.almacen.localeCompare(y.almacen))
+                      .map((l, i) => (
+                        <SolicitarContextMenu
+                          key={i}
+                          label={`${l.material} · Lote ${l.lote || '—'}`}
+                          solicitado={yaSolicitado}
+                          onSolicitar={() => onSolicitarLote(l)}
+                          copyItems={[{ label: 'Material', value: l.material }, { label: 'Lote', value: l.lote }, { label: 'Almacén', value: l.almacen }]}
+                        >
+                          <TableRow className="cursor-context-menu">
+                            <TableCell>{l.almacen}{almacenesAplicables.has(norm(l.almacen)) && <StatePill label="aplica" cls="verde" />}</TableCell>
+                            <TableCell>{l.lote || '—'}</TableCell>
+                            <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
+                            <TableCell className="whitespace-nowrap text-xs">
+                              {formatFechaCaducidad(l.fechaCaducidad)}
+                              {(() => { const vg = vigenciaTxt(l.fechaCaducidad || ''); return vg && <div className="text-[11px]"><StatePill label={vg.txt} cls={vg.cls} /></div>; })()}
+                            </TableCell>
+                          </TableRow>
+                        </SolicitarContextMenu>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </Section>
+
+        </div>
+        {/* Panel derecho: promedio, desglose por almacén, tendencia y sugerencias/consumo. */}
+        <div className="min-w-0">
+          <PromedioPeriodoSection a={a} material={panel.material} centro={panel.centro} periodo={periodoProm} esDefault={periodoDefault} onChange={setPeriodoProm} />
+
+          <Section title="Desglose por almacén (según condición)">
+            <p className="mb-2 text-xs text-text-faint">Clic derecho en una fila = Solicitar / Copiar.</p>
+            {almsAplicables.length === 0 ? (
+              <p className="text-sm text-text-muted">Sin inventario, pendiente ni tránsito en los almacenes aplicables a esta condición en este centro.</p>
+            ) : (
+              <div>
+                <Table wrapperClassName="max-h-64 rounded-lg border border-border">
+                  <TableHeader><TableRow><TableHead>Almacén</TableHead><TableHead className="text-right">Inv.</TableHead><TableHead className="text-right">Pend.</TableHead><TableHead className="text-right">Tránsito</TableHead>{conPeriodo && <TableHead className="text-right" title={`Cantidad facturada ÷ meses de ${periodoProm.desde} a ${periodoProm.hasta} (Fac_Mensual_CAM), de este almacén.`}>Prom. mensual</TableHead>}{conPeriodo && <TableHead className="text-right" title="Inventario del almacén ÷ promedio mensual del periodo.">Meses inv.</TableHead>}{conPeriodo && <TableHead>Cobertura</TableHead>}<TableHead>Último</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {almsAplicables.map((al, i) => {
+                      const pp = conPeriodo ? promedioPeriodo(a.facMensual, { material: panel.material, centro: panel.centro, almacen: al.alm }, periodoProm.desde, periodoProm.hasta) : null;
+                      const mesesPp = pp && pp.promedio > 0 ? al.inv / pp.promedio : 0;
+                      const cob = pp ? coberturaEstado(mesesPp, pp.promedio, al.inv) : null;
+                      return (
+                      <SolicitarContextMenu
+                        key={i}
+                        label={`${panel.material} · Alm ${al.alm}`}
+                        solicitado={yaSolicitado}
+                        onSolicitar={() => onSolicitarAlm(al)}
+                        copyItems={[{ label: 'Material', value: panel.material }, { label: 'Centro', value: panel.centro }, { label: 'Almacén', value: al.alm }]}
+                      >
+                        <TableRow className="cursor-context-menu">
+                          <TableCell>{al.alm}<StatePill label="aplica" cls="verde" /></TableCell>
+                          <TableCell className="text-right">{formatNumber(al.inv)}</TableCell>
+                          <TableCell className="text-right">{al.pend ? formatNumber(al.pend) : '—'}</TableCell>
+                          <TableCell className="text-right">{al.transito ? formatNumber(al.transito) : '—'}</TableCell>
+                          {pp && <TableCell className="text-right font-medium">{formatNumber(pp.promedio)}</TableCell>}
+                          {pp && <TableCell className="text-right">{pp.promedio > 0 ? formatNumber(mesesPp) : '—'}</TableCell>}
+                          {cob && <TableCell><StatePill label={COBERTURA_LABEL[cob]} cls={COBERTURA_CLS[cob]} /></TableCell>}
+                          <TableCell>{al.ultMes || '—'}</TableCell>
+                          <TableCell>{al.status ? <StatePill label={al.status} cls="amb" /> : '—'}</TableCell>
+                        </TableRow>
+                      </SolicitarContextMenu>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </Section>
+
+          <Section title={usaCentro ? `Tendencia del material · Centro ${panel.centro}` : rfTieneCentro(a.rf) ? 'Tendencia del material (general — sin historia en este centro)' : 'Tendencia del material (general — los datos cargados de Resumen_Fac no traen la columna Centro: actualiza Resumen_Fac en vivo desde Carga)'}>
+            <EvolChart serie={usaCentro ? serieCentro : serieMaterial(a.rf, panel.material)} height={180} />
+          </Section>
+
+          <Section title="Sugerencias / Consumo en este centro">
+            <Tabs defaultValue="sug">
+              <TabsList><TabsTrigger value="sug">Sugerencias ({sug.length})</TabsTrigger><TabsTrigger value="cons">Consumo ({cons.length})</TabsTrigger></TabsList>
+              <TabsContent value="sug"><SugTable list={sug} a={a} push={push} /></TabsContent>
+              <TabsContent value="cons"><ConsumoTable list={cons} a={a} push={push} /></TabsContent>
+            </Tabs>
+          </Section>
+          <div className="mt-3">
+            <Button variant="outline" size="sm" onClick={() => push({ type: 'materialTotales', material: panel.material })}>Ver totales del material</Button>
           </div>
-        )}
-      </Section>
-
-      <Section title="Detalle de lotes (InvDetalle)">
-        <p className="mb-2 text-xs text-text-faint">Clic derecho en una fila = Solicitar / Copiar.</p>
-        {lotes.length === 0 ? (
-          <p className="text-sm text-text-muted">Sin lotes en InvDetalle para este material y centro.</p>
-        ) : (
-          <div>
-            <Table wrapperClassName="max-h-96 rounded-lg border border-border">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Almacén</TableHead><TableHead>Lote</TableHead>
-                  <TableHead className="text-right">Disp.</TableHead><TableHead>Vence</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lotes
-                  .slice()
-                  .sort((x, y) => x.almacen.localeCompare(y.almacen))
-                  .map((l, i) => (
-                    <SolicitarContextMenu
-                      key={i}
-                      label={`${l.material} · Lote ${l.lote || '—'}`}
-                      solicitado={yaSolicitado}
-                      onSolicitar={() => onSolicitarLote(l)}
-                      copyItems={[{ label: 'Material', value: l.material }, { label: 'Lote', value: l.lote }, { label: 'Almacén', value: l.almacen }]}
-                    >
-                      <TableRow className="cursor-context-menu">
-                        <TableCell>{l.almacen}{almacenesAplicables.has(norm(l.almacen)) && <StatePill label="aplica" cls="verde" />}</TableCell>
-                        <TableCell>{l.lote || '—'}</TableCell>
-                        <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
-                        <TableCell className="whitespace-nowrap text-xs">{formatFechaCaducidad(l.fechaCaducidad)}</TableCell>
-                      </TableRow>
-                    </SolicitarContextMenu>
-                  ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </Section>
-
-      <Section title={usaCentro ? `Tendencia del material · Centro ${panel.centro}` : rfTieneCentro(a.rf) ? 'Tendencia del material (general — sin historia en este centro)' : 'Tendencia del material (general — los datos cargados de Resumen_Fac no traen la columna Centro: actualiza Resumen_Fac en vivo desde Carga)'}>
-        <EvolChart serie={usaCentro ? serieCentro : serieMaterial(a.rf, panel.material)} height={180} />
-      </Section>
-
-      <Section title="Sugerencias / Consumo en este centro">
-        <Tabs defaultValue="sug">
-          <TabsList><TabsTrigger value="sug">Sugerencias ({sug.length})</TabsTrigger><TabsTrigger value="cons">Consumo ({cons.length})</TabsTrigger></TabsList>
-          <TabsContent value="sug"><SugTable list={sug} a={a} push={push} /></TabsContent>
-          <TabsContent value="cons"><ConsumoTable list={cons} a={a} push={push} /></TabsContent>
-        </Tabs>
-      </Section>
-      <div className="mt-3">
-        <Button variant="outline" size="sm" onClick={() => push({ type: 'materialTotales', material: panel.material })}>Ver totales del material</Button>
+        </div>
       </div>
-      <MaterialInventarioSection a={a} material={panel.material} />
       <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
-      </div>
     </div>
   );
 }
