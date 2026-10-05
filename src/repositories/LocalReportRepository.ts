@@ -27,6 +27,14 @@ export class LocalReportRepository implements ReportRepository {
       meta,
       blobs,
     });
+    // Cada sync agrega un análisis completo (varios MB) y nada más los borraba:
+    // se conservan solo los 2 más recientes para no agotar la cuota de IndexedDB.
+    try {
+      const antiguos = (await db.analyses.orderBy('processedAt').reverse().offset(2).primaryKeys()) as number[];
+      if (antiguos.length) await db.analyses.bulkDelete(antiguos);
+    } catch (e) {
+      console.warn('[analyses] no se pudo podar análisis antiguos', e);
+    }
     return id as number;
   }
 

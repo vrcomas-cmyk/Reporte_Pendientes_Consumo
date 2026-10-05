@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { matchesQuery } from '../helpers';
-import type { RSSIndex } from '@/core/resumenSin';
 
 const MAX_SUGERENCIAS = 40;
 
-/** Navegación entre materiales del detalle de celda abierto desde Inventario:
+export interface OpcionMaterial { material: string; desc: string }
+
+/** Navegación entre materiales del detalle de celda abierto desde Inventario
+ * o Inv Condición:
  * flechas ◀/▶ (y teclas ← / →) recorren `lista` — los materiales en el orden y
  * filtro de la tabla al abrir el detalle — y el buscador salta a CUALQUIER
- * material del Resumen Sin por código o descripción, con sugerencias según
+ * material de `opciones` por código o descripción, con sugerencias según
  * el texto. Teclado en el buscador (↓/↑/Enter/Escape) como `PedidoNavControl`. */
-export function MaterialNavControl({ rss, material, lista, irA }: {
-  rss: RSSIndex | null;
+export function MaterialNavControl({ opciones, material, lista, irA }: {
+  /** Materiales a los que se puede saltar con el buscador. */
+  opciones: OpcionMaterial[];
   material: string;
   lista: string[] | undefined;
   irA: (material: string) => void;
@@ -37,10 +40,6 @@ export function MaterialNavControl({ rss, material, lista, irA }: {
   const [abierto, setAbierto] = useState(false);
   const [hi, setHi] = useState(0);
 
-  const opciones = useMemo(
-    () => (rss ? [...rss.mats.values()].map((m) => ({ material: m.material, desc: m.desc })) : []),
-    [rss],
-  );
   const sugerencias = useMemo(() => {
     if (!q.trim()) return [];
     return opciones.filter((o) => matchesQuery(q, `${o.material} ${o.desc}`)).slice(0, MAX_SUGERENCIAS);

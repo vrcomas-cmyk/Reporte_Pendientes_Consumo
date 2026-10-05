@@ -155,13 +155,13 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/AnalyticsContext.tsx": {
-    "mtime": 1790900609.0931752,
-    "ast_hash": "55b9ad21397c9cd807fa1aa507d967db",
+    "mtime": 1790952541.8669467,
+    "ast_hash": "e43b7931fd5eca1e99b5cb7e648b049b",
     "semantic_hash": ""
   },
   "src/modules/analytics/PanelHost.tsx": {
-    "mtime": 1790833107.8554325,
-    "ast_hash": "1bf446548d6f064177164a9de290c3fc",
+    "mtime": 1790953791.663203,
+    "ast_hash": "834f5524000a038ab601f37b321f29a6",
     "semantic_hash": ""
   },
   "src/modules/analytics/helpers.ts": {
@@ -235,8 +235,8 @@
     "semantic_hash": ""
   },
   "src/repositories/LocalReportRepository.ts": {
-    "mtime": 1790791087.3554437,
-    "ast_hash": "fdaeb6ccb8f67c8099b82e4c794706aa",
+    "mtime": 1790952530.7089517,
+    "ast_hash": "36440062ecb0e0a2d4131131b9b4896a",
     "semantic_hash": ""
   },
   "src/repositories/ReportRepository.ts": {
@@ -540,8 +540,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/CeldaPanel.tsx": {
-    "mtime": 1790901662.877954,
-    "ast_hash": "20aeac84ec6a4be4546b13e46410f193",
+    "mtime": 1790952471.7735236,
+    "ast_hash": "9b9939e99a8a51c68df6be4507916bef",
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/ClienteDetallePanel.tsx": {
@@ -2590,8 +2590,8 @@
     "semantic_hash": ""
   },
   "src/services/reportSnapshotService.ts": {
-    "mtime": 1790791087.7465358,
-    "ast_hash": "5db8b0964c5e7301e62ad747c4330ea5",
+    "mtime": 1790952522.2266445,
+    "ast_hash": "3cad19553df2a9d7e41808b2c60e3041",
     "semantic_hash": ""
   },
   "src/core/matchingOfertas.test.ts": {
@@ -2715,8 +2715,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/InvCondCeldaPanel.tsx": {
-    "mtime": 1790901673.6097667,
-    "ast_hash": "78509cfec7f5bc7a4053b3a5a0ec0077",
+    "mtime": 1790953769.1243305,
+    "ast_hash": "7cc8d87ab1611f899d0bfd3ab1a9ff39",
     "semantic_hash": ""
   },
   "src/components/ui/filter-chip.tsx": {
@@ -2835,8 +2835,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/MaterialInventario.tsx": {
-    "mtime": 1790833311.1363266,
-    "ast_hash": "e5dd8cadd81bd327f2eef908614536ae",
+    "mtime": 1790952468.5152247,
+    "ast_hash": "67e83b36dfed47d7d666489783a5e66e",
     "semantic_hash": ""
   },
   "src/core/analisisDirectivo.test.ts": {
@@ -2955,8 +2955,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/PromedioPeriodoSection.tsx": {
-    "mtime": 1790901662.866843,
-    "ast_hash": "bcb1244d3e8f377c5c84bfc5440f8112",
+    "mtime": 1790951963.8186593,
+    "ast_hash": "7cb7327b7624a40bf6961dc3714a8f24",
     "semantic_hash": ""
   },
   "src/core/proyeccion.test.ts": {
@@ -2997,6 +2997,11 @@
   "supabase/migrations/0013_filtros_grupos_excluidos.sql": {
     "mtime": 1790905771.4500859,
     "ast_hash": "14217f44db8c13a6f0dcde5224e52373",
+    "semantic_hash": ""
+  },
+  "src/modules/analytics/panels/InvCondLateral.tsx": {
+    "mtime": 1790953714.9682724,
+    "ast_hash": "d1562b20a5c83bbd53ec831cb830f257",
     "semantic_hash": ""
   }
 }

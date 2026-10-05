@@ -53,10 +53,38 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const catalog = useDataStore((s) => s.catalog);
   const incremento = useDataStore((s) => s.incremento);
 
+  // Memos separados por insumo: `buildRF` (~488k filas) solo se recalcula si
+  // cambia `resumenFac`, no cuando cambia el catálogo/incremento o cualquier
+  // otro campo del análisis (`pick()` conserva la referencia de los arreglos
+  // que no se refrescaron).
+  const resumenFac = result?.resumenFac;
+  const sugerencias = result?.sugerencias;
+  const resumenSin = result?.resumenSinSugerencias;
+  const facMensualCam = result?.facMensualCam;
+  const consumo = result?.consumo;
+  const inventarioCondicion = result?.inventarioCondicion;
+  const lotesCortaCaducidad = result?.lotesCortaCaducidad;
+
+  const enrich = useMemo(() => buildEnrich(catalog), [catalog]);
+  const rf = useMemo(() => (resumenFac?.length ? buildRF(resumenFac) : null), [resumenFac]);
+  const bo = useMemo(() => (sugerencias?.length ? buildBO(sugerencias, rf) : []), [sugerencias, rf]);
+  const boByKey = useMemo(() => new Map(bo.map((it) => [it.k, it])), [bo]);
+  const rss = useMemo(() => (resumenSin?.length ? buildRSS(resumenSin) : null), [resumenSin]);
+  const facMensual = useMemo(() => (facMensualCam?.length ? buildFacMensual(facMensualCam) : null), [facMensualCam]);
+  const abc = useMemo(() => buildAbc(rf), [rf]);
+  const precioDispersion = useMemo(() => (consumo?.length ? buildPrecioDispersion(consumo) : []), [consumo]);
+  const mesesDisp = useMemo(() => mesesDisponibles(rf), [rf]);
+  const invConsolidadoCatalog = useMemo(() => catalog?.invConsolidado ?? [], [catalog]);
+  // Inventory pivot prefers the daily report's "Inventario por condicion";
+  // lot detail merges catalog InvDetalle with the report's short-expiry lots.
+  const invCondicion = useMemo(
+    () => applyCatalogPriceFallback(inventarioCondicion?.length ? inventarioCondicion : invConsolidadoCatalog, catalog),
+    [inventarioCondicion, invConsolidadoCatalog, catalog],
+  );
+  const lotes = useMemo(() => [...(catalog?.invDetalle ?? []), ...(lotesCortaCaducidad ?? [])], [catalog, lotesCortaCaducidad]);
+  const incrementoRows = useMemo(() => incremento?.rows ?? [], [incremento]);
+
   const value = useMemo<Analytics>(() => {
-    const enrich = buildEnrich(catalog);
-    const invConsolidadoCatalog = catalog?.invConsolidado ?? [];
-    const incrementoRows = incremento?.rows ?? [];
     if (!result) {
       return {
         result: null, rf: null, bo: [], boByKey: new Map(), rss: null, facMensual: null, enrich,
@@ -64,23 +92,11 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
         incrementoRows, mesesDisponibles: [],
       };
     }
-    const rf = result.resumenFac.length ? buildRF(result.resumenFac) : null;
-    const bo = result.sugerencias.length ? buildBO(result.sugerencias, rf) : [];
-    const boByKey = new Map(bo.map((it) => [it.k, it]));
-    const rss = result.resumenSinSugerencias.length ? buildRSS(result.resumenSinSugerencias) : null;
-    const facMensual = result.facMensualCam?.length ? buildFacMensual(result.facMensualCam) : null;
-    // Inventory pivot prefers the daily report's "Inventario por condicion";
-    // lot detail merges catalog InvDetalle with the report's short-expiry lots.
-    const invCondicionRaw = result.inventarioCondicion.length ? result.inventarioCondicion : invConsolidadoCatalog;
-    const invCondicion = applyCatalogPriceFallback(invCondicionRaw, catalog);
-    const lotes = [...(catalog?.invDetalle ?? []), ...result.lotesCortaCaducidad];
-    const abc = buildAbc(rf);
-    const precioDispersion = result.consumo.length ? buildPrecioDispersion(result.consumo) : [];
     return {
       result, rf, bo, boByKey, rss, facMensual, enrich, invCondicion, invConsolidadoCatalog, lotes, curmes: rf?.curmes ?? '', abc, precioDispersion,
-      incrementoRows, mesesDisponibles: mesesDisponibles(rf),
+      incrementoRows, mesesDisponibles: mesesDisp,
     };
-  }, [result, catalog, incremento]);
+  }, [result, rf, bo, boByKey, rss, facMensual, enrich, invCondicion, invConsolidadoCatalog, lotes, abc, precioDispersion, incrementoRows, mesesDisp]);
 
   return <AnalyticsCtx.Provider value={value}>{children}</AnalyticsCtx.Provider>;
 }
