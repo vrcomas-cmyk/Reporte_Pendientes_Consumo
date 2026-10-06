@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { InvGrid } from '../ui';
 import { Section } from './_shared';
-import { SolicitarGrid, type PuntoSolicitar } from './MaterialInventario';
+import { SolicitarGrid, puntosSolicitarInventario, type PuntoSolicitar } from './MaterialInventario';
 import { cn, formatNumber } from '@/lib/utils';
 import { pendPorCondicion, transitoPorCondicion, esLentoPorCondicion } from '@/core/resumenSin';
 import { CENTERS } from '@/core/types';
@@ -39,21 +39,17 @@ export function InvCondLateral({ a, material, centro, onSelectCentro }: {
   };
   const invPrincipales: [string, number][] = ALMACENES_PRINCIPALES.map((alm) => [etiquetaAlmacen(alm, nombresAlm), invDeAlmacen(centro, alm)]);
 
-  // Solicitar desde inventario: siempre centro 1031, alm 1030 (general) y alm
-  // 1032 (corta caducidad), cada uno con el inventario de su almacén.
-  const puntosSolicitar: PuntoSolicitar[] = [
-    { titulo: 'Centro 1031 / Alm 1030', centro: '1031', almacen: '1030', cantidad: invDeAlmacen('1031', '1030') },
-    { titulo: 'Centro 1031 / Alm 1032', centro: '1031', almacen: '1032', cantidad: invDeAlmacen('1031', '1032'), nota: 'Corta caducidad' },
-  ];
+  // Solicitar desde inventario: siempre centro 1031, alm 1030 y 1032 (fuente única).
+  const puntosSolicitar: PuntoSolicitar[] = puntosSolicitarInventario(a, material);
   const tituloPunto = (p: PuntoSolicitar) => `Centro ${etiquetaCentro(p.centro, nombresCentros, mostrarNombres)} / Alm ${etiquetaAlmacen(p.almacen, nombresAlm)}`;
 
   return (
     <div className="flex flex-col gap-4">
       <h3 className="font-display text-sm font-semibold">Inventario · {material}</h3>
-      <Section title={`Inventario principales · Centro ${etiquetaCentro(centro, nombresCentros, mostrarNombres)}`}>
+      <Section title={`Inventario principales · Centro ${etiquetaCentro(centro, nombresCentros, mostrarNombres)}`} collapsible storageKey="inv.principales">
         <InvGrid items={invPrincipales} cols={2} />
       </Section>
-      <Section title="Otros centros (según condición)">
+      <Section title="Otros centros (según condición)" collapsible storageKey="inv.otros">
         <div className="grid grid-cols-2 gap-2">
           {CENTERS.map((c) => {
             const coC = mo?.centros.get(c);
@@ -83,7 +79,7 @@ export function InvCondLateral({ a, material, centro, onSelectCentro }: {
           })}
         </div>
       </Section>
-      <Section title="Solicitar desde inventario (click derecho)">
+      <Section title="Solicitar desde inventario (click derecho)" collapsible storageKey="inv.solicitar">
         {/* Sin `condiciones`: la nota "Corta caducidad" del punto 1032 ya lo dice. */}
         <SolicitarGrid a={a} material={material} mat={mat} puntos={puntosSolicitar} condiciones="" tituloDe={tituloPunto} />
       </Section>

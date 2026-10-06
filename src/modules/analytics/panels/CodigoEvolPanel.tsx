@@ -17,7 +17,7 @@ export function CodigoEvolPanel({ panel, a, push }: { panel: Extract<Panel, { ty
       <h2 className="font-display text-lg font-semibold">{panel.material}</h2>
       <p className="mt-1 text-sm text-text-muted">{rf.matTexto.get(norm(panel.material)) || ''} · {panel.kind === 'solic' ? 'Solicitante' : 'Destinatario'} {panel.key}</p>
       <Section title="Comparativo anual"><ComparativaDual serie={serie} /></Section>
-      <Section title="Evolución mensual"><EvolChart serie={serie} onMonth={(mes) => push({ type: 'clientesMes', material: panel.material, mes })} /></Section>
+      <Section title="Evolución mensual"><EvolChart serie={serie} onMonth={(mes) => push({ type: 'clientesMes', material: panel.material, mes, ...(panel.kind === 'dest' ? { dest: panel.key } : {}) })} /></Section>
     </div>
   );
 }

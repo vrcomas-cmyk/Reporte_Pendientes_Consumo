@@ -3,10 +3,10 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { StatTile, EvolChart, StatePill } from '../ui';
 import { Section, SugTable, ConsumoTable, PrecioCondicionBox } from './_shared';
-import { MaterialInventarioSection } from './MaterialInventario';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { invGen, coberturaEstado, COBERTURA_LABEL, COBERTURA_CLS } from '@/core/resumenSin';
-import { promedioPeriodo } from '@/core/facMensual';
+import { serieFacMensualCam } from '@/core/facMensual';
+import { detalle12Cerrados, ayudaPromedio12 } from '../promedio12';
 import { PromedioPeriodoSection, periodoCompleto, usePeriodoProm } from './PromedioPeriodoSection';
 import { serieMaterial, serieMatCentro, rfTieneCentro } from '@/core/resumenFac';
 import { almacenesDeCondicion } from '@/core/inventoryRules';
@@ -101,26 +101,40 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
         <div className="mt-3">
           <Button variant="outline" size="sm" onClick={() => push({ type: 'materialTotales', material: panel.material })}>Ver totales del material</Button>
         </div>
-        {!inventarioEnLateral && <MaterialInventarioSection a={a} material={panel.material} />}
       </div>
     );
   }
 
   const alms = [...co.alm.values()].sort((x, y) => String(x.alm).localeCompare(String(y.alm)));
-  const conPeriodo = !!a.facMensual && periodoCompleto(periodoProm);
+  // Prom./Meses inv./Cobertura de la tabla = SIEMPRE los 12 meses cerrados (misma cuenta que las
+  // tarjetas del pedido); el periodo elegido solo afecta a la sección "Promedio por periodo".
+  const conPeriodo = !!a.facMensual;
+  const p12Centro = detalle12Cerrados(a, panel.material, panel.centro);
+  const p12Alm = panel.almacen ? detalle12Cerrados(a, panel.material, panel.centro, panel.almacen) : null;
+  const ventana12 = p12Centro.desde ? `${p12Centro.desde} a ${p12Centro.hasta}` : '12 meses cerrados';
+  const periodoDifiere = !!a.facMensual && periodoCompleto(periodoProm) && !periodoDefault
+    && (periodoProm.desde !== p12Centro.desde || periodoProm.hasta !== p12Centro.hasta);
   return (
     <div>
       {nav}
-      <h2 className="font-display text-lg font-semibold">{panel.material} · Centro {centroTxt}</h2>
+      <h2 className="font-display text-lg font-semibold">{panel.material} · Centro {centroTxt}{panel.almacen ? ` / Alm ${etiquetaAlmacen(panel.almacen, nombresAlm)}` : ''}</h2>
       <p className="mt-1 text-sm text-text-muted">{mo!.desc}</p>
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatTile label="Inv. general" value={formatNumber(invGen(co))} />
         <StatTile label="Pendiente" value={formatNumber(co.pend)} tone="text-danger" />
         <StatTile label="En tránsito" value={formatNumber(co.transito)} tone="text-warning" />
         <StatTile label="Importe pend." value={formatCurrency(co.impPend)} />
+        <StatTile label="Prom. 12m cerrados" value={formatNumber(p12Centro.promedio)} sub={p12Centro.desde ? `${p12Centro.desde} – ${p12Centro.hasta}` : `Centro ${centroTxt}`} title={ayudaPromedio12(p12Centro)} />
+        {p12Alm && <StatTile label={`Prom. 12m · Alm ${etiquetaAlmacen(panel.almacen!, nombresAlm)}`} value={formatNumber(p12Alm.promedio)} sub={p12Alm.desde ? `${p12Alm.desde} – ${p12Alm.hasta}` : `Centro ${centroTxt}`} title={ayudaPromedio12(p12Alm)} />}
         <CostoTile a={a} material={panel.material} />
       </div>
       <PrecioCondicionBox a={a} material={panel.material} />
+      {periodoDifiere && (
+        <p className="mt-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-text-muted">
+          “Promedio por periodo” usa el periodo elegido ({periodoProm.desde} a {periodoProm.hasta}); las tarjetas “Prom. 12m” y la tabla de almacenes usan los 12 meses cerrados ({p12Centro.desde} a {p12Centro.hasta}).{' '}
+          <button type="button" className="text-accent hover:underline" onClick={() => setPeriodoProm({ desde: '', hasta: '' })}>Usar 12 meses cerrados</button>
+        </p>
+      )}
       <PromedioPeriodoSection a={a} material={panel.material} centro={panel.centro} periodo={periodoProm} esDefault={periodoDefault} onChange={setPeriodoProm} />
       <Section title="Desglose por almacén">
         <div>
@@ -128,19 +142,19 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
             <TableHeader>
               <TableRow>
                 <TableHead>Almacén</TableHead><TableHead className="text-right">Inv.</TableHead><TableHead className="text-right">Pend.</TableHead><TableHead className="text-right">Tránsito</TableHead>
-                {conPeriodo && <TableHead className="text-right" title={`Cantidad facturada ÷ meses de ${periodoProm.desde} a ${periodoProm.hasta} (Fac_Mensual_CAM), de este almacén.`}>Prom. mensual</TableHead>}
-                {conPeriodo && <TableHead className="text-right" title="Inventario del almacén ÷ promedio del periodo.">Meses inv.</TableHead>}
-                {conPeriodo && <TableHead title="Cobertura recalculada con el promedio del periodo.">Cobertura</TableHead>}
+                {conPeriodo && <TableHead className="text-right" title={`Cantidad facturada de ${ventana12} (12 meses cerrados, Fac_Mensual_CAM) ÷ 12, de este almacén.`}>Prom. mensual</TableHead>}
+                {conPeriodo && <TableHead className="text-right" title="Inventario del almacén ÷ promedio de 12 meses cerrados.">Meses inv.</TableHead>}
+                {conPeriodo && <TableHead title="Cobertura recalculada con el promedio de 12 meses cerrados.">Cobertura</TableHead>}
                 <TableHead>Último</TableHead><TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {alms.map((al, i) => {
-                const pp = conPeriodo ? promedioPeriodo(a.facMensual, { material: panel.material, centro: panel.centro, almacen: al.alm }, periodoProm.desde, periodoProm.hasta) : null;
+                const pp = conPeriodo ? detalle12Cerrados(a, panel.material, panel.centro, al.alm) : null;
                 const mesesPp = pp && pp.promedio > 0 ? al.inv / pp.promedio : 0;
                 const cob = pp ? coberturaEstado(mesesPp, pp.promedio, al.inv) : null;
                 return (
-                  <TableRow key={i}>
+                  <TableRow key={i} className={`cursor-pointer ${norm(al.alm) === norm(panel.almacen) ? 'bg-accent-soft' : ''}`} title="Clic para ver la tendencia de este almacén" onClick={() => replaceTop({ ...panel, almacen: norm(al.alm) === norm(panel.almacen) ? undefined : al.alm })}>
                     <TableCell>{etiquetaAlmacen(al.alm, nombresAlm)}{almacenesAplicables.has(norm(al.alm)) && <StatePill label="aplica" cls="verde" />}</TableCell>
                     <TableCell className="text-right">{formatNumber(al.inv)}</TableCell>
                     <TableCell className="text-right">{al.pend ? formatNumber(al.pend) : '—'}</TableCell>
@@ -157,12 +171,23 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
           </Table>
         </div>
       </Section>
+      {panel.almacen && (() => {
+        const serieAlm = serieFacMensualCam(result?.facMensualCam, { material: panel.material, centro: panel.centro, almacen: panel.almacen });
+        return (
+          <Section title={`Tendencia del material · Centro ${centroTxt} / Alm ${etiquetaAlmacen(panel.almacen, nombresAlm)}`}>
+            {serieAlm.length
+              ? <EvolChart serie={serieAlm} height={180} />
+              : <p className="text-sm text-text-muted">Sin facturación de este almacén en Fac_Mensual_CAM (sincroniza los reportes desde Carga si falta la hoja).</p>}
+            <button type="button" className="mt-1 text-xs text-accent hover:underline" onClick={() => replaceTop({ ...panel, almacen: undefined })}>Ver el centro completo →</button>
+          </Section>
+        );
+      })()}
       {(() => {
         const serieCentro = serieMatCentro(rf, panel.material, panel.centro);
         const usaCentro = serieCentro.length > 0;
         return (
           <Section title={usaCentro ? `Tendencia del material · Centro ${centroTxt}` : rfTieneCentro(rf) ? 'Tendencia del material (general — sin historia en este centro)' : 'Tendencia del material (general — los datos cargados de Resumen_Fac no traen la columna Centro: actualiza Resumen_Fac en vivo desde Carga)'}>
-            <EvolChart serie={usaCentro ? serieCentro : serieMaterial(rf, panel.material)} height={180} />
+            <EvolChart serie={usaCentro ? serieCentro : serieMaterial(rf, panel.material)} height={180} onMonth={(mes) => push({ type: 'clientesMes', material: panel.material, mes, ...(usaCentro ? { centro: panel.centro } : {}) })} />
           </Section>
         );
       })()}
@@ -176,7 +201,6 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
       <div className="mt-3">
         <Button variant="outline" size="sm" onClick={() => push({ type: 'materialTotales', material: panel.material })}>Ver totales del material</Button>
       </div>
-      {!inventarioEnLateral && <MaterialInventarioSection a={a} material={panel.material} />}
     </div>
   );
 }

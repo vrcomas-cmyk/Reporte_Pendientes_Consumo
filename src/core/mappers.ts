@@ -6,7 +6,6 @@ import type {
   InvDetalleRow,
   Sugerencia,
   ResumenSinSugerenciaRow,
-  ConsumoRow,
   ResumenFacRow,
   FacMensualCamRow,
   IncrementoCostoRow,
@@ -251,31 +250,6 @@ export function mapResumenSinSugerencia(r: Row): ResumenSinSugerenciaRow {
     sumaPendiente: num(r['Suma pendiente']),
     statusRevision: str(r['Status Revisión']),
     fuente: str(r['Fuente']),
-    raw: r,
-  };
-}
-
-export function mapConsumo(r: Row): ConsumoRow {
-  return {
-    centro: str(r['Centro']),
-    grpCliente: str(r['Grp. Cliente']),
-    gpoVdor: str(r['Gpo. Vdor.']),
-    solicitante: str(r['Solicitante']),
-    destinatario: str(r['Destinatario']),
-    razonSocial: str(r['Razón Social']),
-    material: str(r['Material']),
-    textoMaterial: str(r['Texto Material']),
-    consumoActual: num(r['Consumo_actual']),
-    consumoPromedioMensual: num(r['Consumo_promedio_mensual']),
-    um: str(r['UM']),
-    tendencia: str(r['Tendencia']),
-    ultimoMesFacturacion: str(r['Ultimo mes facturacion']),
-    cantidadUltima: num(r['Cantidad ultima']),
-    importeUltima: num(r['Importe ultima']),
-    precioMin: num(r['precio_min']),
-    precioMax: num(r['precio_max']),
-    precioProm: num(r['precio_prom']),
-    precioUnitarioUltima: num(r['Precio_unitario_ultima']),
     raw: r,
   };
 }

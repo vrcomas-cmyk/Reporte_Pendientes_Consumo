@@ -10,8 +10,9 @@ const settings: Pick<AppSettings, 'shortExpiryDays' | 'lowStockThreshold'> = {
 // Minimal rows whose headers alone are enough for roleOf() to classify them
 // (see roleDetection.ts) — mappers default every other field to '' / 0.
 const sugerenciaRow = { 'Material base': 'MAT1', Fuente: '', Pedido: 'PED1', 'Material solicitado': 'MAT1', 'Cantidad pendiente': '10' };
-const consumoRow1 = { Material: 'C1', Consumo_actual: '5', 'Ultimo mes facturacion': '01/2026' };
-const consumoRow2 = { Material: 'C2', Consumo_actual: '9', 'Ultimo mes facturacion': '02/2026' };
+// Consumo se deriva de Resumen_Fac (ya no existe "Reporte de Consumo").
+const consumoRow1 = { Solicitante: 'S1', Destinatario: 'D1', Material: 'C1', 'Mes y año': '01/2026', 'Cantidad facturada': '5', 'Importe facturado': '100' };
+const consumoRow2 = { Solicitante: 'S1', Destinatario: 'D1', Material: 'C2', 'Mes y año': '02/2026', 'Cantidad facturada': '9', 'Importe facturado': '200' };
 
 describe('buildAnalysisResult', () => {
   it('builds a full result from sheets with no previous/selectedRoles (today\'s xlsx-upload behavior)', () => {
@@ -37,7 +38,7 @@ describe('buildAnalysisResult', () => {
       settings,
       fileName: 'reporte.xlsx',
       startedAt: Date.now(),
-      selectedRoles: ['reporteConsumo'],
+      selectedRoles: ['resumenFac'],
     });
     expect(result.sugerencias).toEqual([]);
     expect(result.consumo).toHaveLength(1);
@@ -63,7 +64,7 @@ describe('buildAnalysisResult', () => {
       fileName: 'r2 (sync)',
       startedAt: Date.now(),
       previous,
-      selectedRoles: ['reporteConsumo'],
+      selectedRoles: ['resumenFac'],
     });
 
     expect(result.sugerencias).toBe(previous.sugerencias);
@@ -96,8 +97,30 @@ describe('buildAnalysisResult', () => {
       fileName: 'r2 (sync)',
       startedAt: Date.now(),
       previous,
-      selectedRoles: ['reporteConsumo'],
+      selectedRoles: ['resumenFac'],
     });
     expect(result.rowCount).toBe(1);
+  });
+
+  it('con `previous` y sin re-sincronizar Resumen_Fac, reutiliza el consumo ya derivado', () => {
+    const previous = buildAnalysisResult({
+      sheets: { Fac: [consumoRow1] },
+      sheetsDetected: [],
+      catalog: null,
+      settings,
+      fileName: 'r1.xlsx',
+      startedAt: Date.now(),
+    });
+    const result = buildAnalysisResult({
+      sheets: { Sugerencias: [sugerenciaRow] },
+      sheetsDetected: [],
+      catalog: null,
+      settings,
+      fileName: 'r2 (sync)',
+      startedAt: Date.now(),
+      previous,
+      selectedRoles: ['sugerencias'],
+    });
+    expect(result.consumo).toBe(previous.consumo);
   });
 });

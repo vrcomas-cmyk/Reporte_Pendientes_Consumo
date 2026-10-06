@@ -128,7 +128,9 @@ export interface ResumenSinSugerenciaRow {
   raw: Record<string, unknown>;
 }
 
-/** A row from "Reporte de Consumo". */
+/** Una fila de Consumo (Centro + Destinatario + Material), derivada de
+ * "Resumen_Fac" por `core/consumoDesdeRF.ts` — ya no existe la pestaña
+ * "Reporte de Consumo". */
 export interface ConsumoRow {
   centro: string;
   grpCliente: string;
@@ -153,6 +155,15 @@ export interface ConsumoRow {
    * el rango histórico de ESTE cliente, este es el precio vigente hoy. Es la
    * base de la dispersión de precios entre clientes (`core/precios.ts`). */
   precioUnitarioUltima: number;
+  /** Penúltimo mes con facturación de este centro+cliente+material ('mm/aaaa'), su cantidad,
+   * importe y precio unitario. Opcionales: análisis persistidos antes de derivar Consumo
+   * desde Resumen_Fac no los traen. */
+  penultimoMes?: string;
+  cantidadPenultima?: number;
+  importePenultima?: number;
+  precioUnitarioPenultima?: number;
+  /** Último mes ('mm/aaaa') con facturación del destinatario en CUALQUIER material. */
+  ultFacturacionDestinatario?: string;
   raw: Record<string, unknown>;
 }
 
@@ -219,7 +230,6 @@ export type SheetRole =
   | 'invDetalle'
   | 'sugerencias'
   | 'resumenSinSugerencias'
-  | 'reporteConsumo'
   | 'resumenFac'
   | 'facMensualCam'
   | 'inventarioCondicion'

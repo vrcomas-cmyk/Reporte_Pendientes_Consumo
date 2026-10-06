@@ -1,7 +1,6 @@
 import {
   mapSugerencia,
   mapResumenSinSugerencia,
-  mapConsumo,
   mapResumenFac,
   mapFacMensualCam,
   mapInvConsolidado,
@@ -9,6 +8,7 @@ import {
 } from './mappers';
 import { computeKpis, topMateriales, topEjecutivos, monthlyInvoicing, buildHeatmap, detectInconsistencies } from './analysis';
 import { buildEnrich } from './enrich';
+import { consumoDesdeResumenFac } from './consumoDesdeRF';
 import { roleOf } from './roleDetection';
 import type { CatalogSnapshot, AnalysisResult, AppSettings, SheetRole, DetectedSheet } from './types';
 
@@ -62,8 +62,12 @@ export function buildAnalysisResult(params: BuildAnalysisResultParams): Analysis
     findSheetByRole(sheets, 'resumenSinSugerencias').map(mapResumenSinSugerencia),
     previous?.resumenSinSugerencias,
   );
-  const consumo = pick('reporteConsumo', findSheetByRole(sheets, 'reporteConsumo').map(mapConsumo), previous?.consumo);
   const resumenFac = pick('resumenFac', findSheetByRole(sheets, 'resumenFac').map(mapResumenFac), previous?.resumenFac);
+  // Consumo ya no viene de la pestaña "Reporte de Consumo": se deriva de
+  // Resumen_Fac (única fuente de facturación). Si Resumen_Fac no se volvió a
+  // sincronizar en esta pasada, se reutiliza el consumo ya derivado.
+  const consumoPrev = previous && selectedRoles !== undefined && !selectedRoles.includes('resumenFac') ? previous.consumo : null;
+  const consumo = consumoPrev ?? consumoDesdeResumenFac(resumenFac, buildEnrich(catalog).matUm);
   const facMensualCam = pick('facMensualCam', findSheetByRole(sheets, 'facMensualCam').map(mapFacMensualCam), previous?.facMensualCam);
   const inventarioCondicion = pick(
     'inventarioCondicion',
@@ -99,8 +103,8 @@ export function buildAnalysisResult(params: BuildAnalysisResultParams): Analysis
     return touched ? null : previous;
   };
 
-  // KPIs depend on sugerencias + consumo + inventarioCondicion + lotesCortaCaducidad
-  const kpisPrev = maybePrev(['sugerencias', 'reporteConsumo', 'inventarioCondicion', 'lotesCortaCaducidad']);
+  // KPIs depend on sugerencias + consumo (← resumenFac) + inventarioCondicion + lotesCortaCaducidad
+  const kpisPrev = maybePrev(['sugerencias', 'resumenFac', 'inventarioCondicion', 'lotesCortaCaducidad']);
   const kpis = kpisPrev ? kpisPrev.kpis : computeKpis({
     catalog,
     sugerencias,

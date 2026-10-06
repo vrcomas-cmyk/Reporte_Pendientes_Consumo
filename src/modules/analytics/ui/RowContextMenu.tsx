@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Copy, Eye } from 'lucide-react';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator } from '@/components/ui/context-menu';
 import { useClipboard } from '@/hooks/useClipboard';
+import { CopiarClicItems } from '@/components/navigation/CopiarClicItems';
 import type { CopyItem } from '@/modules/solicitudes/SolicitarContextMenu';
 
 /** Lightweight right-click menu for read-only report rows that have no
@@ -32,6 +33,7 @@ export function RowContextMenu({ children, label, onVerDetalle, copyItems }: {
             <Copy className="size-3.5" /> Copiar {it.label}
           </ContextMenuItem>
         ))}
+        <CopiarClicItems ocultar={copyItems.map((it) => it.value)} />
       </ContextMenuContent>
     </ContextMenu>
   );

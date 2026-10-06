@@ -293,7 +293,7 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
           }}
         />
         <PrecioCondicionSection a={a} materiales={[selItem.bo.materialBase, ...new Set(selItem.fuentes.map((f) => f.materialSugerido).filter(Boolean))]} />
-        <InventarioPrincipalSection a={a} b={selItem.bo} it={selItem} />
+        <InventarioPrincipalSection a={a} b={selItem.bo} it={selItem} push={push} />
       </div>
 
       {/* Columna 3 — Consumo y facturación del material seleccionado. */}
@@ -305,7 +305,7 @@ export function PedidoPanel({ panel, a, push }: { panel: Extract<Panel, { type: 
         <ConsumoMaterialCard a={a} dest={b0.destinatario} material={selItem.bo.materialBase} />
         <Section title="Comparativo anual">{a.rf ? <ComparativaDual serie={selItem.serie} /> : <p className="text-sm text-text-muted">Sin Resumen_Fac cargado.</p>}</Section>
         <Section title="Evolución mensual — material + destinatario">
-          <EvolChart serie={selItem.serie} onMonth={(mes) => push({ type: 'clientesMes', material: selItem.bo.materialBase, mes })} />
+          <EvolChart serie={selItem.serie} onMonth={(mes) => push({ type: 'clientesMes', material: selItem.bo.materialBase, mes, dest: selItem.bo.destinatario })} />
         </Section>
       </div>
     </div>

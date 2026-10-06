@@ -3,7 +3,7 @@ import { StatTile } from '../ui';
 import { Section } from './_shared';
 import { MonthRangeFilter } from '../ui/MonthRangeFilter';
 import { formatNumber } from '@/lib/utils';
-import { promedioPeriodo, rangoDisponible, mesDeKey } from '@/core/facMensual';
+import { promedioPeriodo, rangoDisponible, mesDeKey, periodo12Cerrados } from '@/core/facMensual';
 import { mesKey, mesAnterior, hoyMes } from '@/core/resumenFac';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import type { Analytics } from '../AnalyticsContext';
@@ -25,10 +25,9 @@ const PRESETS = [3, 6, 12] as const;
 export function usePeriodoProm(a: Analytics): { periodo: PeriodoProm; setPeriodo: (p: PeriodoProm) => void; esDefault: boolean } {
   const [guardado, setPeriodo] = usePersistedState<PeriodoProm>('resumenSin.promPeriodo', { desde: '', hasta: '' });
   if (periodoCompleto(guardado)) return { periodo: guardado, setPeriodo, esDefault: false };
-  const rango = rangoDisponible(a.facMensual);
-  if (!rango) return { periodo: guardado, setPeriodo, esDefault: true };
-  const fin = Math.min(rango.max, mesKey(mesAnterior(hoyMes())));
-  return { periodo: { desde: mesDeKey(fin - 11), hasta: mesDeKey(fin) }, setPeriodo, esDefault: true };
+  const per = periodo12Cerrados(a.facMensual);
+  if (!per) return { periodo: guardado, setPeriodo, esDefault: true };
+  return { periodo: { desde: per.desde, hasta: per.hasta }, setPeriodo, esDefault: true };
 }
 
 /** Sección "Promedio por periodo" del detalle de Inventario: el usuario elige
@@ -54,7 +53,7 @@ export function PromedioPeriodoSection({ a, material, centro, periodo, esDefault
   // Los botones 3m/6m/12m terminan siempre en el último mes CERRADO con dato:
   // el mes corriente está incompleto y sesgaría el promedio a la baja. Solo
   // entra si el usuario lo teclea a mano en el filtro de periodo.
-  const finPreset = rango ? Math.min(rango.max, mesKey(mesAnterior(hoyMes()))) : 0;
+  const finPreset = rango ? mesKey(mesAnterior(hoyMes())) : 0;
   const aplicarPreset = (n: number) => {
     if (!rango) return;
     onChange({ desde: mesDeKey(finPreset - n + 1), hasta: mesDeKey(finPreset) });
@@ -70,7 +69,7 @@ export function PromedioPeriodoSection({ a, material, centro, periodo, esDefault
         <>
           <div className="flex flex-wrap items-center gap-3">
             <MonthRangeFilter label="Periodo" desde={periodo.desde} hasta={periodo.hasta} onChange={onChange} />
-            <div className="flex items-center gap-1" title={`Termina en el último mes cerrado con dato (${rango ? mesDeKey(finPreset) : '—'}); no incluye el mes corriente.`}>
+            <div className="flex items-center gap-1" title={`Termina en el último mes cerrado (${rango ? mesDeKey(finPreset) : '—'}); no incluye el mes corriente.`}>
               {PRESETS.map((n) => (
                 <Button key={n} type="button" variant="outline" size="sm" onClick={() => aplicarPreset(n)}>{n}m</Button>
               ))}

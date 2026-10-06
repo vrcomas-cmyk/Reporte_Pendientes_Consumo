@@ -15,6 +15,7 @@ import { SectorPanel } from './panels/SectorPanel';
 import { GrupoPanel } from './panels/GrupoPanel';
 import { CeldaPanel } from './panels/CeldaPanel';
 import { MaterialInventarioLateral } from './panels/MaterialInventario';
+import { InventarioPrincipalSection } from './panels/SugDetallePanel';
 import { InvCondLateral } from './panels/InvCondLateral';
 import { InvCondCeldaPanel } from './panels/InvCondCeldaPanel';
 import { MaterialTotalesPanel } from './panels/MaterialTotalesPanel';
@@ -91,7 +92,16 @@ export function PanelHost() {
   // desde inventario".
   const lateral = panel?.type === 'celda' && panel.origen === 'resumenSin' ? panel : null;
   const lateralInvCond = panel?.type === 'invCondCelda' ? panel : null;
-  const conLateral = !!(lateral || lateralInvCond);
+  // Resto de detalles con inventario por centro: mismo panel lateral izquierdo
+  // (principales del Centro 1031 + otros centros + Solicitar), en vez de
+  // repetirlo dentro del cuerpo de cada detalle.
+  const lateralMaterial =
+    panel?.type === 'consumoMaterial' ? panel.material
+      : panel?.type === 'clienteDetalle' ? panel.material ?? null
+        : panel?.type === 'celda' && panel.origen !== 'resumenSin' ? panel.material
+          : null;
+  const lateralSug = panel?.type === 'sugDetalle' ? a.boByKey.get(panel.boKey) ?? null : null;
+  const conLateral = !!(lateral || lateralInvCond || lateralMaterial || lateralSug);
 
   return (
     <Sheet open={!!panel} onOpenChange={(o) => !o && close()}>
@@ -111,6 +121,17 @@ export function PanelHost() {
         {lateralInvCond && (
           <aside className="fixed inset-y-0 right-[min(80rem,calc(100vw_-_20rem))] z-50 hidden w-80 overflow-y-auto border-r border-border bg-bg-elevated p-5 shadow-xl lg:block">
             <InvCondLateral a={a} material={lateralInvCond.material} centro={lateralInvCond.centro} onSelectCentro={(c) => replaceTop({ ...lateralInvCond, centro: c })} />
+          </aside>
+        )}
+        {lateralMaterial && (
+          <aside className="fixed inset-y-0 right-[min(80rem,calc(100vw_-_20rem))] z-50 hidden w-80 overflow-y-auto border-r border-border bg-bg-elevated p-5 shadow-xl lg:block">
+            <MaterialInventarioLateral a={a} material={lateralMaterial} conPrincipales />
+          </aside>
+        )}
+        {lateralSug && (
+          <aside className="fixed inset-y-0 right-[min(80rem,calc(100vw_-_20rem))] z-50 hidden w-80 overflow-y-auto border-r border-border bg-bg-elevated p-5 shadow-xl lg:block">
+            <h3 className="font-display text-sm font-semibold">Inventario · {lateralSug.bo.materialBase}</h3>
+            <InventarioPrincipalSection a={a} b={lateralSug.bo} it={lateralSug} push={push} />
           </aside>
         )}
       </SheetContent>

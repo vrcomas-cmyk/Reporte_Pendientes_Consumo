@@ -12,7 +12,29 @@ import type { Analytics } from '../AnalyticsContext';
  * `ClienteDetallePanel` (drill desde Consumo/Pedidos) y la pestaña "Resumen"
  * de `ClienteConocimientoPanel` (el panel de Oportunidades), para no tener
  * que saltar de uno a otro cuando ya se sabe que el cliente acepta algo. */
-export function ClienteResumen360({ dest, a, push }: { dest: string; a: Analytics; push: (p: Panel) => void }) {
+/** Datos del cliente (ejecutivo, grupo, solicitante, materiales, importe) — tira
+ * superior del detalle de cliente. Misma fuente que `ClienteResumen360`. */
+export function ClienteDatosHeader({ dest, a }: { dest: string; a: Analytics }) {
+  const { bo, enrich, result } = a;
+  const destN = norm(dest);
+  const consRows = useMemo(() => (result?.consumo ?? []).filter((x) => norm(x.destinatario) === destN), [result, destN]);
+  const boFirst = useMemo(() => bo.find((it) => norm(it.bo.destinatario) === destN), [bo, destN]);
+  const ce = consumoEnrich(enrich);
+  const c0 = consRows[0];
+  const materiales = new Set(consRows.map((r) => norm(r.material))).size;
+  const totalImp = consRows.reduce((s, r) => s + r.importeUltima, 0);
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      <StatTile label="Ejecutivo" value={(c0 ? ce.ejec(c0) : enrich.ejecutivoNombre(boFirst?.bo.gpoVdor || '')) || '—'} />
+      <StatTile label="Grupo cliente" value={c0 ? ce.grupoCli(c0) || '—' : (boFirst ? enrich.grupoCliente(boFirst.bo.gpoCte) || boFirst.bo.gpoCte : '—')} />
+      <StatTile label="Solicitante" value={c0?.solicitante || boFirst?.bo.solicitante || '—'} />
+      <StatTile label="Materiales facturados" value={formatNumber(materiales)} />
+      <StatTile label="Importe última fact. (suma)" value={formatCurrency(totalImp)} />
+    </div>
+  );
+}
+
+export function ClienteResumen360({ dest, a, push, sinDatos = false }: { dest: string; a: Analytics; push: (p: Panel) => void; /** El encabezado de datos del cliente ya se muestra arriba (ver `ClienteDatosHeader`). */ sinDatos?: boolean }) {
   const { rf, bo, enrich, result } = a;
   const destN = norm(dest);
   const { consRows, boRows } = useMemo(() => ({
@@ -46,12 +68,12 @@ export function ClienteResumen360({ dest, a, push }: { dest: string; a: Analytic
 
   return (
     <div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {!sinDatos && <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatTile label="Ejecutivo" value={(consRows[0] ? ce.ejec(consRows[0]) : enrich.ejecutivoNombre(boRows[0]?.bo.gpoVdor || '')) || '—'} />
         <StatTile label="Grupo cliente" value={consRows[0] ? ce.grupoCli(consRows[0]) || '—' : (boRows[0] ? enrich.grupoCliente(boRows[0].bo.gpoCte) || boRows[0].bo.gpoCte : '—')} />
         <StatTile label="Materiales facturados" value={formatNumber(consRows.length)} />
         <StatTile label="Importe última fact. (suma)" value={formatCurrency(totalImp)} />
-      </div>
+      </div>}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <SubFilter value={q} onChange={setQ} placeholder="Filtrar materiales (código, texto; separa varios con coma)…" />
         {sectorOptions.length > 1 && (

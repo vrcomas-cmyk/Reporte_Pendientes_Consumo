@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { usePersistedState } from '@/hooks/usePersistedState';
 import { StatePill, Chip, TrendBadge, AbcBadge, DetailChevron, StatTile, SuggestInput, useColumnVisibility, ColumnVisibilityControl } from '../ui';
 import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
-import { matchesQuery, RC, pickField, num, norm, consumoSerie, consumoStatus, consumoTend, consumoEnrich, transitoFor, buildConsumoIndex, consumoKey } from '../helpers';
+import { matchesQuery, num, norm, consumoSerie, consumoStatus, consumoTend, consumoEnrich, transitoFor, buildConsumoIndex, consumoKey } from '../helpers';
 import { consumoDe } from '@/core/resumenFac';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import type { RFIndex } from '@/core/resumenFac';
@@ -15,6 +17,7 @@ import { usePermissionsStore } from '@/store/permissionsStore';
 import { isColumnHidden, isDetailHidden } from '@/core/permissions';
 import { buildSugerenciasColsAgrupado } from '@/modules/sugerencias/columns';
 import { COLS_CONSUMO } from '@/modules/consumo/columns';
+import { usePromedioModo, useRangoPeriodo, promedioDeFila } from '@/modules/consumo/usePromedioModo';
 import { buildFromSugerencia, buildFromConsumo } from '@/services/solicitudService';
 import { useSolicitarDialog } from '@/modules/solicitudes/useSolicitarDialog';
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
@@ -178,6 +181,8 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
  * que la tabla completa de `/consumo` — ver comentario de `SugTable`. */
 export function ConsumoTable({ list, a, push }: { list: ConsumoRow[]; a: Analytics; push: (p: Panel) => void }) {
   const ce = consumoEnrich(a.enrich);
+  const [promedioModo] = usePromedioModo();
+  const rangoPromedio = useRangoPeriodo();
   const [f, setF] = useState('');
   const colVis = useColumnVisibility('consumo_columnas');
   const vis = colVis.isVisible;
@@ -236,9 +241,9 @@ export function ConsumoTable({ list, a, push }: { list: ConsumoRow[]; a: Analyti
                 {vis('material') && <TableCell><Chip onClick={() => push({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-48 truncate">{r.textoMaterial}</div></TableCell>}
                 {vis('abc') && <TableCell><AbcBadge clase={claseDe(r) || undefined} /></TableCell>}
                 {vis('sector') && <TableCell>{ce.sector(r) || '—'}<div className="text-[11px] text-text-faint">{ce.grupoArt(r)}</div></TableCell>}
-                {vis('consumo') && <TableCell className="text-right">{formatNumber(r.consumoActual)}/{formatNumber(r.consumoPromedioMensual)}</TableCell>}
+                {vis('consumo') && <TableCell className="text-right">{formatNumber(r.consumoActual)}/{formatNumber(promedioDeFila(a.rf, r, promedioModo, rangoPromedio))}</TableCell>}
                 {vis('ultima') && <TableCell className="text-right">{formatNumber(r.cantidadUltima)}<div className="text-[11px] text-text-faint">{r.ultimoMesFacturacion || '—'}</div></TableCell>}
-                {vis('penultima') && <TableCell className="text-right">{formatNumber(num(r.raw[RC.cantPen]))}<div className="text-[11px] text-text-faint">{pickField(r.raw, [RC.penFecha]) || '—'}</div></TableCell>}
+                {vis('penultima') && <TableCell className="text-right">{formatNumber(num(r.cantidadPenultima))}<div className="text-[11px] text-text-faint">{r.penultimoMes || '—'}</div></TableCell>}
                 {vis('impultima') && <TableCell className="text-right">{formatCurrency(r.importeUltima)}</TableCell>}
                 {vis('estado') && <TableCell><StatePill label={consumoStatus(a.rf, r).label} cls={consumoStatus(a.rf, r).cls} /></TableCell>}
                 {vis('tendencia') && <TableCell><TrendBadge t={consumoTend(a.rf, r)} /></TableCell>}
@@ -281,7 +286,7 @@ export function ClienteConsumoTable({ rows, rf, push }: {
               <TableRow key={i} className="group">
                 <TableCell><span className="text-text">{r.material}</span><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div></TableCell>
                 <TableCell className="text-right">{formatNumber(r.cantidadUltima)}<div className="text-[11px] text-text-faint">{r.ultimoMesFacturacion || '—'}</div></TableCell>
-                <TableCell className="text-right">{formatNumber(num(r.raw[RC.cantPen]))}<div className="text-[11px] text-text-faint">{pickField(r.raw, [RC.penFecha]) || '—'}</div></TableCell>
+                <TableCell className="text-right">{formatNumber(num(r.cantidadPenultima))}<div className="text-[11px] text-text-faint">{r.penultimoMes || '—'}</div></TableCell>
                 <TableCell className="text-right">{formatCurrency(r.precioProm)}</TableCell>
                 <TableCell><TrendBadge t={consumoTend(rf, r)} /></TableCell>
                 <TableCell><DetailChevron onOpen={() => push({ type: 'material', material: r.material })} /></TableCell>
@@ -315,7 +320,7 @@ export function ConsumoMaterialCard({ a, dest, material }: { a: Analytics; dest:
   const info = consumoDe(serie, a.curmes);
   const ultimo = info.tipo === 'actual' ? { mes: info.mes!, cant: info.cant!, imp: info.imp! } : info.ultimo;
   const penultimo = info.tipo === 'actual' ? serie[serie.length - 2] || null : info.penultimo;
-  const precioPenultimo = num(row.raw[RC.precioPenUni]);
+  const precioPenultimo = num(row.precioUnitarioPenultima);
   return (
     <Section title="Consumo del material">
       <div className="rounded-lg border border-border bg-bg-elevated p-2.5">
@@ -467,11 +472,32 @@ export function LotesTable({ lotes, a, material }: { lotes: Analytics['lotes']; 
 }
 
 /** Sección con título opcional dentro de un panel de detalle. */
-export function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({ title, children, collapsible = false, storageKey }: {
+  title: string;
+  children: ReactNode;
+  /** Encabezado clicable que colapsa/expande el contenido (abierto por defecto, estado persistido). */
+  collapsible?: boolean;
+  /** Clave de persistencia del estado abierto/cerrado — requerida con `collapsible` (el título puede cambiar). */
+  storageKey?: string;
+}) {
+  const [open, setOpen] = usePersistedState<boolean>(`panel.sec.${storageKey ?? title}`, true);
+  const abierto = !collapsible || open;
   return (
     <div className="mt-4">
-      <h3 className="mb-2 text-sm font-semibold text-text">{title}</h3>
-      {children}
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={abierto}
+          className={`flex w-full items-center justify-between text-left text-sm font-semibold text-text ${abierto ? 'mb-2' : ''}`}
+        >
+          <span>{title}</span>
+          <ChevronDown className={`size-4 shrink-0 text-text-faint transition-transform ${abierto ? 'rotate-180' : ''}`} />
+        </button>
+      ) : (
+        <h3 className="mb-2 text-sm font-semibold text-text">{title}</h3>
+      )}
+      {abierto && children}
     </div>
   );
 }

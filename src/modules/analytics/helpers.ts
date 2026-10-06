@@ -2,7 +2,7 @@ import type { ConsumoRow } from '@/core/types';
 import type { EnrichIndex } from '@/core/enrich';
 import type { RFIndex } from '@/core/resumenFac';
 import {
-  serieMatDest, serieDeConsumo, clasificarEstado, tendenciaTexto, mesKey,
+  serieMatDest, clasificarEstado, tendenciaTexto, mesKey,
   type Serie, type Estado, type Tendencia,
 } from '@/core/resumenFac';
 import type { BOItem } from '@/core/buildBO';
@@ -44,19 +44,6 @@ export const pickField = (r: Record<string, unknown>, names: string[]): string =
   return '';
 };
 
-// RC column keys (from raw), matching legacy store.RC.
-export const RC = {
-  penFecha: 'Penultima_fecha', cantPen: 'Cantidad_penultima', impPen: 'Importe_penultima',
-  ultFacDest: 'Ultima_facturacion_destinatario',
-  precioUltUni: 'Precio_unitario_ultima', precioPenUni: 'Precio_unitario_penultima',
-};
-
-// serieDeConsumo needs the RC-shaped accessor object.
-const RC_SERIE = {
-  penFecha: 'Penultima_fecha', cantPen: 'Cantidad_penultima', impPen: 'Importe_penultima',
-  ultMes: 'Ultimo mes facturacion', cantUlt: 'Cantidad ultima', impUlt: 'Importe ultima',
-};
-
 export function consumoEnrich(enrich: EnrichIndex) {
   const gpoVdor = (r: ConsumoRow) => r.gpoVdor || pickField(r.raw, ['Gpo. Vdor.', 'Gpo.Vdor.', 'Grupo de vendedor']);
   const gpoCte = (r: ConsumoRow) => r.grpCliente || pickField(r.raw, ['Grp. Cliente', 'Gpo. Cte.', 'Gpo Cte']);
@@ -66,7 +53,7 @@ export function consumoEnrich(enrich: EnrichIndex) {
     sector: (r: ConsumoRow) => enrich.matSector(r.material),
     grupoArt: (r: ConsumoRow) => enrich.matGrupo(r.material),
     precioOferta: (r: ConsumoRow) => enrich.matPrecioOferta(r.material),
-    ultFacDest: (r: ConsumoRow) => pickField(r.raw, [RC.ultFacDest]),
+    ultFacDest: (r: ConsumoRow) => r.ultFacturacionDestinatario ?? '',
   };
 }
 
@@ -98,43 +85,14 @@ export function ejecutivoDeCliente(destN: string, matN: string, consumo: Consumo
   return '';
 }
 
+/** Serie mensual (Resumen_Fac) del par destinatario+material de una fila de
+ * Consumo — todos los centros sumados. Fuente única de Estado/Tendencia y de
+ * los totales de facturación, así los agregados cuadran exacto contra
+ * Resumen_Fac. */
 export function consumoSerie(rf: RFIndex | null, r: ConsumoRow): Serie {
-  const s = serieMatDest(rf, r.destinatario, r.material);
-  return s.length ? s : serieDeConsumo(r.raw, RC_SERIE);
+  return serieMatDest(rf, r.destinatario, r.material);
 }
-/** Serie para TOTALES de facturación: Resumen_Fac puro (sin el respaldo de 2
- * puntos de Reporte de Consumo que usa `consumoSerie` para Estado/Tendencia),
- * así los agregados cuadran exacto contra Resumen_Fac. Sin `rf` cargado cae al
- * respaldo para no dejar la vista vacía. */
-export function serieFacturada(rf: RFIndex | null, r: ConsumoRow): Serie {
-  return rf ? serieMatDest(rf, r.destinatario, r.material) : serieDeConsumo(r.raw, RC_SERIE);
-}
-
-/** Filas SINTÉTICAS de Consumo para cada par destinatario||material que SÍ
- * tiene facturación en Resumen_Fac pero NO aparece en "Reporte de Consumo".
- * Sin ellas los agregados de Consumo (facturado del periodo, comparativas,
- * rankings) omiten esa venta y no cuadran contra Resumen_Fac. Solo para
- * agregados — la tabla sigue mostrando únicamente las filas reales. */
-export function paresSoloFacturacion(rf: RFIndex | null, consumo: ConsumoRow[]): ConsumoRow[] {
-  if (!rf) return [];
-  const existentes = new Set<string>();
-  for (const r of consumo) existentes.add(consumoKey(r.destinatario, r.material));
-  const vistos = new Set<string>();
-  const out: ConsumoRow[] = [];
-  for (const f of rf.rows) {
-    const k = consumoKey(f.destinatario, f.material);
-    if (!norm(f.material) || existentes.has(k) || vistos.has(k)) continue;
-    vistos.add(k);
-    out.push({
-      centro: f.centro, grpCliente: f.gpoCte, gpoVdor: f.gpoVdor, solicitante: f.solicitante,
-      destinatario: f.destinatario, razonSocial: f.razonSocial, material: f.material, textoMaterial: f.textoMaterial,
-      consumoActual: 0, consumoPromedioMensual: 0, um: '', tendencia: '', ultimoMesFacturacion: '',
-      cantidadUltima: 0, importeUltima: 0, precioMin: 0, precioMax: 0, precioProm: 0, precioUnitarioUltima: 0,
-      raw: {},
-    });
-  }
-  return out;
-}
+export const serieFacturada = consumoSerie;
 
 export function consumoStatus(rf: RFIndex | null, r: ConsumoRow): Estado {
   const s = consumoSerie(rf, r);
