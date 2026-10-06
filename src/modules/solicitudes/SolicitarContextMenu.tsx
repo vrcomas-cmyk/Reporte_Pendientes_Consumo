@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { CheckCircle2, ClipboardList, Copy, Eye } from 'lucide-react';
+import { CheckCircle2, CheckSquare, ClipboardList, Copy, Eye, Square } from 'lucide-react';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator } from '@/components/ui/context-menu';
 import { useClipboard } from '@/hooks/useClipboard';
+import { CopiarClicItems } from '@/components/navigation/CopiarClicItems';
 
 /** One "Copiar {label}" menu entry — value is copied verbatim, label is what
  * shows in "Copiar {label}" and in the success toast. */
@@ -30,13 +31,15 @@ interface SolicitarContextMenuProps {
   /** "Copiar {label}" entries for the row's key values (material, pedido,
    * cliente, centro, …) — one click, no need to select text by hand. */
   copyItems?: CopyItem[];
+  /** "Seleccionar" / "Quitar de la selección" para tablas con selección múltiple. */
+  seleccion?: { seleccionada: boolean; onToggle: () => void };
 }
 
 /** Shared right-click menu — replaces the inline Solicitar
  * buttons/columns previously duplicated across Sugerencias/Inventario/Resumen
  * Sin Sug./Consumo, and adds "Ver detalle" + "Copiar {campo}" so right-click
  * carries more than just Solicitar. */
-export function SolicitarContextMenu({ children, onSolicitar, solicitado, label, onVerDetalle, copyItems }: SolicitarContextMenuProps) {
+export function SolicitarContextMenu({ children, onSolicitar, solicitado, label, onVerDetalle, copyItems, seleccion }: SolicitarContextMenuProps) {
   const { copy } = useClipboard();
   return (
     <ContextMenu>
@@ -50,6 +53,12 @@ export function SolicitarContextMenu({ children, onSolicitar, solicitado, label,
         {onVerDetalle && (
           <ContextMenuItem onSelect={onVerDetalle}>
             <Eye className="size-3.5" /> Ver detalle
+          </ContextMenuItem>
+        )}
+        {seleccion && (
+          <ContextMenuItem onSelect={seleccion.onToggle}>
+            {seleccion.seleccionada ? <Square className="size-3.5" /> : <CheckSquare className="size-3.5" />}
+            {seleccion.seleccionada ? 'Quitar de la selección' : 'Seleccionar'}
           </ContextMenuItem>
         )}
         {solicitado && (
@@ -67,6 +76,7 @@ export function SolicitarContextMenu({ children, onSolicitar, solicitado, label,
             ))}
           </>
         )}
+        <CopiarClicItems ocultar={(copyItems ?? []).map((it) => it.value)} />
       </ContextMenuContent>
     </ContextMenu>
   );

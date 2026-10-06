@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Download, ChevronDown, ClipboardList } from 'lucide-react';
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { Download, ChevronDown, ClipboardList, Copy, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableCell, TableHead, SortableTableHead } from '@/components/ui/table';
@@ -20,6 +20,7 @@ import { buildFromSugerencia, buildFromInventarioCentro, crear } from '@/service
 import { useSolicitarDialog, type LoteOption } from '@/modules/solicitudes/useSolicitarDialog';
 import { SolicitarDialog } from '@/modules/solicitudes/SolicitarDialog';
 import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu';
+import { puntosSolicitarInventario } from '@/modules/analytics/panels/MaterialInventario';
 import { useSolicitudStore } from '@/store/solicitudStore';
 import { useMaterialPrefiltro } from '@/hooks/useMaterialPrefiltro';
 import { usePersistedState } from '@/hooks/usePersistedState';
@@ -30,6 +31,8 @@ import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePermissionsStore } from '@/store/permissionsStore';
 import { isColumnHidden, isDetailHidden } from '@/core/permissions';
 import { toast } from '@/store/toastStore';
+import { useClipboard } from '@/hooks/useClipboard';
+import { calcularSeleccion, aTsv } from '@/lib/seleccion';
 import { TooltipHint } from '@/components/ui/tooltip';
 import { buildSugerenciasColsAgrupado } from './columns';
 import type { Sugerencia } from '@/core/types';
@@ -95,6 +98,9 @@ export function SugerenciasPage() {
   const solicitudesList = useSolicitudStore((s) => s.list);
   const addSolicitud = useSolicitudStore((s) => s.add);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Fila de partida para la selección por rango (Shift+clic).
+  const [ancla, setAncla] = useState<string | null>(null);
+  const { copy } = useClipboard();
   const [bulkSending, setBulkSending] = useState(false);
   const perms = usePermissionsStore((s) => s.perms);
   const precioOculto = isColumnHidden(perms, 'sugerencias', 'precio');
@@ -314,7 +320,7 @@ export function SugerenciasPage() {
   ];
 
   const COL_COUNT = COLS_AGRUPADO.filter((c) => vis(c.key)).length + (fuenteOculto ? 0 : 1);
-  const COL_COUNT_RAW = COLS_RAW.filter((c) => vis(c.key)).length;
+  const COL_COUNT_RAW = COLS_RAW.filter((c) => vis(c.key)).length + 1;
   const sortAcc = useMemo(() => ({
     grupocli: (it: (typeof filtered)[number]) => grupoCli(it.bo),
     pedido: (it: (typeof filtered)[number]) => it.bo.pedido,
@@ -407,46 +413,86 @@ export function SugerenciasPage() {
     return set;
   }, [solicitudesList]);
 
+  // ---- Selección múltiple (clic / Ctrl / Shift) ----------------------------
+  // Mismas columnas para Excel y para copiar (TSV) — una sola definición por vista.
+  const filaAgrupada = (it: BORow) => {
+    const b = it.bo;
+    return {
+      'Grupo de cliente': grupoCli(b), 'Código grupo': b.gpoCte,
+      Pedido: b.pedido, OC: b.oc, Fecha: b.fecha,
+      'Razón social': b.razonSocial, Solicitante: b.solicitante, Destinatario: b.destinatario,
+      Ejecutivo: ejec(b), Centro: b.centroPedido, Almacén: b.almacen,
+      'Material base': b.materialBase, Descripción: b.descripcionSolicitada, Sector: e.matSector(b.materialBase), 'Grupo art.': e.matGrupo(b.materialBase),
+      'Cant. pedida': num(b.cantidadPedido), Pendiente: num(b.cantidadPendiente), Precio: num(b.precio), 'Consumo prom.': num(it.consumoProm),
+      'Inv 1030': num(b.invByCenter['1030'] || 0), 'Inv 1031': num(b.invByCenter['1031'] || 0), 'Inv 1032': num(b.invByCenter['1032'] || 0), 'Inv 1060': num(b.invByCenter['1060'] || 0),
+      Bloqueado: b.bloqueado, Estado: it.status.label, Tendencia: it.tend.txt, Fuentes: it.fuentes.length,
+    };
+  };
+  const filaRaw = ({ it, f }: RawRow) => {
+    const b = it.bo;
+    return {
+      Pedido: b.pedido, OC: b.oc, Fecha: b.fecha,
+      'Razón social': b.razonSocial, Solicitante: b.solicitante, Destinatario: b.destinatario,
+      Ejecutivo: ejec(b), Centro: b.centroPedido, Almacén: b.almacen,
+      'Material base': b.materialBase, Descripción: b.descripcionSolicitada, Sector: e.matSector(b.materialBase), 'Grupo art.': e.matGrupo(b.materialBase),
+      'Cant. pedida': num(b.cantidadPedido), Pendiente: num(b.cantidadPendiente), Precio: num(b.precio), 'Consumo prom.': num(it.consumoProm),
+      'Inv 1030': num(b.invByCenter['1030'] || 0), 'Inv 1031': num(b.invByCenter['1031'] || 0), 'Inv 1032': num(b.invByCenter['1032'] || 0), 'Inv 1060': num(b.invByCenter['1060'] || 0),
+      Bloqueado: b.bloqueado, Estado: it.status.label, Tendencia: it.tend.txt,
+      Fuente: f?.fuente || '', 'Material sugerido': f?.materialSugerido || '', 'Descripción sugerida': f?.descripcionSugerida || '',
+      'Centro sugerido': f?.centroSugerido || '', 'Almacén sugerido': f?.almacenSugerido || '',
+      Disponible: f ? num(f.disponible) : '', Lote: f?.lote || '', 'Fecha caducidad': f?.fechaCaducidad || '',
+      'Meses vigencia lote': f ? num(f.mesesVigenciaLote) : '',
+    };
+  };
+  const clavesAgrupado = useMemo(() => sorted.map((it) => it.k), [sorted]);
+  const clavesRaw = useMemo(() => sortedRaw.map((r) => r.key), [sortedRaw]);
+  // Texto TSV de la selección y cuántas filas son solicitables (con fuente): se calculan una
+  // sola vez por cambio de selección, no por fila renderizada.
+  const { tsvSeleccion, elegiblesSel } = useMemo(() => {
+    if (!selected.size) return { tsvSeleccion: '', elegiblesSel: 0 };
+    const elegiblesSel = sorted.filter((it) => selected.has(it.k) && it.fuentes.length > 0).length;
+    const filas = agrupado
+      ? sorted.filter((it) => selected.has(it.k)).map(filaAgrupada)
+      : sortedRaw.filter((r) => selected.has(r.key)).map(filaRaw);
+    return { tsvSeleccion: aTsv(filas), elegiblesSel };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, agrupado, sorted, sortedRaw]);
+  // Cambiar de vista (Agrupar/Desagrupar) invalida las claves seleccionadas.
+  useEffect(() => { setSelected(new Set()); setAncla(null); }, [agrupado]);
+  // Esc limpia la selección (si no hay un panel de detalle abierto que use Esc para cerrarse).
+  useEffect(() => {
+    if (!selected.size) return;
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape' && !document.querySelector('[role="dialog"]')) { setSelected(new Set()); setAncla(null); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [selected.size]);
+
   if (!a.result || !a.bo.length) {
     if (!bootstrapped) return <TableSkeleton />;
     return <EmptyState title="No hay sugerencias. Carga catálogo y procesa un reporte." action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 
+  const sufijoSel = selected.size ? '_seleccion' : '';
   const exportar = () => {
-    const rowsX = filtered.map((it) => {
-      const b = it.bo;
-      return {
-        'Grupo de cliente': grupoCli(b), 'Código grupo': b.gpoCte,
-        Pedido: b.pedido, OC: b.oc, Fecha: b.fecha,
-        'Razón social': b.razonSocial, Solicitante: b.solicitante, Destinatario: b.destinatario,
-        Ejecutivo: ejec(b), Centro: b.centroPedido, Almacén: b.almacen,
-        'Material base': b.materialBase, Descripción: b.descripcionSolicitada, Sector: e.matSector(b.materialBase), 'Grupo art.': e.matGrupo(b.materialBase),
-        'Cant. pedida': num(b.cantidadPedido), Pendiente: num(b.cantidadPendiente), Precio: num(b.precio), 'Consumo prom.': num(it.consumoProm),
-        'Inv 1030': num(b.invByCenter['1030'] || 0), 'Inv 1031': num(b.invByCenter['1031'] || 0), 'Inv 1032': num(b.invByCenter['1032'] || 0), 'Inv 1060': num(b.invByCenter['1060'] || 0),
-        Bloqueado: b.bloqueado, Estado: it.status.label, Tendencia: it.tend.txt, Fuentes: it.fuentes.length,
-      };
-    });
-    void exportXlsx(`sugerencias_${stamp()}.xlsx`, rowsX, 'Sugerencias');
+    const base = selected.size ? filtered.filter((it) => selected.has(it.k)) : filtered;
+    void exportXlsx(`sugerencias${sufijoSel}_${stamp()}.xlsx`, base.map(filaAgrupada), 'Sugerencias');
   };
 
   const exportarRaw = () => {
-    const rowsX = flatRaw.map(({ it, f }) => {
-      const b = it.bo;
-      return {
-        Pedido: b.pedido, OC: b.oc, Fecha: b.fecha,
-        'Razón social': b.razonSocial, Solicitante: b.solicitante, Destinatario: b.destinatario,
-        Ejecutivo: ejec(b), Centro: b.centroPedido, Almacén: b.almacen,
-        'Material base': b.materialBase, Descripción: b.descripcionSolicitada, Sector: e.matSector(b.materialBase), 'Grupo art.': e.matGrupo(b.materialBase),
-        'Cant. pedida': num(b.cantidadPedido), Pendiente: num(b.cantidadPendiente), Precio: num(b.precio), 'Consumo prom.': num(it.consumoProm),
-        'Inv 1030': num(b.invByCenter['1030'] || 0), 'Inv 1031': num(b.invByCenter['1031'] || 0), 'Inv 1032': num(b.invByCenter['1032'] || 0), 'Inv 1060': num(b.invByCenter['1060'] || 0),
-        Bloqueado: b.bloqueado, Estado: it.status.label, Tendencia: it.tend.txt,
-        Fuente: f?.fuente || '', 'Material sugerido': f?.materialSugerido || '', 'Descripción sugerida': f?.descripcionSugerida || '',
-        'Centro sugerido': f?.centroSugerido || '', 'Almacén sugerido': f?.almacenSugerido || '',
-        Disponible: f ? num(f.disponible) : '', Lote: f?.lote || '', 'Fecha caducidad': f?.fechaCaducidad || '',
-        'Meses vigencia lote': f ? num(f.mesesVigenciaLote) : '',
-      };
-    });
-    void exportXlsx(`sugerencias_detalle_${stamp()}.xlsx`, rowsX, 'Sugerencias (detalle)');
+    const base = selected.size ? flatRaw.filter((r) => selected.has(r.key)) : flatRaw;
+    void exportXlsx(`sugerencias_detalle${sufijoSel}_${stamp()}.xlsx`, base.map(filaRaw), 'Sugerencias (detalle)');
+  };
+
+  const limpiarSeleccion = () => { setSelected(new Set()); setAncla(null); };
+  const copiarSeleccion = () => void copy(tsvSeleccion, `${selected.size} fila(s) copiadas — pégalas en Excel`);
+  // Casilla de una fila: alterna; con Shift selecciona el rango desde la última casilla marcada.
+  // (El clic simple sobre la fila NO selecciona: el doble clic abre el detalle.)
+  const clickCasilla = (key: string, ev: ReactMouseEvent, claves: string[]) => {
+    const r = calcularSeleccion({ selected, ancla }, key, { ctrl: true, shift: ev.shiftKey }, claves);
+    setSelected(r.selected);
+    setAncla(r.ancla);
   };
 
   return (
@@ -473,15 +519,27 @@ export function SugerenciasPage() {
           </label>
           <ColumnVisibilityControl columns={agrupado ? COLS_AGRUPADO : COLS_RAW} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
           <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
-          {agrupado && selected.size > 0 && (
+          {agrupado && elegiblesSel > 0 && (
             <Button size="sm" onClick={solicitarSeleccionados} disabled={bulkSending}>
               <ClipboardList className="mr-1 size-3.5" />
-              {bulkSending ? 'Solicitando…' : `Solicitar seleccionados (${selected.size})`}
+              {bulkSending ? 'Solicitando…' : `Solicitar seleccionados (${elegiblesSel})`}
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={agrupado ? exportar : exportarRaw}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
+          <Button variant="outline" size="sm" onClick={agrupado ? exportar : exportarRaw}><Download className="mr-1 size-3.5" />{selected.size ? `Exportar selección (${selected.size})` : 'Exportar a Excel'}</Button>
         </div>
       </div>
+
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent-soft px-3 py-2 text-sm">
+          <span className="font-medium">{formatNumber(selected.size)} {agrupado ? 'pedido(s)' : 'renglón(es)'} seleccionado(s)</span>
+          <span className="text-xs text-text-muted">Casilla (Shift = rango) o clic derecho › Seleccionar · Esc limpia</span>
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={copiarSeleccion}><Copy className="mr-1 size-3.5" />Copiar</Button>
+            <Button variant="outline" size="sm" onClick={agrupado ? exportar : exportarRaw}><Download className="mr-1 size-3.5" />Exportar selección</Button>
+            <Button variant="ghost" size="sm" onClick={limpiarSeleccion}><X className="mr-1 size-3.5" />Limpiar</Button>
+          </div>
+        </div>
+      )}
 
       {agrupado && (
       <div className="flex flex-wrap items-start gap-3">
@@ -600,9 +658,9 @@ export function SugerenciasPage() {
                   <TableHead className="w-8">
                     <input
                       type="checkbox"
-                      title="Seleccionar todas las visibles con fuente"
-                      checked={sorted.some((it) => it.fuentes.length > 0) && sorted.filter((it) => it.fuentes.length > 0).every((it) => selected.has(it.k))}
-                      onChange={(ev) => setSelected(ev.target.checked ? new Set(sorted.filter((it) => it.fuentes.length > 0).map((it) => it.k)) : new Set())}
+                      title="Seleccionar todos los pedidos visibles"
+                      checked={sorted.length > 0 && sorted.every((it) => selected.has(it.k))}
+                      onChange={(ev) => { setSelected(ev.target.checked ? new Set(clavesAgrupado) : new Set()); setAncla(null); }}
                     />
                   </TableHead>
                 )}
@@ -629,11 +687,7 @@ export function SugerenciasPage() {
                 const b = it.bo;
                 const isBloqueado = !!b.bloqueado;
                 const condicionesMat = e.matCondiciones(b.materialBase).join(', ');
-                const invOpciones: { centro: string; almacen: string; cantidad: number }[] = [
-                  { centro: '1031', almacen: '1030', cantidad: num(b.invByCenter['1030'] || 0) },
-                  { centro: '1031', almacen: '1032', cantidad: num(b.invByCenter['1032'] || 0) },
-                  ...(e.matSector(b.materialBase) === 'Suturas' ? [{ centro: '1018', almacen: '', cantidad: num(b.invByCenter['1018'] || 0) }] : []),
-                ].filter((o) => o.cantidad > 0);
+                const invOpciones = puntosSolicitarInventario(a, b.materialBase, num(b.invByCenter['1018'] || 0)).filter((o) => o.cantidad > 0);
                 const loteOptions: LoteOption[] = [
                   ...invOpciones.map((o) => ({
                     key: `inv|${o.centro}|${o.almacen}`,
@@ -658,6 +712,7 @@ export function SugerenciasPage() {
                   { label: 'Cliente', value: b.razonSocial },
                   { label: 'Centro', value: b.centroPedido },
                 ];
+                if (selected.size > 1 && selected.has(it.k)) copyItems.push({ label: `${selected.size} seleccionados (para Excel)`, value: tsvSeleccion });
                 return (
                   <SolicitarContextMenu
                     key={it.k}
@@ -665,14 +720,13 @@ export function SugerenciasPage() {
                     solicitado={sugSolicitadas.has(it.k)}
                     label={b.materialBase}
                     onVerDetalle={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosLista })}
+                    seleccion={{ seleccionada: selected.has(it.k), onToggle: () => toggleSelected(it.k) }}
                     copyItems={copyItems}
                   >
-                  <TableRow ref={measureElement} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-danger/10 hover:bg-danger/15 [&>td:first-child]:shadow-[inset_3px_0_0_var(--danger)]' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosLista })}>
+                  <TableRow ref={measureElement} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? '[&>td:first-child]:shadow-[inset_3px_0_0_var(--danger)]' : ''} ${selected.has(it.k) ? 'bg-accent-soft hover:bg-accent-soft' : isBloqueado ? 'bg-danger/10 hover:bg-danger/15' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosLista })}>
                     {!fuenteOculto && (
                       <TableCell onClick={(ev) => ev.stopPropagation()}>
-                        {it.fuentes.length > 0 && (
-                          <input type="checkbox" checked={selected.has(it.k)} onChange={() => toggleSelected(it.k)} title="Seleccionar para solicitar en lote" />
-                        )}
+                        <input type="checkbox" checked={selected.has(it.k)} onChange={() => undefined} onClick={(ev) => clickCasilla(it.k, ev, clavesAgrupado)} title="Seleccionar pedido (Shift = rango)" />
                       </TableCell>
                     )}
                     {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
@@ -729,6 +783,14 @@ export function SugerenciasPage() {
           <Table className={zoom.className} wrapperClassName="overflow-visible" resizableKey="sugerencias.raw.cols">
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8">
+                  <input
+                    type="checkbox"
+                    title="Seleccionar todos los renglones visibles"
+                    checked={sortedRaw.length > 0 && sortedRaw.every((r) => selected.has(r.key))}
+                    onChange={(ev) => { setSelected(ev.target.checked ? new Set(clavesRaw) : new Set()); setAncla(null); }}
+                  />
+                </TableHead>
                 {([
                   ['ejecutivo', 'Ejecutivo / Grupo cli.'], ['pedido', 'Pedido/OC'], ['fecha', 'Fecha'], ['cliente', 'Cliente'],
                   ['centro', 'Centro/Alm'], ['material', 'Material'], ['sector', 'Sector/Grupo'],
@@ -756,11 +818,7 @@ export function SugerenciasPage() {
                 const b = it.bo;
                 const isBloqueado = !!b.bloqueado;
                 const condicionesMat = e.matCondiciones(b.materialBase).join(', ');
-                const invOpciones: { centro: string; almacen: string; cantidad: number }[] = [
-                  { centro: '1031', almacen: '1030', cantidad: num(b.invByCenter['1030'] || 0) },
-                  { centro: '1031', almacen: '1032', cantidad: num(b.invByCenter['1032'] || 0) },
-                  ...(e.matSector(b.materialBase) === 'Suturas' ? [{ centro: '1018', almacen: '', cantidad: num(b.invByCenter['1018'] || 0) }] : []),
-                ].filter((o) => o.cantidad > 0);
+                const invOpciones = puntosSolicitarInventario(a, b.materialBase, num(b.invByCenter['1018'] || 0)).filter((o) => o.cantidad > 0);
                 const loteOptions: LoteOption[] = [
                   ...invOpciones.map((o) => ({
                     key: `inv|${o.centro}|${o.almacen}`,
@@ -784,6 +842,7 @@ export function SugerenciasPage() {
                   { label: 'Cliente', value: b.razonSocial },
                   { label: 'Centro', value: b.centroPedido },
                 ];
+                if (selected.size > 1 && selected.has(row.key)) copyItems.push({ label: `${selected.size} seleccionados (para Excel)`, value: tsvSeleccion });
                 return (
                   <SolicitarContextMenu
                     key={row.key}
@@ -791,9 +850,13 @@ export function SugerenciasPage() {
                     solicitado={rawSolicitadas.has(sourceKey)}
                     label={b.materialBase}
                     onVerDetalle={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosListaRaw })}
+                    seleccion={{ seleccionada: selected.has(row.key), onToggle: () => toggleSelected(row.key) }}
                     copyItems={copyItems}
                   >
-                  <TableRow ref={measureElementRaw} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? 'bg-danger/10 hover:bg-danger/15 [&>td:first-child]:shadow-[inset_3px_0_0_var(--danger)]' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosListaRaw })}>
+                  <TableRow ref={measureElementRaw} data-index={vi.index} title="Doble clic para ver detalle" className={`cursor-pointer ${isBloqueado ? '[&>td:first-child]:shadow-[inset_3px_0_0_var(--danger)]' : ''} ${selected.has(row.key) ? 'bg-accent-soft hover:bg-accent-soft' : isBloqueado ? 'bg-danger/10 hover:bg-danger/15' : ''}`} onDoubleClick={() => open({ type: 'pedido', pedido: b.pedido, boKey: it.k, lista: pedidosListaRaw })}>
+                    <TableCell onClick={(ev) => ev.stopPropagation()}>
+                      <input type="checkbox" checked={selected.has(row.key)} onChange={() => undefined} onClick={(ev) => clickCasilla(row.key, ev, clavesRaw)} title="Seleccionar renglón (Shift = rango)" />
+                    </TableCell>
                     {vis('ejecutivo') && <TableCell><Chip onClick={() => addQuick('ejecutivo', ejec(b))} title="Filtrar por ejecutivo">{ejec(b) || '—'}</Chip><div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', grupoCli(b))} title="Filtrar por grupo">{grupoCli(b) || '—'}</Chip></div></TableCell>}
                     {vis('pedido') && <TableCell><Chip onClick={() => open({ type: 'pedido', pedido: b.pedido, lista: pedidosListaRaw })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}

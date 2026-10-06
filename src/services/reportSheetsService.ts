@@ -26,15 +26,14 @@ const REPORT_SHEETS_URL_ENV = import.meta.env.VITE_REPORT_SHEETS_URL as string |
 const REPORT_TABS: Partial<Record<SheetRole, string>> = {
   sugerencias: 'Todas las Sugerencias',
   resumenSinSugerencias: 'Resumen Sin Sugerencias',
-  reporteConsumo: 'Reporte de Consumo',
   resumenFac: 'Resumen_Fac',
   facMensualCam: 'Fac_Mensual_CAM',
 };
 export const REPORT_SHEET_ROLES = Object.keys(REPORT_TABS) as SheetRole[];
 
 /** Orden de prioridad de negocio (CLAUDE.md / pedido del usuario, 2026-08-07):
- * Pedidos (sugerencias) → Inventario (resumenSinSugerencias) → Consumo →
- * Resumen_Fac SIEMPRE al final por ser la pestaña más pesada. `runSync`
+ * Pedidos (sugerencias) → Inventario (resumenSinSugerencias) →
+ * Resumen_Fac (de donde también se deriva Consumo) SIEMPRE al final por ser la pestaña más pesada. `runSync`
  * reordena `roles` por esta lista y las descarga en dos olas: todo lo que no
  * sea `resumenFac` en paralelo primero (conserva la ventaja de pintar cada
  * pestaña en cuanto llega vía `onPartialResult`), y `resumenFac` arranca
@@ -42,7 +41,7 @@ export const REPORT_SHEET_ROLES = Object.keys(REPORT_TABS) as SheetRole[];
  * tiempo total de sync se vuelva la suma de las 4 pestañas.
  * Todo reporte nuevo que se agregue a `REPORT_TABS` debe entrar aquí ANTES de
  * `resumenFac` — ver docs/apps-script-report-sheets.md §Prioridad de carga. */
-const ROLE_PRIORITY: SheetRole[] = ['sugerencias', 'resumenSinSugerencias', 'reporteConsumo', 'facMensualCam', 'resumenFac'];
+const ROLE_PRIORITY: SheetRole[] = ['sugerencias', 'resumenSinSugerencias', 'facMensualCam', 'resumenFac'];
 
 function byPriority(roles: SheetRole[]): SheetRole[] {
   return [...roles].sort((a, b) => {
@@ -55,8 +54,8 @@ function byPriority(roles: SheetRole[]): SheetRole[] {
 /** Pedido del usuario (2026-08-14): "Todas las Sugerencias"/"Resumen Sin
  * Sugerencias" (y, aparte de esta tubería, InvDetalle/InvConsolidado del
  * catálogo) deben verse al instante — siguen por Apps Script en vivo. Pero
- * "Reporte de Consumo" y "Resumen_Fac" toleran sincronizarse una vez al día
- * por la noche: para esas dos, `processTabInner` intenta PRIMERO el snapshot
+ * "Resumen_Fac" (y el Consumo derivado de ella) tolera sincronizarse una vez al día
+ * por la noche: para ella, `processTabInner` intenta PRIMERO el snapshot
  * nocturno (ver `reportSnapshotService.ts` + `docs/apps-script-report-sheets.md`
  * §8) antes de caer a la descarga en vivo — que sigue existiendo íntegra,
  * como respaldo automático y como override manual ("Actualizar en vivo" en
@@ -64,7 +63,7 @@ function byPriority(roles: SheetRole[]): SheetRole[] {
  * noche no importa: el snapshot lo genera un disparador de tiempo en la nube
  * de Google, no el navegador del usuario — al abrir en la mañana solo se
  * compara el manifiesto (~1 KB) contra la versión ya en caché. */
-export const SNAPSHOT_ROLES: SheetRole[] = ['reporteConsumo', 'resumenFac'];
+export const SNAPSHOT_ROLES: SheetRole[] = ['resumenFac'];
 
 /** Un snapshot más viejo que esto se considera obsoleto (el disparador
  * nocturno falló, o nunca corrió) y se ignora en favor de la vía en vivo —

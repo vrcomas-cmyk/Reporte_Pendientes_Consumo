@@ -9,6 +9,7 @@ import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 import { Toaster } from '@/components/feedback/Toaster';
 import { AnalyticsProvider } from '@/modules/analytics/AnalyticsContext';
 import { PanelHost } from '@/modules/analytics/PanelHost';
+import { GlobalCopyMenu } from '@/components/navigation/GlobalCopyMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
 import { useConocimientoStore } from '@/store/conocimientoStore';
 import { useScoringWeightsStore } from '@/store/scoringWeightsStore';
@@ -106,6 +107,7 @@ function App() {
                 </Route>
               </Routes>
               <PanelHost />
+              <GlobalCopyMenu />
             </AnalyticsProvider>
             </TooltipProvider>
           </BrowserRouter>

@@ -10,7 +10,7 @@ import { usePanelStore } from '@/store/panelStore';
 import { formatNumber, formatCurrency, formatFechaCaducidad } from '@/lib/utils';
 import { almacenesDeCondicion } from '@/core/inventoryRules';
 import { pendPorCondicion, transitoPorCondicion, impPendPorCondicion, coberturaEstado, COBERTURA_LABEL, COBERTURA_CLS, type RSSAlmacen } from '@/core/resumenSin';
-import { promedioPeriodo } from '@/core/facMensual';
+import { detalle12Cerrados } from '../promedio12';
 import { PromedioPeriodoSection, periodoCompleto, usePeriodoProm } from './PromedioPeriodoSection';
 import { serieMaterial, serieMatCentro, rfTieneCentro } from '@/core/resumenFac';
 import { norm, sugFor, consFor } from '../helpers';
@@ -69,7 +69,10 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
   const usaCentro = serieCentro.length > 0;
 
   const { periodo: periodoProm, setPeriodo: setPeriodoProm, esDefault: periodoDefault } = usePeriodoProm(a);
-  const conPeriodo = !!a.facMensual && periodoCompleto(periodoProm);
+  // Tabla de almacenes = siempre los 12 meses cerrados (misma cuenta que el detalle de pedido); el periodo elegido solo afecta a "Promedio por periodo".
+  const conPeriodo = !!a.facMensual;
+  const p12 = detalle12Cerrados(a, panel.material, panel.centro);
+  const periodoDifiere = !!a.facMensual && periodoCompleto(periodoProm) && !periodoDefault && (periodoProm.desde !== p12.desde || periodoProm.hasta !== p12.hasta);
 
   const replaceTop = usePanelStore((s) => s.replaceTop);
   // Materiales a los que se puede saltar con el buscador: los de Inv Condición.
@@ -162,6 +165,12 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
         </div>
         {/* Panel derecho: promedio, desglose por almacén, tendencia y sugerencias/consumo. */}
         <div className="min-w-0">
+          {periodoDifiere && (
+            <p className="mt-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-text-muted">
+              “Promedio por periodo” usa el periodo elegido ({periodoProm.desde} a {periodoProm.hasta}); la tabla de almacenes usa los 12 meses cerrados ({p12.desde} a {p12.hasta}).{' '}
+              <button type="button" className="text-accent hover:underline" onClick={() => setPeriodoProm({ desde: '', hasta: '' })}>Usar 12 meses cerrados</button>
+            </p>
+          )}
           <PromedioPeriodoSection a={a} material={panel.material} centro={panel.centro} periodo={periodoProm} esDefault={periodoDefault} onChange={setPeriodoProm} />
 
           <Section title="Desglose por almacén (según condición)">
@@ -171,10 +180,10 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
             ) : (
               <div>
                 <Table wrapperClassName="max-h-64 rounded-lg border border-border">
-                  <TableHeader><TableRow><TableHead>Almacén</TableHead><TableHead className="text-right">Inv.</TableHead><TableHead className="text-right">Pend.</TableHead><TableHead className="text-right">Tránsito</TableHead>{conPeriodo && <TableHead className="text-right" title={`Cantidad facturada ÷ meses de ${periodoProm.desde} a ${periodoProm.hasta} (Fac_Mensual_CAM), de este almacén.`}>Prom. mensual</TableHead>}{conPeriodo && <TableHead className="text-right" title="Inventario del almacén ÷ promedio mensual del periodo.">Meses inv.</TableHead>}{conPeriodo && <TableHead>Cobertura</TableHead>}<TableHead>Último</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>Almacén</TableHead><TableHead className="text-right">Inv.</TableHead><TableHead className="text-right">Pend.</TableHead><TableHead className="text-right">Tránsito</TableHead>{conPeriodo && <TableHead className="text-right" title={`Cantidad facturada de ${p12.desde} a ${p12.hasta} (12 meses cerrados, Fac_Mensual_CAM) ÷ 12, de este almacén.`}>Prom. mensual</TableHead>}{conPeriodo && <TableHead className="text-right" title="Inventario del almacén ÷ promedio de 12 meses cerrados.">Meses inv.</TableHead>}{conPeriodo && <TableHead>Cobertura</TableHead>}<TableHead>Último</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {almsAplicables.map((al, i) => {
-                      const pp = conPeriodo ? promedioPeriodo(a.facMensual, { material: panel.material, centro: panel.centro, almacen: al.alm }, periodoProm.desde, periodoProm.hasta) : null;
+                      const pp = conPeriodo ? detalle12Cerrados(a, panel.material, panel.centro, al.alm) : null;
                       const mesesPp = pp && pp.promedio > 0 ? al.inv / pp.promedio : 0;
                       const cob = pp ? coberturaEstado(mesesPp, pp.promedio, al.inv) : null;
                       return (
@@ -206,7 +215,7 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
           </Section>
 
           <Section title={usaCentro ? `Tendencia del material · Centro ${panel.centro}` : rfTieneCentro(a.rf) ? 'Tendencia del material (general — sin historia en este centro)' : 'Tendencia del material (general — los datos cargados de Resumen_Fac no traen la columna Centro: actualiza Resumen_Fac en vivo desde Carga)'}>
-            <EvolChart serie={usaCentro ? serieCentro : serieMaterial(a.rf, panel.material)} height={180} />
+            <EvolChart serie={usaCentro ? serieCentro : serieMaterial(a.rf, panel.material)} height={180} onMonth={(mes) => push({ type: 'clientesMes', material: panel.material, mes, ...(usaCentro ? { centro: panel.centro } : {}) })} />
           </Section>
 
           <Section title="Sugerencias / Consumo en este centro">

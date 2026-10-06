@@ -1,7 +1,7 @@
-// Snapshot nocturno de las pestañas pesadas ("Reporte de Consumo",
-// "Resumen_Fac") — generado por un disparador de tiempo de Apps Script (ver
+// Snapshot nocturno de la pestaña pesada "Resumen_Fac" (de ella se deriva
+// también Consumo) — generado por un disparador de tiempo de Apps Script (ver
 // `docs/apps-script-report-sheets.md` §8), exportado a CSV gzip y subido a
-// R2 bajo el prefijo `snapshots/`. Reemplaza, para esas dos pestañas, la vía
+// R2 bajo el prefijo `snapshots/`. Reemplaza, para esa pestaña, la vía
 // en vivo de `reportSheetsService.ts` (que sigue existiendo, como respaldo
 // y como override manual desde Carga): en vez de ~98 páginas de Apps Script
 // en serie/paralelo para Resumen_Fac, el portal baja unos pocos MB ya

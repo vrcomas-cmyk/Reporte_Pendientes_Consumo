@@ -1,5 +1,7 @@
 import { Chip, StatePill, EvolChart, ComparativaDual, InvGrid, StatTile } from '../ui';
 import { CentrosFiltroBar } from './CentrosFiltroBar';
+import { puntosSolicitarInventario } from './MaterialInventario';
+import { detalle12Cerrados, ayudaPromedio12 } from '../promedio12';
 import { FuentesTable, Section, precioPorCondicion, type FuentesSelection } from './_shared';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { buildFromInventarioCentro } from '@/services/solicitudService';
@@ -61,33 +63,37 @@ export function PrecioCondicionSection({ a, materiales }: { a: Analytics; materi
 /** Sección — Inventario principales + Otros centros + Solicitar desde
  * inventario, para el material de UN BOItem. Self-contenida (trae su propio
  * diálogo de Solicitar) para poder vivir en cualquier columna/panel. */
-export function InventarioPrincipalSection({ a, b, it }: { a: Analytics; b: BOItem['bo']; it: BOItem }) {
+export function InventarioPrincipalSection({ a, b, it, push }: { a: Analytics; b: BOItem['bo']; it: BOItem; push?: (p: Panel) => void }) {
   const { enrich } = a;
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
-  const invPrin: [string, number, number?][] = (['1030', '1031', '1032', '1060'] as const)
-    .map((c) => [c, b.invByCenter[c] || 0, transitoFor(a.rss, b.centroPedido, c, b.materialBase)]);
+  // Inventario principales = almacenes del CENTRO DEL PEDIDO; cada tarjeta lleva el
+  // consumo promedio de los últimos 12 meses cerrados de ese centro + almacén y, al
+  // hacer clic, abre su tendencia (panel `celda` con `almacen`).
+  const prom = (centro: string, almacen?: string): [string, string] => {
+    const d = detalle12Cerrados(a, b.materialBase, centro, almacen);
+    return [`prom 12m: ${formatNumber(d.promedio)}`, ayudaPromedio12(d)];
+  };
+  const ALMS = ['1030', '1031', '1032', '1060'] as const;
+  const invPrin: [string, number, number?, string?, string?][] = ALMS
+    .map((c) => [c, b.invByCenter[c] || 0, transitoFor(a.rss, b.centroPedido, c, b.materialBase), ...prom(b.centroPedido, c)]);
   const centrosElegidos = useCentrosFiltroStore((s) => s.centros);
-  const invOtros: [string, number, number?][] = ['1001', '1003', '1004', '1017', '1018', '1022', '1036']
-    .filter((c) => centroPasaFiltro(c, b.centroPedido, centrosElegidos))
-    .map((c) => [c, b.invByCenter[c] || 0, transitoFor(a.rss, b.centroPedido, c, b.materialBase)]);
-  const esSuturas = enrich.matSector(b.materialBase) === 'Suturas';
+  const centrosOtros = ['1001', '1003', '1004', '1017', '1018', '1022', '1036']
+    .filter((c) => centroPasaFiltro(c, b.centroPedido, centrosElegidos));
+  const invOtros: [string, number, number?, string?, string?][] = centrosOtros
+    .map((c) => [c, b.invByCenter[c] || 0, transitoFor(a.rss, b.centroPedido, c, b.materialBase), ...prom(c)]);
   const condicionesMat = enrich.matCondiciones(b.materialBase).join(', ');
-  const puntosSolicitar: { titulo: string; centro: string; almacen: string; cantidad: number }[] = [
-    { titulo: 'Centro 1031 / Alm 1030', centro: '1031', almacen: '1030', cantidad: b.invByCenter['1030'] || 0 },
-    { titulo: 'Centro 1031 / Alm 1032', centro: '1031', almacen: '1032', cantidad: b.invByCenter['1032'] || 0 },
-    ...(esSuturas ? [{ titulo: 'Centro 1018 (Suturas)', centro: '1018', almacen: '', cantidad: b.invByCenter['1018'] || 0 }] : []),
-  ];
+  const puntosSolicitar = puntosSolicitarInventario(a, b.materialBase, b.invByCenter['1018'] || 0);
   const sourceKeyInv = (centro: string, almacen: string) => `sug|${it.k}|inv-${centro}-${almacen}`;
   const yaSolicitado = (centro: string, almacen: string) =>
     solicitudesList.some((s) => s.origen === 'sugerencias' && s.sourceKey === sourceKeyInv(centro, almacen));
   return (
     <>
-      <Section title="Inventario principales"><InvGrid items={invPrin} /></Section>
-      <Section title={`Otros centros (1001–1036)${centrosElegidos.length ? ' · filtrado' : ''}`}>
-        {invOtros.length ? <InvGrid items={invOtros} /> : <p className="text-sm text-text-muted">Ningún centro elegido en el filtro.</p>}
+      <Section title="Inventario principales" collapsible storageKey="inv.principales"><InvGrid items={invPrin} onSelect={push ? (i) => push({ type: 'celda', material: b.materialBase, centro: b.centroPedido, almacen: ALMS[i] }) : undefined} /></Section>
+      <Section title={`Otros centros (1001–1036)${centrosElegidos.length ? ' · filtrado' : ''}`} collapsible storageKey="inv.otros">
+        {invOtros.length ? <InvGrid items={invOtros} onSelect={push ? (i) => push({ type: 'celda', material: b.materialBase, centro: centrosOtros[i] }) : undefined} /> : <p className="text-sm text-text-muted">Ningún centro elegido en el filtro.</p>}
       </Section>
-      <Section title="Solicitar desde inventario (click derecho)">
+      <Section title="Solicitar desde inventario (click derecho)" collapsible storageKey="inv.solicitar">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {puntosSolicitar.map((p) => (
             <SolicitarContextMenu
@@ -160,12 +166,12 @@ export function SugDetallePanel({ panel, a, push }: { panel: Extract<Panel, { ty
         <StatTile label="Estado" value={it.status.label} />
         <StatTile label="Ejecutivo" value={enrich.ejecutivoNombre(b.gpoVdor) || '—'} />
       </div>
-      <Section title="Evolución mensual — material + destinatario"><EvolChart serie={it.serie} onMonth={(mes) => push({ type: 'clientesMes', material: b.materialBase, mes })} /></Section>
+      <Section title="Evolución mensual — material + destinatario"><EvolChart serie={it.serie} onMonth={(mes) => push({ type: 'clientesMes', material: b.materialBase, mes, dest: b.destinatario })} /></Section>
       {a.rf && <Section title="Comparativo anual"><ComparativaDual serie={it.serie} /></Section>}
       <CentrosFiltroBar centroPedido={b.centroPedido} />
       <FuentesOfertaSection it={it} push={push} />
       <PrecioCondicionSection a={a} materiales={materialesOferta} />
-      <InventarioPrincipalSection a={a} b={b} it={it} />
+      {/* Inventario principales / Otros centros / Solicitar: panel lateral izquierdo (ver PanelHost). */}
     </div>
   );
 }

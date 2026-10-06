@@ -16,8 +16,10 @@ import { usePanelStore } from '@/store/panelStore';
 import { StatePill, TrendBadge, AbcBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, MonthRangeFilter, ClearFiltersButton, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { dateSortValue } from '@/lib/fechas';
 import { COLS_CONSUMO } from './columns';
+import { usePromedioModo, promedioDeFila } from './usePromedioModo';
+import { PROMEDIO_MODOS } from '@/core/consumoDesdeRF';
 import { ESTADOS, auditoriaFacturacion, mesKey, mesLabel, clasificarEstado, tendenciaTexto, mesRefQAnterior, mesAnterior, hoyMes, type Serie, type Estado, type Tendencia } from '@/core/resumenFac';
-import { norm, num, searchNorm, consumoEnrich, consumoSerie, serieFacturada, paresSoloFacturacion, matchesQueryNormalized, RC, pickField } from '@/modules/analytics/helpers';
+import { norm, num, searchNorm, consumoEnrich, consumoSerie, serieFacturada, matchesQueryNormalized } from '@/modules/analytics/helpers';
 import type { ConsumoRow } from '@/core/types';
 import { buildFromConsumo } from '@/services/solicitudService';
 import { useSolicitarDialog } from '@/modules/solicitudes/useSolicitarDialog';
@@ -91,6 +93,7 @@ export function ConsumoPage() {
   const [periodoMeses, setPeriodoMeses] = usePersistedState<{ desde: string; hasta: string }>('consumo.periodoMeses', { desde: '', hasta: '' });
   const [gruposOpen, setGruposOpen] = useState(false);
   const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>('consumo.periodo', 'corriente');
+  const [promedioModo, setPromedioModo] = usePromedioModo();
   const [dispersionOpen, setDispersionOpen] = useState(false);
   const [cuadreOpen, setCuadreOpen] = useState(false);
   const [clearTick, setClearTick] = useState(0);
@@ -119,12 +122,9 @@ export function ConsumoPage() {
   // render. At ~80k rows that's the single biggest cost in this view. Compute
   // it once per row here (indexed by row identity, memoized on data + catalog
   // identity) and read from the index everywhere else.
-  // Pares con facturación en Resumen_Fac que no están en Reporte de Consumo —
-  // solo alimentan los agregados (ver `paresSoloFacturacion`), no la tabla.
-  const sinteticas = useMemo(() => paresSoloFacturacion(a.rf, rows), [a.rf, rows]);
   const statusIndex = useMemo(() => {
     const m = new Map<ConsumoRow, { status: Estado; tend: Tendencia; meses: number[] }>();
-    for (const r of [...rows, ...sinteticas]) {
+    for (const r of rows) {
       const serie = consumoSerie(a.rf, r);
       // Meses (escala mesKey) en los que esta fila REALMENTE facturó — base
       // del filtro de periodo, que es por mes/año y sale de Resumen de
@@ -138,7 +138,7 @@ export function ConsumoPage() {
       m.set(r, { status: clasificarEstado(serie.length ? serie : null, false), tend: tendenciaTexto(serie), meses });
     }
     return m;
-  }, [rows, sinteticas, a.rf]);
+  }, [rows, a.rf]);
   const statusOf = (r: ConsumoRow) => statusIndex.get(r) ?? { status: clasificarEstado(null, false), tend: tendenciaTexto([]), meses: [] as number[] };
 
   // Perf: precompute each row's lowercased/accent-stripped searchable text
@@ -146,9 +146,9 @@ export function ConsumoPage() {
   // filter pass (i.e. every keystroke) across ~80k rows.
   const searchIndex = useMemo(() => {
     const m = new Map<ConsumoRow, string>();
-    for (const r of [...rows, ...sinteticas]) m.set(r, searchNorm(`${r.material} ${r.textoMaterial} ${r.razonSocial} ${r.solicitante} ${r.destinatario}`));
+    for (const r of rows) m.set(r, searchNorm(`${r.material} ${r.textoMaterial} ${r.razonSocial} ${r.solicitante} ${r.destinatario}`));
     return m;
-  }, [rows, sinteticas]);
+  }, [rows]);
 
   const filterCols: FilterColumn<ConsumoRow>[] = useMemo(() => [
     { key: 'cliente', label: 'Cliente (razón social)', get: (r) => r.razonSocial },
@@ -176,6 +176,7 @@ export function ConsumoPage() {
   const rangoLoK = useMemo(() => (periodoMeses.desde ? mesKey(periodoMeses.desde) : null), [periodoMeses.desde]);
   const rangoHiK = useMemo(() => (periodoMeses.hasta ? mesKey(periodoMeses.hasta) : null), [periodoMeses.hasta]);
   const rangoActivo = rangoLoK != null || rangoHiK != null;
+  const rangoPromedio = useMemo(() => ({ lo: rangoLoK, hi: rangoHiK }), [rangoLoK, rangoHiK]);
 
   const pasaFiltros = (r: ConsumoRow): boolean => {
     if (estado && statusOf(r).status.key !== estado) return false;
@@ -197,11 +198,9 @@ export function ConsumoPage() {
     return rows.filter(pasaFiltros);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, q, estado, clase, gerente, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, searchIndex, filterCols, a.abc, pasteCodes]);
-  // Universo de los AGREGADOS: filas reales + pares solo-Resumen_Fac que pasan
-  // los mismos filtros, para que los totales cuadren contra Resumen_Fac.
-  const filteredAgg = useMemo(() => [...filtered, ...sinteticas.filter(pasaFiltros)],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filtered, sinteticas, q, estado, clase, gerente, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, filterCols, a.abc, pasteCodes]);
+  // Universo de los AGREGADOS = las filas filtradas (Consumo ya sale de Resumen_Fac,
+  // así que no hay pares de facturación fuera de la tabla).
+  const filteredAgg = filtered;
 
   const kpis = useMemo(() => {
     const cnt = (k: string) => filtered.filter((r) => statusOf(r).status.key === k).length;
@@ -463,8 +462,8 @@ export function ConsumoPage() {
     consumo: (r: ConsumoRow) => num(r.consumoActual),
     ultima: (r: ConsumoRow) => num(r.cantidadUltima),
     ultimaFecha: (r: ConsumoRow) => dateSortValue(r.ultimoMesFacturacion),
-    penultima: (r: ConsumoRow) => num(r.raw[RC.cantPen]),
-    penultimaFecha: (r: ConsumoRow) => dateSortValue(pickField(r.raw, [RC.penFecha])),
+    penultima: (r: ConsumoRow) => num(r.cantidadPenultima),
+    penultimaFecha: (r: ConsumoRow) => dateSortValue(r.penultimoMes ?? ''),
     impultima: (r: ConsumoRow) => num(r.importeUltima),
     estado: (r: ConsumoRow) => statusOf(r).status.label,
     tendencia: (r: ConsumoRow) => statusOf(r).tend.txt,
@@ -508,7 +507,7 @@ export function ConsumoPage() {
         Solicitante: r.solicitante, Destinatario: r.destinatario, 'Razón social': r.razonSocial,
         'Grupo cliente': ce.grupoCli(r), Ejecutivo: ce.ejec(r), Centro: r.centro,
         Material: r.material, Descripción: r.textoMaterial, Sector: ce.sector(r), 'Grupo art.': ce.grupoArt(r),
-        'Consumo actual': r.consumoActual, 'Prom. mensual': r.consumoPromedioMensual,
+        'Consumo actual': r.consumoActual, 'Prom. mensual': promedioDeFila(a.rf, r, promedioModo, rangoPromedio),
         'Último mes': r.ultimoMesFacturacion, 'Cant. última': r.cantidadUltima, 'Importe última': r.importeUltima,
         Estado: st.label, Tendencia: tn.txt, 'Clase ABC': claseDe(r) || 'Sin clasificar',
       };
@@ -543,6 +542,19 @@ export function ConsumoPage() {
           <option value="C">C — cola</option>
         </Select>
         <MonthRangeFilter desde={periodoMeses.desde} hasta={periodoMeses.hasta} onChange={setPeriodoMeses} label="Periodo" />
+        <div className="flex items-center gap-1" role="group" aria-label="Promedio mensual">
+          <span className="text-xs text-text-muted">Promedio:</span>
+          {PROMEDIO_MODOS.filter((m) => m.key !== 'historia').map((m) => (
+            <Button
+              key={m.key}
+              size="sm"
+              variant={promedioModo === m.key ? 'default' : 'outline'}
+              title={m.title}
+              aria-pressed={promedioModo === m.key}
+              onClick={() => setPromedioModo(promedioModo === m.key ? 'historia' : m.key)}
+            >{m.label}</Button>
+          ))}
+        </div>
         <PasteCodesFilter value={pasteCodes} onChange={setPasteCodes} label="material" />
         <ClearFiltersButton onClear={clearFilters} />
       </div>
@@ -855,9 +867,9 @@ export function ConsumoPage() {
                 {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div>{ce.precioOferta(r) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(ce.precioOferta(r))}</div>}</TableCell>}
                 {vis('abc') && <TableCell><AbcBadge clase={claseDe(r) || undefined} /></TableCell>}
                 {vis('sector') && <TableCell>{ce.sector(r) || '—'}<div className="text-[11px] text-text-faint">{ce.grupoArt(r)}</div></TableCell>}
-                {vis('consumo') && <TableCell className="text-right">{vsCell(r.consumoActual, r.consumoPromedioMensual)}</TableCell>}
+                {vis('consumo') && <TableCell className="text-right">{vsCell(r.consumoActual, promedioDeFila(a.rf, r, promedioModo, rangoPromedio))}</TableCell>}
                 {vis('ultima') && <TableCell className="text-right">{fechaCantCell(r.ultimoMesFacturacion, r.cantidadUltima)}</TableCell>}
-                {vis('penultima') && <TableCell className="text-right">{fechaCantCell(pickField(r.raw, [RC.penFecha]), num(r.raw[RC.cantPen]))}</TableCell>}
+                {vis('penultima') && <TableCell className="text-right">{fechaCantCell(r.penultimoMes ?? '', num(r.cantidadPenultima))}</TableCell>}
                 {vis('impultima') && <TableCell className="text-right">{formatCurrency(r.importeUltima)}</TableCell>}
                 {vis('estado') && <TableCell><StatePill label={statusOf(r).status.label} cls={statusOf(r).status.cls} /></TableCell>}
                 {vis('tendencia') && <TableCell><TrendBadge t={statusOf(r).tend} /></TableCell>}

@@ -14,6 +14,9 @@ import { useCentrosFiltroStore, centroPasaFiltro } from '@/store/centrosFiltroSt
 import { useNombresStore, useVistaCentrosStore } from '@/store/nombresStore';
 import { etiquetaCentro, etiquetaAlmacen } from '@/lib/nombres';
 import type { Analytics } from '../AnalyticsContext';
+import { invAlmacen1031, puntosSolicitarInventario, type PuntoSolicitar } from '../inventario1031';
+
+export { invAlmacen1031, puntosSolicitarInventario, type PuntoSolicitar };
 
 const PRINCIPALES = ['1030', '1031', '1032', '1060'] as const;
 
@@ -33,31 +36,16 @@ function useMaterialInventario(a: Analytics, material: string) {
       otros[c] = filas.reduce((s, r) => s + (r.invByCenter[c] || 0), 0);
       transito[c] = filas.reduce((s, r) => s + (r.transitoByCenter?.[c] || 0), 0);
     }
-    // Los almacenes 1030/1031/1032/1060 viven en Resumen Sin Sugerencias
-    // (repetidos en cada centro): se toma el máximo, no la suma.
-    const mo = a.rss?.mats.get(mat);
+    // Almacenes 1030/1031/1032/1060 del Centro 1031 (ver `invAlmacen1031`).
     const principales: Record<string, number> = {};
-    for (const alm of PRINCIPALES) {
-      principales[alm] = mo ? Math.max(0, ...[...mo.centros.values()].map((co) => co.invAlm[alm] || 0)) : 0;
-    }
-    if (!mo) {
-      principales['1030'] = filas.reduce((s, r) => s + (r.disponible31_30 || 0), 0);
-      principales['1032'] = filas.reduce((s, r) => s + (r.disponible31_32 || 0), 0);
-    }
+    for (const alm of PRINCIPALES) principales[alm] = invAlmacen1031(a, material, alm);
     return { principales, otros, transito };
-  }, [a.invCondicion, a.invConsolidadoCatalog, a.rss, mat]);
+  }, [a.invCondicion, a.invConsolidadoCatalog, a.rss, a.lotes, mat, material]);
 
-  const esSuturas = enrich.matSector(material) === 'Suturas';
   const condiciones = enrich.matCondiciones(material).join(', ');
-  const puntos = [
-    { titulo: 'Centro 1031 / Alm 1030', centro: '1031', almacen: '1030', cantidad: principales['1030'] || 0 },
-    { titulo: 'Centro 1031 / Alm 1032', centro: '1031', almacen: '1032', cantidad: principales['1032'] || 0 },
-    ...(esSuturas ? [{ titulo: 'Centro 1018 (Suturas)', centro: '1018', almacen: '', cantidad: otros['1018'] || 0 }] : []),
-  ];
+  const puntos = puntosSolicitarInventario(a, material, otros['1018'] || 0);
   return { mat, principales, otros, transito, condiciones, puntos };
 }
-
-export interface PuntoSolicitar { titulo: string; centro: string; almacen: string; cantidad: number; nota?: string }
 
 /** "Solicitar desde inventario (click derecho)": grid de puntos con menú
  * contextual. `tituloDe` permite pintar nombres de centro/almacén. */
@@ -109,11 +97,11 @@ export function MaterialInventarioSection({ a, material }: { a: Analytics; mater
 
   return (
     <>
-      <Section title="Inventario principales"><InvGrid items={invPrin} /></Section>
-      <Section title={`Otros centros (1001–1036)${centrosElegidos.length ? ' · filtrado' : ''}`}>
+      <Section title="Inventario principales · Centro 1031" collapsible storageKey="inv.principales"><InvGrid items={invPrin} /></Section>
+      <Section title={`Otros centros (1001–1036)${centrosElegidos.length ? ' · filtrado' : ''}`} collapsible storageKey="inv.otros">
         {invOtros.length ? <InvGrid items={invOtros} /> : <p className="text-sm text-text-muted">Ningún centro elegido en el filtro.</p>}
       </Section>
-      <Section title="Solicitar desde inventario (click derecho)">
+      <Section title="Solicitar desde inventario (click derecho)" collapsible storageKey="inv.solicitar">
         <SolicitarGrid a={a} material={material} mat={mat} puntos={puntos} condiciones={condiciones} tituloDe={(p) => p.titulo} />
       </Section>
     </>
@@ -126,15 +114,17 @@ export function MaterialInventarioSection({ a, material }: { a: Analytics; mater
  * del detalle de pedido — muestra todos los centros salvo que la tabla de
  * Inventario tenga un filtro de centro (`centrosVisibles`). Usa los nombres
  * de centro según la preferencia del usuario; los de almacén, siempre. */
-export function MaterialInventarioLateral({ a, material, centrosVisibles, centroActivo, onSelectCentro }: {
+export function MaterialInventarioLateral({ a, material, centrosVisibles, centroActivo, onSelectCentro, conPrincipales = false }: {
   a: Analytics; material: string; centrosVisibles?: string[];
+  /** Agrega "Inventario principales" (Centro 1031) arriba — para los detalles que no lo traen en su cuerpo. */
+  conPrincipales?: boolean;
   /** Centro mostrado en el detalle de la derecha (se resalta) y callback al elegir otro. */
   centroActivo?: string; onSelectCentro?: (centro: string) => void;
 }) {
   const nombresCentros = useNombresStore((s) => s.centros);
   const nombresAlm = useNombresStore((s) => s.almacenes);
   const mostrarNombres = useVistaCentrosStore((s) => s.mostrarNombres);
-  const { mat, otros, transito, condiciones, puntos } = useMaterialInventario(a, material);
+  const { mat, principales, otros, transito, condiciones, puntos } = useMaterialInventario(a, material);
 
   const rssMat = a.rss?.mats.get(mat);
   const filtrado = !!centrosVisibles;
@@ -158,10 +148,15 @@ export function MaterialInventarioLateral({ a, material, centrosVisibles, centro
   return (
     <div className="flex flex-col gap-4">
       <h3 className="font-display text-sm font-semibold">Inventario · {material}</h3>
-      <Section title={`Otros centros (1001–1036 · alm. 1030+1031+1060)${filtrado ? ' · filtrado' : ''}`}>
+      {conPrincipales && (
+        <Section title="Inventario principales · Centro 1031" collapsible storageKey="inv.principales">
+          <InvGrid items={PRINCIPALES.map((c) => [c, principales[c] || 0] as [string, number])} cols={2} />
+        </Section>
+      )}
+      <Section title={`Otros centros (1001–1036 · alm. 1030+1031+1060)${filtrado ? ' · filtrado' : ''}`} collapsible storageKey="inv.otros">
         {invOtros.length ? <InvGrid items={invOtros} cols={2} onSelect={onSelectCentro ? (i) => onSelectCentro(centrosLista[i]) : undefined} activeIndex={centroActivo ? centrosLista.indexOf(centroActivo as (typeof CENTERS)[number]) : undefined} /> : <p className="text-sm text-text-muted">Ningún centro en el filtro.</p>}
       </Section>
-      <Section title="Solicitar desde inventario (click derecho)">
+      <Section title="Solicitar desde inventario (click derecho)" collapsible storageKey="inv.solicitar">
         <SolicitarGrid a={a} material={material} mat={mat} puntos={puntos} condiciones={condiciones} tituloDe={tituloDe} />
       </Section>
     </div>

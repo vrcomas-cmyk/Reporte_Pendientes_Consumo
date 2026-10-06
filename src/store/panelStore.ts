@@ -23,7 +23,9 @@ export type Panel =
   | { type: 'codigoEvol'; kind: 'solic' | 'dest'; key: string; material: string }
   | { type: 'material'; material: string }
   | { type: 'consumoMaterial'; dest: string; material: string }
-  | { type: 'clientesMes'; material: string; mes: string }
+  // `centro`/`dest` (opcionales): acotan el detalle del mes al mismo filtro de la gráfica que se
+  // clicó (tendencia de un centro, serie de un solo destinatario) para que los totales cuadren.
+  | { type: 'clientesMes'; material: string; mes: string; centro?: string; dest?: string }
   // #18: month click on the aggregated "Facturación mensual (filtro)" chart — carries a
   // pre-computed snapshot of the rows matching the mes under the currently active Consumo filters
   // (generalizes legacy openClientesMes beyond a single material).
@@ -36,7 +38,9 @@ export type Panel =
   // undefined = todos). `lista`: materiales en el orden/filtro de la tabla al
   // abrir, para recorrerlos con ◀/▶ (ver MaterialNavControl). Snapshots, igual
   // que `mesClientesFiltro.rows`.
-  | { type: 'celda'; material: string; centro: string; origen?: 'resumenSin'; centrosVisibles?: string[]; lista?: string[] }
+  // `almacen` (opcional): almacén del centro que se está visualizando — la tendencia y el
+  // promedio se acotan a centro + almacén (desde Fac_Mensual_CAM).
+  | { type: 'celda'; material: string; centro: string; almacen?: string; origen?: 'resumenSin'; centrosVisibles?: string[]; lista?: string[] }
   // Detalle de una celda del reporte "Inv Condición" (InvConsolidado): a
   // diferencia de `celda` (que prioriza el desglose de Resumen Sin
   // Sugerencias), este SIEMPRE muestra el desglose por lote desde

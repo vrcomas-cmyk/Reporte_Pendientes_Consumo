@@ -9,10 +9,10 @@ import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { buildLotesSheet, loteKey } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, Chip, StatTile, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, ClearFiltersButton, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, Chip, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, ClearFiltersButton, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { TooltipHint } from '@/components/ui/tooltip';
 import {
-  invGen, esLento, esCentroDistribucion, peorCobertura, summarizeCoberturaConTransito, quiebreMitigadoPorTransito,
+  invGen, esLento, esCentroDistribucion, peorCobertura, quiebreMitigadoPorTransito,
   COBERTURA_LABEL, COBERTURA_CLS, COBERTURA_HELP, COBERTURA_HELP_TRANSITO,
   type RSSMaterial, type RSSCentro, type CoberturaEstado,
 } from '@/core/resumenSin';
@@ -34,6 +34,7 @@ import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { useNombresStore, useVistaCentrosStore } from '@/store/nombresStore';
 import { etiquetaCentro } from '@/lib/nombres';
+import { ResumenSinContexto } from './ResumenSinContexto';
 
 export function ResumenSinPage() {
   const bootstrapped = useDataStore((s) => s.bootstrapped);
@@ -118,21 +119,6 @@ export function ResumenSinPage() {
       return true;
     });
   }, [rss, qd, a.enrich, gerente, filterCols, quick, pendFiltro, lentoFiltro, transitoFiltro, coberturaFiltro, pasteCodes]);
-
-  const totals = useMemo(() => {
-    let inv = 0, pend = 0, trans = 0;
-    for (const mo of list) mo.centros.forEach((co) => { inv += invGen(co); pend += co.pend; trans += co.transito; });
-    return { inv, pend, trans };
-  }, [list]);
-
-  // Peor cobertura por cada par (material, centro) visible — base tanto del
-  // resumen por clase como del badge por celda, calculado una sola vez.
-  const coberturaSummary = useMemo(() => {
-    const pares: { estado: CoberturaEstado | undefined; co: RSSCentro }[] = [];
-    for (const mo of list) mo.centros.forEach((co) => pares.push({ estado: peorCobertura(co), co }));
-    return summarizeCoberturaConTransito(pares);
-  }, [list]);
-  const coberturaCount = (estado: CoberturaEstado) => coberturaSummary.base.find((s) => s.estado === estado)?.count ?? 0;
 
   const statusMat = (mo: RSSMaterial) => [...statusSetOf(mo)].join(', ');
   const sortAcc = useMemo(() => ({
@@ -219,27 +205,15 @@ export function ResumenSinPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-4">
-        <TooltipHint text={`${COBERTURA_HELP.quiebre} No incluye Centro 1031 (hub de distribución).`}>
-          <div><StatTile emphasis="hero" label="Quiebre urgente (sin tránsito)" value={formatNumber(coberturaSummary.quiebreUrgente)} tone={coberturaSummary.quiebreUrgente > 0 ? 'danger' : undefined} /></div>
-        </TooltipHint>
-        <TooltipHint text={`${COBERTURA_HELP_TRANSITO} No incluye Centro 1031 (hub de distribución).`}>
-          <div><StatTile compact label="Quiebre con tránsito en camino" value={formatNumber(coberturaSummary.quiebreMitigado)} tone="info" /></div>
-        </TooltipHint>
-        <TooltipHint text={`${COBERTURA_HELP.inmovilizado} No incluye Centro 1031 (hub de distribución).`}>
-          <div><StatTile compact label="Inmovilizado (sin consumo, con inv.)" value={formatNumber(coberturaCount('inmovilizado'))} tone="warning" /></div>
-        </TooltipHint>
-        <TooltipHint text={`${COBERTURA_HELP.exceso} No incluye Centro 1031 (hub de distribución).`}>
-          <div><StatTile compact label="Exceso (> 12 meses cobertura)" value={formatNumber(coberturaCount('exceso'))} tone="warning" /></div>
-        </TooltipHint>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <StatTile label="Materiales" value={formatNumber(list.length)} />
-        <StatTile label="Inv. total" value={formatNumber(totals.inv)} />
-        <StatTile label="Pendiente total" value={formatNumber(totals.pend)} />
-        <StatTile label="En tránsito total" value={formatNumber(totals.trans)} tone="info" />
-      </div>
+      <ResumenSinContexto
+        list={list}
+        a={a}
+        lblCentro={lblCentro}
+        coberturaFiltro={coberturaFiltro}
+        onCobertura={setCoberturaFiltro}
+        onMaterial={(material) => open({ type: 'material', material })}
+        onSector={(sector) => open({ type: 'sector', sector })}
+      />
 
       <div className="flex items-center gap-2">
         <div className="relative w-64"><Search className="absolute left-2.5 top-2.5 size-3.5 text-text-faint" />

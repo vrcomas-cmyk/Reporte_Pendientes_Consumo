@@ -10,7 +10,7 @@ import { getAllCachedTabs } from './sheetsCache';
  * columns are already encoded once in typed fields like `gpoCte`, `material`).
  *
  * Rehydrate here by looking up the dense-rows cache (`sheetsCache`, populated by
- * the report-sheets sync) for each of the three report sheets that carry `raw`,
+ * the report-sheets sync) for each of the report sheets that carry `raw` (Consumo ya no: se deriva de Resumen_Fac con campos tipados),
  * and zipping `headers × rows[i]` back into `{header: value}` objects. Rows
  * line up 1:1 with the corresponding typed array as long as both came from the
  * same sync — the source arrays are produced by pure, order-preserving mappers,
@@ -21,10 +21,9 @@ import { getAllCachedTabs } from './sheetsCache';
  * dense counterpart get an empty-object `raw` — pages that reach for a
  * dynamic column then see `undefined`, never throw. */
 
-const ROLE_TO_TAB: Array<{ field: 'sugerencias' | 'resumenSinSugerencias' | 'consumo'; tab: string }> = [
+const ROLE_TO_TAB: Array<{ field: 'sugerencias' | 'resumenSinSugerencias'; tab: string }> = [
   { field: 'sugerencias', tab: 'Todas las Sugerencias' },
   { field: 'resumenSinSugerencias', tab: 'Resumen Sin Sugerencias' },
-  { field: 'consumo', tab: 'Reporte de Consumo' },
 ];
 
 function zipOne(headers: string[], row: unknown[]): Record<string, unknown> {

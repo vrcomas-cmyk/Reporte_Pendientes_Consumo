@@ -47,6 +47,8 @@ export interface Tendencia {
 
 export interface RFIndex {
   matDest: Map<string, Serie>;
+  /** Serie por centro + destinatario + material (clave `centro||dest||mat`) — la de una fila de Consumo. */
+  centroMatDest: Map<string, Serie>;
   solic: Map<string, Serie>;
   dest: Map<string, Serie>;
   mat: Map<string, Serie>;
@@ -83,6 +85,7 @@ const RFC = {
 /** Builds the monthly series indices from Resumen_Fac rows. */
 export function buildRF(rows: ResumenFacRow[]): RFIndex {
   const matDest = new Map<string, Map<string, SeriePoint>>();
+  const centroMatDest = new Map<string, Map<string, SeriePoint>>();
   const solic = new Map<string, Map<string, SeriePoint>>();
   const dest = new Map<string, Map<string, SeriePoint>>();
   const mat = new Map<string, Map<string, SeriePoint>>();
@@ -152,6 +155,7 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
     if (!s) sinClave.solicitante += i;
     if (!d) sinClave.destinatario += i;
     add(matDest, d + '||' + m, mes, c, i);
+    if (m) add(centroMatDest, norm(r[RFC.centro]) + '||' + d + '||' + m, mes, c, i);
     add(solic, s, mes, c, i);
     add(dest, d, mes, c, i);
     add(mat, m, mes, c, i);
@@ -183,6 +187,7 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
 
   return {
     matDest: ser(matDest),
+    centroMatDest: ser(centroMatDest),
     solic: ser(solic),
     dest: ser(dest),
     mat: ser(mat),
@@ -203,6 +208,8 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
 // ---- accessors --------------------------------------------------------------
 export const serieMatDest = (rf: RFIndex | null, dest: unknown, mat: unknown): Serie =>
   rf ? rf.matDest.get(norm(dest) + '||' + norm(mat)) || [] : [];
+export const serieCentroMatDest = (rf: RFIndex | null, centro: unknown, dest: unknown, mat: unknown): Serie =>
+  rf ? rf.centroMatDest.get(norm(centro) + '||' + norm(dest) + '||' + norm(mat)) || [] : [];
 export const serieSolic = (rf: RFIndex | null, s: unknown): Serie => (rf ? rf.solic.get(norm(s)) || [] : []);
 export const serieDest = (rf: RFIndex | null, d: unknown): Serie => (rf ? rf.dest.get(norm(d)) || [] : []);
 export const serieMaterial = (rf: RFIndex | null, m: unknown): Serie => (rf ? rf.mat.get(norm(m)) || [] : []);
@@ -530,32 +537,22 @@ export function materialesDe(rf: RFIndex, kind: 'solic' | 'dest', key: string) {
     .sort((a, b) => (b.ultimo ? mesKey(b.ultimo.mes) : 0) - (a.ultimo ? mesKey(a.ultimo.mes) : 0));
 }
 
-/** Minimal 2-point series from a "Reporte de Consumo" row (fallback when there
- *  is no Resumen_Fac series for that dest+material). */
-export function serieDeConsumo(
-  r: Record<string, unknown>,
-  RC: { penFecha: string; cantPen: string; impPen: string; ultMes: string; cantUlt: string; impUlt: string },
-): Serie {
-  const arr: Serie = [];
-  const pm = aMesAnio(r[RC.penFecha]);
-  if (pm) arr.push({ mes: pm, cant: num(r[RC.cantPen]), imp: num(r[RC.impPen]) });
-  const um = aMesAnio(r[RC.ultMes]);
-  if (um) arr.push({ mes: um, cant: num(r[RC.cantUlt]), imp: num(r[RC.impUlt]) });
-  return arr.sort((a, b) => mesKey(a.mes) - mesKey(b.mes));
-}
-
 /** Which clients invoiced a material in a given month (drill from a chart month). */
-export function clientesPorMesMaterial(rf: RFIndex, material: string, mes: string) {
+export function clientesPorMesMaterial(rf: RFIndex, material: string, mes: string, filtro?: { centro?: string; dest?: string }) {
   const m = norm(material);
   const mk = mesKey(mes);
-  const acc = new Map<string, { dest: string; solic: string; razon: string; centro: string; cant: number; imp: number }>();
+  const centroF = filtro?.centro ? norm(filtro.centro) : '';
+  const destF = filtro?.dest ? norm(filtro.dest) : '';
+  const acc = new Map<string, { dest: string; solic: string; razon: string; centro: string; gpoVdor: string; gpoCte: string; cant: number; imp: number }>();
   for (const r of rf.rows) {
     if (norm(r.material) !== m) continue;
     if (mesKey(norm(r.mesAno)) !== mk) continue;
+    if (centroF && norm(r.centro) !== centroF) continue;
     const d = norm(r.destinatario);
+    if (destF && d !== destF) continue;
     let o = acc.get(d);
     if (!o) {
-      o = { dest: d, solic: norm(r.solicitante), razon: norm(r.razonSocial), centro: norm(r.centro), cant: 0, imp: 0 };
+      o = { dest: d, solic: norm(r.solicitante), razon: norm(r.razonSocial), centro: norm(r.centro), gpoVdor: norm(r.gpoVdor), gpoCte: norm(r.gpoCte), cant: 0, imp: 0 };
       acc.set(d, o);
     }
     o.cant += num(r.cantidadFacturada);
