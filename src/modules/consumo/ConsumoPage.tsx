@@ -34,6 +34,9 @@ import { useQuickFilters } from '@/hooks/useQuickFilters';
 import { useGruposExcluidos } from '@/hooks/useGruposPorDefecto';
 import { gruposPorDefecto } from '@/lib/gruposCliente';
 
+// Inversa de mesKey (año*12+mes) -> 'mm/aaaa'.
+const kToMes = (k: number) => String(((k - 1) % 12) + 1).padStart(2, '0') + '/' + Math.floor((k - 1) / 12);
+
 // #2: combined date+qty cell, same pattern as the existing "Última" column.
 function fechaCantCell(fecha: string, cant: number) {
   if (!fecha && !cant) return '—';
@@ -177,6 +180,19 @@ export function ConsumoPage() {
   const rangoHiK = useMemo(() => (periodoMeses.hasta ? mesKey(periodoMeses.hasta) : null), [periodoMeses.hasta]);
   const rangoActivo = rangoLoK != null || rangoHiK != null;
   const rangoPromedio = useMemo(() => ({ lo: rangoLoK, hi: rangoHiK }), [rangoLoK, rangoHiK]);
+  // Ventana de los rankings/promedios: con periodo activo, ese rango; si no, los
+  // 12 meses COMPLETOS hasta el mes anterior a hoy (igual que Análisis y los
+  // paneles) — no incluye el mes en curso parcial.
+  const ventana = useMemo(() => {
+    const refK = mesKey(mesAnterior(hoyMes()));
+    const lo = rangoActivo ? (rangoLoK ?? -Infinity) : refK - 11;
+    const hi = rangoActivo ? (rangoHiK ?? Infinity) : refK;
+    const nMeses = rangoActivo && rangoLoK != null && rangoHiK != null ? Math.max(1, rangoHiK - rangoLoK + 1) : 12;
+    const etiqueta = rangoActivo
+      ? `${rangoLoK != null ? mesLabel(periodoMeses.desde) : 'inicio'} – ${rangoHiK != null ? mesLabel(periodoMeses.hasta) : 'último mes'}`
+      : `${mesLabel(kToMes(refK - 11))} – ${mesLabel(kToMes(refK))}`;
+    return { lo, hi, nMeses, etiqueta };
+  }, [rangoActivo, rangoLoK, rangoHiK, periodoMeses.desde, periodoMeses.hasta]);
 
   const pasaFiltros = (r: ConsumoRow): boolean => {
     if (estado && statusOf(r).status.key !== estado) return false;
@@ -340,10 +356,7 @@ export function ConsumoPage() {
 
   const rankMat = useMemo(() => {
     if (!a.rf) return [];
-    const cur = mesKey(a.rf.curmes);
-    const lo = rangoActivo ? (rangoLoK ?? -Infinity) : cur - 11;
-    const hi = rangoActivo ? (rangoHiK ?? Infinity) : cur;
-    const nMeses = rangoActivo && rangoLoK != null && rangoHiK != null ? Math.max(1, rangoHiK - rangoLoK + 1) : 12;
+    const { lo, hi, nMeses } = ventana;
     const seen = new Set<string>();
     const acc = new Map<string, { imp: number; cant: number }>();
     for (const r of filteredAgg) {
@@ -360,9 +373,9 @@ export function ConsumoPage() {
       }
     }
     return [...acc.entries()]
-      .map(([m, s]) => ({ code: m, desc: a.rf?.matTexto.get(m) || '', val: s.imp / nMeses, valSub: s.cant / nMeses }))
+      .map(([m, s]) => ({ code: m, desc: a.rf?.matTexto.get(m) || '', val: s.imp / nMeses, valSub: s.cant / nMeses, tip: `Total ${formatCurrency(s.imp)} ÷ ${nMeses} meses · ${formatNumber(s.cant)} pzas en total` }))
       .sort((x, y) => y.val - x.val).slice(0, 10);
-  }, [filteredAgg, a.rf, rangoActivo, rangoLoK, rangoHiK]);
+  }, [filteredAgg, a.rf, ventana]);
 
   // Dispersión de precios entre clientes distintos, para el mismo material,
   // acotada a los materiales visibles bajo el filtro actual — así "Buscar" o
@@ -376,10 +389,7 @@ export function ConsumoPage() {
   // #8: top ranking is now Sector-level (with trend), moved above the fold.
   const rankSector = useMemo(() => {
     if (!a.rf) return [];
-    const cur = mesKey(a.rf.curmes);
-    const lo = rangoActivo ? (rangoLoK ?? -Infinity) : cur - 11;
-    const hi = rangoActivo ? (rangoHiK ?? Infinity) : cur;
-    const nMeses = rangoActivo && rangoLoK != null && rangoHiK != null ? Math.max(1, rangoHiK - rangoLoK + 1) : 12;
+    const { lo, hi, nMeses } = ventana;
     const seen = new Set<string>();
     const bySector = new Map<string, Map<string, { mes: string; cant: number; imp: number }>>();
     for (const r of filteredAgg) {
@@ -399,9 +409,9 @@ export function ConsumoPage() {
       let imp12 = 0, cant12 = 0;
       serie.forEach((x) => { const mk = mesKey(x.mes); if (mk >= lo && mk <= hi) { imp12 += x.imp; cant12 += x.cant; }}) ;
       const t = tendenciaTexto(serie);
-      return { code: sector, desc: t.txt, val: imp12 / nMeses, valSub: cant12 / nMeses } ;
+      return { code: sector, desc: t.txt, val: imp12 / nMeses, valSub: cant12 / nMeses, tip: `Total ${formatCurrency(imp12)} ÷ ${nMeses} meses · ${formatNumber(cant12)} pzas en total` };
     }).filter((x) => x.val > 0).sort((x, y) => y.val - x.val).slice(0, 10);
-  }, [filteredAgg, a.rf, ce, rangoActivo, rangoLoK, rangoHiK]);
+  }, [filteredAgg, a.rf, ce, ventana]);
 
   // #6: nueva/reactiva counts for both the current AND the previous quarter, always
   // relative to today's date (mesRefQAnterior derives the previous-quarter reference
@@ -423,10 +433,7 @@ export function ConsumoPage() {
       matsPorSolic.set(s, set);
     }
     const gsum = new Map<string, { grupo: string; nueva: number; reactiva: number; nuevaPrev: number; reactivaPrev: number; imp12: number; solics: number }>();
-    const cur = mesKey(a.rf.curmes);
-    const lo = rangoActivo ? (rangoLoK ?? -Infinity) : cur - 11;
-    const hi = rangoActivo ? (rangoHiK ?? Infinity) : cur;
-    const nMeses = rangoActivo && rangoLoK != null && rangoHiK != null ? Math.max(1, rangoHiK - rangoLoK + 1) : 12;
+    const { lo, hi, nMeses } = ventana;
     const refPrev = mesRefQAnterior(a.rf.curmes);
     pairs.forEach((pk) => {
       const i = pk.indexOf('~~'), s = pk.slice(0, i), g = pk.slice(i + 2);
@@ -451,7 +458,23 @@ export function ConsumoPage() {
       o.imp12 += impVentana / nMeses * 12; o.solics++; // columna se etiqueta "Fact. 12m" — se anualiza para que siga comparable con nMeses distinto de 12
     });
     return [...gsum.values()].filter((x) => x.nueva || x.reactiva || x.nuevaPrev || x.reactivaPrev).sort((x, y) => y.nueva + y.reactiva - (x.nueva + x.reactiva));
-  }, [filteredAgg, a.rf, ce, rangoActivo, rangoLoK, rangoHiK]);
+  }, [filteredAgg, a.rf, ce, ventana]);
+
+  // Snapshot de lo que ve el ranking al hacer click: pares destinatario+material
+  // de las filas filtradas (opcionalmente acotadas por sector/material) + ventana.
+  const abrirConFiltro = (tipo: 'sector' | 'material', valor: string) => {
+    const seen = new Set<string>();
+    const pares: string[] = [];
+    for (const r of filteredAgg) {
+      const k = norm(r.destinatario) + '||' + norm(r.material);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      if (tipo === 'sector' ? (ce.sector(r) || '(sin sector)') !== valor : norm(r.material) !== norm(valor)) continue;
+      pares.push(k);
+    }
+    const filtro = { pares, lo: ventana.lo, hi: ventana.hi, nMeses: ventana.nMeses, etiqueta: ventana.etiqueta };
+    open(tipo === 'sector' ? { type: 'sector', sector: valor, filtro } : { type: 'material', material: valor, filtro });
+  };
 
   const sortAcc = useMemo(() => ({
     cliente: (r: ConsumoRow) => r.razonSocial,
@@ -671,8 +694,8 @@ export function ConsumoPage() {
         <EvolChart serie={aggSerie} height={160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes) })} />
       </div>
 
-      <Ranking collapsible storageKey="consumo.rankSector.open" title="Sectores · fact. prom 12m" items={rankSector} money wide onRow={(s) => open({ type: 'sector', sector: s })} />
-      <Ranking collapsible storageKey="consumo.rankMat.open" title="Materiales · fact. prom 12m" items={rankMat} money wide onRow={(m) => open({ type: 'material', material: m })} />
+      <Ranking collapsible storageKey="consumo.rankSector.open" title={`Sectores · fact. promedio mensual (${ventana.etiqueta}) · $/mes y pzas/mes`} items={rankSector} subLabel="pzas/mes" money wide onRow={(s) => abrirConFiltro('sector', s)} />
+      <Ranking collapsible storageKey="consumo.rankMat.open" title={`Materiales · fact. promedio mensual (${ventana.etiqueta}) · $/mes y pzas/mes`} items={rankMat} subLabel="pzas/mes" money wide onRow={(m) => abrirConFiltro('material', m)} />
 
       <div className="rounded-xl border border-border">
         <button

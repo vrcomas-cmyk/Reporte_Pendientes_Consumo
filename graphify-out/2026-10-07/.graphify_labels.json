@@ -384,5 +384,8 @@
   "382": "@radix-ui/react-tooltip",
   "383": "checkElementGptBorderShadowDOM",
   "384": "checkElementMotion",
-  "385": "proyeccion.ts"
+  "385": "proyeccion.ts",
+  "386": "AnalisisPage.tsx",
+  "387": "CentrosFiltroBar.tsx",
+  "388": "sugerencias/columns.ts"
 }

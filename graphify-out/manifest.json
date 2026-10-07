@@ -170,8 +170,8 @@
     "semantic_hash": ""
   },
   "src/modules/consumo/ConsumoPage.tsx": {
-    "mtime": 1791240390.142573,
-    "ast_hash": "96caf6db09f9d62f39149d3a03bfdf99",
+    "mtime": 1791394193.3168545,
+    "ast_hash": "dfff39c97adf27b198c8c633e5b233dd",
     "semantic_hash": ""
   },
   "src/modules/dashboard/DashboardPage.tsx": {
@@ -275,8 +275,8 @@
     "semantic_hash": ""
   },
   "src/store/panelStore.ts": {
-    "mtime": 1791302050.7299151,
-    "ast_hash": "e2696a877fd4fbabce5702f818b1ae63",
+    "mtime": 1791394197.1684432,
+    "ast_hash": "162ea4f6ba5e393199a8d2764d547dfe",
     "semantic_hash": ""
   },
   "src/store/uiStore.ts": {
@@ -575,8 +575,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/MaterialPanel.tsx": {
-    "mtime": 1790791085.52503,
-    "ast_hash": "69cd5ce2ccd5b9253f759acab35e9d98",
+    "mtime": 1791394226.3487172,
+    "ast_hash": "142946e81b48f64a82a6207bb5838ea8",
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/MaterialTotalesPanel.tsx": {
@@ -590,8 +590,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/SectorPanel.tsx": {
-    "mtime": 1790791085.5894883,
-    "ast_hash": "2f330e980d66b42fd911f4c490a05207",
+    "mtime": 1791394213.3072186,
+    "ast_hash": "e0621db66c63ff4cd9332967d19d2d08",
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/SugDetallePanel.tsx": {
@@ -640,8 +640,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/Ranking.tsx": {
-    "mtime": 1790866069.3872411,
-    "ast_hash": "2b4d0cf0ef5eaa04b012aeef914dfa16",
+    "mtime": 1791394191.0111835,
+    "ast_hash": "9db682e1ecba60f9fe8aeee17eef8139",
     "semantic_hash": ""
   },
   "src/modules/analytics/ui/StatTile.tsx": {

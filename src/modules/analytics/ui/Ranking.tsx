@@ -4,11 +4,13 @@ import { cn, formatCurrency, formatNumber } from '@/lib/utils';
 import { usePersistedState } from '@/hooks/usePersistedState';
 
 /** Ranking de items (code/desc/val) con barra de progreso y, opcionalmente, layout wide con rows de dos líneas. */
-export const Ranking = memo(function Ranking({ title, items, money = false, onRow, wide = false, className, collapsible = false, storageKey = 'ranking.open' }: {
+export const Ranking = memo(function Ranking({ title, items, money = false, onRow, wide = false, className, collapsible = false, storageKey = 'ranking.open', subLabel }: {
   title: string;
+  /** Unidad de `valSub` (p.ej. "pzas/mes"), mostrada tras el número. */
+  subLabel?: string;
   /** `valSub` is an optional second metric shown under `val` (e.g. avg
    * quantity under avg importe) — plain formatNumber, never currency. */
-  items: { code: string; desc: string; val: number; valSub?: number }[];
+  items: { code: string; desc: string; val: number; valSub?: number; tip?: string }[];
   money?: boolean;
   onRow?: (code: string) => void;
   wide?: boolean;
@@ -40,13 +42,14 @@ export const Ranking = memo(function Ranking({ title, items, money = false, onRo
               key={it.code}
               type="button"
               onClick={() => onRow?.(it.code)}
+              title={it.tip}
               className="group flex flex-col rounded px-2 py-1.5 text-left hover:bg-bg-inset border border-border/60"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className={cn('font-medium text-xs', onRow && 'text-accent')}>{it.code}</span>
                 <div className="flex shrink-0 flex-col items-end">
                   <span className="font-mono text-sm font-medium tabular-nums">{money ? formatCurrency(it.val) : formatNumber(it.val)}</span>
-                  {it.valSub !== undefined && <span className="font-mono text-xs tabular-nums text-text-faint">{formatNumber(it.valSub)}</span>}
+                  {it.valSub !== undefined && <span className="font-mono text-xs tabular-nums text-text-faint">{formatNumber(it.valSub)}{subLabel ? ` ${subLabel}` : ''}</span>}
                 </div>
               </div>
               <div className="text-[11px] text-text-faint whitespace-normal break-words">{it.desc}</div>

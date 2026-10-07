@@ -7,6 +7,11 @@ import type { Estado } from '@/core/resumenFac';
 // replacing the legacy navOpen/navPush/backBtn modal history. The top of the
 // stack is the panel currently shown inside a closable Sheet; `back` pops one
 // level, `open` resets the stack, `close` clears it.
+/** Snapshot del filtro activo de Consumo al abrir un sector/material desde sus
+ * rankings: `pares` = claves 'destinatario||material' (normalizadas) que pasan
+ * los filtros, `lo`/`hi` = ventana (mesKey) y `nMeses` el divisor del promedio. */
+export interface FiltroConsumo { pares: string[]; lo: number; hi: number; nMeses: number; etiqueta: string }
+
 export type Panel =
   | { type: 'sugDetalle'; boKey: string }
   // `lista` (opcional): pedidos distintos en el orden/filtro de la tabla al
@@ -21,7 +26,7 @@ export type Panel =
   // por ejecutivo).
   | { type: 'ejecutivoPedidos'; gpoVdor: string }
   | { type: 'codigoEvol'; kind: 'solic' | 'dest'; key: string; material: string }
-  | { type: 'material'; material: string }
+  | { type: 'material'; material: string; filtro?: FiltroConsumo }
   | { type: 'consumoMaterial'; dest: string; material: string }
   // `centro`/`dest` (opcionales): acotan el detalle del mes al mismo filtro de la gráfica que se
   // clicó (tendencia de un centro, serie de un solo destinatario) para que los totales cuadren.
@@ -30,7 +35,7 @@ export type Panel =
   // pre-computed snapshot of the rows matching the mes under the currently active Consumo filters
   // (generalizes legacy openClientesMes beyond a single material).
   | { type: 'mesClientesFiltro'; mes: string; rows: { razon: string; solic: string; dest: string; material: string; cant: number; imp: number }[] }
-  | { type: 'sector'; sector: string }
+  | { type: 'sector'; sector: string; filtro?: FiltroConsumo }
   | { type: 'grupo'; grupo: string }
   // `origen: 'resumenSin'` (desde el módulo Inventario): el inventario de otros
   // centros + "Solicitar" se muestra en un panel lateral izquierdo, acotado a
