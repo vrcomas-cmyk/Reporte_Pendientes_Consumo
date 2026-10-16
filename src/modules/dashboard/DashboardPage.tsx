@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SOLO_LIBROS } from '@/lib/modoLibros';
 import { Link } from 'react-router-dom';
 import {
   Boxes,
@@ -47,7 +48,8 @@ export function DashboardPage() {
   const axisColor = CHART_UI.axis;
 
   useEffect(() => {
-    if (activeAnalysis) {
+    // Etapa "solo libros": el reporte diario anterior no se restaura.
+    if (activeAnalysis || SOLO_LIBROS) {
       setLoading(false);
       return;
     }

@@ -31,8 +31,8 @@ export function detalle12Cerrados(a: Pick<Analytics, 'facMensual' | 'rss'>, mate
   const vacio = { desde: '', hasta: '', mesesConDato: 0, ultimoMesCam: '' };
   if (!co) return { promedio: 0, fuente: 'ninguna', ...vacio };
   let s = 0;
-  if (almacen) s = co.alm.get(almacen)?.prom ?? 0;
-  else co.alm.forEach((al) => { s += al.prom; });
+  if (almacen) s = co.alm?.get(almacen)?.prom ?? 0;
+  else co.alm?.forEach((al) => { s += al.prom; });
   return { promedio: s, fuente: 'rss', ...vacio };
 }
 

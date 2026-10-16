@@ -9,6 +9,7 @@ import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import { ROLE_LABEL } from '@/core/roleDetection';
 import { useReportSheetsSyncStore } from '@/store/reportSheetsSyncStore';
 import { getConnector, CONNECTOR_KEYS } from '@/services/connectorsService';
+import { cargarFacturacionLibros, facturacionLibrosActiva } from '@/services/facturacionLibrosService';
 import type { AnalysisResult, AppSettings, CatalogSnapshot, DetectedSheet, ProcessingProgress, SheetRole } from '@/core/types';
 
 /** Google Apps Script endpoint for the daily-report spreadsheet
@@ -595,13 +596,27 @@ async function runSync(params: SyncReportSheetsParams): Promise<AnalysisResult> 
     }
 
     async function processTabInner(role: SheetRole, tab: string, index: number): Promise<void> {
-      const fromSnapshot = await tryFetchFromSnapshot(role, tab);
-      const fromRecentMonth = fromSnapshot ? null : await tryFetchRecentMonthMerged(role, tab);
+      // Facturación (Resumen_Fac y Fac_Mensual_CAM): si hay Apps Script de "Seg. de pedidos" configurado se arma desde
+      // los LIBROS TRIMESTRALES de Drive en vez de leer estas pestañas del Sheet del reporte (mismas sumas, ver
+      // core/facturacionLibros.ts). Sin esa URL, todo sigue como siempre.
+      const viaLibros = (role === 'resumenFac' || role === 'facMensualCam') && (await facturacionLibrosActiva());
+      const fromSnapshot = viaLibros ? null : await tryFetchFromSnapshot(role, tab);
+      const fromRecentMonth = viaLibros || fromSnapshot ? null : await tryFetchRecentMonthMerged(role, tab);
       let tabRows: TabRows;
       let viaSnapshot = false;
       let viaRecentMonth = false;
 
-      if (fromSnapshot) {
+      if (viaLibros) {
+        const fac = await cargarFacturacionLibros((mensaje, fraccion) =>
+          emit({ phase: 'parsing', percent: Math.round(10 + (60 * (done + fraccion)) / tabs.length), message: `${ROLE_LABEL[role]}: ${mensaje}` }),
+        );
+        tabRows = role === 'resumenFac' ? fac.resumenFac : fac.facMensualCam;
+        emit({
+          phase: 'parsing',
+          percent: Math.round(10 + (60 * done) / tabs.length),
+          message: `${ROLE_LABEL[role]}: libros trimestrales (${tabRows.rows.length.toLocaleString('es-MX')} filas)`,
+        });
+      } else if (fromSnapshot) {
         tabRows = fromSnapshot;
         viaSnapshot = true;
         emit({

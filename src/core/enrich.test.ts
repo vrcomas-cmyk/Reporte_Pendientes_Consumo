@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { preciosPorCondicion, normCode, buildEnrich } from './enrich';
+import { preciosPorCondicion, normCode, buildEnrich, etiquetaEjecutivoZona, zonaTresDigitos } from './enrich';
 import type { CatalogSnapshot, InvConsolidadoRow } from './types';
 
 const mkRow = (over: Partial<InvConsolidadoRow>): InvConsolidadoRow => ({
@@ -137,5 +137,30 @@ describe('gerencia de marca', () => {
   it('sin gerente pasa todo; catálogo sin pestaña no rompe', () => {
     expect(e.sectorDeGerente('X', '')).toBe(true);
     expect(buildEnrich({ ...catalog, gerenciaMarca: undefined }).gerentes).toEqual([]);
+  });
+});
+
+describe('ejecutivos por zona (filtro)', () => {
+  it('zona a 3 dígitos', () => {
+    expect(zonaTresDigitos('0')).toBe('000');
+    expect(zonaTresDigitos('2')).toBe('002');
+    expect(zonaTresDigitos('101')).toBe('101');
+    expect(zonaTresDigitos('2.0')).toBe('002');
+    expect(zonaTresDigitos('NORTE')).toBe('NORTE');
+  });
+  it('las vacantes salen con su zona; los demás con su nombre', () => {
+    expect(etiquetaEjecutivoZona('Vacante Norte', '0').etiqueta).toBe('000 · Vacante Norte');
+    expect(etiquetaEjecutivoZona('VACANTE', 2).etiqueta).toBe('002 · VACANTE');
+    expect(etiquetaEjecutivoZona('Ana Pérez', '101')).toMatchObject({ etiqueta: 'Ana Pérez', vacante: false });
+  });
+  it('conserva el orden del catálogo (sin ordenar), una entrada por zona, y resuelve zona u oficina de ventas', () => {
+    const ej = (zona: string, ejecutivo: string, codOfVtas = '') => ({ zona, ejecutivo, codOfVtas });
+    const catalog = { ejecutivos: [ej('101', 'Zeta'), ej('0', 'Vacante A'), ej('2', 'Ana', 'OF9'), ej('2', 'Ana (dup)')], materiales: [], invConsolidado: [], gerenciaMarca: [] } as unknown as CatalogSnapshot;
+    const e = buildEnrich(catalog);
+    expect(e.ejecutivosZona.map((z) => z.zona)).toEqual(['101', '0', '2']);
+    expect(e.ejecutivosZona.map((z) => z.etiqueta)).toEqual(['Zeta', '000 · Vacante A', 'Ana']);
+    expect(e.zonaDeEjecutivo('002')).toBe('2');
+    expect(e.zonaDeEjecutivo('OF9')).toBe('2');
+    expect(e.zonaDeEjecutivo('999')).toBe('');
   });
 });

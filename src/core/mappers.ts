@@ -267,6 +267,9 @@ export function mapResumenFac(r: Row): ResumenFacRow {
     gpoCte: str(r['Gpo. Cte.']),
     gpoVdor: str(r['Gpo. Vdor.']),
     centro: str(r['Centro']),
+    precioMin: num(r['Precio mín']),
+    precioMax: num(r['Precio máx']),
+    fechaMax: str(r['Fecha máx']),
   };
 }
 

@@ -1,3 +1,4 @@
+import { useInvCerosStore } from '@/store/invCerosStore';
 import { formatNumber } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -6,16 +7,23 @@ import { cn } from '@/lib/utils';
  * mismo marcado "↻+N" ya usado en Sugerencias/ResumenSin.
  * `onSelect` (opcional) vuelve clicables las tarjetas y recibe el índice;
  * `activeIndex` resalta la seleccionada. */
-export function InvGrid({ items, cols = 4, onSelect, activeIndex }: {
+export function InvGrid({ items, cols = 4, onSelect, activeIndex, ocultables = false }: {
+  /** Respeta el interruptor global "Ocultar inventarios en 0" (cantidad y tránsito en 0). */
+  ocultables?: boolean;
   /** [etiqueta, cantidad, tránsito?, texto secundario?, ayuda (title)?] */
   items: [string, number, number?, string?, string?][];
   cols?: 2 | 4;
   onSelect?: (index: number) => void;
   activeIndex?: number;
 }) {
+  const ocultarCeros = useInvCerosStore((s) => s.ocultar);
+  const filtrar = ocultables && ocultarCeros;
+  // Se conserva el índice ORIGINAL para `onSelect`/`activeIndex`.
+  const visibles = items.map((it, idx) => ({ it, idx })).filter(({ it }) => !filtrar || it[1] !== 0 || !!it[2]);
+  if (!visibles.length) return <p className="text-xs text-text-faint">Todo en 0 (oculto).</p>;
   return (
     <div className={cols === 2 ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-2 gap-2 sm:grid-cols-4'}>
-      {items.map(([k, v, transito, sub, ayuda], i) => {
+      {visibles.map(({ it: [k, v, transito, sub, ayuda], idx: i }) => {
         const contenido = (
           <>
             <p className="text-[11px] text-text-faint">{k}</p>

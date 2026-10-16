@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { rutaRetirada } from '@/lib/modoLibros';
 import { useNavigate } from 'react-router-dom';
 import { useKeybindings, isEditableTarget, type KeyHandler } from '@/hooks/useKeybindings';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
@@ -27,12 +28,14 @@ import { CheatsheetDialog } from './CheatsheetDialog';
 // always work, even with a form focused.
 // ---------------------------------------------------------------------------
 
-const CHORD_NAV: Record<string, string> = {
+const CHORD_NAV_TODOS: Record<string, string> = {
   d: '/', y: '/hoy', c: '/carga', s: '/sugerencias', o: '/consumo',
   n: '/resumen-sin', i: '/inventario', a: '/analisis', p: '/oportunidades',
-  m: '/comodato', q: '/solicitudes', h: '/historial', l: '/registros',
+  r: '/comparativo', b: '/comodato-libros', m: '/comodato', q: '/solicitudes', h: '/historial', l: '/registros',
   x: '/ajustes', t: '/resultados',
 };
+
+const CHORD_NAV: Record<string, string> = Object.fromEntries(Object.entries(CHORD_NAV_TODOS).filter(([, to]) => !rutaRetirada(to)));
 
 export function GlobalKeybindings() {
   const navigate = useNavigate();

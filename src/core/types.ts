@@ -48,6 +48,8 @@ export interface InvConsolidadoRow {
   sector: string;
   grupo: string;
   condicion: string;
+  /** Detalle de la condición, aparte del material y su descripción (p. ej. el motivo de un PNC: "EMPAQUE DAÑADO"). */
+  detalle?: string;
   material: string;
   textoBreve: string;
   disponible31_30: number;
@@ -57,6 +59,8 @@ export interface InvConsolidadoRow {
   invSuma: number;
   precioOferta: number;
   importeInventario: number;
+  /** Inventario de TODOS los centros (incluido el 1031, que no es columna de CENTERS); solo lo llenan los módulos de libros. */
+  invTotal?: number;
 }
 
 /** Lot-level inventory detail, from "InvDetalle" (catalog) and
@@ -180,6 +184,11 @@ export interface ResumenFacRow {
   gpoCte: string;
   gpoVdor: string;
   centro: string;
+  /** Menor / mayor precio unitario de las LÍNEAS sumadas en esta fila (0 o ausente = sin dato; solo los libros nuevos lo traen). */
+  precioMin?: number;
+  precioMax?: number;
+  /** Día (aaaa-mm-dd) de la línea más reciente sumada en esta fila ('' o ausente = sin dato; solo los libros nuevos lo traen). */
+  fechaMax?: string;
 }
 
 /** A row from "Fac_Mensual_CAM" — facturación mensual por Centro/Almacén/Material

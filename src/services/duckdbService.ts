@@ -22,6 +22,15 @@ export async function getDb(): Promise<duckdb.AsyncDuckDB> {
   return dbPromise;
 }
 
+/** Una instancia de DuckDB-wasm PROPIA (no la compartida): el módulo "Comodato (libros)" corre aquí su script completo sin pisar las tablas y
+ * vistas del módulo Comodato original (usan los mismos nombres). Quien la pide la termina con `db.terminate()`. */
+export async function crearDbAislada(): Promise<duckdb.AsyncDuckDB> {
+  const worker = new Worker(duckdbWorkerEh);
+  const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), worker);
+  await db.instantiate(duckdbWasmEh);
+  return db;
+}
+
 let tableSeq = 0;
 
 /** Marker column carrying the list of fields that were flattened to JSON

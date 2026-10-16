@@ -138,3 +138,54 @@ export function serieFacMensualCam(rows: FacMensualCamRow[] | undefined, f: FacM
   }
   return [...by.entries()].sort((x, y) => x[0] - y[0]).map(([, v]) => v);
 }
+
+export interface PreciosPeriodo {
+  /** Precio unitario mensual más bajo/alto (importe ÷ cantidad del mes); 0 sin datos. */
+  min: number;
+  max: number;
+  /** Ponderado: importe total ÷ cantidad total del rango; 0 sin datos. */
+  promedio: number;
+  /** Meses del rango con precio calculable (cantidad > 0). */
+  meses: number;
+}
+
+/** Precio unitario (importe ÷ cantidad) mínimo, promedio y máximo de un
+ * material entre `desde` y `hasta` ('mm/aaaa', inclusivos), acotado a centro
+ * y/o almacén. Mín/máx se evalúan sobre el precio de cada mes, no de cada fila. */
+export function preciosPeriodo(rows: FacMensualCamRow[] | undefined, f: FacMensualFiltro, desde: string, hasta: string): PreciosPeriodo {
+  const d = mesKey(desde);
+  const h = mesKey(hasta);
+  const vacio: PreciosPeriodo = { min: 0, max: 0, promedio: 0, meses: 0 };
+  if (!d || !h || h < d) return vacio;
+  let cant = 0, imp = 0, min = Infinity, max = -Infinity, meses = 0;
+  for (const p of serieFacMensualCam(rows, f)) {
+    const k = mesKey(p.mes);
+    if (k < d || k > h || p.cant <= 0) continue;
+    const pu = p.imp / p.cant;
+    cant += p.cant; imp += p.imp; meses++;
+    if (pu < min) min = pu;
+    if (pu > max) max = pu;
+  }
+  return meses ? { min, max, promedio: imp / cant, meses } : vacio;
+}
+
+/** Cantidad facturada de CADA mes calendario de [desde, hasta] ('mm/aaaa'; los meses sin venta valen 0), para el material y, si se indica, centro/almacén.
+ * Base del promedio acotado (ver `promedioAcotado`). */
+export function cantidadesMensuales(idx: FacMensualIndex | null, f: FacMensualFiltro, desde: string, hasta: string): number[] {
+  const d = mesKey(desde);
+  const h = mesKey(hasta);
+  if (!idx || !d || !h || h < d) return [];
+  const porMes = new Map<number, number>();
+  const centro = f.centro ? norm(f.centro) : null;
+  const almacen = f.almacen ? norm(f.almacen) : null;
+  idx.get(norm(f.material))?.forEach((porAlm, c) => {
+    if (centro !== null && c !== centro) return;
+    porAlm.forEach((meses, a) => {
+      if (almacen !== null && a !== almacen) return;
+      meses.forEach((cant, k) => { if (k >= d && k <= h) porMes.set(k, (porMes.get(k) ?? 0) + cant); });
+    });
+  });
+  const out: number[] = [];
+  for (let k = d; k <= h; k++) out.push(porMes.get(k) ?? 0);
+  return out;
+}

@@ -22,6 +22,9 @@ interface ImportMetaEnv {
   /** Custom shell command shown in the launcher card. Defaults to a
    *  portable `cd Sugerencias_SQL && uvicorn ...` snippet. */
   readonly VITE_SUGERIDOR_LAUNCH_CMD?: string;
+  /** Apps Script de "Seg. de pedidos" (libros Seg pedidos, Disponibilidad e Inv_Condicion) — ver
+   *  pedidosService.ts y docs/apps-script-pedidos.md. */
+  readonly VITE_PEDIDOS_URL?: string;
 }
 
 interface ImportMeta {

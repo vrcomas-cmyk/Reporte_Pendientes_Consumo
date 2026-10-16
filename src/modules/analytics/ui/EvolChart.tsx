@@ -122,7 +122,7 @@ function TooltipEvol({ active, payload, conMargen, conCantidad, colores }: {
  * tramo punteado llega a donde se espera cerrar el mes (ver
  * `core/proyeccion.ts`); lo facturado a la fecha se marca con un punto hueco.
  * Si los puntos de `serie` traen `margen`, se dibuja también esa línea. */
-export const EvolChart = memo(function EvolChart({ serie, onMonth, height = 220, proyectar = true, cantidad = true, filtroPeriodo = false }: {
+export const EvolChart = memo(function EvolChart({ serie, onMonth, height = 220, proyectar = true, cantidad = true, filtroPeriodo = true }: {
   serie: Serie;
   onMonth?: (mes: string) => void;
   height?: number;

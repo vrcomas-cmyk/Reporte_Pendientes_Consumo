@@ -96,7 +96,7 @@ function ClientesMesInner({ a, title, descripcion, subtitle, list, push }: {
                   <Fragment key={d.dest}>
                     <TableRow className="cursor-pointer" onClick={() => setOpenDest(isOpen ? null : d.dest)}>
                       <TableCell><ChevronDownIcon open={isOpen} /></TableCell>
-                      <TableCell><span className="text-text">{d.dest}</span></TableCell>
+                      <TableCell><span onClick={(e) => e.stopPropagation()}><Chip title="Ver el detalle del cliente" onClick={() => push({ type: 'clienteDetalle', dest: d.dest })}>{d.dest}</Chip></span></TableCell>
                       <TableCell className="max-w-72 truncate">{d.razon}</TableCell>
                       <TableCell>{d.ejecutivo || '—'}<div className="text-[11px] text-text-faint">{d.grupo || '—'}</div></TableCell>
                       <TableCell className="text-right">{d.items.length}</TableCell>

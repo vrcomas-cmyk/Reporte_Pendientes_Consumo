@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
+import { rutaRetirada } from '@/lib/modoLibros';
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
+  Receipt,
   UploadCloud,
   Table2,
   History,
@@ -24,6 +26,8 @@ import {
   Sunrise,
   TrendingUp,
   Presentation,
+  ArrowLeftRight,
+  ListChecks,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/store/uiStore';
@@ -39,7 +43,7 @@ import { canViewModule } from '@/core/permissions';
 // (with its own nicer-copy overrides) instead of keeping a second, easily-stale
 // label map — that duplication is exactly how 7 of 15 routes ended up silently
 // falling back to the bare "DEGASA" wordmark.
-export const NAV_GROUPS = [
+const NAV_GROUPS_TODOS = [
   {
     label: 'Operación diaria',
     items: [
@@ -48,18 +52,24 @@ export const NAV_GROUPS = [
       { to: '/carga', moduleKey: 'carga', label: 'Carga', icon: UploadCloud },
       { to: '/resultados', moduleKey: 'resultados', label: 'Resultados', icon: Table2 },
       { to: '/sugerencias', moduleKey: 'sugerencias', label: 'Pedidos', icon: ClipboardList },
+      { to: '/seg-pedidos', moduleKey: 'seg-pedidos', label: 'Seg. de pedidos', icon: ListChecks },
     ],
   },
   {
     label: 'Análisis y oportunidades',
     items: [
       { to: '/consumo', moduleKey: 'consumo', label: 'Consumo', icon: Activity },
+      { to: '/facturacion', moduleKey: 'facturacion', label: 'Facturación', icon: Receipt },
       { to: '/resumen-sin', moduleKey: 'resumen-sin', label: 'Inventario', icon: Grid3x3 },
+      { to: '/inv-disponibilidad', moduleKey: 'inv-disponibilidad', label: 'Inventario · Disponibilidad', icon: Warehouse },
       { to: '/inventario', moduleKey: 'inventario', label: 'Inv Condición', icon: Boxes },
+      { to: '/inv-con-condicion', moduleKey: 'inv-con-condicion', label: 'Inv con Condición', icon: Boxes },
       { to: '/analisis', moduleKey: 'analisis', label: 'Análisis', icon: LineChart },
       { to: '/incremento', moduleKey: 'incremento', label: 'Incremento de costos', icon: TrendingUp },
+      { to: '/comparativo', moduleKey: 'comparativo', label: 'Comparativo de periodos', icon: ArrowLeftRight },
       { to: '/analisis-directivo', moduleKey: 'analisis-directivo', label: 'Análisis Directivo', icon: Presentation },
       { to: '/oportunidades', moduleKey: 'oportunidades', label: 'Oportunidades', icon: Target },
+      { to: '/comodato-libros', moduleKey: 'comodato-libros', label: 'Comodato (libros)', icon: HandCoins },
       { to: '/comodato', moduleKey: 'comodato', label: 'Comodato vs. Fac.', icon: HandCoins },
     ],
   },
@@ -73,6 +83,9 @@ export const NAV_GROUPS = [
     ],
   },
 ];
+
+// Etapa "solo libros": sin los módulos que leían el reporte anterior (ver lib/modoLibros.ts).
+export const NAV_GROUPS = NAV_GROUPS_TODOS.map((g) => ({ ...g, items: g.items.filter((i) => !rutaRetirada(i.to)) }));
 
 export const NAV = NAV_GROUPS.flatMap((g) => g.items);
 

@@ -17,15 +17,15 @@ const ALMACENES_PRINCIPALES = ['1030', '1031', '1032', '1060'] as const;
  * `MaterialInventarioLateral` en Inventario): inventario principales del centro
  * visto, todos los centros (el visto va resaltado; clic = cambiar de centro) y
  * "Solicitar desde inventario". */
-export function InvCondLateral({ a, material, centro, onSelectCentro }: {
-  a: Analytics; material: string; centro: string; onSelectCentro: (centro: string) => void;
+export function InvCondLateral({ a, material, centro, condicion, onSelectCentro }: {
+  a: Analytics; material: string; centro: string; condicion?: string; onSelectCentro: (centro: string) => void;
 }) {
   const nombresCentros = useNombresStore((s) => s.centros);
   const nombresAlm = useNombresStore((s) => s.almacenes);
   const mostrarNombres = useVistaCentrosStore((s) => s.mostrarNombres);
 
   const mat = norm(material);
-  const invRow = useMemo(() => a.invCondicion.find((r) => norm(r.material) === mat), [a.invCondicion, mat]);
+  const invRow = useMemo(() => a.invCondicion.find((r) => norm(r.material) === mat && (!condicion || r.condicion === condicion)), [a.invCondicion, mat, condicion]);
   const condicionMat = invRow?.condicion || '';
   const mo = a.rss?.mats.get(mat);
   const lotesMaterial = useMemo(() => a.lotes.filter((l) => norm(l.material) === mat), [a.lotes, mat]);

@@ -15,7 +15,7 @@ function mkEnrich(over: Partial<EnrichIndex> = {}): EnrichIndex {
   return {
     grupoCliente: () => '', ejecutivoNombre: () => '', matSector: () => '', matGrupo: () => '',
     matTexto: () => '', matPrecioOferta: () => 0, matUm: () => '', matCondiciones: () => [],
-    matCosto: () => 0, gerentes: [], sectoresDeGerente: () => [], sectorDeGerente: () => true,
+    matCosto: () => 0, ejecutivosZona: [], zonaDeEjecutivo: () => '', gerentes: [], sectoresDeGerente: () => [], sectorDeGerente: () => true,
     ...over,
   };
 }

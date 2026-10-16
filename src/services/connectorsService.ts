@@ -10,6 +10,7 @@ export const CONNECTOR_KEYS = {
   appscriptCatalogUrl: 'appscript_catalog_url',
   reportSheetsUrl: 'report_sheets_url',
   incrementoCostosUrl: 'incremento_costos_url',
+  pedidosSheetsUrl: 'pedidos_sheets_url',
 } as const;
 
 let cache: Map<string, string> | null = null;

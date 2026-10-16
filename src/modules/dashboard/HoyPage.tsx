@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
 import { AlertTriangle, Users, Clock4 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
@@ -19,6 +20,7 @@ import { buildRiesgoCaducidad } from '@/core/caducidad';
  * ayer" no es algo que se pueda calcular todavía sin agregar esa infraestructura. */
 export function HoyPage() {
   const a = useAnalytics();
+  useFacturacionLibros(); // pide (y revisa en Drive) la facturación de los libros mientras la pantalla está abierta
   const open = usePanelStore((s) => s.open);
 
   const bloqueados = useMemo(() => {
@@ -64,8 +66,8 @@ export function HoyPage() {
   const riesgoCaducidadImpTotal = riesgoCaducidad.reduce((s, m) => s + m.importeTotal, 0);
   const riesgoCaducidadImpSinDemanda = riesgoCaducidad.reduce((s, m) => s + (m.importeTotal - m.importeConDemanda), 0);
 
-  if (!a.result && !a.rss) {
-    return <EmptyState title="Aún no hay reporte cargado" description="Carga el reporte diario para ver el resumen de hoy." action={{ to: '/carga', label: 'Ir a Carga' }} />;
+  if (!a.rf && !a.rss && !a.bo.length && !a.lotes.length) {
+    return <EmptyState title={a.facturacionCalculando ? 'Calculando facturación…' : 'Aún no hay libros cargados'} description="Sincroniza los libros (Seg pedidos, Disponibilidad, Inv_Condicion y Facturación) desde Carga para ver el resumen de hoy." action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 
   return (

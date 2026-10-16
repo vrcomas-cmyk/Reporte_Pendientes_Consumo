@@ -5,24 +5,43 @@
 // now take an explicit RFIndex (which carries `curmes`).
 // ---------------------------------------------------------------------------
 import type { ResumenFacRow } from './types';
+import { correrPorTramos, correrSincrono } from '@/lib/tramos';
 import { norm, num } from '@/lib/text';
 
-/** "mm/aaaa" -> sortable key. */
-export const mesKey = (m: unknown): number => {
+// Con ~500 mil filas estas tres funciones se llaman millones de veces con apenas unas decenas de textos distintos ("07/2026"…):
+// se memorizan por el texto (acotadas, por si llegara basura variada).
+const LIMITE_MEMO = 5_000;
+const memo = <V,>(cache: Map<string, V>, k: string, calc: () => V): V => {
+  let v = cache.get(k);
+  if (v === undefined) {
+    v = calc();
+    if (cache.size < LIMITE_MEMO) cache.set(k, v);
+  }
+  return v;
+};
+const memoKey = new Map<string, number>();
+const memoValido = new Map<string, boolean>();
+const memoCanon = new Map<string, string>();
+
+const mesKeyCalc = (m: unknown): number => {
   const x = norm(m).split('/');
   return x.length === 2 ? +x[1] * 12 + +x[0] : 0;
 };
-
-/** ¿"mm/aaaa" válido (mes 1–12)? Filtra filas con basura en "Mes y año"
- * (p.ej. columnas corridas por un cambio de esquema de la hoja). */
-export const esMesValido = (m: unknown): boolean => {
+const esMesValidoCalc = (m: unknown): boolean => {
   const x = /^(\d{1,2})\/(\d{4})$/.exec(norm(m));
   return !!x && +x[1] >= 1 && +x[1] <= 12;
 };
 
+/** "mm/aaaa" -> sortable key. */
+export const mesKey = (m: unknown): number => (typeof m === 'string' ? memo(memoKey, m, () => mesKeyCalc(m)) : mesKeyCalc(m));
+
+/** ¿"mm/aaaa" válido (mes 1–12)? Filtra filas con basura en "Mes y año"
+ * (p.ej. columnas corridas por un cambio de esquema de la hoja). */
+export const esMesValido = (m: unknown): boolean => (typeof m === 'string' ? memo(memoValido, m, () => esMesValidoCalc(m)) : esMesValidoCalc(m));
+
 /** "Mes y año" a `mm/aaaa` canónico (acepta "7/2026", fechas dd/mm/aaaa o ISO);
  * si no se reconoce devuelve el texto tal cual (lo detecta `esMesValido`). */
-export const mesCanon = (v: unknown): string => aMesAnio(v) || norm(v);
+export const mesCanon = (v: unknown): string => (typeof v === 'string' ? memo(memoCanon, v, () => aMesAnio(v) || norm(v)) : aMesAnio(v) || norm(v));
 
 export interface SeriePoint {
   mes: string;
@@ -82,15 +101,22 @@ const RFC = {
   centro: 'centro',
 } as const;
 
-/** Builds the monthly series indices from Resumen_Fac rows. */
-export function buildRF(rows: ResumenFacRow[]): RFIndex {
-  const matDest = new Map<string, Map<string, SeriePoint>>();
-  const centroMatDest = new Map<string, Map<string, SeriePoint>>();
-  const solic = new Map<string, Map<string, SeriePoint>>();
-  const dest = new Map<string, Map<string, SeriePoint>>();
-  const mat = new Map<string, Map<string, SeriePoint>>();
-  const solicMats = new Map<string, Map<string, Map<string, SeriePoint>>>();
-  const destMats = new Map<string, Map<string, Map<string, SeriePoint>>>();
+/** Acumulador de series por clave (ver `buildRFGen`). */
+type Acum = Map<string, SeriePoint[]>;
+
+/** Builds the monthly series indices from Resumen_Fac rows. Generador: cede el paso (`yield` con el avance 0-1) cada ~2,000 filas para
+ * poder correrlo por tramos sin trabar la pantalla (`buildRFAsync`); `buildRF` lo corre de golpe con el mismo resultado. */
+export function* buildRFGen(rows: ResumenFacRow[]): Generator<number, RFIndex> {
+  let paso = 0;
+  // Cada serie se acumula en un arreglo (pocas decenas de meses) y no en un Map por clave: con cientos de miles de claves, crear un Map
+  // por cada una era lo más caro del cálculo. Se busca el mes desde el final (casi siempre es el último o uno de los últimos).
+  const matDest: Acum = new Map();
+  const centroMatDest: Acum = new Map();
+  const solic: Acum = new Map();
+  const dest: Acum = new Map();
+  const mat: Acum = new Map();
+  const solicMats = new Map<string, Acum>();
+  const destMats = new Map<string, Acum>();
   const matTexto = new Map<string, string>();
   const solicRazon = new Map<string, string>();
   const solicGpoV = new Map<string, string>();
@@ -101,20 +127,26 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
   let maxk = 0;
   let maxmes = '';
 
-  const add = (m: Map<string, Map<string, SeriePoint>>, key: string, mes: string, c: number, i: number) => {
+  const add = (m: Acum, key: string, mes: string, c: number, i: number) => {
     if (!key) return;
-    let mm = m.get(key);
-    if (!mm) {
-      mm = new Map();
-      m.set(key, mm);
+    let arr = m.get(key);
+    if (!arr) {
+      arr = [];
+      m.set(key, arr);
     }
-    const cur = mm.get(mes) || { mes, cant: 0, imp: 0 };
+    let cur: SeriePoint | undefined;
+    for (let j = arr.length - 1; j >= 0; j--) {
+      if (arr[j]!.mes === mes) { cur = arr[j]; break; }
+    }
+    if (!cur) {
+      cur = { mes, cant: 0, imp: 0 };
+      arr.push(cur);
+    }
     cur.cant += c;
     cur.imp += i;
-    mm.set(mes, cur);
   };
   const add2 = (
-    m: Map<string, Map<string, Map<string, SeriePoint>>>,
+    m: Map<string, Acum>,
     k1: string,
     k2: string,
     mes: string,
@@ -131,6 +163,7 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
   };
 
   for (const r of rows) {
+    if ((++paso & 2047) === 0) yield paso / (2 * rows.length);
     const mes = mesCanon(r[RFC.mes]);
     if (!esMesValido(mes)) continue;
     const k = mesKey(mes);
@@ -142,6 +175,7 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
   const curYear = (maxmes.split('/')[1] || '').trim();
 
   for (const r of rows) {
+    if ((++paso & 2047) === 0) yield paso / (2 * rows.length);
     const mes = mesCanon(r[RFC.mes]);
     if (!esMesValido(mes)) continue;
     const c = num(r[RFC.cant]);
@@ -149,8 +183,9 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
     const d = norm(r[RFC.dest]);
     const s = norm(r[RFC.solic]);
     const m = norm(r[RFC.material]);
-    const tot = totalMap.get(mes) || { mes, cant: 0, imp: 0 };
-    tot.cant += c; tot.imp += i; totalMap.set(mes, tot);
+    let tot = totalMap.get(mes);
+    if (!tot) { tot = { mes, cant: 0, imp: 0 }; totalMap.set(mes, tot); }
+    tot.cant += c; tot.imp += i;
     if (!m) sinClave.material += i;
     if (!s) sinClave.solicitante += i;
     if (!d) sinClave.destinatario += i;
@@ -174,15 +209,20 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
 
   const toSerie = (mm: Map<string, SeriePoint>): Serie =>
     [...mm.values()].sort((a, b) => mesKey(a.mes) - mesKey(b.mes));
-  const ser = (m: Map<string, Map<string, SeriePoint>>) => {
-    const o = new Map<string, Serie>();
-    m.forEach((mm, k) => o.set(k, toSerie(mm)));
-    return o;
+  // Los meses suelen llegar ya en orden; solo se ordena la serie si no es así.
+  const ordena = (arr: SeriePoint[]): Serie => {
+    for (let j = 1; j < arr.length; j++) {
+      if (mesKey(arr[j - 1]!.mes) > mesKey(arr[j]!.mes)) return arr.sort((a, b) => mesKey(a.mes) - mesKey(b.mes));
+    }
+    return arr;
   };
-  const ser2 = (m: Map<string, Map<string, Map<string, SeriePoint>>>) => {
-    const o = new Map<string, Map<string, Serie>>();
-    m.forEach((inner, k) => o.set(k, ser(inner)));
-    return o;
+  const ser = (m: Acum) => {
+    m.forEach((arr) => ordena(arr));
+    return m as Map<string, Serie>;
+  };
+  const ser2 = (m: Map<string, Acum>) => {
+    m.forEach((inner) => ser(inner));
+    return m as Map<string, Map<string, Serie>>;
   };
 
   return {
@@ -203,6 +243,16 @@ export function buildRF(rows: ResumenFacRow[]): RFIndex {
     total: toSerie(totalMap),
     sinClave,
   };
+}
+
+/** Índices de Resumen_Fac, de golpe (mismo resultado que `buildRFAsync`). */
+export function buildRF(rows: ResumenFacRow[]): RFIndex {
+  return correrSincrono(buildRFGen(rows));
+}
+
+/** Índices de Resumen_Fac por tramos cortos: la pantalla sigue respondiendo; `null` si se canceló. */
+export function buildRFAsync(rows: ResumenFacRow[], opciones?: { cancelado?: () => boolean; onProgreso?: (fraccion: number) => void }): Promise<RFIndex | null> {
+  return correrPorTramos(buildRFGen(rows), opciones);
 }
 
 // ---- accessors --------------------------------------------------------------

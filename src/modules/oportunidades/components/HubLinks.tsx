@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Boxes, Activity, ClipboardList, Truck, HandCoins } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { rutaRetirada } from '@/lib/modoLibros';
 
 /** Atajos del HUB (req. 9): saltar a los módulos de reporte relacionados con
  * este material sin perder el contexto. Inventario/Consumo/Pedidos llegan con
@@ -18,7 +19,7 @@ export function HubLinks({ material }: { material: string }) {
   ];
   return (
     <div className="flex flex-wrap gap-1.5">
-      {items.map((it) => (
+      {items.filter((it) => !rutaRetirada(it.to)).map((it) => (
         <Button key={it.to} variant="outline" size="sm" onClick={() => navigate(it.to)} title={`Ver ${material} en ${it.label}`}>
           <it.icon className="size-3.5" /> {it.label}
         </Button>
