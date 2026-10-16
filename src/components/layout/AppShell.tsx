@@ -10,11 +10,14 @@ import { useUiStore } from '@/store/uiStore';
 import { useDataStore } from '@/store/dataStore';
 import { getCachedCatalog, checkForCatalogUpdate } from '@/services/catalogService';
 import { getCachedIncremento } from '@/services/incrementoService';
+import { restaurarPedidos } from '@/services/pedidosService';
+import { restaurarFacturacion } from '@/services/facturacionLibrosService';
 import { checkForReportSheetsUpdate } from '@/services/reportSheetsService';
 import { getLatestAnalysis } from '@/services/reportService';
 import { reportRepository } from '@/repositories';
 import { logWarn, logError } from '@/lib/logError';
 import { toast } from '@/store/toastStore';
+import { SOLO_LIBROS } from '@/lib/modoLibros';
 
 export function AppShell() {
   const location = useLocation();
@@ -55,7 +58,8 @@ export function AppShell() {
           logError('catalog-get-failed', e instanceof Error ? e.message : String(e));
           return null;
         }),
-        getLatestAnalysis().catch((e) => {
+        // Etapa "solo libros": el reporte diario anterior ni se restaura (todo sale de los libros nuevos).
+        SOLO_LIBROS ? Promise.resolve(null) : getLatestAnalysis().catch((e) => {
           logWarn('analysis-restore-failed', e instanceof Error ? e.message : String(e));
           return null;
         }),
@@ -67,6 +71,8 @@ export function AppShell() {
           logWarn('incremento-get-failed', e instanceof Error ? e.message : String(e));
           return null;
         }),
+        // Seg. de pedidos: solo restaura la caché local (no pide red; el sync lo dispara el módulo).
+        restaurarPedidos(),
       ]);
       if (cancelled) return;
 
@@ -75,9 +81,11 @@ export function AppShell() {
       if (cfg) setSettings(cfg);
       if (incremento) setIncremento(incremento);
       setBootstrapped(true);
+      // Facturación (libros de Drive): solo restaura la caché local, DESPUÉS de pintar la app (no frena el arranque); el sync lo dispara el módulo o Carga.
+      void restaurarFacturacion();
 
       startCatalogWatch();
-      startReportSheetsWatch();
+      if (!SOLO_LIBROS) startReportSheetsWatch();
     }
 
     // Catálogo maestro: se revisa al abrir, al volver a la pestaña y cada 10 min

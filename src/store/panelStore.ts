@@ -7,13 +7,19 @@ import type { Estado } from '@/core/resumenFac';
 // replacing the legacy navOpen/navPush/backBtn modal history. The top of the
 // stack is the panel currently shown inside a closable Sheet; `back` pops one
 // level, `open` resets the stack, `close` clears it.
+/** Snapshot del filtro activo de Consumo al abrir un sector/material desde sus
+ * rankings: `pares` = claves 'destinatario||material' (normalizadas) que pasan
+ * los filtros, `lo`/`hi` = ventana (mesKey) y `nMeses` el divisor del promedio. */
+export interface FiltroConsumo { pares: string[]; lo: number; hi: number; nMeses: number; etiqueta: string }
+
 export type Panel =
   | { type: 'sugDetalle'; boKey: string }
   // `lista` (opcional): pedidos distintos en el orden/filtro de la tabla al
   // abrir el detalle — habilita ◀/▶ para recorrerlos sin perder ese orden
   // (ver PedidoPanel). Ausente cuando se abre desde un lugar que no tiene
   // una lista clara (p.ej. AnalisisPage) — los controles simplemente no aparecen.
-  | { type: 'pedido'; pedido: string; boKey?: string; lista?: string[] }
+  // `fuente: 'seg'`: abierto desde Seg. de pedidos → se muestran TODOS los renglones del libro (sin la versión agrupada de Todas las Sugerencias).
+  | { type: 'pedido'; pedido: string; boKey?: string; lista?: string[]; fuente?: 'seg' }
   | { type: 'evol'; kind: 'solic' | 'dest'; key: string }
   // Todos los pedidos pendientes (BO) de un ejecutivo — destino del chip
   // "Ejecutivo" en PedidoPanel, análogo a `evol` para solicitante/destinatario
@@ -21,7 +27,7 @@ export type Panel =
   // por ejecutivo).
   | { type: 'ejecutivoPedidos'; gpoVdor: string }
   | { type: 'codigoEvol'; kind: 'solic' | 'dest'; key: string; material: string }
-  | { type: 'material'; material: string }
+  | { type: 'material'; material: string; filtro?: FiltroConsumo }
   | { type: 'consumoMaterial'; dest: string; material: string }
   // `centro`/`dest` (opcionales): acotan el detalle del mes al mismo filtro de la gráfica que se
   // clicó (tendencia de un centro, serie de un solo destinatario) para que los totales cuadren.
@@ -30,7 +36,7 @@ export type Panel =
   // pre-computed snapshot of the rows matching the mes under the currently active Consumo filters
   // (generalizes legacy openClientesMes beyond a single material).
   | { type: 'mesClientesFiltro'; mes: string; rows: { razon: string; solic: string; dest: string; material: string; cant: number; imp: number }[] }
-  | { type: 'sector'; sector: string }
+  | { type: 'sector'; sector: string; filtro?: FiltroConsumo }
   | { type: 'grupo'; grupo: string }
   // `origen: 'resumenSin'` (desde el módulo Inventario): el inventario de otros
   // centros + "Solicitar" se muestra en un panel lateral izquierdo, acotado a
@@ -46,8 +52,11 @@ export type Panel =
   // Sugerencias), este SIEMPRE muestra el desglose por lote desde
   // "InvDetalle" — misma fuente/sincronización que el reporte, sin mezclar
   // con RSS que puede venir de otro spreadsheet desfasado en el tiempo.
-  | { type: 'invCondCelda'; material: string; centro: string; lista?: string[] }
+  // `almacen` (solo centro 1031): se abrió desde la columna "Disp 31·30" / "Disp 31·32" de Inv con Condición.
+  | { type: 'invCondCelda'; material: string; centro: string; lista?: string[]; condicion?: string; almacen?: string }
   | { type: 'materialTotales'; material: string }
+  // Un lote de un material: cantidad por centro/almacén, caducidad, precio y la demanda a la que puede servir.
+  | { type: 'lote'; material: string; lote: string }
   // Client-centric detail (Consumo row click): open orders + consumption history for one
   // destinatario, as opposed to the material-centric 'material' panel.
   // `material` (opcional): cuando se abre desde una fila de Consumo, precarga
@@ -103,6 +112,8 @@ interface PanelState {
    * rápidos) disparaba "Maximum update depth exceeded". */
   replaceTop: (p: Panel) => void;
   back: () => void;
+  /** Migas: regresa al nivel `i` del stack (descarta los más profundos). */
+  goTo: (i: number) => void;
   close: () => void;
 }
 
@@ -112,5 +123,6 @@ export const usePanelStore = create<PanelState>((set) => ({
   push: (p) => set((s) => ({ stack: [...s.stack, p] })),
   replaceTop: (p) => set((s) => (s.stack.length ? { stack: [...s.stack.slice(0, -1), p] } : { stack: [p] })),
   back: () => set((s) => ({ stack: s.stack.slice(0, -1) })),
+  goTo: (i) => set((s) => ({ stack: s.stack.slice(0, Math.max(0, i) + 1) })),
   close: () => set({ stack: [] }),
 }));

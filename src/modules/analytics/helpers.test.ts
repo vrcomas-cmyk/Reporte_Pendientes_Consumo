@@ -21,3 +21,12 @@ describe('analisisVentas respeta filtros de cliente en los totales', () => {
     expect(sum(analisisVentas(idx, [], enrich, { ejecutivo: 'NADIE' }))).toBe(0);
   });
 });
+
+describe('renglonesLiberados', () => {
+  it('deja solo los renglones sin bloqueo de crédito ni de entrega', async () => {
+    const { renglonesLiberados } = await import('./helpers');
+    const it = (bloqueado: string) => ({ bo: { bloqueado } }) as never;
+    const out = renglonesLiberados([it(''), it('Crédito'), it('Detenido'), it('')]);
+    expect(out).toHaveLength(2);
+  });
+});

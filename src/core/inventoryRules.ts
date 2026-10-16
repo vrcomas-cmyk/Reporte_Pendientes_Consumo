@@ -57,6 +57,15 @@ export function evaluarCortaCaducidad(
 }
 
 /**
+ * Ajuste de inventario del sugeridor (procesadores/inventario.py): lo que
+ * realmente hay libre es `Libre Utilización − Entrega a cliente`, con piso en 0
+ * por fila (Centro/Almacén/Material) — nunca negativo.
+ */
+export function libreReal(libre: number, entrega: number): number {
+  return Math.max(libre - entrega, 0);
+}
+
+/**
  * RN-INV-002 — Almacenes aplicables según la condición del material (módulo
  * Inv Condición). Confirmado por negocio: cuando el texto de la condición
  * indica caducidad, el inventario de un centro es SOLO su almacén 1032; en

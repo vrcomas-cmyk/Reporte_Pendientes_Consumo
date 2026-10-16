@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
+import { KpiBand } from '@/components/layout/report';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { TooltipHint } from '@/components/ui/tooltip';
 import { StatePill, Ranking, EvolChart } from '@/modules/analytics/ui';
 import { cn, formatCurrency, formatNumber } from '@/lib/utils';
 import { CHART_UI } from '@/lib/chartColors';
@@ -58,62 +58,36 @@ export function ResumenSinContexto({ list, a, lblCentro, coberturaFiltro, onCobe
 
   return (
     <>
-      {/* HERO — qué tan expuesto está el inventario, de un vistazo. */}
-      <Card className={cn('p-5', critico ? 'border-danger/25 bg-danger/5' : 'border-success/25 bg-success/5')}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', critico ? 'bg-danger/15 text-danger' : 'bg-success/15 text-success')}>
-              {critico ? <ShieldAlert className="size-5" /> : <ShieldCheck className="size-5" />}
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-text-faint">Quiebre urgente · {formatNumber(ctx.pares)} pares (material × centro)</p>
-              <TooltipHint text={`${COBERTURA_HELP.quiebre} Urgente = sin tránsito en camino. ${NO_1031}`}>
-                <p className={cn('mt-1 font-display text-4xl font-bold tabular-nums', critico ? 'text-danger' : 'text-success')}>
-                  {formatNumber(ctx.quiebreUrgente)} <span className="text-base font-medium text-text-muted">sin cobertura</span>
-                </p>
-              </TooltipHint>
-              <p className="mt-1 text-sm text-text-muted">
-                {formatCurrency(ctx.impPendQuiebreUrgente)} pendiente en riesgo · {formatNumber(ctx.quiebreMitigado)} más con tránsito en camino
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-x-6 gap-y-2 text-right">
-            <div><p className="text-[11px] uppercase tracking-wide text-text-faint">Materiales</p><p className="mt-0.5 font-mono text-lg font-medium">{formatNumber(ctx.totales.materiales)}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wide text-text-faint">Inv. general</p><p className="mt-0.5 font-mono text-lg font-medium">{formatNumber(ctx.totales.inv)}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wide text-text-faint">Pendiente</p><p className="mt-0.5 font-mono text-lg font-medium text-danger">{formatNumber(ctx.totales.pend)}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wide text-text-faint">En tránsito</p><p className="mt-0.5 font-mono text-lg font-medium text-success">{formatNumber(ctx.totales.transito)}</p></div>
-          </div>
-        </div>
-
-        {/* Salud de cobertura: barra apilada; clic en un tramo filtra la tabla. */}
-        {ctx.pares > 0 && (
-          <div className="mt-4">
-            <div className="flex h-3 w-full overflow-hidden rounded-full bg-border/40" role="group" aria-label="Distribución de cobertura">
-              {clasificados.map((e) => (
-                <TooltipHint key={e.estado} text={`${COBERTURA_LABEL[e.estado]}: ${formatNumber(e.count)} (${((e.count / ctx.pares) * 100).toFixed(0)}%) — ${COBERTURA_HELP[e.estado]}`}>
-                  <button
-                    type="button"
-                    onClick={() => toggleCobertura(e.estado)}
-                    className={cn('h-full transition-opacity', SEG[e.estado], coberturaFiltro && coberturaFiltro !== e.estado && 'opacity-30')}
-                    style={{ width: `${(e.count / ctx.pares) * 100}%` }}
-                    aria-label={`${COBERTURA_LABEL[e.estado]}: ${e.count}`}
-                  />
-                </TooltipHint>
-              ))}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-text-muted">
-              {clasificados.map((e) => (
-                <button key={e.estado} type="button" onClick={() => toggleCobertura(e.estado)}
-                  className={cn('inline-flex items-center gap-1.5 hover:text-text', coberturaFiltro === e.estado && 'font-semibold text-text')}>
-                  <span className={cn('inline-block size-2 rounded-full', SEG[e.estado])} />
-                  {COBERTURA_LABEL[e.estado]} <span className="tabular-nums">{formatNumber(e.count)}</span>
-                </button>
-              ))}
-              {coberturaFiltro && <button type="button" onClick={() => onCobertura('')} className="text-accent hover:underline">Quitar filtro</button>}
-            </div>
-          </div>
-        )}
-      </Card>
+      {/* Banda de cobertura: qué tan expuesto está el inventario, de un vistazo (barra clicable que filtra la tabla). */}
+      <KpiBand
+        titulo={`Quiebre urgente · ${formatNumber(ctx.pares)} pares (material × centro)`}
+        estado={critico ? 'danger' : 'success'}
+        icono={critico ? <ShieldAlert className="size-5" /> : <ShieldCheck className="size-5" />}
+        principal={{
+          etiqueta: 'Sin cobertura',
+          valor: formatNumber(ctx.quiebreUrgente),
+          title: `${COBERTURA_HELP.quiebre} Urgente = sin tránsito en camino. ${NO_1031}`,
+          sub: `${formatCurrency(ctx.impPendQuiebreUrgente)} pendiente en riesgo · ${formatNumber(ctx.quiebreMitigado)} más con tránsito en camino`,
+        }}
+        metricas={[
+          { etiqueta: 'Materiales', valor: formatNumber(ctx.totales.materiales) },
+          { etiqueta: 'Inv. general', valor: formatNumber(ctx.totales.inv) },
+          { etiqueta: 'Pendiente', valor: formatNumber(ctx.totales.pend), tono: 'danger' },
+          { etiqueta: 'En tránsito', valor: formatNumber(ctx.totales.transito), tono: 'success' },
+        ]}
+        distribucion={{
+          titulo: 'Distribución de cobertura',
+          segmentos: clasificados.map((e) => ({
+            clave: e.estado,
+            etiqueta: COBERTURA_LABEL[e.estado],
+            valor: e.count,
+            cls: SEG[e.estado],
+            title: `${COBERTURA_LABEL[e.estado]}: ${formatNumber(e.count)} (${((e.count / (ctx.pares || 1)) * 100).toFixed(0)}%) — ${COBERTURA_HELP[e.estado]}`,
+          })),
+          activo: coberturaFiltro || undefined,
+          onToggle: (clave) => toggleCobertura(clave as CoberturaEstado),
+        }}
+      />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>

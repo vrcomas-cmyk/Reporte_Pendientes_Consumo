@@ -1,11 +1,16 @@
 import { useMemo, useState } from 'react';
+import { KpiBand } from '@/components/layout/report';
 import type { ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, EyeOff } from 'lucide-react';
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from '@/components/ui/context-menu';
+import { useTilesOcultosStore } from '@/store/tilesOcultosStore';
+import { useCostoMetrica } from './CostoMaterial';
 import { usePersistedState } from '@/hooks/usePersistedState';
-import { StatePill, Chip, TrendBadge, AbcBadge, DetailChevron, StatTile, SuggestInput, useColumnVisibility, ColumnVisibilityControl } from '../ui';
+import { StatePill, Chip, TrendBadge, AbcBadge, DetailChevron, SuggestInput, useColumnVisibility, ColumnVisibilityControl } from '../ui';
 import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
 import { matchesQuery, num, norm, consumoSerie, consumoStatus, consumoTend, consumoEnrich, transitoFor, buildConsumoIndex, consumoKey } from '../helpers';
-import { consumoDe } from '@/core/resumenFac';
+import { consumoDe, mesLabel } from '@/core/resumenFac';
+import { promedioConsumo } from '@/core/consumoDesdeRF';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import type { RFIndex } from '@/core/resumenFac';
 import { preciosPorCondicion } from '@/core/enrich';
@@ -26,6 +31,7 @@ import { useSolicitudStore } from '@/store/solicitudStore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useAnalytics } from '../AnalyticsContext';
 import { MaterialInventarioSection } from './MaterialInventario';
+import { CondicionesMaterialSection } from './CondicionesMaterial';
 
 /** Normaliza una fecha de caducidad y la convierte en un texto legible con clase de color (rojo/ámbar/verde) según los días restantes. */
 export function vigenciaTxt(fecha: string): { txt: string; cls: string } | null {
@@ -143,7 +149,7 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
                 >
                 <TableRow className={`group ${isBloqueado ? 'bg-danger/10 hover:bg-danger/15 [&>td:first-child]:shadow-[inset_3px_0_0_var(--danger)]' : ''}`}>
                   {vis('ejecutivo') && <TableCell>{a.enrich.ejecutivoNombre(b.gpoVdor) || '—'}<div className="text-[11px] text-text-faint">{a.enrich.grupoCliente(b.gpoCte) || '—'}</div></TableCell>}
-                  {vis('pedido') && <TableCell><Chip onClick={() => push({ type: 'pedido', pedido: b.pedido })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
+                  {vis('pedido') && <TableCell><Chip onClick={() => push({ type: 'pedido', pedido: b.pedido, boKey: it.k })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                   {vis('fecha') && <TableCell className="whitespace-nowrap text-xs">{b.fecha || '—'}</TableCell>}
                   {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial}<div className="text-[11px]"><Chip onClick={() => push({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => push({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
                   {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
@@ -269,6 +275,9 @@ export function ClienteConsumoTable({ rows, rf, push }: {
   const [f, setF] = useState('');
   if (!rows.length) return <p className="text-sm text-text-muted">Sin historial de consumo.</p>;
   const shown = f ? rows.filter((r) => matchesQuery(f, `${r.material} ${r.textoMaterial}`)) : rows;
+  // Mismo contenido que la tarjeta "Consumo del material" (última, penúltima, precio, tendencia + promedio de 12 meses cerrados)
+  // pero en una fila: dos líneas por celda y sin columnas de relleno, para no ocupar más espacio.
+  const mes = (m?: string) => (m ? mesLabel(m) : '—');
   return (
     <div>
       <SubFilter value={f} onChange={setF} placeholder="Filtrar material…" />
@@ -276,22 +285,32 @@ export function ClienteConsumoTable({ rows, rf, push }: {
         <Table wrapperClassName="max-h-80 rounded-lg border border-border">
           <TableHeader>
             <TableRow>
-              <TableHead>Material</TableHead><TableHead className="text-right">Última</TableHead>
-              <TableHead className="text-right">Penúltima</TableHead><TableHead className="text-right">Últ. precio</TableHead>
+              <TableHead>Material</TableHead>
+              <TableHead className="text-right">Última compra</TableHead>
+              <TableHead className="text-right">Penúltima</TableHead>
+              <TableHead className="text-right">Precio última</TableHead>
+              <TableHead className="text-right" title="Suma de los 12 meses cerrados ÷ 12">Prom. 12m</TableHead>
               <TableHead>Tendencia</TableHead><TableHead className="w-8" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {shown.map((r, i) => (
-              <TableRow key={i} className="group">
-                <TableCell><span className="text-text">{r.material}</span><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div></TableCell>
-                <TableCell className="text-right">{formatNumber(r.cantidadUltima)}<div className="text-[11px] text-text-faint">{r.ultimoMesFacturacion || '—'}</div></TableCell>
-                <TableCell className="text-right">{formatNumber(num(r.cantidadPenultima))}<div className="text-[11px] text-text-faint">{r.penultimoMes || '—'}</div></TableCell>
-                <TableCell className="text-right">{formatCurrency(r.precioProm)}</TableCell>
-                <TableCell><TrendBadge t={consumoTend(rf, r)} /></TableCell>
-                <TableCell><DetailChevron onOpen={() => push({ type: 'material', material: r.material })} /></TableCell>
-              </TableRow>
-            ))}
+            {shown.map((r, i) => {
+              // Precio de la última compra (importe ÷ cantidad); si ese mes no tiene importe, el precio promedio histórico.
+              const precioUlt = r.precioUnitarioUltima || r.precioProm;
+              const precioPen = num(r.precioUnitarioPenultima);
+              const prom12 = rf && rf.curmes ? promedioConsumo(consumoSerie(rf, r), '12m', rf.curmes) : 0;
+              return (
+                <TableRow key={i} className="group">
+                  <TableCell><span className="text-text">{r.material}</span><div className="max-w-56 truncate text-[11px] text-text-faint">{r.textoMaterial}</div></TableCell>
+                  <TableCell className="text-right">{formatNumber(r.cantidadUltima)}<div className="text-[11px] text-text-faint">{mes(r.ultimoMesFacturacion)}{r.importeUltima ? ` · ${formatCurrency(r.importeUltima)}` : ''}</div></TableCell>
+                  <TableCell className="text-right">{formatNumber(num(r.cantidadPenultima))}<div className="text-[11px] text-text-faint">{mes(r.penultimoMes)}{num(r.importePenultima) ? ` · ${formatCurrency(num(r.importePenultima))}` : ''}</div></TableCell>
+                  <TableCell className="text-right">{precioUlt ? formatCurrency(precioUlt) : '—'}<div className="text-[11px] text-text-faint">{precioPen ? `Penúlt. ${formatCurrency(precioPen)}` : ''}</div></TableCell>
+                  <TableCell className="text-right">{formatNumber(Math.round(prom12))}</TableCell>
+                  <TableCell><TrendBadge t={consumoTend(rf, r)} /></TableCell>
+                  <TableCell><DetailChevron onOpen={() => push({ type: 'material', material: r.material })} /></TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
@@ -305,13 +324,32 @@ export function ClienteConsumoTable({ rows, rf, push }: {
  * ver una fila de Consumo o de seleccionar un material dentro de un pedido.
  * Reutilizada desde `ClienteDetallePanel` (doble clic en Consumo) y
  * `PedidoPanel` (columna izquierda, se actualiza al cambiar de material). */
-export function ConsumoMaterialCard({ a, dest, material }: { a: Analytics; dest: string; material: string }) {
-  const destN = norm(dest);
-  const matN = norm(material);
-  const row = (a.result?.consumo ?? []).find((r) => norm(r.destinatario) === destN && norm(r.material) === matN);
+export function ConsumoMaterialCard({ a, dest, material, promedioMensual }: { a: Analytics; dest?: string; material: string; /** Con valor (o null = sin histórico) reemplaza al costo en la banda por el "Prom. mensual · 12m cerrados". */ promedioMensual?: number | null }) {
+  const costo = useCostoMetrica(a, material);
+  const ocultos = useTilesOcultosStore((s) => s.ocultos);
+  const ocultar = useTilesOcultosStore((s) => s.ocultar);
+  // Costo integrado a la banda; ocultable como el resto de tarjetas (clic derecho) y por permiso de rol.
+  const costoVisible = !!costo[0] && costo[0].valor !== '—' && !ocultos.includes('Costo');
+  const metricaCosto = costoVisible
+    ? [{
+      etiqueta: costo[0].etiqueta,
+      title: 'Clic derecho para ocultar',
+      valor: (
+        <ContextMenu>
+          <ContextMenuTrigger asChild><span className="cursor-context-menu">{costo[0].valor}</span></ContextMenuTrigger>
+          <ContextMenuContent><ContextMenuItem onSelect={() => ocultar('Costo')}><EyeOff className="size-3.5" /> Ocultar “Costo”</ContextMenuItem></ContextMenuContent>
+        </ContextMenu>
+      ),
+    }]
+    : [];
+  const metricaProm = promedioMensual === undefined ? [] : [{ etiqueta: 'Prom. mensual · 12m cerrados', valor: promedioMensual === null ? '—' : formatNumber(promedioMensual) }];
+  const metricaExtra = promedioMensual === undefined ? metricaCosto : metricaProm;
+  const row = dest ? (a.result?.consumo ?? []).find((r) => norm(r.destinatario) === norm(dest) && norm(r.material) === norm(material)) : undefined;
   if (!row) {
+    // Sin cliente no hay "consumo del material" (el costo vive en la banda "Material · resumen", ocultable).
+    if (!dest) return null;
     return (
-      <Section title="Consumo del material">
+      <Section tono="fac" origen="Resumen_Fac" title="Consumo del material">
         <p className="text-sm text-text-muted">Sin historial de compra de {material} para este cliente.</p>
       </Section>
     );
@@ -322,20 +360,17 @@ export function ConsumoMaterialCard({ a, dest, material }: { a: Analytics; dest:
   const penultimo = info.tipo === 'actual' ? serie[serie.length - 2] || null : info.penultimo;
   const precioPenultimo = num(row.precioUnitarioPenultima);
   return (
-    <Section title="Consumo del material">
-      <div className="rounded-lg border border-border bg-bg-elevated p-2.5">
-        <p className="font-mono text-xs font-medium">{row.material}</p>
-        <p className="truncate text-[11px] text-text-faint">{row.textoMaterial}</p>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <StatTile compact label="Última compra" value={ultimo ? formatNumber(ultimo.cant) : '—'} sub={ultimo?.mes || '—'} />
-          <StatTile compact label="Importe última" value={ultimo ? formatCurrency(ultimo.imp) : '—'} />
-          <StatTile compact label="Penúltima compra" value={penultimo ? formatNumber(penultimo.cant) : '—'} sub={penultimo?.mes || '—'} />
-          <StatTile compact label="Precio última" value={row.precioUnitarioUltima ? formatCurrency(row.precioUnitarioUltima) : '—'} sub={precioPenultimo ? `Penúlt. ${formatCurrency(precioPenultimo)}` : undefined} />
-        </div>
-        <div className="mt-2 flex items-center gap-1.5 text-xs text-text-muted">
-          Tendencia <TrendBadge t={consumoTend(a.rf, row)} />
-        </div>
-      </div>
+    <Section tono="fac" origen="Resumen_Fac" title="Consumo del material">
+      <KpiBand
+        titulo={<span title={row.textoMaterial}><span className="font-mono">{row.material}</span> · {row.textoMaterial}</span>}
+        principal={{ etiqueta: `Última compra · ${ultimo ? mesLabel(ultimo.mes) : '—'}`, valor: ultimo ? formatNumber(ultimo.cant) : '—', sub: ultimo ? formatCurrency(ultimo.imp) : undefined }}
+        metricas={[
+          { etiqueta: `Penúltima · ${penultimo ? mesLabel(penultimo.mes) : '—'}`, valor: penultimo ? formatNumber(penultimo.cant) : '—', sub: penultimo ? formatCurrency(penultimo.imp) : undefined },
+          { etiqueta: 'Precio última', valor: row.precioUnitarioUltima ? formatCurrency(row.precioUnitarioUltima) : '—', sub: precioPenultimo ? `Penúlt. ${formatCurrency(precioPenultimo)}` : undefined },
+          ...metricaExtra,
+          { etiqueta: 'Tendencia', valor: <TrendBadge t={consumoTend(a.rf, row)} /> },
+        ]}
+      />
     </Section>
   );
 }
@@ -352,7 +387,7 @@ export interface FuentesSelection {
 /** Subtabla de fuentes/materiales ofertables para un BO, con caducidad y drill hacia material.
  * Filtros independientes con autosugerencias por Centro, Lote y Material —
  * combinables con AND — en vez de un único texto libre. */
-export function FuentesTable({ fuentes, push, selection }: { fuentes: BOItem['fuentes']; push: (p: Panel) => void; selection?: FuentesSelection }) {
+export function FuentesTable({ fuentes, push, selection, precioDe }: { fuentes: BOItem['fuentes']; push: (p: Panel) => void; selection?: FuentesSelection; /** Con esta función se agrega la columna Precio. */ precioDe?: (f: BOItem['fuentes'][number]) => number }) {
   const [fCentro, setFCentro] = useState('');
   const [fLote, setFLote] = useState('');
   const [fMaterial, setFMaterial] = useState('');
@@ -377,7 +412,7 @@ export function FuentesTable({ fuentes, push, selection }: { fuentes: BOItem['fu
       </div>
       <div>
         <Table wrapperClassName="max-h-72 rounded-lg border border-border">
-          <TableHeader><TableRow>{selection && <TableHead className="w-8" />}<TableHead>Fuente</TableHead><TableHead>Material sug.</TableHead><TableHead>Centro/Alm</TableHead><TableHead className="text-right">Disp.</TableHead><TableHead>Lote</TableHead><TableHead>Caducidad</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow>{selection && <TableHead className="w-8" />}<TableHead>Fuente</TableHead><TableHead>Material sug.</TableHead><TableHead>Centro/Alm</TableHead><TableHead className="text-right">Disp.</TableHead>{precioDe && <TableHead className="text-right">Precio</TableHead>}<TableHead>Lote</TableHead><TableHead>Caducidad</TableHead></TableRow></TableHeader>
           <TableBody>
             {shown.map((f2, i) => {
               const vg = vigenciaTxt(f2.fechaCaducidad);
@@ -400,7 +435,8 @@ export function FuentesTable({ fuentes, push, selection }: { fuentes: BOItem['fu
                   <TableCell><Chip title="Ver inventario de este material sin salir del detalle" onClick={() => setVistaRapida(f2.materialSugerido)}>{f2.materialSugerido}</Chip><div className="text-[11px] text-text-faint">{f2.descripcionSugerida}</div></TableCell>
                   <TableCell>{f2.centroSugerido}{f2.almacenSugerido ? ` / ${f2.almacenSugerido}` : ''}</TableCell>
                   <TableCell className="text-right">{formatNumber(f2.disponible)}</TableCell>
-                  <TableCell>{f2.lote}</TableCell>
+                  {precioDe && <TableCell className="text-right font-mono">{precioDe(f2) ? formatCurrency(precioDe(f2)) : '—'}</TableCell>}
+                  <TableCell>{f2.lote ? <Chip title="Ver el detalle del lote" onClick={() => push({ type: 'lote', material: f2.materialSugerido, lote: f2.lote })}>{f2.lote}</Chip> : '—'}</TableCell>
                   <TableCell>{formatFechaCaducidad(f2.fechaCaducidad)}{vg && <div className="text-[11px]"><StatePill label={vg.txt} cls={vg.cls} /></div>}</TableCell>
                 </TableRow>
               );
@@ -415,6 +451,7 @@ export function FuentesTable({ fuentes, push, selection }: { fuentes: BOItem['fu
             <DialogDescription>{vistaRapida ? analytics.enrich.matTexto(vistaRapida) : ''}</DialogDescription>
           </DialogHeader>
           {vistaRapida && <MaterialInventarioSection a={analytics} material={vistaRapida} />}
+          {vistaRapida && <CondicionesMaterialSection a={analytics} material={vistaRapida} push={push} />}
           {vistaRapida && (
             <button type="button" className="mt-3 text-xs text-accent hover:underline" onClick={() => { const m = vistaRapida; setVistaRapida(null); push({ type: 'material', material: m }); }}>
               Abrir detalle completo del material →
@@ -427,9 +464,10 @@ export function FuentesTable({ fuentes, push, selection }: { fuentes: BOItem['fu
 }
 
 /** Subtabla de lotes (Resumen_Sin / InvDetalle) con precio(s) por condición por lote. */
-export function LotesTable({ lotes, a, material }: { lotes: Analytics['lotes']; a: Analytics; material: string }) {
+export function LotesTable({ lotes, a, material, push }: { lotes: Analytics['lotes']; a: Analytics; material: string; /** Con `push`, el lote abre su detalle. */ push?: (p: Panel) => void }) {
   const [f, setF] = useState('');
-  const shown = f ? lotes.filter((l) => matchesQuery(f, `${l.centro} ${l.almacen} ${l.lote}`)) : lotes;
+  const conExistencia = lotes.filter((l) => l.cantidadDisp > 0);
+  const shown = f ? conExistencia.filter((l) => matchesQuery(f, `${l.centro} ${l.almacen} ${l.lote}`)) : conExistencia;
   const precios = useMemo(() => precioPorCondicion(a, material), [a, material]);
   return (
     <div>
@@ -443,7 +481,7 @@ export function LotesTable({ lotes, a, material }: { lotes: Analytics['lotes']; 
               const lotePrecio = l.precioOferta && l.precioOferta > 0 ? l.precioOferta : 0;
               return (
                 <TableRow key={i}>
-                  <TableCell>{l.centro}</TableCell><TableCell>{l.almacen}</TableCell><TableCell>{l.lote}</TableCell>
+                  <TableCell>{l.centro}</TableCell><TableCell>{l.almacen}</TableCell><TableCell>{push && l.lote ? <Chip title="Ver el detalle del lote" onClick={() => push({ type: 'lote', material, lote: l.lote })}>{l.lote}</Chip> : l.lote}</TableCell>
                   <TableCell>{formatFechaCaducidad(l.fechaCaducidad)}{vg && <div className="text-[11px]"><StatePill label={vg.txt} cls={vg.cls} /></div>}</TableCell>
                   <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
                   <TableCell className="text-right align-top">
@@ -472,18 +510,55 @@ export function LotesTable({ lotes, a, material }: { lotes: Analytics['lotes']; 
 }
 
 /** Sección con título opcional dentro de un panel de detalle. */
-export function Section({ title, children, collapsible = false, storageKey }: {
+/** Archivo de origen de un bloque: da el color del encabezado (Facturación azul, Inventario verde, Pedidos ámbar, Costos violeta). */
+export type TonoArchivo = 'fac' | 'inv' | 'ped' | 'cst';
+const TONO_CLS: Record<TonoArchivo, string> = {
+  fac: 'bg-accent-soft text-accent',
+  inv: 'bg-success/10 text-success',
+  ped: 'bg-warning/10 text-warning',
+  cst: 'bg-info/10 text-info',
+};
+
+export function Section({ title, children, collapsible = false, storageKey, tono, origen, ancho = false, defaultOpen = true }: {
+  /** Con `collapsible`: estado inicial (la primera vez); después recuerda lo que el usuario eligió. */
+  defaultOpen?: boolean;
+  /** En el collage de un detalle ocupa las dos columnas (tablas y gráficas anchas). */
+  ancho?: boolean;
   title: string;
   children: ReactNode;
   /** Encabezado clicable que colapsa/expande el contenido (abierto por defecto, estado persistido). */
   collapsible?: boolean;
   /** Clave de persistencia del estado abierto/cerrado — requerida con `collapsible` (el título puede cambiar). */
   storageKey?: string;
+  /** Con `tono` el bloque se dibuja como tarjeta con el color de su archivo de origen. */
+  tono?: TonoArchivo;
+  /** Nombre del archivo/libro de origen (se muestra a la derecha del encabezado). */
+  origen?: string;
 }) {
-  const [open, setOpen] = usePersistedState<boolean>(`panel.sec.${storageKey ?? title}`, true);
+  const [open, setOpen] = usePersistedState<boolean>(`panel.sec.${storageKey ?? title}`, defaultOpen);
   const abierto = !collapsible || open;
+  if (tono) {
+    const cab = (
+      <>
+        <span>{title}</span>
+        <span className="flex items-center gap-2">
+          {origen && <span className="text-[11px] font-normal opacity-80">{origen}</span>}
+          {collapsible && <ChevronDown className={`size-4 shrink-0 transition-transform ${abierto ? 'rotate-180' : ''}`} />}
+        </span>
+      </>
+    );
+    const clsCab = `flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs font-semibold ${TONO_CLS[tono]}`;
+    return (
+      <div className={`mt-4 min-w-0 overflow-hidden rounded-lg border border-border bg-bg-elevated ${ancho ? 'col-span-full' : ''}`}>
+        {collapsible
+          ? <button type="button" onClick={() => setOpen(!open)} aria-expanded={abierto} className={clsCab}>{cab}</button>
+          : <h3 className={clsCab}>{cab}</h3>}
+        {abierto && <div className="p-3">{children}</div>}
+      </div>
+    );
+  }
   return (
-    <div className="mt-4">
+    <div className={`mt-4 min-w-0 ${ancho ? 'col-span-full' : ''}`}>
       {collapsible ? (
         <button
           type="button"
@@ -509,12 +584,12 @@ export function precioPorCondicion(a: Analytics, material: string) {
 
 /** Renderiza un recuadro por condición para `material` (Material / Descripción / Condición / Precio Oferta). */
 export function PrecioCondicionBox({ a, material }: { a: Analytics; material: string }) {
-  const precios = useMemo(() => precioPorCondicion(a, material), [a, material]);
+  const precios = useMemo(() => precioPorCondicion(a, material).filter((p) => p.precio > 0), [a, material]);
   if (!precios.length) return null;
   const descripcion = a.enrich.matTexto(material);
   return (
-    <Section title="Precio oferta por condición">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <Section tono="cst" origen="Catálogo · Inv_Condicion" title="Precio oferta por condición">
+      <div className="grid grid-cols-1 gap-2">
         {precios.map((p, i) => (
           <div key={i} className="rounded-lg border border-border bg-bg-elevated p-2.5">
             <div className="font-mono text-xs font-medium">{material}</div>

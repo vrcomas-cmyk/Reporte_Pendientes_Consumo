@@ -1,5 +1,8 @@
-import { useMemo, useState } from 'react';
-import { ChevronDown, Download } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useFaseFacturacion } from '@/modules/analytics/faseFacturacion';
+import { useFacFuenteStore } from '@/store/facFuenteStore';
+import { conFacturacion } from '@/modules/analytics/facturacionAnalytics';
+import { ChevronDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -13,7 +16,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, AbcBadge, ClienteOportunidadBadge, Chip, Ranking, StatTile, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, MonthRangeFilter, ClearFiltersButton, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, AbcBadge, ClienteOportunidadBadge, Chip, Ranking, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, MonthRangeFilter, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { dateSortValue } from '@/lib/fechas';
 import { COLS_CONSUMO } from './columns';
 import { usePromedioModo, promedioDeFila } from './usePromedioModo';
@@ -30,19 +33,39 @@ import { useMaterialPrefiltro } from '@/hooks/useMaterialPrefiltro';
 import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
 import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import { buildAbcPares, clavePar, type AbcClass } from '@/core/abc';
+import { buildPrecioDispersion } from '@/core/precios';
+import { ReportPage, PageHeader, ExportButton, FilterBar, FilterSelect, SegmentedControl, ComparisonCard, KpiBand, ResumenColapsable, CollapsibleCard, CalculandoIndices, ALTURA_TABLA, SIN_DATOS } from '@/components/layout/report';
+import { etiquetaMes, resumirMeses } from '@/core/mesesSeleccion';
+import { MonthSetFilter } from '@/modules/analytics/ui/MonthSetFilter';
 import { useQuickFilters } from '@/hooks/useQuickFilters';
 import { useGruposExcluidos } from '@/hooks/useGruposPorDefecto';
 import { gruposPorDefecto } from '@/lib/gruposCliente';
 
+// Inversa de mesKey (año*12+mes) -> 'mm/aaaa'.
+const kToMes = (k: number) => String(((k - 1) % 12) + 1).padStart(2, '0') + '/' + Math.floor((k - 1) / 12);
+
 // #2: combined date+qty cell, same pattern as the existing "Última" column.
 function fechaCantCell(fecha: string, cant: number) {
   if (!fecha && !cant) return '—';
-  return <div>{formatNumber(cant)}<div className="text-[11px] text-text-faint">{fecha || '—'}</div></div>;
+  return <div>{formatNumber(cant)}<div className="text-[11px] text-text-faint">{fecha ? etiquetaMes(fecha) : '—'}</div></div>;
 }
 
-export function ConsumoPage() {
+/** `modo='fac'`: el módulo "Facturación" — la misma página, con el consumo y la facturación de los libros trimestrales de Drive
+ * y sus propios filtros/vistas guardados (prefijo `facturacion`). */
+export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
   const bootstrapped = useDataStore((s) => s.bootstrapped);
-  const a = useAnalytics();
+  const a0 = useAnalytics();
+  const faseFac = useFaseFacturacion(a0);
+  const fac = modo === 'fac';
+  const ns = fac ? 'facturacion' : 'consumo';
+  const setFacActivo = useFacFuenteStore((s) => s.setActivo);
+  // Los paneles de detalle leen la fuente de ESTA tabla mientras está abierta (ver PanelHost).
+  useEffect(() => {
+    setFacActivo(fac);
+    return () => setFacActivo(false);
+  }, [fac, setFacActivo]);
+  const a = useMemo(() => (fac ? conFacturacion(a0) : a0), [a0, fac]);
   const open = usePanelStore((s) => s.open);
   const rows = a.result?.consumo ?? [];
   // Perf: memoize on catalog identity. `ce` is a dep of filterCols/sortAcc/
@@ -50,13 +73,22 @@ export function ConsumoPage() {
   // forced the ~80k-row sector/grupo aggregations to recompute on every render
   // (zoom, periodo toggle, panel open, row hover).
   const ce = useMemo(() => consumoEnrich(a.enrich), [a.enrich]);
-  const [q, setQ] = usePersistedState('consumo.q', ''); // committed (debounced) query; input state lives in DebouncedSearch
+  const [q, setQ] = usePersistedState(`${ns}.q`, ''); // committed (debounced) query; input state lives in DebouncedSearch
   const { prefiltro, clear: clearPrefiltro } = useMaterialPrefiltro(setQ);
-  const [estado, setEstado] = usePersistedState('consumo.estado', '');
-  const [clase, setClase] = usePersistedState('consumo.clase', '');
-  const [gerente, setGerente] = usePersistedState('consumo.gerente', '');
+  const [estado, setEstado] = usePersistedState(`${ns}.estado`, '');
+  const [clase, setClase] = usePersistedState(`${ns}.clase`, '');
+  const [gerente, setGerente] = usePersistedState(`${ns}.gerente`, '');
   const claseDe = (r: ConsumoRow) => a.abc.classByMaterial.get(norm(r.material)) || '';
-  const [quickGuardado, setQuickGuardado] = useQuickFilters('consumo.quick');
+  // Facturación: qué ABC ver — del material, de la combinación cliente-material o las dos.
+  const [abcVistaGuardada, setAbcVista] = usePersistedState<'material' | 'par' | 'ambas'>(`${ns}.abcVista`, 'material');
+  const vistaAbc: 'material' | 'par' | 'ambas' = fac ? abcVistaGuardada : 'material';
+  // En Facturación el ABC de cada combinación llega precalculado (por el contexto); sin él (Consumo) se arma aquí.
+  const abcParesFac = fac ? a.facturacion.abcPares : null;
+  const abcPares = useMemo(() => abcParesFac ?? (fac ? buildAbcPares(a.rf, rows) : new Map<string, AbcClass>()), [abcParesFac, fac, a.rf, rows]);
+  const clasePar = (r: ConsumoRow) => abcPares.get(clavePar(r.destinatario, r.material)) || '';
+  /** El filtro de clase aplica a la vista elegida; con las dos, coincide si cualquiera de las dos es esa clase. */
+  const claseCoincide = (r: ConsumoRow, c: string) => (vistaAbc === 'ambas' ? claseDe(r) === c || clasePar(r) === c : (vistaAbc === 'par' ? clasePar(r) : claseDe(r)) === c);
+  const [quickGuardado, setQuickGuardado] = useQuickFilters(`${ns}.quick`);
   // Grupo cliente: filtro SIEMPRE activo con "todos menos los grupos excluidos en
   // Administración → Filtros" (18 = GOBIERNO) por defecto en cada entrada al módulo. Mientras no se toque (`grupoTocado` = false) el
   // chip se inyecta aquí sobre lo guardado — lo persistido/URL de una visita
@@ -90,25 +122,33 @@ export function ConsumoPage() {
   };
   // Meses ('mm/aaaa') de Resumen de Facturación que acotan el periodo
   // visualizado — no una fecha real, los datos de facturación no tienen día.
-  const [periodoMeses, setPeriodoMeses] = usePersistedState<{ desde: string; hasta: string }>('consumo.periodoMeses', { desde: '', hasta: '' });
+  const [periodoMesesRango, setPeriodoMeses] = usePersistedState<{ desde: string; hasta: string }>(`${ns}.periodoMeses`, { desde: '', hasta: '' });
+  // Facturación: el periodo es una selección de meses (uno, un rango o periodos saltados); Consumo conserva desde/hasta.
+  const [periodoSet, setPeriodoSet] = usePersistedState<string[]>(`${ns}.periodoSet`, []);
+  const mesesSel = useMemo(() => (fac && periodoSet.length ? new Set(periodoSet.map(mesKey).filter((k) => k > 0)) : null), [fac, periodoSet]);
+  const periodoMeses = useMemo(() => {
+    if (!fac) return periodoMesesRango;
+    const ordenados = [...periodoSet].sort((x, y) => mesKey(x) - mesKey(y));
+    return { desde: ordenados[0] ?? '', hasta: ordenados[ordenados.length - 1] ?? '' };
+  }, [fac, periodoSet, periodoMesesRango]);
   const [gruposOpen, setGruposOpen] = useState(false);
-  const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>('consumo.periodo', 'corriente');
+  const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>(`${ns}.periodo`, 'corriente');
   const [promedioModo, setPromedioModo] = usePromedioModo();
   const [dispersionOpen, setDispersionOpen] = useState(false);
   const [cuadreOpen, setCuadreOpen] = useState(false);
   const [clearTick, setClearTick] = useState(0);
   // "Pegar materiales" estilo SAP — aditivo, no toca los filtros de arriba.
-  const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('consumo.pasteCodes', []);
+  const [pasteCodes, setPasteCodes] = usePersistedState<string[]>(`${ns}.pasteCodes`, []);
   const clearFilters = () => {
-    setQ(''); setEstado(''); setClase(''); setGerente(''); setGrupoTocado(false); setQuickGuardado([]); setPeriodoMeses({ desde: '', hasta: '' }); setPasteCodes([]);
+    setQ(''); setEstado(''); setClase(''); setGerente(''); setGrupoTocado(false); setQuickGuardado([]); setPeriodoMeses({ desde: '', hasta: '' }); setPeriodoSet([]); setPasteCodes([]);
     setClearTick((n) => n + 1);
   };
-  const colVis = useColumnVisibility('consumo_columnas');
+  const colVis = useColumnVisibility(`${ns}_columnas`);
   const vis = colVis.isVisible;
-  const zoom = useZoom('consumo_zoom');
+  const zoom = useZoom(`${ns}_zoom`);
 
   // Vistas guardadas: snapshot de estado + filtros rápidos, persistido entre sesiones.
-  const savedViews = useSavedViews<{ estado: string; clase: string; quick: ActiveFilter[]; pasteCodes?: string[] }>('consumo_vistas');
+  const savedViews = useSavedViews<{ estado: string; clase: string; quick: ActiveFilter[]; pasteCodes?: string[] }>(`${ns}_vistas`);
   const applyView = (state: { estado: string; clase?: string; quick: ActiveFilter[]; pasteCodes?: string[] }) => {
     setEstado(state.estado); setClase(state.clase ?? ''); setQuick(state.quick); setPasteCodes(state.pasteCodes ?? []);
   };
@@ -122,7 +162,9 @@ export function ConsumoPage() {
   // render. At ~80k rows that's the single biggest cost in this view. Compute
   // it once per row here (indexed by row identity, memoized on data + catalog
   // identity) and read from the index everywhere else.
+  const estadosFac = fac ? a.facturacion.estados : null;
   const statusIndex = useMemo(() => {
+    if (estadosFac) return estadosFac; // Facturación: precalculado por tramos
     const m = new Map<ConsumoRow, { status: Estado; tend: Tendencia; meses: number[] }>();
     for (const r of rows) {
       const serie = consumoSerie(a.rf, r);
@@ -138,7 +180,7 @@ export function ConsumoPage() {
       m.set(r, { status: clasificarEstado(serie.length ? serie : null, false), tend: tendenciaTexto(serie), meses });
     }
     return m;
-  }, [rows, a.rf]);
+  }, [rows, a.rf, estadosFac]);
   const statusOf = (r: ConsumoRow) => statusIndex.get(r) ?? { status: clasificarEstado(null, false), tend: tendenciaTexto([]), meses: [] as number[] };
 
   // Perf: precompute each row's lowercased/accent-stripped searchable text
@@ -164,7 +206,7 @@ export function ConsumoPage() {
     { key: 'grupoart', label: 'Grupo artículo', get: (r) => ce.grupoArt(r) },
     { key: 'estado', label: 'Estado', get: (r) => statusOf(r).status.label },
     { key: 'tendencia', label: 'Tendencia', get: (r) => statusOf(r).tend.txt },
-    { key: 'abc', label: 'Clase ABC', get: (r) => claseDe(r) },
+    { key: 'abc', label: vistaAbc === 'par' ? 'Clase ABC (cliente-material)' : 'Clase ABC', get: (r) => (vistaAbc === 'par' ? clasePar(r) : claseDe(r)) },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [ce, statusIndex, a.abc]);
 
@@ -176,16 +218,29 @@ export function ConsumoPage() {
   const rangoLoK = useMemo(() => (periodoMeses.desde ? mesKey(periodoMeses.desde) : null), [periodoMeses.desde]);
   const rangoHiK = useMemo(() => (periodoMeses.hasta ? mesKey(periodoMeses.hasta) : null), [periodoMeses.hasta]);
   const rangoActivo = rangoLoK != null || rangoHiK != null;
-  const rangoPromedio = useMemo(() => ({ lo: rangoLoK, hi: rangoHiK }), [rangoLoK, rangoHiK]);
+  const rangoPromedio = useMemo(() => ({ lo: rangoLoK, hi: rangoHiK, meses: mesesSel }), [rangoLoK, rangoHiK, mesesSel]);
+  // Ventana de los rankings/promedios: con periodo activo, ese rango; si no, los
+  // 12 meses COMPLETOS hasta el mes anterior a hoy (igual que Análisis y los
+  // paneles) — no incluye el mes en curso parcial.
+  const ventana = useMemo(() => {
+    const refK = mesKey(mesAnterior(hoyMes()));
+    const lo = rangoActivo ? (rangoLoK ?? -Infinity) : refK - 11;
+    const hi = rangoActivo ? (rangoHiK ?? Infinity) : refK;
+    const nMeses = mesesSel ? Math.max(1, mesesSel.size) : rangoActivo && rangoLoK != null && rangoHiK != null ? Math.max(1, rangoHiK - rangoLoK + 1) : 12;
+    const etiqueta = mesesSel ? resumirMeses(periodoSet) : rangoActivo
+      ? `${rangoLoK != null ? mesLabel(periodoMeses.desde) : 'inicio'} – ${rangoHiK != null ? mesLabel(periodoMeses.hasta) : 'último mes'}`
+      : `${mesLabel(kToMes(refK - 11))} – ${mesLabel(kToMes(refK))}`;
+    return { lo, hi, nMeses, etiqueta };
+  }, [rangoActivo, rangoLoK, rangoHiK, periodoMeses.desde, periodoMeses.hasta, mesesSel, periodoSet]);
 
   const pasaFiltros = (r: ConsumoRow): boolean => {
     if (estado && statusOf(r).status.key !== estado) return false;
-    if (clase && claseDe(r) !== clase) return false;
+    if (clase && !claseCoincide(r, clase)) return false;
     if (gerente && !a.enrich.sectorDeGerente(ce.sector(r), gerente)) return false;
     if (!passesFilters(r, filterCols, quick)) return false;
     if (rangoActivo) {
       const meses = statusOf(r).meses;
-      if (!meses.some((k) => (rangoLoK == null || k >= rangoLoK) && (rangoHiK == null || k <= rangoHiK))) return false;
+      if (!meses.some((k) => (mesesSel ? mesesSel.has(k) : (rangoLoK == null || k >= rangoLoK) && (rangoHiK == null || k <= rangoHiK)))) return false;
     }
     if (q) {
       const hay = searchIndex.get(r) ?? '';
@@ -197,7 +252,7 @@ export function ConsumoPage() {
   const filtered = useMemo(() => {
     return rows.filter(pasaFiltros);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, q, estado, clase, gerente, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, searchIndex, filterCols, a.abc, pasteCodes]);
+  }, [rows, q, estado, clase, gerente, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, searchIndex, filterCols, a.abc, pasteCodes, vistaAbc, abcPares, mesesSel]);
   // Universo de los AGREGADOS = las filas filtradas (Consumo ya sale de Resumen_Fac,
   // así que no hay pares de facturación fuera de la tabla).
   const filteredAgg = filtered;
@@ -224,6 +279,7 @@ export function ConsumoPage() {
       return a.rf.total.filter((p) => {
         const pk = mesKey(p.mes);
         if (!pk) return false;
+        if (mesesSel) return mesesSel.has(pk);
         if (rangoActivo) return !((rangoLoK != null && pk < rangoLoK) || (rangoHiK != null && pk > rangoHiK));
         return Math.abs(pk - curK) <= 36;
       });
@@ -237,7 +293,9 @@ export function ConsumoPage() {
       for (const p of serieFacturada(a.rf, r)) {
         const pk = mesKey(p.mes);
         if (!pk) continue;
-        if (rangoActivo) {
+        if (mesesSel) {
+          if (!mesesSel.has(pk)) continue;
+        } else if (rangoActivo) {
           if (rangoLoK != null && pk < rangoLoK) continue;
           if (rangoHiK != null && pk > rangoHiK) continue;
         } else if (Math.abs(pk - curK) > 36) continue;
@@ -246,7 +304,7 @@ export function ConsumoPage() {
       }
     }
     return [...bucket.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
-  }, [filteredAgg, a.rf, sinFiltros, rangoActivo, rangoLoK, rangoHiK]);
+  }, [filteredAgg, a.rf, sinFiltros, rangoActivo, rangoLoK, rangoHiK, mesesSel]);
 
   // Total facturado del periodo visible: suma exacta de los mismos buckets que
   // pinta EvolChart, así el card nunca puede discrepar de la gráfica.
@@ -314,7 +372,8 @@ export function ConsumoPage() {
 
   // Cuadre contra Resumen_Fac: suma directa de las filas cargadas por mes vs.
   // lo que usa esta pantalla — para detectar si falta data en la carga.
-  const auditoria = useMemo(() => auditoriaFacturacion(a.rf), [a.rf]);
+  // Pesado (recorre todas las filas): solo se arma cuando se abre la sección.
+  const auditoria = useMemo(() => (cuadreOpen ? auditoriaFacturacion(a.rf) : auditoriaFacturacion(null)), [a.rf, cuadreOpen]);
   const cuadreFilas = useMemo(() => {
     const usado = new Map(aggSerie.map((p) => [mesKey(p.mes), p.imp]));
     return auditoria.meses.slice(-6).map((m) => ({ ...m, usado: usado.get(mesKey(m.mes)) ?? 0 }));
@@ -340,10 +399,7 @@ export function ConsumoPage() {
 
   const rankMat = useMemo(() => {
     if (!a.rf) return [];
-    const cur = mesKey(a.rf.curmes);
-    const lo = rangoActivo ? (rangoLoK ?? -Infinity) : cur - 11;
-    const hi = rangoActivo ? (rangoHiK ?? Infinity) : cur;
-    const nMeses = rangoActivo && rangoLoK != null && rangoHiK != null ? Math.max(1, rangoHiK - rangoLoK + 1) : 12;
+    const { lo, hi, nMeses } = ventana;
     const seen = new Set<string>();
     const acc = new Map<string, { imp: number; cant: number }>();
     for (const r of filteredAgg) {
@@ -360,26 +416,25 @@ export function ConsumoPage() {
       }
     }
     return [...acc.entries()]
-      .map(([m, s]) => ({ code: m, desc: a.rf?.matTexto.get(m) || '', val: s.imp / nMeses, valSub: s.cant / nMeses }))
+      .map(([m, s]) => ({ code: m, desc: a.rf?.matTexto.get(m) || '', val: s.imp / nMeses, valSub: s.cant / nMeses, tip: `Total ${formatCurrency(s.imp)} ÷ ${nMeses} meses · ${formatNumber(s.cant)} pzas en total` }))
       .sort((x, y) => y.val - x.val).slice(0, 10);
-  }, [filteredAgg, a.rf, rangoActivo, rangoLoK, rangoHiK]);
+  }, [filteredAgg, a.rf, ventana]);
 
   // Dispersión de precios entre clientes distintos, para el mismo material,
   // acotada a los materiales visibles bajo el filtro actual — así "Buscar" o
   // los filtros rápidos también recortan esta tabla, no solo la principal.
+  const dispersionBase = useMemo(() => (dispersionOpen ? (fac ? buildPrecioDispersion(rows) : a.precioDispersion) : []), [dispersionOpen, fac, rows, a.precioDispersion]);
   const dispersionShown = useMemo(() => {
-    if (!filtered.length || filtered.length === rows.length) return a.precioDispersion.slice(0, 30);
+    if (!dispersionOpen) return [];
+    if (!filtered.length || filtered.length === rows.length) return dispersionBase.slice(0, 30);
     const visibles = new Set(filtered.map((r) => norm(r.material)));
-    return a.precioDispersion.filter((e) => visibles.has(e.material)).slice(0, 30);
-  }, [a.precioDispersion, filtered, rows.length]);
+    return dispersionBase.filter((e) => visibles.has(e.material)).slice(0, 30);
+  }, [dispersionOpen, dispersionBase, filtered, rows.length]);
 
   // #8: top ranking is now Sector-level (with trend), moved above the fold.
   const rankSector = useMemo(() => {
     if (!a.rf) return [];
-    const cur = mesKey(a.rf.curmes);
-    const lo = rangoActivo ? (rangoLoK ?? -Infinity) : cur - 11;
-    const hi = rangoActivo ? (rangoHiK ?? Infinity) : cur;
-    const nMeses = rangoActivo && rangoLoK != null && rangoHiK != null ? Math.max(1, rangoHiK - rangoLoK + 1) : 12;
+    const { lo, hi, nMeses } = ventana;
     const seen = new Set<string>();
     const bySector = new Map<string, Map<string, { mes: string; cant: number; imp: number }>>();
     for (const r of filteredAgg) {
@@ -399,15 +454,15 @@ export function ConsumoPage() {
       let imp12 = 0, cant12 = 0;
       serie.forEach((x) => { const mk = mesKey(x.mes); if (mk >= lo && mk <= hi) { imp12 += x.imp; cant12 += x.cant; }}) ;
       const t = tendenciaTexto(serie);
-      return { code: sector, desc: t.txt, val: imp12 / nMeses, valSub: cant12 / nMeses } ;
+      return { code: sector, desc: t.txt, val: imp12 / nMeses, valSub: cant12 / nMeses, tip: `Total ${formatCurrency(imp12)} ÷ ${nMeses} meses · ${formatNumber(cant12)} pzas en total` };
     }).filter((x) => x.val > 0).sort((x, y) => y.val - x.val).slice(0, 10);
-  }, [filteredAgg, a.rf, ce, rangoActivo, rangoLoK, rangoHiK]);
+  }, [filteredAgg, a.rf, ce, ventana]);
 
   // #6: nueva/reactiva counts for both the current AND the previous quarter, always
   // relative to today's date (mesRefQAnterior derives the previous-quarter reference
   // month from a.rf.curmes, so this shifts automatically as quarters roll over).
   const grupos = useMemo(() => {
-    if (!a.rf) return [];
+    if (!a.rf || !gruposOpen) return [];
     const pairs = new Set<string>();
     // Materiales que realmente quedaron dentro de `filtered` por solicitante —
     // sin esto, `mats.forEach` de abajo sumaba TODO el histórico del
@@ -423,10 +478,7 @@ export function ConsumoPage() {
       matsPorSolic.set(s, set);
     }
     const gsum = new Map<string, { grupo: string; nueva: number; reactiva: number; nuevaPrev: number; reactivaPrev: number; imp12: number; solics: number }>();
-    const cur = mesKey(a.rf.curmes);
-    const lo = rangoActivo ? (rangoLoK ?? -Infinity) : cur - 11;
-    const hi = rangoActivo ? (rangoHiK ?? Infinity) : cur;
-    const nMeses = rangoActivo && rangoLoK != null && rangoHiK != null ? Math.max(1, rangoHiK - rangoLoK + 1) : 12;
+    const { lo, hi, nMeses } = ventana;
     const refPrev = mesRefQAnterior(a.rf.curmes);
     pairs.forEach((pk) => {
       const i = pk.indexOf('~~'), s = pk.slice(0, i), g = pk.slice(i + 2);
@@ -451,10 +503,27 @@ export function ConsumoPage() {
       o.imp12 += impVentana / nMeses * 12; o.solics++; // columna se etiqueta "Fact. 12m" — se anualiza para que siga comparable con nMeses distinto de 12
     });
     return [...gsum.values()].filter((x) => x.nueva || x.reactiva || x.nuevaPrev || x.reactivaPrev).sort((x, y) => y.nueva + y.reactiva - (x.nueva + x.reactiva));
-  }, [filteredAgg, a.rf, ce, rangoActivo, rangoLoK, rangoHiK]);
+  }, [filteredAgg, a.rf, ce, ventana, gruposOpen]);
+
+  // Snapshot de lo que ve el ranking al hacer click: pares destinatario+material
+  // de las filas filtradas (opcionalmente acotadas por sector/material) + ventana.
+  const abrirConFiltro = (tipo: 'sector' | 'material', valor: string) => {
+    const seen = new Set<string>();
+    const pares: string[] = [];
+    for (const r of filteredAgg) {
+      const k = norm(r.destinatario) + '||' + norm(r.material);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      if (tipo === 'sector' ? (ce.sector(r) || '(sin sector)') !== valor : norm(r.material) !== norm(valor)) continue;
+      pares.push(k);
+    }
+    const filtro = { pares, lo: ventana.lo, hi: ventana.hi, nMeses: ventana.nMeses, etiqueta: ventana.etiqueta };
+    open(tipo === 'sector' ? { type: 'sector', sector: valor, filtro } : { type: 'material', material: valor, filtro });
+  };
 
   const sortAcc = useMemo(() => ({
-    cliente: (r: ConsumoRow) => r.razonSocial,
+    // Facturación: el cliente se ordena por Solicitante → Destinatario → Material (los códigos que muestra la fila), no por texto de razón social.
+    cliente: (r: ConsumoRow) => (fac ? `${r.solicitante}\u0001${r.destinatario}\u0001${r.material}` : r.razonSocial),
     ejecutivo: (r: ConsumoRow) => ce.ejec(r),
     centro: (r: ConsumoRow) => r.centro,
     material: (r: ConsumoRow) => r.material,
@@ -467,9 +536,10 @@ export function ConsumoPage() {
     impultima: (r: ConsumoRow) => num(r.importeUltima),
     estado: (r: ConsumoRow) => statusOf(r).status.label,
     tendencia: (r: ConsumoRow) => statusOf(r).tend.txt,
-    abc: (r: ConsumoRow) => claseDe(r) || 'Z', // sin clasificar ordena al final
+    // sin clasificar ordena al final; con las dos vistas ordena por material y luego por cliente-material
+    abc: (r: ConsumoRow) => (vistaAbc === 'par' ? clasePar(r) || 'Z' : vistaAbc === 'ambas' ? `${claseDe(r) || 'Z'}${clasePar(r) || 'Z'}` : claseDe(r) || 'Z'),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [ce, statusIndex, a.abc]);
+  }), [ce, statusIndex, a.abc, fac]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   // Perf #3: virtualize the full result set (~80k rows) instead of paginating
   // 100/page. Two-line cells run ~56px tall. Only the visible slice renders.
@@ -477,6 +547,10 @@ export function ConsumoPage() {
 
   if (!rows.length) {
     if (!bootstrapped) return <TableSkeleton />;
+    if (fac && a0.facturacionCalculando) return <CalculandoIndices titulo="Calculando índices de facturación…" progreso={a0.facturacionProgreso} />;
+    if (fac && faseFac.fase === 'error') return <EmptyState title="No se pudo cargar la facturación." description={faseFac.texto} action={{ to: SIN_DATOS.facturacion.to, label: SIN_DATOS.facturacion.label }} />;
+    if (fac && (faseFac.fase === 'restaurando' || faseFac.fase === 'descargando')) return <CalculandoIndices titulo={faseFac.texto} progreso={faseFac.fase === 'descargando' ? (faseFac.porcentaje ?? 0) / 100 : 0} nota={faseFac.fase === 'restaurando' ? 'Leyendo la facturación guardada en este equipo.' : 'Bajando los libros de facturación de Drive (solo la primera vez baja todos; después, solo el que cambió).'} />;
+    if (fac) return <EmptyState title={SIN_DATOS.facturacion.title} description={SIN_DATOS.facturacion.description} action={{ to: SIN_DATOS.facturacion.to, label: SIN_DATOS.facturacion.label }} />;
     return <EmptyState title={'No se cargó la hoja "Reporte de Consumo".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 
@@ -509,39 +583,93 @@ export function ConsumoPage() {
         Material: r.material, Descripción: r.textoMaterial, Sector: ce.sector(r), 'Grupo art.': ce.grupoArt(r),
         'Consumo actual': r.consumoActual, 'Prom. mensual': promedioDeFila(a.rf, r, promedioModo, rangoPromedio),
         'Último mes': r.ultimoMesFacturacion, 'Cant. última': r.cantidadUltima, 'Importe última': r.importeUltima,
-        Estado: st.label, Tendencia: tn.txt, 'Clase ABC': claseDe(r) || 'Sin clasificar',
+        Estado: st.label, Tendencia: tn.txt, [fac ? 'Clase ABC material' : 'Clase ABC']: claseDe(r) || 'Sin clasificar',
+        ...(fac ? { 'Clase ABC cliente-material': clasePar(r) || 'Sin clasificar' } : {}),
       };
     });
-    void exportXlsx(`consumo_${stamp()}.xlsx`, rowsX, 'Consumo');
+    void exportXlsx(`${fac ? 'facturacion' : 'consumo'}_${stamp()}.xlsx`, rowsX, fac ? 'Facturación' : 'Consumo');
   };
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-auto p-5">
-      <div className="flex items-start justify-between gap-2">
-        <div><h2 className="font-display text-2xl font-semibold">Histórico de Facturación</h2>
-          <p className="text-sm text-text-muted">{formatNumber(filtered.length)} de {formatNumber(rows.length)} registros</p></div>
-        <div className="flex items-center gap-2">
-          <ColumnVisibilityControl columns={COLS_CONSUMO} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
-          <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
-          <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
-        </div>
-      </div>
+    <ReportPage>
+      <PageHeader
+        title={fac ? 'Facturación' : 'Histórico de Facturación'}
+        subtitle={`${formatNumber(filtered.length)} de ${formatNumber(rows.length)} registros`}
+        actions={(
+          <>
+            <ColumnVisibilityControl columns={COLS_CONSUMO} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
+            <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
+            <ExportButton onClick={exportar} />
+          </>
+        )}
+      />
 
       {prefiltro && <PrefiltroBanner material={prefiltro} onClear={clearPrefiltro} />}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <DebouncedSearch key={clearTick} initialValue={q} onChange={setQ} placeholder="Buscar…" />
+      {/* Banda única: facturado del periodo + estado de los clientes (clicable) + comparativos contra el año anterior */}
+      <ResumenColapsable storageKey={`${ns}.resumen.oculto`} linea={<>Facturado {formatCurrency(facturadoPeriodo.imp)} · {formatNumber(facturadoPeriodo.cant)} u. · {formatNumber(filtered.length)} líneas</>}>
+      <KpiBand
+          titulo={`Facturado en el periodo${facturadoPeriodo.meses ? ` · ${facturadoPeriodo.desde} – ${facturadoPeriodo.hasta}` : ''}`}
+          principal={{ etiqueta: 'Importe', valor: formatCurrency(facturadoPeriodo.imp) }}
+          metricas={[
+            { etiqueta: 'Cantidad', valor: formatNumber(facturadoPeriodo.cant), title: 'Suma de cantidades facturadas; mezcla distintas unidades de medida.' },
+            { etiqueta: 'Promedio / mes', valor: formatCurrency(facturadoPeriodo.promImpMes), sub: `${formatNumber(facturadoPeriodo.promCantMes)} u.`, title: `Promedio sobre ${facturadoPeriodo.mesesCalendario} meses de calendario del periodo (incluye meses en cero).` },
+            { etiqueta: 'Promedio / trimestre', valor: formatCurrency(facturadoPeriodo.promImpQ), sub: `${formatNumber(facturadoPeriodo.promCantQ)} u.`, title: `Promedio sobre ${facturadoPeriodo.mesesCalendario} meses de calendario del periodo (incluye meses en cero).` },
+          ]}
+          distribucion={{
+            titulo: 'Estado de los clientes (filtro actual)',
+            segmentos: [
+              { clave: 'corriente', etiqueta: 'Al corriente', valor: kpis.corriente, cls: 'bg-success' },
+              { clave: 'riesgo', etiqueta: 'En riesgo', valor: kpis.riesgo, cls: 'bg-danger' },
+              { clave: 'reactiva', etiqueta: 'Reactivación', valor: kpis.reactiva, cls: 'bg-info' },
+              { clave: 'nueva', etiqueta: 'Nueva compra', valor: kpis.nueva, cls: 'bg-accent' },
+            ],
+            activo: estado || undefined,
+            onToggle: (clave) => setEstado(estado === clave ? '' : clave),
+          }}
+          extra={(
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-text-faint">Comparativo contra el año anterior</span>
+          <SegmentedControl value={periodo} onChange={setPeriodo} ariaLabel="Periodo de comparación" options={[{ value: 'corriente', label: 'Periodo corriente' }, { value: 'anterior', label: 'Periodo anterior' }]} />
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <ComparisonCard titulo={`${periodo === 'anterior' ? 'Periodo anterior · ' : ''}Mes ${mesLabel(comparativas.baseMes)} vs mismo mes año anterior`} actual={comparativas.impMesCur} previo={comparativas.impMesPrev} pct={comparativas.pctMes} />
+          <ComparisonCard titulo={`${periodo === 'anterior' ? 'Periodo anterior · ' : ''}${comparativas.qLabel} vs mismo trimestre año anterior`} actual={comparativas.impQCur} previo={comparativas.impQPrev} pct={comparativas.pctQ} />
+          <ComparisonCard titulo={`${periodo === 'anterior' ? 'Periodo anterior · ' : ''}${comparativas.ytdLabel} vs mismo periodo año anterior`} actual={comparativas.impYtdCur} previo={comparativas.impYtdPrev} pct={comparativas.pctYtd} />
+        </div>
+            </div>
+          )}
+          pie={<>{facturadoPeriodo.meses} {facturadoPeriodo.meses === 1 ? 'mes' : 'meses'} con movimiento · {formatNumber(filtered.length)} líneas del filtro actual{!rangoActivo && ' · ventana por defecto: últimos 36 meses (usa "Último mes fact." para acotar)'}</>}
+        />
+      </ResumenColapsable>
+
+      <FilterBar
+        search={<DebouncedSearch key={clearTick} initialValue={q} onChange={setQ} placeholder="Buscar…" />}
+        onClear={clearFilters}
+        zoom={<ZoomControl level={zoom.level} setLevel={zoom.setLevel} />}
+        chips={pasteCodes.length > 0 ? <PasteCodesChip value={pasteCodes} onChange={setPasteCodes} label="material" /> : undefined}
+        columnFilters={<ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />}
+      >
         <GerenteSelect enrich={a.enrich} value={gerente} onChange={setGerente} />
-        <Select value={estado} onChange={(ev) => setEstado(ev.target.value)} className="w-auto">
-          <option value="">Estado (todos)</option>{ESTADOS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </Select>
-        <Select value={clase} onChange={(ev) => setClase(ev.target.value)} className="w-auto" title="Clase ABC del material — importe facturado en los últimos 12 meses">
-          <option value="">Clase ABC (todas)</option>
-          <option value="A">A — 80% del importe</option>
-          <option value="B">B — hasta 95%</option>
-          <option value="C">C — cola</option>
-        </Select>
-        <MonthRangeFilter desde={periodoMeses.desde} hasta={periodoMeses.hasta} onChange={setPeriodoMeses} label="Periodo" />
+        <FilterSelect value={estado} onChange={setEstado} todos="Estado (todos)" options={ESTADOS.map(([k, l]) => ({ value: k, label: l }))} />
+        {fac && (
+          <Select value={abcVistaGuardada} onChange={(ev) => setAbcVista(ev.target.value as 'material' | 'par' | 'ambas')} className="w-auto" title="Qué ABC ver: el del material, el de la combinación cliente-material o los dos">
+            <option value="material">ABC: Material</option>
+            <option value="par">ABC: Cliente-Material</option>
+            <option value="ambas">ABC: Ambas</option>
+          </Select>
+        )}
+        <FilterSelect
+          value={clase}
+          onChange={setClase}
+          todos="Clase ABC (todas)"
+          title="Clase ABC (de la vista elegida) — importe facturado en los últimos 12 meses"
+          options={[{ value: 'A', label: 'A — 80% del importe' }, { value: 'B', label: 'B — hasta 95%' }, { value: 'C', label: 'C — cola' }]}
+        />
+        {fac
+          ? <MonthSetFilter meses={periodoSet} onChange={setPeriodoSet} label="Periodo" />
+          : <MonthRangeFilter desde={periodoMeses.desde} hasta={periodoMeses.hasta} onChange={setPeriodoMeses} label="Periodo" />}
         <div className="flex items-center gap-1" role="group" aria-label="Promedio mensual">
           <span className="text-xs text-text-muted">Promedio:</span>
           {PROMEDIO_MODOS.filter((m) => m.key !== 'historia').map((m) => (
@@ -556,81 +684,105 @@ export function ConsumoPage() {
           ))}
         </div>
         <PasteCodesFilter value={pasteCodes} onChange={setPasteCodes} label="material" />
-        <ClearFiltersButton onClear={clearFilters} />
-      </div>
-      {pasteCodes.length > 0 && (
-        <div className="-mt-1 flex items-center gap-1.5">
-          <PasteCodesChip value={pasteCodes} onChange={setPasteCodes} label="material" />
-        </div>
-      )}
-      <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
-      <div className="rounded-xl border border-border border-t-2 border-t-accent bg-bg-elevated p-4 shadow-sm">
-        <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
-          Facturado en el periodo{facturadoPeriodo.meses ? ` · ${facturadoPeriodo.desde} – ${facturadoPeriodo.hasta}` : ''}
-        </div>
-        <div className="mt-1 flex flex-wrap items-baseline gap-x-8 gap-y-1">
-          <div>
-            <div className="text-[10px] uppercase tracking-wide text-text-faint">Importe</div>
-            <span className="font-display text-3xl font-semibold tracking-tight">{formatCurrency(facturadoPeriodo.imp)}</span>
-          </div>
-          <div title="Suma de cantidades facturadas; mezcla distintas unidades de medida.">
-            <div className="text-[10px] uppercase tracking-wide text-text-faint">Cantidad</div>
-            <span className="font-display text-2xl font-semibold">{formatNumber(facturadoPeriodo.cant)}</span>
-          </div>
-          <div className="border-l border-border pl-8" title={`Promedio sobre ${facturadoPeriodo.mesesCalendario} meses de calendario del periodo (incluye meses en cero).`}>
-            <div className="text-[10px] uppercase tracking-wide text-text-faint">Promedio / mes</div>
-            <span className="text-sm font-medium">{formatCurrency(facturadoPeriodo.promImpMes)}</span>
-            <span className="ml-1.5 text-[11px] text-text-faint">{formatNumber(facturadoPeriodo.promCantMes)} u.</span>
-          </div>
-          <div title={`Promedio sobre ${facturadoPeriodo.mesesCalendario} meses de calendario del periodo (incluye meses en cero).`}>
-            <div className="text-[10px] uppercase tracking-wide text-text-faint">Promedio / trimestre</div>
-            <span className="text-sm font-medium">{formatCurrency(facturadoPeriodo.promImpQ)}</span>
-            <span className="ml-1.5 text-[11px] text-text-faint">{formatNumber(facturadoPeriodo.promCantQ)} u.</span>
-          </div>
-        </div>
-        
-        <div className="text-[11px] text-text-faint">
-          {facturadoPeriodo.meses} {facturadoPeriodo.meses === 1 ? 'mes' : 'meses'} con movimiento · {formatNumber(filtered.length)} líneas del filtro actual
-          {!rangoActivo && ' · ventana por defecto: últimos 36 meses (usa "Último mes fact." para acotar)'}
-        </div>
-      </div>
+      </FilterBar>
 
-            <div className="ml-auto flex items-center gap-1 rounded-md border border-border p-0.5 text-xs">
-          <button onClick={() => setPeriodo('corriente')} className={`rounded px-2 py-1 ${periodo === 'corriente' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo corriente</button>
-          <button onClick={() => setPeriodo('anterior')} className={`rounded px-2 py-1 ${periodo === 'anterior' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'}`}>Periodo anterior</button>
-        </div>
+      <CollapsibleCard title="Facturación mensual (filtro)" storageKey={`${ns}.grafica.abierta`} defaultOpen>
+        <EvolChart serie={aggSerie} height={160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes) })} />
+      </CollapsibleCard>
 
+      <Ranking collapsible storageKey={`${ns}.rankSector.open`} title={`Sectores · fact. promedio mensual (${ventana.etiqueta}) · $/mes y pzas/mes`} items={rankSector} subLabel="pzas/mes" money wide onRow={(s) => abrirConFiltro('sector', s)} />
+      <Ranking collapsible storageKey={`${ns}.rankMat.open`} title={`Materiales · fact. promedio mensual (${ventana.etiqueta}) · $/mes y pzas/mes`} items={rankMat} subLabel="pzas/mes" money wide onRow={(m) => abrirConFiltro('material', m)} />
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <div className="rounded-xl border border-border p-3">
-          <div className="text-xs font-medium text-text-faint">{periodo === 'anterior' && 'Periodo anterior · '}Mes {mesLabel(comparativas.baseMes)} vs mismo mes año anterior</div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="font-display text-xl font-semibold">{formatCurrency(comparativas.impMesCur)}</span>
-            <span className={`text-sm font-medium ${comparativas.pctMes >= 0 ? 'text-success' : 'text-danger'}`}>{comparativas.pctMes >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctMes).toFixed(1)}%</span>
-          </div>
-          <div className="text-[11px] text-text-faint">vs {formatCurrency(comparativas.impMesPrev)} año anterior</div>
+      <Card className={`${ALTURA_TABLA} shrink-0 overflow-hidden`}>
+        <div ref={scrollRef} className="h-full overflow-auto">
+        <Table className={zoom.className} wrapperClassName="overflow-visible" resizableKey={`${ns}.cols`}>
+          <TableHeader><TableRow>
+            {vis('cliente') && <SortableTableHead sortKey="cliente" activeKey={sortKey} dir={dir} onSort={toggleSort}>Cliente</SortableTableHead>}
+            {vis('ejecutivo') && <SortableTableHead sortKey="ejecutivo" activeKey={sortKey} dir={dir} onSort={toggleSort}>Ejecutivo / Grupo cli.</SortableTableHead>}
+            {vis('centro') && <SortableTableHead sortKey="centro" activeKey={sortKey} dir={dir} onSort={toggleSort}>Centro</SortableTableHead>}
+            {vis('material') && <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort}>Material</SortableTableHead>}
+            {vis('abc') && <SortableTableHead sortKey="abc" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Clase ABC — importe facturado en los últimos 12 meses">ABC</SortableTableHead>}
+            {vis('sector') && <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort}>Sector/Grupo</SortableTableHead>}
+            {vis('consumo') && <SortableTableHead sortKey="consumo" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Consumo promedio mensual de este cliente para este material.">Consumo</SortableTableHead>}
+            {vis('ultima') && <SortableTableHead
+              sortKey="ultima"
+              activeKey={sortKey === 'ultimaFecha' ? 'ultima' : sortKey}
+              dir={dir}
+              onSort={toggleSort}
+              onContextMenu={(ev) => { ev.preventDefault(); toggleSort('ultimaFecha'); }}
+              className="text-right"
+              title="Clic: ordenar por cantidad · Clic derecho: ordenar por fecha"
+            >Última</SortableTableHead>}
+            {vis('penultima') && <SortableTableHead
+              sortKey="penultima"
+              activeKey={sortKey === 'penultimaFecha' ? 'penultima' : sortKey}
+              dir={dir}
+              onSort={toggleSort}
+              onContextMenu={(ev) => { ev.preventDefault(); toggleSort('penultimaFecha'); }}
+              className="text-right"
+              title="Clic: ordenar por cantidad · Clic derecho: ordenar por fecha"
+            >Penúltima</SortableTableHead>}
+            {vis('impultima') && <SortableTableHead sortKey="impultima" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Importe facturado en el último mes con movimiento.">Imp. últ.</SortableTableHead>}
+            {vis('estado') && <SortableTableHead sortKey="estado" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Actividad reciente del cliente para este material (activo, inactivo, etc.) según meses desde la última compra.">Estado</SortableTableHead>}
+            {vis('tendencia') && <SortableTableHead sortKey="tendencia" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Compara la facturación de los últimos 3 meses completos vs. los 3 anteriores: En aumento (+10%), En decremento (-10%) o Estable.">Tendencia</SortableTableHead>}
+          </TableRow></TableHeader>
+          <TableBody>
+            {paddingTop > 0 && (<tr><td style={{ height: paddingTop }} colSpan={COLS_CONSUMO.filter((c) => vis(c.key)).length} /></tr>)}
+            {items.map((vi) => {
+              const r = sorted[vi.index];
+              const onSolicitar = () => solicitar.abrir(buildFromConsumo(r));
+              const solicitado = solicitudSourceKeys.has(`con|${norm(r.material)}|${norm(r.centro)}`);
+              const copyItems = [
+                { label: 'Material', value: r.material },
+                { label: 'Cliente', value: r.razonSocial },
+                { label: 'Centro', value: r.centro },
+              ];
+              return (
+              <SolicitarContextMenu
+                key={vi.index}
+                onSolicitar={onSolicitar}
+                solicitado={solicitado}
+                label={r.material}
+                onVerDetalle={() => open({ type: 'clienteDetalle', dest: r.destinatario, material: r.material })}
+                copyItems={copyItems}
+              >
+              <TableRow className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'clienteDetalle', dest: r.destinatario, material: r.material })}>
+                {vis('cliente') && <TableCell className="max-w-64 truncate">{r.razonSocial} <ClienteOportunidadBadge dest={r.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: r.solicitante })}>S {r.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: r.destinatario })}>D {r.destinatario}</Chip></div></TableCell>}
+                {vis('ejecutivo') && <TableCell>
+                  <Chip onClick={() => addQuick('ejecutivo', ce.ejec(r))}>{ce.ejec(r) || '—'}</Chip>
+                  <div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', ce.grupoCli(r))}>{ce.grupoCli(r) || '—'}</Chip></div>
+                </TableCell>}
+                {vis('centro') && <TableCell><Chip onClick={() => addQuick('centro', r.centro)}>{r.centro || '—'}</Chip></TableCell>}
+                {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div>{ce.precioOferta(r) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(ce.precioOferta(r))}</div>}</TableCell>}
+                {vis('abc') && (
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      {vistaAbc !== 'par' && <>{vistaAbc === 'ambas' && <span className="text-[10px] text-text-faint" title="ABC del material">M</span>}<AbcBadge clase={claseDe(r) || undefined} /></>}
+                      {vistaAbc !== 'material' && <>{vistaAbc === 'ambas' && <span className="text-[10px] text-text-faint" title="ABC de la combinación cliente-material">C-M</span>}<AbcBadge clase={clasePar(r) || undefined} /></>}
+                    </div>
+                  </TableCell>
+                )}
+                {vis('sector') && <TableCell>{ce.sector(r) || '—'}<div className="text-[11px] text-text-faint">{ce.grupoArt(r)}</div></TableCell>}
+                {vis('consumo') && <TableCell className="text-right">{vsCell(r.consumoActual, promedioDeFila(a.rf, r, promedioModo, rangoPromedio))}</TableCell>}
+                {vis('ultima') && <TableCell className="text-right">{fechaCantCell(r.ultimoMesFacturacion, r.cantidadUltima)}</TableCell>}
+                {vis('penultima') && <TableCell className="text-right">{fechaCantCell(r.penultimoMes ?? '', num(r.cantidadPenultima))}</TableCell>}
+                {vis('impultima') && <TableCell className="text-right">{formatCurrency(r.importeUltima)}</TableCell>}
+                {vis('estado') && <TableCell><StatePill label={statusOf(r).status.label} cls={statusOf(r).status.cls} /></TableCell>}
+                {vis('tendencia') && <TableCell><TrendBadge t={statusOf(r).tend} /></TableCell>}
+              </TableRow>
+              </SolicitarContextMenu>
+              );
+            })}
+            {paddingBottom > 0 && (<tr><td style={{ height: paddingBottom }} colSpan={COLS_CONSUMO.filter((c) => vis(c.key)).length} /></tr>)}
+          </TableBody>
+        </Table>
         </div>
-        <div className="rounded-xl border border-border p-3">
-          <div className="text-xs font-medium text-text-faint">{periodo === 'anterior' && 'Periodo anterior · '}{comparativas.qLabel} vs mismo trimestre año anterior</div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="font-display text-xl font-semibold">{formatCurrency(comparativas.impQCur)}</span>
-            <span className={`text-sm font-medium ${comparativas.pctQ >= 0 ? 'text-success' : 'text-danger'}`}>{comparativas.pctQ >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctQ).toFixed(1)}%</span>
-          </div>
-          <div className="text-[11px] text-text-faint">vs {formatCurrency(comparativas.impQPrev)} año anterior</div>
-        </div>
-        <div className="rounded-xl border border-border p-3">
-          <div className="text-xs font-medium text-text-faint">{periodo === 'anterior' && 'Periodo anterior · '}{comparativas.ytdLabel} vs mismo periodo año anterior</div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="font-display text-xl font-semibold">{formatCurrency(comparativas.impYtdCur)}</span>
-            <span className={`text-sm font-medium ${comparativas.pctYtd >= 0 ? 'text-success' : 'text-danger'}`}>{comparativas.pctYtd >= 0 ? '▲' : '▼'} {Math.abs(comparativas.pctYtd).toFixed(1)}%</span>
-          </div>
-          <div className="text-[11px] text-text-faint">vs {formatCurrency(comparativas.impYtdPrev)} año anterior</div>
-        </div>
-      </div>
+      </Card>
 
+      {/* Detalle de apoyo (plegable): cuadre contra Resumen_Fac, dispersión de precios y grupos */}
       <div className="rounded-xl border border-border">
         <button onClick={() => setCuadreOpen(!cuadreOpen)} className="flex w-full items-center justify-between p-3 text-sm font-medium">
-          <span>Cuadre contra Resumen_Fac · {formatNumber(auditoria.filas)} filas cargadas{auditoria.filasInvalidas ? ` · ${formatNumber(auditoria.filasInvalidas)} con mes inválido` : ''}</span>
+          <span>Cuadre contra Resumen_Fac{cuadreOpen && <> · {formatNumber(auditoria.filas)} filas cargadas</>}{auditoria.filasInvalidas ? ` · ${formatNumber(auditoria.filasInvalidas)} con mes inválido` : ''}</span>
           <ChevronDown className={`size-4 transition-transform ${cuadreOpen ? 'rotate-180' : ''}`} />
         </button>
         {cuadreOpen && (
@@ -657,30 +809,13 @@ export function ConsumoPage() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-start gap-3">
-        <div className="inline-grid grid-cols-2 content-start gap-2 sm:grid-cols-4">
-          <StatTile compact label="Al corriente" value={formatNumber(kpis.corriente)} />
-          <StatTile compact label="En riesgo" value={formatNumber(kpis.riesgo)} tone={kpis.riesgo > 0 ? 'danger' : undefined} />
-          <StatTile compact label="Reactivación" value={formatNumber(kpis.reactiva)} tone="info" />
-          <StatTile compact label="Nueva compra" value={formatNumber(kpis.nueva)} tone="success" />
-        </div>
-      </div>
-
-      <div className="w-full rounded-xl border border-border p-3">
-        <h4 className="mb-2 text-xs font-semibold text-text-muted">Facturación mensual (filtro)</h4>
-        <EvolChart serie={aggSerie} height={160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes) })} />
-      </div>
-
-      <Ranking collapsible storageKey="consumo.rankSector.open" title="Sectores · fact. prom 12m" items={rankSector} money wide onRow={(s) => open({ type: 'sector', sector: s })} />
-      <Ranking collapsible storageKey="consumo.rankMat.open" title="Materiales · fact. prom 12m" items={rankMat} money wide onRow={(m) => open({ type: 'material', material: m })} />
-
       <div className="rounded-xl border border-border">
         <button
           onClick={() => setDispersionOpen(!dispersionOpen)}
           className="flex w-full items-center justify-between p-3 text-sm font-medium"
         >
           <span>
-            Dispersión de precios entre clientes · mismo material, precio muy distinto · {dispersionShown.length}
+            Dispersión de precios entre clientes · mismo material, precio muy distinto{dispersionOpen && <> · {dispersionShown.length}</>}
           </span>
 
           <ChevronDown
@@ -772,7 +907,7 @@ export function ConsumoPage() {
 
       <div className="rounded-xl border border-border">
         <button onClick={() => setGruposOpen(!gruposOpen)} className="flex w-full items-center justify-between p-3 text-sm font-medium">
-          <span>Nuevas compras y reactivaciones por Grupo de artículo · {grupos.reduce((s, g) => s + g.nueva, 0)} nuevas · {grupos.reduce((s, g) => s + g.reactiva, 0)} reactivaciones</span>
+          <span>Nuevas compras y reactivaciones por Grupo de artículo{gruposOpen && <> · {grupos.reduce((s, g) => s + g.nueva, 0)} nuevas · {grupos.reduce((s, g) => s + g.reactiva, 0)} reactivaciones</>}</span>
           <ChevronDown className={`size-4 transition-transform ${gruposOpen ? 'rotate-180' : ''}`} />
         </button>
         {gruposOpen && (
@@ -802,88 +937,7 @@ export function ConsumoPage() {
         )}
       </div>
 
-      <div className="flex justify-end"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
-
-      <Card className="min-h-[640px] shrink-0 overflow-hidden">
-        <div ref={scrollRef} className="h-[640px] overflow-auto">
-        <Table className={zoom.className} wrapperClassName="overflow-visible" resizableKey="consumo.cols">
-          <TableHeader><TableRow>
-            {vis('cliente') && <SortableTableHead sortKey="cliente" activeKey={sortKey} dir={dir} onSort={toggleSort}>Cliente</SortableTableHead>}
-            {vis('ejecutivo') && <SortableTableHead sortKey="ejecutivo" activeKey={sortKey} dir={dir} onSort={toggleSort}>Ejecutivo / Grupo cli.</SortableTableHead>}
-            {vis('centro') && <SortableTableHead sortKey="centro" activeKey={sortKey} dir={dir} onSort={toggleSort}>Centro</SortableTableHead>}
-            {vis('material') && <SortableTableHead sortKey="material" activeKey={sortKey} dir={dir} onSort={toggleSort}>Material</SortableTableHead>}
-            {vis('abc') && <SortableTableHead sortKey="abc" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Clase ABC — importe facturado en los últimos 12 meses">ABC</SortableTableHead>}
-            {vis('sector') && <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort}>Sector/Grupo</SortableTableHead>}
-            {vis('consumo') && <SortableTableHead sortKey="consumo" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Consumo promedio mensual de este cliente para este material.">Consumo</SortableTableHead>}
-            {vis('ultima') && <SortableTableHead
-              sortKey="ultima"
-              activeKey={sortKey === 'ultimaFecha' ? 'ultima' : sortKey}
-              dir={dir}
-              onSort={toggleSort}
-              onContextMenu={(ev) => { ev.preventDefault(); toggleSort('ultimaFecha'); }}
-              className="text-right"
-              title="Clic: ordenar por cantidad · Clic derecho: ordenar por fecha"
-            >Última</SortableTableHead>}
-            {vis('penultima') && <SortableTableHead
-              sortKey="penultima"
-              activeKey={sortKey === 'penultimaFecha' ? 'penultima' : sortKey}
-              dir={dir}
-              onSort={toggleSort}
-              onContextMenu={(ev) => { ev.preventDefault(); toggleSort('penultimaFecha'); }}
-              className="text-right"
-              title="Clic: ordenar por cantidad · Clic derecho: ordenar por fecha"
-            >Penúltima</SortableTableHead>}
-            {vis('impultima') && <SortableTableHead sortKey="impultima" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Importe facturado en el último mes con movimiento.">Imp. últ.</SortableTableHead>}
-            {vis('estado') && <SortableTableHead sortKey="estado" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Actividad reciente del cliente para este material (activo, inactivo, etc.) según meses desde la última compra.">Estado</SortableTableHead>}
-            {vis('tendencia') && <SortableTableHead sortKey="tendencia" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Compara la facturación de los últimos 3 meses completos vs. los 3 anteriores: En aumento (+10%), En decremento (-10%) o Estable.">Tendencia</SortableTableHead>}
-          </TableRow></TableHeader>
-          <TableBody>
-            {paddingTop > 0 && (<tr><td style={{ height: paddingTop }} colSpan={COLS_CONSUMO.filter((c) => vis(c.key)).length} /></tr>)}
-            {items.map((vi) => {
-              const r = sorted[vi.index];
-              const onSolicitar = () => solicitar.abrir(buildFromConsumo(r));
-              const solicitado = solicitudSourceKeys.has(`con|${norm(r.material)}|${norm(r.centro)}`);
-              const copyItems = [
-                { label: 'Material', value: r.material },
-                { label: 'Cliente', value: r.razonSocial },
-                { label: 'Centro', value: r.centro },
-              ];
-              return (
-              <SolicitarContextMenu
-                key={vi.index}
-                onSolicitar={onSolicitar}
-                solicitado={solicitado}
-                label={r.material}
-                onVerDetalle={() => open({ type: 'clienteDetalle', dest: r.destinatario, material: r.material })}
-                copyItems={copyItems}
-              >
-              <TableRow className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'clienteDetalle', dest: r.destinatario, material: r.material })}>
-                {vis('cliente') && <TableCell className="max-w-64 truncate">{r.razonSocial} <ClienteOportunidadBadge dest={r.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: r.solicitante })}>S {r.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: r.destinatario })}>D {r.destinatario}</Chip></div></TableCell>}
-                {vis('ejecutivo') && <TableCell>
-                  <Chip onClick={() => addQuick('ejecutivo', ce.ejec(r))}>{ce.ejec(r) || '—'}</Chip>
-                  <div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', ce.grupoCli(r))}>{ce.grupoCli(r) || '—'}</Chip></div>
-                </TableCell>}
-                {vis('centro') && <TableCell><Chip onClick={() => addQuick('centro', r.centro)}>{r.centro || '—'}</Chip></TableCell>}
-                {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div>{ce.precioOferta(r) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(ce.precioOferta(r))}</div>}</TableCell>}
-                {vis('abc') && <TableCell><AbcBadge clase={claseDe(r) || undefined} /></TableCell>}
-                {vis('sector') && <TableCell>{ce.sector(r) || '—'}<div className="text-[11px] text-text-faint">{ce.grupoArt(r)}</div></TableCell>}
-                {vis('consumo') && <TableCell className="text-right">{vsCell(r.consumoActual, promedioDeFila(a.rf, r, promedioModo, rangoPromedio))}</TableCell>}
-                {vis('ultima') && <TableCell className="text-right">{fechaCantCell(r.ultimoMesFacturacion, r.cantidadUltima)}</TableCell>}
-                {vis('penultima') && <TableCell className="text-right">{fechaCantCell(r.penultimoMes ?? '', num(r.cantidadPenultima))}</TableCell>}
-                {vis('impultima') && <TableCell className="text-right">{formatCurrency(r.importeUltima)}</TableCell>}
-                {vis('estado') && <TableCell><StatePill label={statusOf(r).status.label} cls={statusOf(r).status.cls} /></TableCell>}
-                {vis('tendencia') && <TableCell><TrendBadge t={statusOf(r).tend} /></TableCell>}
-              </TableRow>
-              </SolicitarContextMenu>
-              );
-            })}
-            {paddingBottom > 0 && (<tr><td style={{ height: paddingBottom }} colSpan={COLS_CONSUMO.filter((c) => vis(c.key)).length} /></tr>)}
-          </TableBody>
-        </Table>
-        </div>
-      </Card>
-
       <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
-    </div>
+    </ReportPage>
   );
 }

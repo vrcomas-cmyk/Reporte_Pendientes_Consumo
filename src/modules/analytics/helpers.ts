@@ -140,3 +140,6 @@ export function transitoFor(rss: RSSIndex | null, centro: string, alm: string, m
   if (!co) return 0;
   return co.alm.get(alm)?.transito || 0;
 }
+
+/** Renglones pendientes LIBERADOS (sin bloqueo de crédito ni de entrega): los que cuentan en el pendiente de los módulos de libros. */
+export const renglonesLiberados = (bo: BOItem[]): BOItem[] => bo.filter((it) => !it.bo.bloqueado);

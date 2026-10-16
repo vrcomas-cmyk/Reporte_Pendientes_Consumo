@@ -32,3 +32,4 @@ dist-ssr
 *.sw?
 .playwright-cli/
 shots/
+.claude/settings.local.json

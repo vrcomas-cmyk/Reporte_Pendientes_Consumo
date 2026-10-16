@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Lock, LockOpen, Download, AlertTriangle, ChevronDown, ChevronRight, Maximize2 } from 'lucide-react';
+import { Search, Lock, LockOpen, AlertTriangle, ChevronDown, ChevronRight, Maximize2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,11 +12,13 @@ import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore, type Panel } from '@/store/panelStore';
 import { CENTERS } from '@/core/types';
 import type { InvDetalleRow } from '@/core/types';
-import { StatePill, Chip, Ranking, StatTile, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, ClearFiltersButton, useColumnVisibility, ColumnVisibilityControl, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
+import { StatePill, Chip, Ranking, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, useColumnVisibility, ColumnVisibilityControl, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { norm, matchesQuery } from '@/modules/analytics/helpers';
 import { esCondicionCortaCaducidad } from '@/core/inventoryRules';
 import { pendPorCondicion, transitoPorCondicion, esLentoPorCondicion } from '@/core/resumenSin';
 import { EmptyState } from '@/components/feedback/EmptyState';
+import { ReportPage, PageHeader, ExportButton, KpiBand, ResumenColapsable, FilterBar, FilterSelect, CellLegend, ALTURA_TABLA, SIN_DATOS } from '@/components/layout/report';
+import { useRssFuenteStore } from '@/store/rssFuenteStore';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { useDataStore } from '@/store/dataStore';
 import { useSort } from '@/hooks/useSort';
@@ -141,36 +143,54 @@ function LotesPorVencerTable({ lotes, open, wrapperClassName }: {
   );
 }
 
-export function InventarioPage() {
+interface InventarioPageProps {
+  /** 'libros' = el mismo módulo con una fila por material × condición armada desde el libro Inv_Condicion (Corta
+   * caducidad por lote, Revision con sus Status, Sustituto, PNC) y Disponibilidad. Por defecto, el reporte diario. */
+  modo?: 'rep' | 'libros';
+}
+
+export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   const bootstrapped = useDataStore((s) => s.bootstrapped);
   const a = useAnalytics();
   const open = usePanelStore((s) => s.open);
-  const rows = a.invCondicion;
-  const [q, setQ] = usePersistedState('inventario.q', '');
+  const libros = modo === 'libros';
+  // Prefijo de las llaves persistidas (filtros, columnas, vistas, zoom): cada modo guarda las suyas.
+  const ns = libros ? 'invLibros' : 'inventario';
+  const setFuenteRss = useRssFuenteStore((s) => s.setFuente);
+  // Los paneles de detalle leen los datos de ESTA tabla mientras está abierta.
+  useEffect(() => {
+    setFuenteRss(libros ? 'libros' : 'sin');
+    return () => setFuenteRss('sin');
+  }, [libros, setFuenteRss]);
+  const rows = libros ? a.invCondicionLibros : a.invCondicion;
+  const lotes = libros ? a.lotesLibros : a.lotes;
+  const rss = libros ? a.rssDisp : a.rss;
+  const [q, setQ] = usePersistedState(`${ns}.q`, '');
   const { prefiltro, clear: clearPrefiltro } = useMaterialPrefiltro(setQ);
-  const [cond, setCond] = usePersistedState('inventario.cond', '');
-  const [sector, setSector] = usePersistedState('inventario.sector', '');
-  const [gerente, setGerente] = usePersistedState('inventario.gerente', '');
-  const [centro, setCentro] = usePersistedState('inventario.centro', '');
+  const [cond, setCond] = usePersistedState(`${ns}.cond`, '');
+  const [sector, setSector] = usePersistedState(`${ns}.sector`, '');
+  const [gerente, setGerente] = usePersistedState(`${ns}.gerente`, '');
+  const [centro, setCentro] = usePersistedState(`${ns}.centro`, '');
   const [isAdmin, setIsAdmin] = useState(readAdmin);
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
-  const [quick, setQuick] = useQuickFilters('inventario.quick');
+  const [quick, setQuick] = useQuickFilters(`${ns}.quick`);
   // "Pegar materiales" estilo SAP — aditivo, no toca los filtros de arriba.
-  const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('inventario.pasteCodes', []);
-  const zoom = useZoom('inventario_zoom');
+  const [pasteCodes, setPasteCodes] = usePersistedState<string[]>(`${ns}.pasteCodes`, []);
+  const zoom = useZoom(`${ns}_zoom`);
   const clearFilters = () => { setQ(''); setCond(''); setSector(''); setGerente(''); setCentro(''); setQuick([]); setPasteCodes([]); };
 
-  const colVis = useColumnVisibility('inventario_columnas');
+  const colVis = useColumnVisibility(`${ns}_columnas`);
   const columnDefs: ColDef[] = useMemo(() => [
+    ...(libros ? [{ key: 'detalle', label: 'Detalle condición' }] : []),
     { key: 'disp3130', label: 'Disp 31·30' },
     { key: 'disp3132', label: 'Disp 31·32' },
     ...CENTERS.map((c) => ({ key: `centro_${c}`, label: `Inv ${c}` })),
     { key: 'invsuma', label: 'Inv Suma' },
     { key: 'importe', label: 'Importe $' },
-  ], []);
+  ], [libros]);
 
   // Vistas guardadas: snapshot de filtros (condicion/sector/centro/quick) + columnas ocultas, persistido entre sesiones.
-  const savedViews = useSavedViews<{ cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[]; pasteCodes?: string[] }>('inventario_vistas');
+  const savedViews = useSavedViews<{ cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[]; pasteCodes?: string[] }>(`${ns}_vistas`);
   const applyView = (state: { cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[]; pasteCodes?: string[] }) => {
     setCond(state.cond); setSector(state.sector); setCentro(state.centro); setQuick(state.quick);
     setPasteCodes(state.pasteCodes ?? []);
@@ -211,14 +231,14 @@ export function InventarioPage() {
 
   // Periodo de "Lotes por vencer": mayor/menor que N días, o todos (sin
   // acotar) — antes era un umbral fijo (≤90 días).
-  const [lotesOp, setLotesOp] = usePersistedState<'' | 'gt' | 'lt'>('inventario.lotesOp', 'lt');
-  const [lotesDias, setLotesDias] = usePersistedState('inventario.lotesDias', 90);
-  const [lotesColapsado, setLotesColapsado] = usePersistedState('inventario.lotesColapsado', false);
+  const [lotesOp, setLotesOp] = usePersistedState<'' | 'gt' | 'lt'>(`${ns}.lotesOp`, 'lt');
+  const [lotesDias, setLotesDias] = usePersistedState(`${ns}.lotesDias`, 90);
+  const [lotesColapsado, setLotesColapsado] = usePersistedState(`${ns}.lotesColapsado`, false);
   const [lotesModalOpen, setLotesModalOpen] = useState(false);
 
   const lotesPorVencer = useMemo(() => {
     const now = new Date(); now.setHours(0, 0, 0, 0);
-    return a.lotes
+    return lotes
       .map((l) => {
         if (!l.fechaCaducidad) return null;
         const d = new Date(l.fechaCaducidad);
@@ -233,9 +253,9 @@ export function InventarioPage() {
       })
       .filter((x): x is NonNullable<typeof x> => !!x)
       .sort((x, y) => (y.demanda > 0 ? 1 : 0) - (x.demanda > 0 ? 1 : 0) || x.dias - y.dias);
-  }, [a.lotes, consumoPorMaterial, lotesOp, lotesDias]);
+  }, [lotes, consumoPorMaterial, lotesOp, lotesDias]);
   const lotesLabel = lotesOp === 'gt' ? `> ${lotesDias} días` : lotesOp === 'lt' ? `< ${lotesDias} días` : 'todos';
-  const hayLotesConCaducidad = useMemo(() => a.lotes.some((l) => l.fechaCaducidad), [a.lotes]);
+  const hayLotesConCaducidad = useMemo(() => lotes.some((l) => l.fechaCaducidad), [lotes]);
 
   useEffect(() => { writeAdmin(isAdmin); }, [isAdmin]);
 
@@ -264,7 +284,7 @@ export function InventarioPage() {
   // (por almacén), no de "InvConsolidado" — restringidos a los almacenes que
   // aplican según la condición (RN-INV-002: solo 1032 en corta caducidad,
   // 1030+1031+1060 en cualquier otro caso), igual que el módulo Inventario.
-  const rssCentro = (r: (typeof rows)[number], c: string) => a.rss?.mats.get(norm(r.material))?.centros.get(c);
+  const rssCentro = (r: (typeof rows)[number], c: string) => rss?.mats.get(norm(r.material))?.centros.get(c);
 
   const conds = useMemo(() => [...new Set(rows.map((r) => r.condicion).filter(Boolean))].sort(), [rows]);
   const sectores = useMemo(() => [...new Set(rows.map((r) => a.enrich.matSector(r.material) || r.sector).filter(Boolean))].sort(), [rows, a.enrich]);
@@ -298,12 +318,21 @@ export function InventarioPage() {
     const stock = filtered.reduce((s, r) => s + invSumaCond(r), 0);
     const rk = filtered.map((r) => ({ code: r.material, desc: r.textoBreve, val: invSumaCond(r) * r.precioOferta }))
       .filter((x) => x.val > 0).sort((x, y) => y.val - x.val).slice(0, 10);
-    return { mats: mats.size, imp, stock, rk };
+    // Importe por condición (si no hay precios, la distribución se arma con el stock).
+    const porCond = new Map<string, { imp: number; stock: number }>();
+    for (const r of filtered) {
+      const e = porCond.get(r.condicion) ?? { imp: 0, stock: 0 };
+      e.imp += invSumaCond(r) * r.precioOferta;
+      e.stock += invSumaCond(r);
+      porCond.set(r.condicion, e);
+    }
+    return { mats: mats.size, imp, stock, rk, porCond: [...porCond].map(([condicion, v]) => ({ condicion, ...v })).sort((x, y) => y.imp - x.imp || y.stock - x.stock) };
   }, [filtered]);
 
   const sortAcc = useMemo(() => ({
     material: (r: (typeof filtered)[number]) => r.material,
     condicion: (r: (typeof filtered)[number]) => r.condicion,
+    detalle: (r: (typeof filtered)[number]) => r.detalle ?? '',
     sector: (r: (typeof filtered)[number]) => a.enrich.matSector(r.material) || r.sector,
     precio: (r: (typeof filtered)[number]) => r.precioOferta,
     um: (r: (typeof filtered)[number]) => a.enrich.matUm(r.material),
@@ -317,7 +346,7 @@ export function InventarioPage() {
   // Materiales (únicos) en el orden/filtro de la tabla, para recorrerlos con ◀/▶ en el detalle de celda.
   const listaMateriales = useMemo(() => [...new Set(sorted.map((r) => r.material))], [sorted]);
   const visibleCenters = useMemo(() => CENTERS.filter((c) => colVis.isVisible(`centro_${c}`)), [colVis]);
-  const colCount = (isAdmin ? 1 : 0) + 5
+  const colCount = (isAdmin ? 1 : 0) + 5 + (libros && colVis.isVisible('detalle') ? 1 : 0)
     + (colVis.isVisible('disp3130') ? 1 : 0) + (colVis.isVisible('disp3132') ? 1 : 0)
     + visibleCenters.length
     + (colVis.isVisible('invsuma') ? 1 : 0) + (colVis.isVisible('importe') ? 1 : 0);
@@ -340,13 +369,14 @@ export function InventarioPage() {
 
   if (!rows.length) {
     if (!bootstrapped) return <TableSkeleton />;
+    if (libros) return <EmptyState title={SIN_DATOS.inventario.title} description={SIN_DATOS.inventario.description} action={{ to: SIN_DATOS.inventario.to, label: SIN_DATOS.inventario.label }} />;
     return <EmptyState title={'No hay datos de "Inventario por condición".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 
   const exportar = () => {
     const rowsX = filtered.map((r) => {
       const o: Record<string, unknown> = {
-        Material: r.material, Descripción: r.textoBreve, Condición: r.condicion,
+        Material: r.material, Descripción: r.textoBreve, Condición: r.condicion, ...(libros ? { 'Detalle condición': r.detalle ?? '' } : {}),
         Sector: a.enrich.matSector(r.material) || r.sector, 'Grupo art.': a.enrich.matGrupo(r.material) || r.grupo,
         UM: a.enrich.matUm(r.material), Precio: r.precioOferta, 'Disp 1031-1030': r.disponible31_30, 'Disp 1031-1032': r.disponible31_32,
       };
@@ -360,33 +390,48 @@ export function InventarioPage() {
     // centro (si el material tiene 5 lotes en 3 centros y filtras por 1001,
     // solo se exportan los de 1001).
     const mats = new Set(filtered.map((r) => norm(r.material)));
-    const lotesX = buildLotesSheet(a.lotes, (l) => mats.has(norm(l.material)) && (!centro || norm(l.centro) === centro));
-    void exportXlsxMultiSheet(`inventario_${stamp()}.xlsx`, [
+    const lotesX = buildLotesSheet(lotes, (l) => mats.has(norm(l.material)) && (!centro || norm(l.centro) === centro));
+    void exportXlsxMultiSheet(`${libros ? 'inv_con_condicion' : 'inventario'}_${stamp()}.xlsx`, [
       { name: 'Inventario', rows: rowsX },
       { name: 'Detalle Lotes', rows: lotesX },
     ]);
   };
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto p-5">
-      <div className="flex shrink-0 items-start justify-between gap-2">
-        <div><h2 className="font-display text-2xl font-semibold">Inv Condición</h2>
-          <p className="text-sm text-text-muted">{formatNumber(filtered.length)} renglones · clic en material = detalle del material · clic en cantidad de un centro = detalle de ese centro</p></div>
-        <div className="flex items-center gap-2">
-          <ColumnVisibilityControl columns={columnDefs} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
-          <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
-          <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
-        </div>
-      </div>
+    <ReportPage>
+      <PageHeader
+        title={libros ? 'Inv con Condición' : 'Inv Condición'}
+        subtitle={`${formatNumber(filtered.length)} renglones · clic en material = detalle del material · clic en cantidad de un centro = detalle de ese centro`}
+        actions={(
+          <>
+            <ColumnVisibilityControl columns={columnDefs} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
+            <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
+            <ExportButton onClick={exportar} />
+          </>
+        )}
+      />
 
-      <div className="flex shrink-0 flex-wrap items-start gap-3">
-        <div className="inline-grid grid-cols-3 content-start gap-2">
-          <StatTile compact label="Materiales" value={formatNumber(kpis.mats)} />
-          <StatTile compact label="Stock" value={formatNumber(kpis.stock)} />
-          <StatTile compact label="Importe $" value={formatCurrency(kpis.imp)} />
-        </div>
-        <Ranking title="Top 10 por Importe $" items={kpis.rk} money wide onRow={(m) => open({ type: 'material', material: m })} className="min-w-[420px] flex-1" />
-      </div>
+      {/* Banda arriba (lo principal) y, debajo, el top de importe */}
+      <ResumenColapsable storageKey={`${libros ? 'invcond-libros' : 'invcond'}.resumen.oculto`} linea={<>Inventario {formatCurrency(kpis.imp)} · {formatNumber(kpis.mats)} materiales · {formatNumber(kpis.stock)} u.</>}>
+      <KpiBand
+        titulo="Inventario por condición"
+        principal={{ etiqueta: 'Importe $ en inventario', valor: formatCurrency(kpis.imp) }}
+        metricas={[
+          { etiqueta: 'Materiales', valor: formatNumber(kpis.mats) },
+          { etiqueta: 'Stock', valor: formatNumber(kpis.stock) },
+          ...(hayLotesConCaducidad ? [{ etiqueta: 'Lotes por vencer', valor: formatNumber(lotesPorVencer.length), tono: lotesPorVencer.length > 0 ? ('warning' as const) : undefined, title: `Lotes por vencer (${lotesLabel}) con demanda activa` }] : []),
+        ]}
+        distribucion={{
+          titulo: kpis.imp > 0 ? 'Importe por condición (clic = filtrar)' : 'Stock por condición (clic = filtrar)',
+          segmentos: kpis.porCond.map((c, i) => ({ clave: c.condicion, etiqueta: c.condicion, valor: kpis.imp > 0 ? c.imp : c.stock, cls: ['bg-warning', 'bg-info', 'bg-danger', 'bg-success', 'bg-accent'][i % 5] ?? 'bg-accent' })),
+          activo: cond || undefined,
+          onToggle: (clave) => setCond(cond === clave ? '' : clave),
+          formato: kpis.imp > 0 ? formatCurrency : formatNumber,
+        }}
+        pie={`${formatNumber(filtered.length)} renglones del filtro actual`}
+      />
+      <Ranking title="Top 10 por Importe $" items={kpis.rk} money wide onRow={(m) => open({ type: 'material', material: m })} className="w-full" />
+      </ResumenColapsable>
 
       {hayLotesConCaducidad && (
         <Card className="shrink-0 p-3">
@@ -427,21 +472,26 @@ export function InventarioPage() {
 
       {prefiltro && <PrefiltroBanner material={prefiltro} onClear={clearPrefiltro} />}
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <div className="relative w-64"><Search className="absolute left-2.5 top-2.5 size-3.5 text-text-faint" />
-          <Input placeholder="Buscar material…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" /></div>
-        <select value={cond} onChange={(e) => setCond(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
-          <option value="">Condición (todas)</option>{conds.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
+      <FilterBar
+        search={(
+          <div className="relative w-64"><Search className="absolute left-2.5 top-2.5 size-3.5 text-text-faint" />
+            <Input placeholder="Buscar material…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" /></div>
+        )}
+        onClear={clearFilters}
+        zoom={<ZoomControl level={zoom.level} setLevel={zoom.setLevel} />}
+        chips={pasteCodes.length > 0 ? <PasteCodesChip value={pasteCodes} onChange={setPasteCodes} label="material" /> : undefined}
+        columnFilters={(
+          <>
+            <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
+            <CellLegend>Debajo de cada celda: <span className="text-danger">Pend</span> pendiente · <span className="text-success">+N</span> tránsito · <AlertTriangle className="inline size-3 text-warning" /> lento (≥6m sin consumo)</CellLegend>
+          </>
+        )}
+      >
+        <FilterSelect value={cond} onChange={setCond} todos="Condición (todas)" options={conds.map((c) => ({ value: c, label: c }))} />
         <GerenteSelect enrich={a.enrich} value={gerente} onChange={setGerente} />
-        <select value={sector} onChange={(e) => setSector(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
-          <option value="">Sector (todos)</option>{sectores.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={centro} onChange={(e) => setCentro(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
-          <option value="">Centro (todos)</option>{CENTERS.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <FilterSelect value={sector} onChange={setSector} todos="Sector (todos)" options={sectores.map((s) => ({ value: s, label: s }))} />
+        <FilterSelect value={centro} onChange={setCentro} todos="Centro (todos)" options={CENTERS.map((c) => ({ value: c, label: c }))} />
         <PasteCodesFilter value={pasteCodes} onChange={setPasteCodes} label="material" />
-        <p className="text-xs text-text-faint">Debajo de cada celda: <span className="text-danger">Pend</span> pendiente · <span className="text-success">+N</span> tránsito · <AlertTriangle className="inline size-3 text-warning" /> lento (≥6m sin consumo)</p>
         <Button
           variant={isAdmin ? 'default' : 'outline'}
           size="sm"
@@ -451,18 +501,9 @@ export function InventarioPage() {
           {isAdmin ? <LockOpen className="size-3.5" /> : <Lock className="size-3.5" />}
           {isAdmin ? 'Admin ON' : 'Admin'}
         </Button>
-        <ClearFiltersButton onClear={clearFilters} />
-        <div className="ml-auto"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
-      </div>
-      {pasteCodes.length > 0 && (
-        <div className="-mt-1 flex shrink-0 items-center gap-1.5">
-          <PasteCodesChip value={pasteCodes} onChange={setPasteCodes} label="material" />
-        </div>
-      )}
+      </FilterBar>
 
-      <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
-
-      <Card className="h-[36rem] shrink-0 overflow-hidden">
+      <Card className={`${ALTURA_TABLA} shrink-0 overflow-hidden`}>
         <div ref={scrollRef} className="h-full overflow-auto">
           <Table className={zoom.className} wrapperClassName="overflow-visible">
             <TableHeader>
@@ -473,6 +514,7 @@ export function InventarioPage() {
                 <SortableTableHead sortKey="condicion" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: condicionLeft, width: CONDICION_W, minWidth: CONDICION_W }} title="Fuente de pedido/condición del material: corta-caducidad, lento-movimiento, calidad, dañado o normal.">Condición</SortableTableHead>
                 <SortableTableHead sortKey="sector" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated" style={{ left: sectorLeft, width: SECTOR_W, minWidth: SECTOR_W }} filter={<ColumnFilterMenu column={filterCols[2]} rows={rows} active={quick} onChange={setQuick} />} title="Sector y grupo de artículo del catálogo.">Sector/Grupo</SortableTableHead>
                 <SortableTableHead sortKey="precio" activeKey={sortKey} dir={dir} onSort={toggleSort} className="sticky z-20 bg-bg-elevated text-right" style={{ left: precioLeft, width: PRECIO_W, minWidth: PRECIO_W }} title="Precio de oferta vigente para este material.">Precio</SortableTableHead>
+                {libros && colVis.isVisible('detalle') && <SortableTableHead sortKey="detalle" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Detalle de la condición, aparte del material (p. ej. el motivo de un PNC).">Detalle condición</SortableTableHead>}
                 {colVis.isVisible('disp3130') && <SortableTableHead sortKey="disp3130" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Cantidad disponible para mover del centro 1031 (hub de distribución) al almacén 1030.">Disp 31·30</SortableTableHead>}
                 {colVis.isVisible('disp3132') && <SortableTableHead sortKey="disp3132" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Cantidad disponible para mover del centro 1031 (hub de distribución) al almacén 1032.">Disp 31·32</SortableTableHead>}
                 {visibleCenters.map((c) => <TableHead key={c} className="text-right" title={`Inventario de este material en el centro ${c}, tal como viene en el reporte "InvConsolidado". Clic = desglose por lote (InvDetalle). Debajo: pendiente (rojo) y tránsito ("+N", solo hacia los almacenes que aplican según la condición). El ícono ⚠ indica "lento" (≥6 meses sin consumo y sin pendiente en ese centro).`}>Inv {c}</TableHead>)}
@@ -488,7 +530,7 @@ export function InventarioPage() {
                 const key = rowKey(r.material, r.condicion);
                 const isHidden = hidden.has(key);
                 const onSolicitar = () => {
-                  const lotesMaterial = a.lotes.filter((l) => norm(l.material) === norm(r.material));
+                  const lotesMaterial = lotes.filter((l) => norm(l.material) === norm(r.material));
                   const condicionesMat = a.enrich.matCondiciones(r.material).join(', ');
                   const loteOptions: LoteOption[] = lotesMaterial.map((l, idx) => ({
                     key: `${idx}|${l.centro}|${l.lote}`,
@@ -533,16 +575,17 @@ export function InventarioPage() {
                     <TableCell className="sticky z-10 bg-bg-elevated" style={{ left: condicionLeft, width: CONDICION_W, minWidth: CONDICION_W }}><StatePill label={r.condicion || '—'} cls={corta ? 'rojo' : 'gris'} /></TableCell>
                     <TableCell className="sticky z-10 truncate bg-bg-elevated" style={{ left: sectorLeft, width: SECTOR_W, minWidth: SECTOR_W }}>{a.enrich.matSector(r.material) || r.sector || '—'}<div className="truncate text-[11px] text-text-faint">{a.enrich.matGrupo(r.material) || r.grupo}</div></TableCell>
                     <TableCell className="sticky z-10 bg-bg-elevated text-right" style={{ left: precioLeft, width: PRECIO_W, minWidth: PRECIO_W }}>{r.precioOferta ? formatCurrency(r.precioOferta) : '—'}</TableCell>
-                    {colVis.isVisible('disp3130') && <TableCell className="text-right">{formatNumber(r.disponible31_30)}</TableCell>}
-                    {colVis.isVisible('disp3132') && <TableCell className="text-right">{formatNumber(r.disponible31_32)}</TableCell>}
+                    {libros && colVis.isVisible('detalle') && <TableCell className="max-w-56 truncate text-xs" title={r.detalle || undefined}>{r.detalle || '—'}</TableCell>}
+                    {colVis.isVisible('disp3130') && <TableCell className="text-right"><Chip title="Ver el detalle del centro 1031 · almacén 1030" onClick={() => open({ type: 'invCondCelda', material: r.material, centro: '1031', almacen: '1030', lista: listaMateriales, condicion: r.condicion })}>{formatNumber(r.disponible31_30)}</Chip></TableCell>}
+                    {colVis.isVisible('disp3132') && <TableCell className="text-right"><Chip title="Ver el detalle del centro 1031 · almacén 1032" onClick={() => open({ type: 'invCondCelda', material: r.material, centro: '1031', almacen: '1032', lista: listaMateriales, condicion: r.condicion })}>{formatNumber(r.disponible31_32)}</Chip></TableCell>}
                     {visibleCenters.map((c) => {
                       const co = rssCentro(r, c);
                       const pend = pendPorCondicion(co, r.condicion);
                       const transito = transitoPorCondicion(co, r.condicion);
-                      const lento = a.rss ? esLentoPorCondicion(co, r.condicion, a.rss.curMes) : false;
+                      const lento = rss ? esLentoPorCondicion(co, r.condicion, rss.curMes) : false;
                       return (
                         <TableCell key={c} className="text-right">
-                          <Chip onClick={() => open({ type: 'invCondCelda', material: r.material, centro: c, lista: listaMateriales })}>{formatNumber(invCond(r, c))}</Chip>
+                          <Chip onClick={() => open({ type: 'invCondCelda', material: r.material, centro: c, lista: listaMateriales, condicion: r.condicion })}>{formatNumber(invCond(r, c))}</Chip>
                           {transito > 0 && <span className="text-success"> +{formatNumber(transito)}</span>}
                           {lento && <span title="Lento: sin consumo hace ≥6 meses y sin pendiente aplicable en este centro."><AlertTriangle className="ml-1 inline size-3 text-warning" /></span>}
                           {pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(pend)}</div>}
@@ -562,6 +605,6 @@ export function InventarioPage() {
       </Card>
 
       <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
-    </div>
+    </ReportPage>
   );
 }

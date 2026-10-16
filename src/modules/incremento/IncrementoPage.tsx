@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
+import { KpiBand } from '@/components/layout/report';
 import {
   Download, RefreshCw, TrendingDown, AlertTriangle, Boxes, Users, Percent, ShoppingCart,
 } from 'lucide-react';
@@ -61,34 +62,6 @@ function pctTxt(n: number, digits = 1): string {
   return `${(n * 100).toFixed(digits)}%`;
 }
 
-/** Tarjeta secundaria de KPI — icono + valor, dos tamaños (lg para lo que
- * pide atención, sm para contexto), mismo lenguaje visual que `KpiTile` del
- * Dashboard (icono en chip, tono semántico) pero local a este módulo para no
- * cruzar el límite modules/dashboard → modules/incremento. */
-function Kpi({ label, value, icon: Icon, tone = 'default', sub, size = 'sm' }: {
-  label: string; value: string; icon: typeof Boxes; tone?: 'default' | 'warning' | 'danger'; sub?: ReactNode; size?: 'lg' | 'sm';
-}) {
-  return (
-    <Card className={cn('flex items-start justify-between gap-3', size === 'lg' ? 'p-4' : 'p-3')}>
-      <div className="min-w-0">
-        <p className={cn('font-medium uppercase tracking-wide text-text-faint', size === 'lg' ? 'text-[11px]' : 'text-[10px]')}>{label}</p>
-        <p className={cn('mt-1 truncate font-mono font-medium text-text', size === 'lg' ? 'text-xl' : 'text-base')}>{value}</p>
-        {sub && <p className="mt-0.5 truncate text-[11px] text-text-faint">{sub}</p>}
-      </div>
-      <div className={cn(
-        'flex shrink-0 items-center justify-center rounded-md',
-        size === 'lg' ? 'size-8' : 'size-6',
-        tone === 'warning' && 'bg-warning/15 text-warning',
-        tone === 'danger' && 'bg-danger/15 text-danger',
-        tone === 'default' && 'bg-bg-inset text-text-muted',
-      )}
-      >
-        <Icon className={size === 'lg' ? 'size-4' : 'size-3.5'} />
-      </div>
-    </Card>
-  );
-}
-
 /** Color según signo: un Δ/impacto negativo (costo bajó) es favorable
  * (`success`), uno positivo (costo subió) es desfavorable (`danger`) — antes
  * la columna "Impacto" siempre pintaba rojo aunque el número fuera a favor. */
@@ -140,6 +113,7 @@ const FILTROS_VACIOS: IncrementoFiltersState = { sector: '', grupoArticulo: '', 
 
 export function IncrementoPage() {
   const a = useAnalytics();
+  useFacturacionLibros(); // pide (y revisa en Drive) la facturación de los libros mientras la pantalla está abierta
   const materiales = useDataStore((s) => s.catalog?.materiales ?? EMPTY_MATERIALES);
   const setIncremento = useDataStore((s) => s.setIncremento);
   const open = usePanelStore((s) => s.open);
@@ -540,53 +514,36 @@ export function IncrementoPage() {
         <EmptyState title="Sin coincidencias" description="Ningún SKU del Sheet de incremento facturó dentro del periodo/filtros elegidos." />
       ) : (
         <>
-          {/* HERO — el número que Dirección necesita ver sin buscarlo: cuánto
-              cuesta el incremento y qué pasa con el margen, de un vistazo. */}
-          <Card
-            className={cn(
-              'p-5',
-              heroCritico ? 'border-danger/25 bg-danger/5' : 'border-warning/25 bg-warning/5',
-            )}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', heroCritico ? 'bg-danger/15 text-danger' : 'bg-warning/15 text-warning')}>
-                  <AlertTriangle className="size-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-text-faint">Impacto estimado del incremento · {periodoLabel}</p>
-                  <p className={cn('mt-1 font-display text-4xl font-bold tabular-nums', heroCritico ? 'text-danger' : 'text-warning')}>
-                    {formatCurrency(impacto.resumen.impactoPeriodo)}
-                  </p>
-                  <p className="mt-1 text-sm text-text-muted">
-                    {formatCurrency(impacto.resumen.impactoAnualizado)} anualizado · {formatNumber(impacto.resumen.nSkus)} SKUs afectados
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-x-6 gap-y-2 text-right">
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-text-faint">Margen actual → nuevo</p>
-                  <p className="mt-0.5 flex items-center justify-end gap-1.5 font-mono text-lg font-medium">
+          {/* Banda única (mismo componente que los demás reportes): el impacto del incremento y qué pasa con el margen, de un vistazo, con el contexto dentro. */}
+          <KpiBand
+            titulo={`Impacto estimado del incremento · ${periodoLabel}`}
+            estado={heroCritico ? 'danger' : 'warning'}
+            icono={<AlertTriangle className="size-5" />}
+            principal={{
+              etiqueta: 'Impacto del periodo',
+              valor: formatCurrency(impacto.resumen.impactoPeriodo),
+              sub: `${formatCurrency(impacto.resumen.impactoAnualizado)} anualizado · ${formatNumber(impacto.resumen.nSkus)} SKUs afectados`,
+            }}
+            metricas={[
+              {
+                etiqueta: 'Margen actual → nuevo',
+                valor: (
+                  <span className="inline-flex items-center gap-1.5">
                     {pctTxt(impacto.resumen.margenActPct)}
                     <TrendingDown className="size-4 text-text-faint" />
                     <span className={heroCritico ? 'text-danger' : 'text-warning'}>{pctTxt(impacto.resumen.margenNuePct)}</span>
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-text-faint">Incremento promedio</p>
-                  <p className="mt-0.5 font-mono text-lg font-medium">{pctTxt(impacto.resumen.incrementoPromedioPonderado)}</p>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Contexto secundario — ya no compite con el hero de arriba. */}
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            <Kpi label="Venta del periodo" value={formatCurrency(impacto.resumen.ventaPeriodo)} icon={ShoppingCart} sub={`${formatNumber(impacto.resumen.piezasPeriodo)} piezas`} />
-            <Kpi label="% del portafolio" value={pctTxt(impacto.resumen.shareVentaPortafolio)} icon={Percent} sub="del total facturado" />
-            <Kpi label="Concentración" value={`${pctTxt(impacto.concCliente.top5, 0)} top 5`} icon={Users} sub={`de ${formatNumber(impacto.concCliente.nClientes)} clientes`} />
-            <Kpi label="SKUs en catálogo" value={formatNumber(impacto.resumen.nSkus)} icon={Boxes} sub="con precio LISTA 06" />
-          </div>
+                  </span>
+                ),
+              },
+              { etiqueta: 'Incremento promedio', valor: pctTxt(impacto.resumen.incrementoPromedioPonderado) },
+            ]}
+            contexto={[
+              { etiqueta: 'Venta del periodo', valor: formatCurrency(impacto.resumen.ventaPeriodo), sub: `${formatNumber(impacto.resumen.piezasPeriodo)} piezas`, icono: <ShoppingCart className="size-3" /> },
+              { etiqueta: '% del portafolio', valor: pctTxt(impacto.resumen.shareVentaPortafolio), sub: 'del total facturado', icono: <Percent className="size-3" /> },
+              { etiqueta: 'Concentración', valor: `${pctTxt(impacto.concCliente.top5, 0)} top 5`, sub: `de ${formatNumber(impacto.concCliente.nClientes)} clientes`, icono: <Users className="size-3" /> },
+              { etiqueta: 'SKUs en catálogo', valor: formatNumber(impacto.resumen.nSkus), sub: 'con precio LISTA 06', icono: <Boxes className="size-3" /> },
+            ]}
+          />
 
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList>

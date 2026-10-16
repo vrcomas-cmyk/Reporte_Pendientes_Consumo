@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
 import { Users } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { DebouncedSearch } from '@/modules/analytics/ui';
@@ -35,6 +36,7 @@ interface ClienteRow {
  * ni forma de ofertarles), para no inventar demanda que no existe. */
 export function ClientesTab() {
   const a = useAnalytics();
+  useFacturacionLibros(); // pide (y revisa en Drive) la facturación de los libros mientras la pantalla está abierta
   const clientes = useConocimientoStore((s) => s.clientesByDest);
   const reglas = useConocimientoStore((s) => s.reglas);
   const ofertas = useConocimientoStore((s) => s.ofertas);

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
 import { Download } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ const qLabelOf = (k: number) => {
 
 export function AnalisisPage() {
   const a = useAnalytics();
+  useFacturacionLibros(); // pide (y revisa en Drive) la facturación de los libros mientras la pantalla está abierta
   const open = usePanelStore((s) => s.open);
 
   const [ejecutivo, setEjecutivo] = usePersistedState('analisis.ejecutivo', '');

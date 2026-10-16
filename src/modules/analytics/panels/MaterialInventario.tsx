@@ -1,3 +1,4 @@
+import { useInvCerosStore } from '@/store/invCerosStore';
 import { useMemo } from 'react';
 import { InvGrid } from '../ui';
 import { Section } from './_shared';
@@ -49,9 +50,12 @@ function useMaterialInventario(a: Analytics, material: string) {
 
 /** "Solicitar desde inventario (click derecho)": grid de puntos con menú
  * contextual. `tituloDe` permite pintar nombres de centro/almacén. */
-export function SolicitarGrid({ a, material, mat, puntos, condiciones, tituloDe }: {
-  a: Analytics; material: string; mat: string; puntos: PuntoSolicitar[]; condiciones: string; tituloDe: (p: PuntoSolicitar) => string;
+export function SolicitarGrid({ a, material, mat, puntos, tituloDe, onAbrir }: {
+  a: Analytics; material: string; mat: string; puntos: PuntoSolicitar[]; condiciones?: string; tituloDe: (p: PuntoSolicitar) => string;
+  /** Clic en la tarjeta (abrir el detalle de ese centro / almacén); clic derecho = Solicitar. */
+  onAbrir?: (p: PuntoSolicitar) => void;
 }) {
+  const ocultarCeros = useInvCerosStore((s) => s.ocultar);
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
   const key = (c: string, al: string) => `inv|${mat}|inv-${c}-${al || c}`;
@@ -59,18 +63,17 @@ export function SolicitarGrid({ a, material, mat, puntos, condiciones, tituloDe 
   return (
     <>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {puntos.map((p) => (
+        {puntos.filter((p) => !ocultarCeros || p.cantidad !== 0).map((p) => (
           <SolicitarContextMenu
             key={p.titulo}
             label={material}
             solicitado={yaSolicitado(p.centro, p.almacen)}
             onSolicitar={() => solicitar.abrir(buildFromInventarioMaterial(material, p.centro, p.almacen || p.centro, p.cantidad, a.enrich))}
           >
-            <div className="cursor-context-menu rounded-md border border-border px-2.5 py-1.5">
+            <div onClick={onAbrir ? () => onAbrir(p) : undefined} title={onAbrir ? 'Clic: ver este almacén · clic derecho: Solicitar' : undefined} className="cursor-context-menu rounded-md border border-border px-2.5 py-1.5 hover:border-accent">
               <p className="text-[11px] text-text-faint">{tituloDe(p)}</p>
               <p className="font-mono text-sm">{formatNumber(p.cantidad)}</p>
               {p.nota && <p className="text-[10px] text-warning">{p.nota}</p>}
-              {condiciones && <p className="text-[10px] text-text-faint">{condiciones}</p>}
             </div>
           </SolicitarContextMenu>
         ))}

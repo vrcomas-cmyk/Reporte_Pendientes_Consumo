@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
 import { Download, TrendingUp, TrendingDown, Minus, DollarSign, PiggyBank, Users, UserPlus, UserCheck, UserMinus, ShieldCheck, Trophy, AlertTriangle, Sparkles, CalendarDays } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -69,6 +70,7 @@ const anioDe = (mmAaaa: string): number => +mmAaaa.split('/')[1] || 0;
  * gestión") queda fuera de esta entrega — ver el plan de la conversación. */
 export function AnalisisDirectivoPage() {
   const a = useAnalytics();
+  useFacturacionLibros(); // pide (y revisa en Drive) la facturación de los libros mientras la pantalla está abierta
   const [gerente, setGerente] = usePersistedState('analisisDirectivo.gerente', '');
   // Sector / Grupo artículo / Material son multi-selección (vacío = todos).
   // Claves nuevas (`.sectores`, `.gruposArticulo`): las viejas guardaban un

@@ -4,7 +4,8 @@
 // referencia (R = mesAnterior(hoy)) y ventana que usa comercial.ts, para que
 // "últimos 12 meses" signifique lo mismo en toda la app.
 // ---------------------------------------------------------------------------
-import { mesKey, mesAnterior, hoyMes, type RFIndex, type Serie } from './resumenFac';
+import { mesKey, mesAnterior, hoyMes, serieMatDest, type RFIndex, type Serie } from './resumenFac';
+import { norm } from '@/lib/text';
 
 export type AbcClass = 'A' | 'B' | 'C';
 
@@ -131,6 +132,29 @@ export function buildAbc(rf: RFIndex | null, predicates?: AbcPredicates): AbcRes
     classByMaterial: new Map(materiales.map((e) => [e.key, e.clase])),
     classByCliente: new Map(clientes.map((e) => [e.key, e.clase])),
   };
+}
+
+/** Llave de una combinación cliente-material: destinatario + material (la misma que usan la serie, la última y la tendencia). */
+export const clavePar = (dest: unknown, mat: unknown): string => norm(dest) + '||' + norm(mat);
+
+/**
+ * ABC de la COMBINACIÓN cliente-material (la fila de la tabla de Facturación): mismo Pareto y misma ventana de 12 meses
+ * completos que `buildAbc`, pero cada elemento es un par destinatario+material con la serie de todos sus centros. Solo se
+ * clasifican pares con importe 12m > 0; el resto queda fuera del mapa ("sin clasificar"). Un par repetido cuenta una vez.
+ */
+export function buildAbcPares(rf: RFIndex | null, consumo: { destinatario: string; material: string }[]): Map<string, AbcClass> {
+  if (!rf) return new Map();
+  const refK = mesKey(mesAnterior(hoyMes()));
+  const vistos = new Set<string>();
+  const raw: { key: string; label: string; imp: number; cant: number }[] = [];
+  for (const r of consumo) {
+    const key = clavePar(r.destinatario, r.material);
+    if (vistos.has(key)) continue;
+    vistos.add(key);
+    const { cant, imp } = sum12m(serieMatDest(rf, r.destinatario, r.material), refK);
+    if (imp > 0) raw.push({ key, label: key, imp, cant });
+  }
+  return new Map(classify(raw).entries.map((e) => [e.key, e.clase]));
 }
 
 /** Resumen por clase — conteo, importe y % del total — para las 3 filas de

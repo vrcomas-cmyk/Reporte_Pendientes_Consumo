@@ -1,5 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type { SolicitudDRP, Oportunidad, Interaccion, ClienteConocimiento, Observacion, Oferta, ReglaAceptacion, IncrementoSnapshot } from '@/core/types';
+import type { HojaCruda } from '@/core/pedidos';
+import type { FilaFac } from '@/core/facturacionLibros';
 
 /** Row shape for catalog/analysis snapshots: array-valued fields (the bulk
  * of the data — resumenFac, sugerencias, invDetalle, ...) are stored
@@ -31,6 +33,56 @@ export interface SheetsCacheRow {
   syncedAt: string;
 }
 
+/** Hoja cruda de los libros de "Seg. de pedidos" (Disponibilidad, Seg pedidos,
+ * Inv_Condicion), tal como la entrega el Apps Script. Una fila por hoja, con
+ * `id = "<libro>:<hoja>"`. Tabla propia (no `sheetsCache`): `clearCachedTabs`
+ * del sync del reporte vaciaría `sheetsCache` y se perderían estas hojas. */
+export interface PedidosCacheRow extends HojaCruda {
+  id: string;
+}
+
+/** Última descarga de cada libro de "Seg. de pedidos" (Seg pedidos, Disponibilidad, Inv_Condicion): nombre en
+ * Drive, su `ultimaModificacion` (para saber si cambió), cuándo se descargó y cuántas filas trajo. */
+export interface FuentePedidosRow {
+  clave: HojaCruda['libro'];
+  nombre: string;
+  /** `ultimaModificacion` del libro en Drive cuando se descargó. */
+  modificado: string;
+  leidoEn: string;
+  filas: number;
+}
+
+/** Un libro trimestral de facturación ("1Q 2024"…) ya agregado por el Apps Script y unido en el cliente. Se vuelve a
+ * descargar solo si su `ultimaModificacion` en Drive cambió — los trimestres viejos no cambian. */
+export interface FacturacionLibroRow {
+  id: string;
+  nombre: string;
+  orden: number;
+  ultimaModificacion: string;
+  rows: FilaFac[];
+}
+
+/** Metadatos de un libro de facturación guardado (sin sus filas): permite saber qué libros cambiaron en Drive sin deserializar
+ * cientos de miles de filas. */
+export interface FacturacionMetaRow {
+  id: string;
+  nombre: string;
+  orden: number;
+  ultimaModificacion: string;
+  filas: number;
+  /** El libro se bajó con el Apps Script que entrega el precio mínimo / máximo de las líneas. */
+  conPrecios?: boolean;
+  /** El libro se bajó con el Apps Script que entrega el día de la línea más reciente (`Fecha Max`). */
+  conFechas?: boolean;
+}
+
+/** Un pedazo de lo ya calculado de la facturación (índices, consumo, filas): se guardan tal cual para no recalcular ~500 mil filas
+ * en cada sesión. `id`: 'meta' (firma y esquema, SIEMPRE el último en escribirse), 'rf', 'consumo', 'cam' y 'rows:N'. */
+export interface FacDerivadoRow {
+  id: string;
+  datos: unknown;
+}
+
 export class DegasaDb extends Dexie {
   catalog!: Table<SnapshotRow, string>;
   analyses!: Table<SnapshotRow, number>;
@@ -58,6 +110,16 @@ export class DegasaDb extends Dexie {
    * proveedor. Filas chicas (decenas/cientos), guardadas como JSON plano —
    * a diferencia de `catalog`/`analyses` no necesita blobCodec/Parquet. */
   incrementoCostos!: Table<IncrementoSnapshot, string>;
+  /** Módulo "Seg. de pedidos": hojas crudas de los 3 libros relacionados. */
+  pedidosCache!: Table<PedidosCacheRow, string>;
+  /** Módulo "Seg. de pedidos": última descarga de cada libro de Google Sheets. */
+  pedidosFuentes!: Table<FuentePedidosRow, string>;
+  /** Facturación por libro trimestral (reemplaza las pestañas Resumen_Fac / Fac_Mensual_CAM del reporte). */
+  facturacionLibros!: Table<FacturacionLibroRow, string>;
+  /** Metadatos (id, `ultimaModificacion`, filas) de cada libro de `facturacionLibros`, sin las filas. */
+  facturacionMeta!: Table<FacturacionMetaRow, string>;
+  /** Índices y filas de la facturación ya calculados (ver `FacDerivadoRow`). */
+  facDerivados!: Table<FacDerivadoRow, string>;
 
   constructor() {
     super('degasa-portal');
@@ -145,6 +207,96 @@ export class DegasaDb extends Dexie {
       incrementoCostos: 'id',
     }).upgrade(() => {
       // noop: v9 adds `incrementoCostos` (módulo "Incremento de costos").
+    });
+    this.version(10).stores({
+      catalog: 'id',
+      analyses: '++id, processedAt',
+      solicitudes: '++id, sync, sourceKey, fechaSolicitud',
+      sheetsCache: 'tab',
+      oportunidades: '++id, material, estado, condicion, creadaEn',
+      interacciones: '++id, dest, oportunidadId, fecha',
+      clientesConocimiento: '++id, &dest, razonSocial',
+      observaciones: '++id, dest, material, creadoEn',
+      ofertas: '++id, dest, material, oportunidadId, resultado, fechaOferta',
+      reglasAceptacion: '++id, dest, material, activa',
+      incrementoCostos: 'id',
+      pedidosCache: 'id',
+    }).upgrade(() => {
+      // noop: v10 adds `pedidosCache` (módulo "Seg. de pedidos").
+    });
+    this.version(11).stores({
+      catalog: 'id',
+      analyses: '++id, processedAt',
+      solicitudes: '++id, sync, sourceKey, fechaSolicitud',
+      sheetsCache: 'tab',
+      oportunidades: '++id, material, estado, condicion, creadaEn',
+      interacciones: '++id, dest, oportunidadId, fecha',
+      clientesConocimiento: '++id, &dest, razonSocial',
+      observaciones: '++id, dest, material, creadoEn',
+      ofertas: '++id, dest, material, oportunidadId, resultado, fechaOferta',
+      reglasAceptacion: '++id, dest, material, activa',
+      incrementoCostos: 'id',
+      pedidosCache: 'id',
+      pedidosFuentes: 'clave',
+    }).upgrade(() => {
+      // noop: v11 adds `pedidosFuentes` (última descarga de cada libro de "Seg. de pedidos").
+    });
+    this.version(12).stores({
+      catalog: 'id',
+      analyses: '++id, processedAt',
+      solicitudes: '++id, sync, sourceKey, fechaSolicitud',
+      sheetsCache: 'tab',
+      oportunidades: '++id, material, estado, condicion, creadaEn',
+      interacciones: '++id, dest, oportunidadId, fecha',
+      clientesConocimiento: '++id, &dest, razonSocial',
+      observaciones: '++id, dest, material, creadoEn',
+      ofertas: '++id, dest, material, oportunidadId, resultado, fechaOferta',
+      reglasAceptacion: '++id, dest, material, activa',
+      incrementoCostos: 'id',
+      pedidosCache: 'id',
+      pedidosFuentes: 'clave',
+      facturacionLibros: 'id',
+    }).upgrade(() => {
+      // noop: v12 adds `facturacionLibros` (facturación desde los libros trimestrales).
+    });
+    this.version(13).stores({
+      catalog: 'id',
+      analyses: '++id, processedAt',
+      solicitudes: '++id, sync, sourceKey, fechaSolicitud',
+      sheetsCache: 'tab',
+      oportunidades: '++id, material, estado, condicion, creadaEn',
+      interacciones: '++id, dest, oportunidadId, fecha',
+      clientesConocimiento: '++id, &dest, razonSocial',
+      observaciones: '++id, dest, material, creadoEn',
+      ofertas: '++id, dest, material, oportunidadId, resultado, fechaOferta',
+      reglasAceptacion: '++id, dest, material, activa',
+      incrementoCostos: 'id',
+      pedidosCache: 'id',
+      pedidosFuentes: 'clave',
+      facturacionLibros: 'id',
+      facturacionMeta: 'id',
+    }).upgrade(() => {
+      // noop: v13 adds `facturacionMeta` (metadatos por libro; se completa solo la primera vez que se lee la caché).
+    });
+    this.version(14).stores({
+      catalog: 'id',
+      analyses: '++id, processedAt',
+      solicitudes: '++id, sync, sourceKey, fechaSolicitud',
+      sheetsCache: 'tab',
+      oportunidades: '++id, material, estado, condicion, creadaEn',
+      interacciones: '++id, dest, oportunidadId, fecha',
+      clientesConocimiento: '++id, &dest, razonSocial',
+      observaciones: '++id, dest, material, creadoEn',
+      ofertas: '++id, dest, material, oportunidadId, resultado, fechaOferta',
+      reglasAceptacion: '++id, dest, material, activa',
+      incrementoCostos: 'id',
+      pedidosCache: 'id',
+      pedidosFuentes: 'clave',
+      facturacionLibros: 'id',
+      facturacionMeta: 'id',
+      facDerivados: 'id',
+    }).upgrade(() => {
+      // noop: v14 adds `facDerivados` (índices de facturación ya calculados).
     });
   }
 }

@@ -8,7 +8,7 @@ export interface OpcionMaterial { material: string; desc: string }
 
 /** Navegación entre materiales del detalle de celda abierto desde Inventario
  * o Inv Condición:
- * flechas ◀/▶ (y teclas ← / →) recorren `lista` — los materiales en el orden y
+ * flechas ◀/▶ (y teclas ↑ / ↓) recorren `lista` — los materiales en el orden y
  * filtro de la tabla al abrir el detalle — y el buscador salta a CUALQUIER
  * material de `opciones` por código o descripción, con sugerencias según
  * el texto. Teclado en el buscador (↓/↑/Enter/Escape) como `PedidoNavControl`. */
@@ -23,14 +23,14 @@ export function MaterialNavControl({ opciones, material, lista, irA }: {
   const anterior = idx > 0 ? lista![idx - 1] : undefined;
   const siguiente = idx >= 0 && lista && idx < lista.length - 1 ? lista[idx + 1] : undefined;
 
-  // ← / → recorren la lista, salvo que el foco esté en un campo de texto.
+  // ↑ / ↓ recorren la lista de materiales (← / → cambian de centro), salvo que el foco esté en un campo de texto.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-      if (e.key === 'ArrowLeft' && anterior) { e.preventDefault(); irA(anterior); }
-      else if (e.key === 'ArrowRight' && siguiente) { e.preventDefault(); irA(siguiente); }
+      if (e.key === 'ArrowUp' && anterior) { e.preventDefault(); irA(anterior); }
+      else if (e.key === 'ArrowDown' && siguiente) { e.preventDefault(); irA(siguiente); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -49,13 +49,13 @@ export function MaterialNavControl({ opciones, material, lista, irA }: {
 
   return (
     <div className="flex items-center gap-1">
-      <button type="button" title="Material anterior (←)" disabled={!anterior} onClick={() => anterior && irA(anterior)} className="rounded-md border border-border p-1 disabled:opacity-30">
+      <button type="button" title="Material anterior (↑)" disabled={!anterior} onClick={() => anterior && irA(anterior)} className="rounded-md border border-border p-1 disabled:opacity-30">
         <ChevronLeft className="size-3.5" />
       </button>
       <span className="min-w-12 text-center text-[11px] tabular-nums text-text-faint" title="Posición en la lista de la tabla">
         {idx >= 0 && lista ? `${idx + 1} / ${lista.length}` : '—'}
       </span>
-      <button type="button" title="Material siguiente (→)" disabled={!siguiente} onClick={() => siguiente && irA(siguiente)} className="rounded-md border border-border p-1 disabled:opacity-30">
+      <button type="button" title="Material siguiente (↓)" disabled={!siguiente} onClick={() => siguiente && irA(siguiente)} className="rounded-md border border-border p-1 disabled:opacity-30">
         <ChevronRight className="size-3.5" />
       </button>
       <div className="relative ml-1">

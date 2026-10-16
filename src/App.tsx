@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom';
+import { RUTAS_RETIRADAS, SOLO_LIBROS } from '@/lib/modoLibros';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -9,6 +10,7 @@ import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 import { Toaster } from '@/components/feedback/Toaster';
 import { AnalyticsProvider } from '@/modules/analytics/AnalyticsContext';
 import { PanelHost } from '@/modules/analytics/PanelHost';
+import { TilesOcultosControl } from '@/modules/analytics/ui/TilesOcultosControl';
 import { GlobalCopyMenu } from '@/components/navigation/GlobalCopyMenu';
 import { useSolicitudStore } from '@/store/solicitudStore';
 import { useConocimientoStore } from '@/store/conocimientoStore';
@@ -36,6 +38,12 @@ const LogsPage = lazy(() => import('@/modules/logs/LogsPage').then((m) => ({ def
 const SettingsPage = lazy(() => import('@/modules/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const InventarioPage = lazy(() => import('@/modules/inventario/InventarioPage').then((m) => ({ default: m.InventarioPage })));
 const SugerenciasPage = lazy(() => import('@/modules/sugerencias/SugerenciasPage').then((m) => ({ default: m.SugerenciasPage })));
+const InvConCondicionPage = lazy(() => import('@/modules/inventario/InvConCondicionPage').then((m) => ({ default: m.InvConCondicionPage })));
+const InvDisponibilidadPage = lazy(() => import('@/modules/resumenSin/InvDisponibilidadPage').then((m) => ({ default: m.InvDisponibilidadPage })));
+const FacturacionPage = lazy(() => import('@/modules/facturacion/FacturacionPage').then((m) => ({ default: m.FacturacionPage })));
+const ComparativoPage = lazy(() => import('@/modules/comparativo/ComparativoPage').then((m) => ({ default: m.ComparativoPage })));
+const ComodatoLibrosPage = lazy(() => import('@/modules/comodato/ComodatoLibrosPage').then((m) => ({ default: m.ComodatoLibrosPage })));
+const SegPedidosPage = lazy(() => import('@/modules/segPedidos/SegPedidosPage').then((m) => ({ default: m.SegPedidosPage })));
 const ConsumoPage = lazy(() => import('@/modules/consumo/ConsumoPage').then((m) => ({ default: m.ConsumoPage })));
 const ResumenSinPage = lazy(() => import('@/modules/resumenSin/ResumenSinPage').then((m) => ({ default: m.ResumenSinPage })));
 const AnalisisPage = lazy(() => import('@/modules/analisis/AnalisisPage').then((m) => ({ default: m.AnalisisPage })));
@@ -83,30 +91,38 @@ function App() {
             <AnalyticsProvider>
               <Routes>
                 <Route element={<AppShell />}>
-                  <Route path="/" element={<ModuleGuard moduleKey="dashboard"><Suspense fallback={<RouteFallback />}><DashboardPage /></Suspense></ModuleGuard>} />
+                  {!SOLO_LIBROS && <Route path="/" element={<ModuleGuard moduleKey="dashboard"><Suspense fallback={<RouteFallback />}><DashboardPage /></Suspense></ModuleGuard>} />}
                   <Route path="/hoy" element={<ModuleGuard moduleKey="hoy"><Suspense fallback={<RouteFallback />}><HoyPage /></Suspense></ModuleGuard>} />
                   <Route path="/carga" element={<ModuleGuard moduleKey="carga"><Suspense fallback={<RouteFallback />}><UploadPage /></Suspense></ModuleGuard>} />
-                  <Route path="/resultados" element={<ModuleGuard moduleKey="resultados"><Suspense fallback={<RouteFallback />}><ResultsPage /></Suspense></ModuleGuard>} />
-                  <Route path="/inventario" element={<ModuleGuard moduleKey="inventario"><Suspense fallback={<RouteFallback />}><InventarioPage /></Suspense></ModuleGuard>} />
-                  <Route path="/sugerencias" element={<ModuleGuard moduleKey="sugerencias"><Suspense fallback={<RouteFallback />}><SugerenciasPage /></Suspense></ModuleGuard>} />
-                  <Route path="/consumo" element={<ModuleGuard moduleKey="consumo"><Suspense fallback={<RouteFallback />}><ConsumoPage /></Suspense></ModuleGuard>} />
-                  <Route path="/resumen-sin" element={<ModuleGuard moduleKey="resumen-sin"><Suspense fallback={<RouteFallback />}><ResumenSinPage /></Suspense></ModuleGuard>} />
+                  {!SOLO_LIBROS && <Route path="/resultados" element={<ModuleGuard moduleKey="resultados"><Suspense fallback={<RouteFallback />}><ResultsPage /></Suspense></ModuleGuard>} />}
+                  {!SOLO_LIBROS && <Route path="/inventario" element={<ModuleGuard moduleKey="inventario"><Suspense fallback={<RouteFallback />}><InventarioPage /></Suspense></ModuleGuard>} />}
+                  {!SOLO_LIBROS && <Route path="/sugerencias" element={<ModuleGuard moduleKey="sugerencias"><Suspense fallback={<RouteFallback />}><SugerenciasPage /></Suspense></ModuleGuard>} />}
+                  <Route path="/facturacion" element={<ModuleGuard moduleKey="facturacion"><Suspense fallback={<RouteFallback />}><FacturacionPage /></Suspense></ModuleGuard>} />
+                  <Route path="/seg-pedidos" element={<ModuleGuard moduleKey="seg-pedidos"><Suspense fallback={<RouteFallback />}><SegPedidosPage /></Suspense></ModuleGuard>} />
+                  <Route path="/inv-con-condicion" element={<ModuleGuard moduleKey="inv-con-condicion"><Suspense fallback={<RouteFallback />}><InvConCondicionPage /></Suspense></ModuleGuard>} />
+                  <Route path="/inv-disponibilidad" element={<ModuleGuard moduleKey="inv-disponibilidad"><Suspense fallback={<RouteFallback />}><InvDisponibilidadPage /></Suspense></ModuleGuard>} />
+                  {!SOLO_LIBROS && <Route path="/consumo" element={<ModuleGuard moduleKey="consumo"><Suspense fallback={<RouteFallback />}><ConsumoPage /></Suspense></ModuleGuard>} />}
+                  {SOLO_LIBROS && RUTAS_RETIRADAS.map((p) => <Route key={p} path={p} element={<Navigate to="/seg-pedidos" replace />} />)}
+                  {!SOLO_LIBROS && <Route path="/resumen-sin" element={<ModuleGuard moduleKey="resumen-sin"><Suspense fallback={<RouteFallback />}><ResumenSinPage /></Suspense></ModuleGuard>} />}
                   <Route path="/analisis" element={<ModuleGuard moduleKey="analisis"><Suspense fallback={<RouteFallback />}><AnalisisPage /></Suspense></ModuleGuard>} />
                   <Route path="/incremento" element={<ModuleGuard moduleKey="incremento"><Suspense fallback={<RouteFallback />}><IncrementoPage /></Suspense></ModuleGuard>} />
                   <Route path="/analisis-directivo" element={<ModuleGuard moduleKey="analisis-directivo"><Suspense fallback={<RouteFallback />}><AnalisisDirectivoPage /></Suspense></ModuleGuard>} />
+                  <Route path="/comparativo" element={<ModuleGuard moduleKey="comparativo"><Suspense fallback={<RouteFallback />}><ComparativoPage /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><OportunidadesPage /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades/material/:material" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><Material360Page /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades/clientes" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><ClientesPage /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades/ofertas-cliente" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><OfertasClientePage /></Suspense></ModuleGuard>} />
                   <Route path="/solicitudes" element={<ModuleGuard moduleKey="solicitudes"><Suspense fallback={<RouteFallback />}><SolicitudesPage /></Suspense></ModuleGuard>} />
+                  <Route path="/comodato-libros" element={<ModuleGuard moduleKey="comodato-libros"><Suspense fallback={<RouteFallback />}><ComodatoLibrosPage /></Suspense></ModuleGuard>} />
                   <Route path="/comodato" element={<ModuleGuard moduleKey="comodato"><Suspense fallback={<RouteFallback />}><ComodatoPage /></Suspense></ModuleGuard>} />
-                  <Route path="/historial" element={<ModuleGuard moduleKey="historial"><Suspense fallback={<RouteFallback />}><HistoryPage /></Suspense></ModuleGuard>} />
+                  {!SOLO_LIBROS && <Route path="/historial" element={<ModuleGuard moduleKey="historial"><Suspense fallback={<RouteFallback />}><HistoryPage /></Suspense></ModuleGuard>} />}
                   <Route path="/registros" element={<ModuleGuard moduleKey="registros"><Suspense fallback={<RouteFallback />}><LogsPage /></Suspense></ModuleGuard>} />
                   <Route path="/ajustes" element={<ModuleGuard moduleKey="ajustes"><Suspense fallback={<RouteFallback />}><SettingsPage /></Suspense></ModuleGuard>} />
                   <Route path="/admin" element={<AdminGuard><Suspense fallback={<RouteFallback />}><AdminPage /></Suspense></AdminGuard>} />
                 </Route>
               </Routes>
               <PanelHost />
+              <TilesOcultosControl />
               <GlobalCopyMenu />
             </AnalyticsProvider>
             </TooltipProvider>

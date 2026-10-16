@@ -72,6 +72,9 @@ main.tsx
 | Carga | `/carga` | Sincroniza catálogo + reporte diario (Google Sheets en vivo) |
 | Resultados | `/resultados` | Detalle de la última corrida de análisis |
 | Pedidos | `/sugerencias` | Tabla BO (deduplicación de "Todas las Sugerencias") |
+| Inv con Condición | `/inv-con-condicion` | EXACTAMENTE el módulo Inv Condición (`InventarioPage modo="libros"`) armado desde el libro Inv_Condicion: una fila por material × condición (Corta caducidad por lote, Revision con sus Status, Sustituto, PNC) con inventario de Disponibilidad (Libre − Entrega) o de los lotes; ver `core/invCondicionLibros.ts` |
+| Inventario · Disponibilidad | `/inv-disponibilidad` | EXACTAMENTE el módulo Inventario (`ResumenSinPage modo="disp"`) con el inventario de los libros de Disponibilidad (Libre Utilización − Entrega a cliente), el pendiente de Seg pedidos y el consumo de `Fac_Mensual_CAM`; ver `core/resumenDisponibilidad.ts` |
+| Seg. de pedidos | `/seg-pedidos` | La MISMA página de Pedidos (`SugerenciasPage modo="seg"`: columnas, filtros, paneles, selección y exportación) alimentada por los libros crudos de Google Sheets Seg pedidos, Disponibilidad e Inv_Condicion (Apps Script propio), sin fuentes; ícono por material para el detalle en libros (Libre real, Corta caducidad…). Ver `docs/apps-script-pedidos.md` |
 | Consumo | `/consumo` | Reporte de Consumo, con ABC, dispersión de precio |
 | Inventario | `/resumen-sin` | Pivote material×centro con cobertura |
 | Inv Condición | `/inventario` | Tabla plana por condición |

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { TrendBadge, ComparativaDual, EvolChart, DetailChevron } from '../ui';
+import { TrendBadge, ComparativaDual, EvolChart, DetailChevron, Chip } from '../ui';
 import { Section } from './_shared';
 import { formatCurrency } from '@/lib/utils';
 import { materialesDe, serieSolic, serieDest, mesLabel } from '@/core/resumenFac';
@@ -10,17 +10,20 @@ import type { Analytics } from '../AnalyticsContext';
 /** Panel — Facturación general de un Solicitante o Destinatario: comparativo anual, evolución y códigos facturados. */
 export function EvolPanel({ panel, a, push }: { panel: Extract<Panel, { type: 'evol' }>; a: Analytics; push: (p: Panel) => void }) {
   const { rf, enrich } = a;
-  if (!rf) return <p>No hay Resumen_Fac cargado.</p>;
   const serie = useMemo(() => (panel.kind === 'solic' ? serieSolic(rf, panel.key) : serieDest(rf, panel.key)), [rf, panel.kind, panel.key]);
   const mats = useMemo(
-    () => materialesDe(rf, panel.kind, panel.key).map((m) => ({ ...m, sector: enrich.matSector(m.material), grupo: enrich.matGrupo(m.material) })),
+    () => (rf ? materialesDe(rf, panel.kind, panel.key) : []).map((m) => ({ ...m, sector: enrich.matSector(m.material), grupo: enrich.matGrupo(m.material) })),
     [rf, panel.kind, panel.key, enrich],
   );
+  if (!rf) return <p>No hay Resumen_Fac cargado.</p>;
   const titulo = panel.kind === 'solic' ? 'Facturación general del Solicitante' : 'Facturación general del Destinatario';
   return (
     <div>
       <h2 className="font-display text-lg font-semibold">{titulo}</h2>
-      <p className="mt-1 text-sm text-text-muted">{panel.kind === 'solic' ? 'Solicitante' : 'Destinatario'}: {panel.key} · {mats.length} material(es)</p>
+      <p className="mt-1 text-sm text-text-muted">
+        {panel.kind === 'solic' ? 'Solicitante' : 'Destinatario'}: {panel.key} · {mats.length} material(es)
+        {panel.kind === 'dest' && <> · <Chip onClick={() => push({ type: 'clienteDetalle', dest: panel.key })}>Ver detalle del cliente (pedidos y consumo)</Chip></>}
+      </p>
       <Section title="Comparativo anual"><ComparativaDual serie={serie} /></Section>
       <Section title="Evolución mensual — Importe facturado"><EvolChart serie={serie} /></Section>
       <Section title="Códigos facturados y su tendencia">
@@ -29,8 +32,8 @@ export function EvolPanel({ panel, a, push }: { panel: Extract<Panel, { type: 'e
             <TableHeader><TableRow><TableHead>Material</TableHead><TableHead>Sector/Grupo</TableHead><TableHead>Último mes</TableHead><TableHead className="text-right">Importe</TableHead><TableHead>Tendencia</TableHead><TableHead className="w-8" /></TableRow></TableHeader>
             <TableBody>
               {mats.map((m) => (
-                <TableRow key={m.material} className="group">
-                  <TableCell><span className="text-text">{m.material}</span><div className="text-[11px] text-text-faint max-w-72 truncate">{m.texto}</div></TableCell>
+                <TableRow key={m.material} className="group cursor-pointer" title="Doble clic para ver el material de este cliente" onDoubleClick={() => push({ type: 'codigoEvol', kind: panel.kind, key: panel.key, material: m.material })}>
+                  <TableCell><Chip title="Ver el material" onClick={() => push({ type: 'material', material: m.material })}>{m.material}</Chip><div className="text-[11px] text-text-faint max-w-72 truncate">{m.texto}</div></TableCell>
                   <TableCell>{m.sector || '—'}<div className="text-[11px] text-text-faint">{m.grupo}</div></TableCell>
                   <TableCell>{m.ultimo ? mesLabel(m.ultimo.mes) : '—'}</TableCell>
                   <TableCell className="text-right">{m.ultimo ? formatCurrency(m.ultimo.imp) : '—'}</TableCell>

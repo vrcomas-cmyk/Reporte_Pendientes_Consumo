@@ -89,3 +89,31 @@ export function buildBO(rows: Sugerencia[], rf: RFIndex | null): BOItem[] {
     };
   });
 }
+
+/** Un renglón por FILA, sin agrupar ni fusionar nada (Seg. de pedidos): cada posición del libro es un item. La
+ * clave `k` es la de `buildBO` + la posición (`Pos.`, o el índice si el libro no la trae) para que siga siendo
+ * única aunque dos posiciones coincidan en pedido/material/centro/almacén/destinatario. Mismo consumo, estado y
+ * tendencia que `buildBO`; sin fuentes. */
+export function buildBOPorFila(rows: Sugerencia[], rf: RFIndex | null): BOItem[] {
+  // La clave debe ser ÚNICA por fila: dos filas con el mismo pedido/material/centro/almacén/destinatario Y la misma posición
+  // (líneas de reparto) compartían clave y una pisaba a la otra en la lista y en los índices. La primera conserva su clave de
+  // siempre (las solicitudes guardadas dependen de ella); las repetidas llevan un sufijo.
+  const vistas = new Map<string, number>();
+  return rows.map((b, i) => {
+    const serie = serieMatDest(rf, b.destinatario, b.materialBase);
+    const pos = norm(String(b.raw['Pos.'] ?? '')) || String(i);
+    const base = `${keyOf(b)}|${pos}`;
+    const veces = vistas.get(base) ?? 0;
+    vistas.set(base, veces + 1);
+    return {
+      bo: b,
+      fuentes: [],
+      k: veces ? `${base}#${veces}` : base,
+      serie,
+      consumoProm: num(b.consumoPromedio),
+      status: clasificarEstado(serie, num(b.cantidadPendiente) > 0),
+      tend: tendenciaTexto(serie),
+      cons: consumoDe(serie, rf?.curmes || ''),
+    };
+  });
+}

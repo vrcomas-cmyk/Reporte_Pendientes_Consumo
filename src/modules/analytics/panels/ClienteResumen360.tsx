@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
+import { KpiBand } from '@/components/layout/report';
 import { StatTile } from '../ui';
-import { Section, SugTable, ClienteConsumoTable, SubFilter } from './_shared';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { SugTable, ClienteConsumoTable, SubFilter } from './_shared';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { consumoEnrich, matchesQuery, norm } from '../helpers';
 import type { Panel } from '@/store/panelStore';
@@ -24,13 +26,16 @@ export function ClienteDatosHeader({ dest, a }: { dest: string; a: Analytics }) 
   const materiales = new Set(consRows.map((r) => norm(r.material))).size;
   const totalImp = consRows.reduce((s, r) => s + r.importeUltima, 0);
   return (
-    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-      <StatTile label="Ejecutivo" value={(c0 ? ce.ejec(c0) : enrich.ejecutivoNombre(boFirst?.bo.gpoVdor || '')) || '—'} />
-      <StatTile label="Grupo cliente" value={c0 ? ce.grupoCli(c0) || '—' : (boFirst ? enrich.grupoCliente(boFirst.bo.gpoCte) || boFirst.bo.gpoCte : '—')} />
-      <StatTile label="Solicitante" value={c0?.solicitante || boFirst?.bo.solicitante || '—'} />
-      <StatTile label="Materiales facturados" value={formatNumber(materiales)} />
-      <StatTile label="Importe última fact. (suma)" value={formatCurrency(totalImp)} />
-    </div>
+    <KpiBand
+      className="mt-3"
+      titulo="Cliente · resumen"
+      principal={{ etiqueta: 'Importe última fact. (suma)', valor: formatCurrency(totalImp), sub: `${formatNumber(materiales)} material(es) facturados` }}
+      metricas={[
+        { etiqueta: 'Ejecutivo', valor: (c0 ? ce.ejec(c0) : enrich.ejecutivoNombre(boFirst?.bo.gpoVdor || '')) || '—' },
+        { etiqueta: 'Grupo cliente', valor: c0 ? ce.grupoCli(c0) || '—' : (boFirst ? enrich.grupoCliente(boFirst.bo.gpoCte) || boFirst.bo.gpoCte : '—') },
+        { etiqueta: 'Solicitante', valor: c0?.solicitante || boFirst?.bo.solicitante || '—' },
+      ]}
+    />
   );
 }
 
@@ -67,7 +72,7 @@ export function ClienteResumen360({ dest, a, push, sinDatos = false }: { dest: s
   const totalImp = consRows.reduce((s, r) => s + r.importeUltima, 0);
 
   return (
-    <div>
+    <div className="col-span-full min-w-0">
       {!sinDatos && <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatTile label="Ejecutivo" value={(consRows[0] ? ce.ejec(consRows[0]) : enrich.ejecutivoNombre(boRows[0]?.bo.gpoVdor || '')) || '—'} />
         <StatTile label="Grupo cliente" value={consRows[0] ? ce.grupoCli(consRows[0]) || '—' : (boRows[0] ? enrich.grupoCliente(boRows[0].bo.gpoCte) || boRows[0].bo.gpoCte : '—')} />
@@ -83,12 +88,16 @@ export function ClienteResumen360({ dest, a, push, sinDatos = false }: { dest: s
         )}
         {filtrando && <button type="button" onClick={() => { setQ(''); setSector(''); }} className="mb-2 text-xs text-accent hover:underline">Limpiar</button>}
       </div>
-      <Section title={`Pedidos pendientes · ${filtrando ? `${boShown.length} de ${boRows.length}` : boRows.length}`}>
-        {boRows.length === 0 ? <p className="text-sm text-text-muted">Sin pedidos pendientes.</p> : boShown.length === 0 ? <p className="text-sm text-text-muted">Ningún pedido coincide con el filtro.</p> : <SugTable list={boShown} a={a} push={push} />}
-      </Section>
-      <Section title={`Consumo histórico · ${filtrando ? `${consShown.length} de ${consRows.length}` : consRows.length} material(es)`}>
-        <ClienteConsumoTable rows={consShown} rf={rf} push={push} />
-      </Section>
+      <Tabs defaultValue={boRows.length || !consRows.length ? 'ped' : 'cons'}>
+        <TabsList>
+          <TabsTrigger value="ped">Pedidos pendientes ({filtrando ? `${boShown.length} de ${boRows.length}` : boRows.length})</TabsTrigger>
+          <TabsTrigger value="cons">Consumo histórico ({filtrando ? `${consShown.length} de ${consRows.length}` : consRows.length} material(es))</TabsTrigger>
+        </TabsList>
+        <TabsContent value="ped">
+          {boRows.length === 0 ? <p className="text-sm text-text-muted">Sin pedidos pendientes.</p> : boShown.length === 0 ? <p className="text-sm text-text-muted">Ningún pedido coincide con el filtro.</p> : <SugTable list={boShown} a={a} push={push} />}
+        </TabsContent>
+        <TabsContent value="cons"><ClienteConsumoTable rows={consShown} rf={rf} push={push} /></TabsContent>
+      </Tabs>
     </div>
   );
 }

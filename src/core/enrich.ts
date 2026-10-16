@@ -66,6 +66,10 @@ export interface EnrichIndex {
    * available answer to "qué condición tiene este material" when building a
    * Solicitar request from a lote/centro that has no condición of its own. */
   matCondiciones: (mat: unknown) => string[];
+  /** Ejecutivos/zonas del catálogo EN EL ORDEN DEL CATÁLOGO (sin ordenar: se recorren zona por zona), una entrada por zona. */
+  ejecutivosZona: EjecutivoZona[];
+  /** Zona (código normalizado) a la que pertenece el "Gpo. Vdor." de un renglón (acepta zona o código de oficina de ventas); '' si no se conoce. */
+  zonaDeEjecutivo: (gpoVdor: unknown) => string;
   /** Gerentes de marca conocidos (pestaña "GERENCIA DE MARCA"), ordenados. */
   gerentes: string[];
   /** Sectores a cargo de un gerente (nombres tal como vienen en la pestaña). */
@@ -73,6 +77,31 @@ export interface EnrichIndex {
   /** ¿`sector` pertenece a `gerente`? Sin gerente (vacío) siempre `true`.
    * Compara sin acentos/mayúsculas. */
   sectorDeGerente: (sector: unknown, gerente: string) => boolean;
+}
+
+/** Una zona del catálogo de ejecutivos, lista para un filtro. */
+export interface EjecutivoZona {
+  /** Código de zona normalizado (`normCode`: "000" → "0", "002" → "2"). */
+  zona: string;
+  nombre: string;
+  /** Texto del filtro: si el nombre dice "Vacante" se muestra la zona a 3 dígitos ("000", "002", "101") junto al nombre; si no, el nombre. */
+  etiqueta: string;
+  /** Zona a 3 dígitos ("0" → "000", "2" → "002", "101" → "101"). */
+  zona3: string;
+  vacante: boolean;
+}
+
+/** Zona a 3 dígitos cuando es numérica ("0" → "000", "2" → "002", "101" → "101"); si no, tal cual. */
+export function zonaTresDigitos(zona: unknown): string {
+  const s = (zona == null ? '' : String(zona)).trim().replace(/\.0+$/, '');
+  return /^\d+$/.test(s) ? s.padStart(3, '0') : s;
+}
+
+/** Etiqueta del filtro de ejecutivos: las VACANTES (el nombre contiene "Vacante") salen con su zona a 3 dígitos. */
+export function etiquetaEjecutivoZona(nombre: string, zona: unknown): { etiqueta: string; zona3: string; vacante: boolean } {
+  const zona3 = zonaTresDigitos(zona);
+  const vacante = /vacante/i.test(nombre);
+  return { etiqueta: vacante ? `${zona3} · ${nombre.trim()}` : nombre.trim() || zona3, zona3, vacante };
 }
 
 const normSector = (v: unknown): string =>
@@ -88,6 +117,8 @@ const EMPTY: EnrichIndex = {
   matUm: () => '',
   matCosto: () => 0,
   matCondiciones: () => [],
+  ejecutivosZona: [],
+  zonaDeEjecutivo: () => '',
   gerentes: [],
   sectoresDeGerente: () => [],
   sectorDeGerente: (_s, g) => !g,
@@ -142,6 +173,20 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
     }
   }
 
+  // Una entrada por zona, en el orden del catálogo (el filtro NO la reordena); cualquier clave de un ejecutivo (zona u oficina de ventas) lleva a su zona.
+  const ejecutivosZona: EjecutivoZona[] = [];
+  const zonaDeClave = new Map<string, string>();
+  for (const e of catalog.ejecutivos) {
+    const zk = normCode(e.zona) || normCode(e.codOfVtas);
+    if (!zk) continue;
+    if (!zonaDeClave.has(zk)) {
+      zonaDeClave.set(zk, zk);
+      ejecutivosZona.push({ zona: zk, nombre: e.ejecutivo ?? '', ...etiquetaEjecutivoZona(e.ejecutivo ?? '', e.zona || e.codOfVtas) });
+    }
+    const ck = normCode(e.codOfVtas);
+    if (ck && !zonaDeClave.has(ck)) zonaDeClave.set(ck, zk);
+  }
+
   const gerSectores = new Map<string, Map<string, string>>();
   for (const g of catalog.gerenciaMarca ?? []) {
     const k = normSector(g.sector);
@@ -161,6 +206,8 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
     matUm: (mat) => mapUm.get(normCode(mat)) || '',
     matCosto: (mat) => mapCosto.get(normCode(mat)) || 0,
     matCondiciones: (mat) => mapCondiciones.get(normCode(mat)) ?? [],
+    ejecutivosZona,
+    zonaDeEjecutivo: (v) => zonaDeClave.get(normCode(v)) ?? '',
     gerentes: [...gerSectores.keys()].sort((a, b) => a.localeCompare(b, 'es')),
     sectoresDeGerente: (g) => [...(gerSectores.get(g)?.values() ?? [])].sort((a, b) => a.localeCompare(b, 'es')),
     sectorDeGerente: (sector, g) => !g || (gerSectores.get(g)?.has(normSector(sector)) ?? false),

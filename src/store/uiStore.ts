@@ -34,7 +34,7 @@ export const useUiStore = create<UiState>()(
       theme: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
       skin: 'classic',
       sidebarCollapsed: false,
-      lastViewPath: '/',
+      lastViewPath: '/seg-pedidos',
       setLastViewPath: (p) => set({ lastViewPath: p }),
       setTheme: (t) => {
         applyTheme(t);

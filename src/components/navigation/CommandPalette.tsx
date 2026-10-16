@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { rutaRetirada } from '@/lib/modoLibros';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Search, CornerDownLeft, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -29,7 +30,7 @@ interface Cmd {
   run: () => void;
 }
 
-const PAGES: { to: string; label: string; icon: LucideIcon; hint: string }[] = [
+const PAGES_TODAS: { to: string; label: string; icon: LucideIcon; hint: string }[] = [
   { to: '/', label: 'Panel general', icon: LayoutDashboard, hint: 'g d' },
   { to: '/hoy', label: 'Hoy', icon: Sunrise, hint: 'g y' },
   { to: '/carga', label: 'Carga de archivos', icon: UploadCloud, hint: 'g c' },
@@ -40,12 +41,17 @@ const PAGES: { to: string; label: string; icon: LucideIcon; hint: string }[] = [
   { to: '/inventario', label: 'Inv Condición', icon: Boxes, hint: 'g i' },
   { to: '/analisis', label: 'Análisis', icon: LineChart, hint: 'g a' },
   { to: '/oportunidades', label: 'Oportunidades', icon: Target, hint: 'g p' },
+  { to: '/comparativo', label: 'Comparativo de periodos', icon: LineChart, hint: 'g r' },
+  { to: '/comodato-libros', label: 'Comodato (libros)', icon: HandCoins, hint: 'g b' },
   { to: '/comodato', label: 'Comodato vs. Fac.', icon: HandCoins, hint: 'g m' },
   { to: '/solicitudes', label: 'Solicitudes DRP', icon: Truck, hint: 'g q' },
   { to: '/historial', label: 'Historial', icon: History, hint: 'g h' },
   { to: '/registros', label: 'Registros', icon: ScrollText, hint: 'g l' },
   { to: '/ajustes', label: 'Ajustes', icon: Settings, hint: 'g x' },
 ];
+
+// Etapa "solo libros": sin los módulos que leían el reporte anterior (ver lib/modoLibros.ts).
+const PAGES = PAGES_TODAS.filter((p) => !rutaRetirada(p.to));
 
 function useCommands(): Cmd[] {
   const navigate = useNavigate();

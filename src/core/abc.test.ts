@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAbc, summarizeAbc, ABC_THRESHOLDS } from './abc';
+import { buildAbc, buildAbcPares, clavePar, summarizeAbc, ABC_THRESHOLDS } from './abc';
 import { buildRF } from './resumenFac';
 import type { ResumenFacRow } from './types';
 
@@ -128,5 +128,39 @@ describe('summarizeAbc', () => {
       { clase: 'B', count: 1, importe: 1500, shareOfTotal: 1500 / 9600 },
       { clase: 'C', count: 1, importe: 100, shareOfTotal: 100 / 9600 },
     ]);
+  });
+});
+
+describe('buildAbcPares (ABC de la combinación cliente-material)', () => {
+  const filas = [
+    mkRow({ destinatario: 'D1', material: 'M1', importeFacturado: 1000 }),
+    mkRow({ destinatario: 'D2', material: 'M1', importeFacturado: 100 }),
+    mkRow({ destinatario: 'D3', material: 'M2', importeFacturado: 50 }),
+    mkRow({ destinatario: 'D4', material: 'M3', importeFacturado: 1 }),
+    mkRow({ destinatario: 'D5', material: 'M4', importeFacturado: -10 }),
+  ];
+  const rf = buildRF(filas);
+  const consumo = filas.map((r) => ({ destinatario: r.destinatario, material: r.material }));
+  const m = buildAbcPares(rf, consumo);
+
+  it('clasifica cada par con el acumulado previo (A hasta 80 %, B hasta 95 %, C la cola)', () => {
+    expect(m.get(clavePar('D1', 'M1'))).toBe('A');
+    expect(m.get(clavePar('D2', 'M1'))).toBe('B');
+    expect(m.get(clavePar('D3', 'M2'))).toBe('C');
+    expect(m.get(clavePar('D4', 'M3'))).toBe('C');
+  });
+  it('un par sin importe positivo en la ventana no se clasifica', () => {
+    expect(m.has(clavePar('D5', 'M4'))).toBe(false);
+  });
+  it('el mismo destinatario+material repetido (otro solicitante) cuenta una sola combinación', () => {
+    const doble = buildAbcPares(rf, [...consumo, { destinatario: 'D1', material: 'M1' }]);
+    expect(doble.size).toBe(m.size);
+    expect(doble.get(clavePar('D1', 'M1'))).toBe('A');
+  });
+  it('sin facturación devuelve vacío', () => {
+    expect(buildAbcPares(null, consumo).size).toBe(0);
+  });
+  it('no cambia el ABC de material', () => {
+    expect(buildAbc(rf).classByMaterial.get('M1')).toBe('A');
   });
 });

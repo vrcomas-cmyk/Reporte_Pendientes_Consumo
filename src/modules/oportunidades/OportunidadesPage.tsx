@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
 import { useSearchParams } from 'react-router-dom';
 import { LayoutGrid, List, Plus, Bell, AlertTriangle, Info } from 'lucide-react';
 import { TooltipHint } from '@/components/ui/tooltip';
@@ -119,6 +120,7 @@ interface ViewState { condicion: CondicionEspecial | ''; vista: 'tablero' | 'lis
  * OfertasClientePage.tsx). */
 export function OportunidadesPage() {
   const a = useAnalytics();
+  useFacturacionLibros(); // pide (y revisa en Drive) la facturación de los libros mientras la pantalla está abierta
   const { lotes, invCondicion, bo, result } = a;
   const oportunidades = useConocimientoStore((s) => s.oportunidades);
   const hydrate = useConocimientoStore((s) => s.hydrate);

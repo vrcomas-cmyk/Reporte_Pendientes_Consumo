@@ -1,15 +1,15 @@
-import { useMemo } from 'react';
-import { Search, AlertTriangle, Download } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRssFuenteStore } from '@/store/rssFuenteStore';
+import { Search, AlertTriangle } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead } from '@/components/ui/table';
 import { formatNumber, formatCurrency } from '@/lib/utils';
 import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { buildLotesSheet, loteKey } from '@/lib/lotesSheet';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, Chip, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, ClearFiltersButton, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, Chip, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { TooltipHint } from '@/components/ui/tooltip';
 import {
   invGen, esLento, esCentroDistribucion, peorCobertura, quiebreMitigadoPorTransito,
@@ -35,33 +35,57 @@ import { usePersistedState } from '@/hooks/usePersistedState';
 import { useNombresStore, useVistaCentrosStore } from '@/store/nombresStore';
 import { etiquetaCentro } from '@/lib/nombres';
 import { ResumenSinContexto } from './ResumenSinContexto';
+import { ReportPage, PageHeader, ExportButton, FilterBar, FilterSelect, CellLegend, ALTURA_TABLA, SIN_DATOS } from '@/components/layout/report';
+import { SustitutosBadge } from './SustitutosBadge';
+import { indiceSustitutos } from '@/core/invCondicionLibros';
+import { useFaseFacturacion } from '@/modules/analytics/faseFacturacion';
+import { claveMaterial } from '@/core/pedidos';
 
-export function ResumenSinPage() {
+interface ResumenSinPageProps {
+  /** 'disp' = el mismo módulo con el inventario de los libros de Disponibilidad (Libre − Entrega), el pendiente de
+   * Seg pedidos y el consumo de Fac_Mensual_CAM. Por defecto, "Resumen Sin Sugerencias" del reporte. */
+  modo?: 'sin' | 'disp';
+}
+
+export function ResumenSinPage({ modo = 'sin' }: ResumenSinPageProps = {}) {
   const bootstrapped = useDataStore((s) => s.bootstrapped);
   const a = useAnalytics();
+  const disp = modo === 'disp';
+  // Tendencia: en Inventario · Disponibilidad sale de la facturación de los libros trimestrales de Drive (carpeta de Facturación), no del Resumen_Fac del reporte.
+  const rfTendencia = disp ? a.facturacion.rf : a.rf;
+  // Qué falta de la facturación (leyendo caché / descargando / calculando / error) en vez de un "no cargada" mudo.
+  const faseFac = useFaseFacturacion(a);
+  // Prefijo de las llaves persistidas (filtros, columnas, vistas, zoom): cada modo guarda las suyas.
+  const ns = disp ? 'invDisp' : 'resumenSin';
+  const setFuenteRss = useRssFuenteStore((s) => s.setFuente);
+  // Los paneles de detalle leen el inventario de la fuente de ESTA tabla mientras está abierta.
+  useEffect(() => {
+    setFuenteRss(disp ? 'disp' : 'sin');
+    return () => setFuenteRss('sin');
+  }, [disp, setFuenteRss]);
   const open = usePanelStore((s) => s.open);
-  const [q, setQ] = usePersistedState('resumenSin.q', '');
-  const [centroFiltro, setCentroFiltro] = usePersistedState('resumenSin.centro', '');
-  const [gerente, setGerente] = usePersistedState('resumenSin.gerente', '');
-  const [quick, setQuick] = useQuickFilters('resumenSin.quick');
-  const [pendFiltro, setPendFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.pend', '');
-  const [lentoFiltro, setLentoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.lento', '');
-  const [transitoFiltro, setTransitoFiltro] = usePersistedState<'' | 'con' | 'sin'>('resumenSin.transito', '');
-  const [coberturaFiltro, setCoberturaFiltro] = usePersistedState<'' | CoberturaEstado>('resumenSin.cobertura', '');
+  const [q, setQ] = usePersistedState(`${ns}.q`, '');
+  const [centroFiltro, setCentroFiltro] = usePersistedState(`${ns}.centro`, '');
+  const [gerente, setGerente] = usePersistedState(`${ns}.gerente`, '');
+  const [quick, setQuick] = useQuickFilters(`${ns}.quick`);
+  const [pendFiltro, setPendFiltro] = usePersistedState<'' | 'con' | 'sin'>(`${ns}.pend`, '');
+  const [lentoFiltro, setLentoFiltro] = usePersistedState<'' | 'con' | 'sin'>(`${ns}.lento`, '');
+  const [transitoFiltro, setTransitoFiltro] = usePersistedState<'' | 'con' | 'sin'>(`${ns}.transito`, '');
+  const [coberturaFiltro, setCoberturaFiltro] = usePersistedState<'' | CoberturaEstado>(`${ns}.cobertura`, '');
   // Mostrar/ocultar los badges de estado (Quiebre, Exceso, Inmovilizado…) en las celdas.
-  const [mostrarEstados, setMostrarEstados] = usePersistedState<boolean>('resumenSin.mostrarEstados', true);
+  const [mostrarEstados, setMostrarEstados] = usePersistedState<boolean>(`${ns}.mostrarEstados`, true);
   // "Pegar materiales" estilo SAP — filtro ADITIVO: no toca ninguno de los
   // filtros de arriba, solo acota la lista a los códigos pegados (si hay alguno).
-  const [pasteCodes, setPasteCodes] = usePersistedState<string[]>('resumenSin.pasteCodes', []);
+  const [pasteCodes, setPasteCodes] = usePersistedState<string[]>(`${ns}.pasteCodes`, []);
   const nombresCentros = useNombresStore((s) => s.centros);
   const mostrarNombres = useVistaCentrosStore((s) => s.mostrarNombres);
   const setMostrarNombres = useVistaCentrosStore((s) => s.setMostrarNombres);
   const lblCentro = (c: string) => etiquetaCentro(c, nombresCentros, mostrarNombres);
-  const zoom = useZoom('resumen_sin_zoom');
+  const zoom = useZoom(`${ns}_zoom`);
   const clearFilters = () => {
     setQ(''); setGerente(''); setCentroFiltro(''); setQuick([]); setPendFiltro(''); setLentoFiltro(''); setTransitoFiltro(''); setCoberturaFiltro(''); setPasteCodes([]);
   };
-  const rss = a.rss;
+  const rss = disp ? a.rssDisp : a.rss;
   const qd = useDebouncedValue(q, 200);
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
@@ -83,6 +107,12 @@ export function ResumenSinPage() {
   // in some centro" instead of the exact joined combo).
   const statusSetOf = (mo: RSSMaterial) => {
     const s = new Set<string>();
+    // Inventario · Disponibilidad: la condición Revision sale de la pestaña Revision de los libros (status unidos con "/", p. ej. "Liz/Lento mov").
+    if (disp) {
+      const r = a.revisionLibros.get(claveMaterial(mo.material));
+      if (r) s.add(r);
+      return s;
+    }
     mo.centros.forEach((co) => co.status.forEach((v) => s.add(v)));
     return s;
   };
@@ -96,11 +126,11 @@ export function ResumenSinPage() {
     { key: 'descripcion', label: 'Descripción', get: (mo) => mo.desc },
     { key: 'sector', label: 'Sector', get: (mo) => a.enrich.matSector(mo.material) },
     { key: 'grupo', label: 'Grupo de artículo', get: (mo) => a.enrich.matGrupo(mo.material) },
-    { key: 'tendencia', label: 'Tendencia', get: (mo) => tendenciaTexto(serieMaterial(a.rf, mo.material)).txt },
+    { key: 'tendencia', label: 'Tendencia', get: (mo) => tendenciaTexto(serieMaterial(rfTendencia, mo.material)).txt },
     { key: 'status', label: 'Status Revisión', getMany: (mo) => [...statusSetOf(mo)] },
     { key: 'centro', label: 'Centro', getMany: (mo) => [...mo.centros.keys()] },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [a.enrich, a.rf]);
+  ], [a.enrich, rfTendencia, a.revisionLibros, disp]);
 
   const list = useMemo(() => {
     if (!rss) return [];
@@ -131,17 +161,42 @@ export function ResumenSinPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [list, a.enrich]);
   const { sorted, sortKey, dir, toggleSort } = useSort(list, sortAcc);
-  const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
+  const { scrollRef, virtualizer, items, paddingTop, paddingBottom, measureElement } = useRowVirtualizer(sorted.length);
+  // Sustitutos (solo con libros): ⇄ junto al código; "ir a fila" salta a la fila y la resalta unos segundos.
+  const sustitutos = useMemo(() => (disp ? indiceSustitutos(a.sustitucionesLibros) : null), [disp, a.sustitucionesLibros]);
+  const [resaltado, setResaltado] = useState<string | null>(null);
+  const [irA, setIrA] = useState<string | null>(null);
+  const filaDe = useCallback((material: string) => sorted.findIndex((m) => m.material === material), [sorted]);
+  const irAFila = useCallback((material: string) => {
+    const i = filaDe(material);
+    if (i === -1) return false;
+    // Las filas miden distinto a lo estimado: se salta al índice y, en cuanto la fila real existe en el DOM, se centra con precisión.
+    virtualizer.scrollToIndex(i, { align: 'center' });
+    let intentos = 0;
+    const centrar = () => {
+      const el = scrollRef.current?.querySelector(`tr[data-material="${CSS.escape(material)}"]`);
+      if (el) { el.scrollIntoView({ block: 'center' }); return; }
+      if (++intentos < 30) requestAnimationFrame(centrar);
+    };
+    requestAnimationFrame(centrar);
+    setResaltado(material);
+    window.setTimeout(() => setResaltado((r) => (r === material ? null : r)), 2500);
+    return true;
+  }, [filaDe, virtualizer, scrollRef]);
+  // Tras "Quitar filtros e ir": cuando la lista ya trae el material, se salta a él.
+  useEffect(() => {
+    if (irA && irAFila(irA)) setIrA(null);
+  }, [irA, irAFila]);
   // Materiales en el orden/filtro de la tabla: base de ◀/▶ en el detalle de celda.
   const listaMateriales = useMemo(() => sorted.map((m) => m.material), [sorted]);
 
-  const colVis = useColumnVisibility('resumenSin_columnas');
+  const colVis = useColumnVisibility(`${ns}_columnas`);
   const columnDefs: ColDef[] = useMemo(
     () => (rss ? rss.centros.map((c) => ({ key: `centro_${c}`, label: `Centro ${lblCentro(c)}` })) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rss, nombresCentros, mostrarNombres],
   );
-  const savedViews = useSavedViews<{ quick: ActiveFilter[]; centroFiltro: string; pendFiltro: typeof pendFiltro; lentoFiltro: typeof lentoFiltro; transitoFiltro: typeof transitoFiltro; coberturaFiltro: typeof coberturaFiltro; hidden: string[]; pasteCodes?: string[] }>('resumenSin_vistas');
+  const savedViews = useSavedViews<{ quick: ActiveFilter[]; centroFiltro: string; pendFiltro: typeof pendFiltro; lentoFiltro: typeof lentoFiltro; transitoFiltro: typeof transitoFiltro; coberturaFiltro: typeof coberturaFiltro; hidden: string[]; pasteCodes?: string[] }>(`${ns}_vistas`);
   const applyView = (state: { quick: ActiveFilter[]; centroFiltro: string; pendFiltro: typeof pendFiltro; lentoFiltro: typeof lentoFiltro; transitoFiltro: typeof transitoFiltro; coberturaFiltro: typeof coberturaFiltro; hidden: string[]; pasteCodes?: string[] }) => {
     setQuick(state.quick); setCentroFiltro(state.centroFiltro); setPendFiltro(state.pendFiltro);
     setLentoFiltro(state.lentoFiltro); setTransitoFiltro(state.transitoFiltro); setCoberturaFiltro(state.coberturaFiltro);
@@ -152,6 +207,7 @@ export function ResumenSinPage() {
 
   if (!rss) {
     if (!bootstrapped) return <TableSkeleton />;
+    if (disp) return <EmptyState title={SIN_DATOS.inventario.title} description={SIN_DATOS.inventario.description} action={{ to: SIN_DATOS.inventario.to, label: SIN_DATOS.inventario.label }} />;
     return <EmptyState title={'No se cargó la hoja "Resumen Sin Sugerencias".'} action={{ to: '/carga', label: 'Ir a Carga' }} />;
   }
 
@@ -187,23 +243,25 @@ export function ResumenSinPage() {
       });
     });
     const lotesX = buildLotesSheet(a.lotes, (l) => pares.has(loteKey(l.material, l.centro)));
-    void exportXlsxMultiSheet(`resumen_sin_sugerencias_${stamp()}.xlsx`, [
+    void exportXlsxMultiSheet(`${disp ? 'inventario_disponibilidad' : 'resumen_sin_sugerencias'}_${stamp()}.xlsx`, [
       { name: 'ResumenSinSug', rows: out },
       { name: 'Detalle Lotes', rows: lotesX },
     ]);
   };
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto p-5">
-      <div className="flex items-start justify-between gap-2">
-        <div><h2 className="font-display text-2xl font-semibold">Inventario</h2>
-          <p className="text-sm text-text-muted">Pivote material × centro · inventario general (1030+1031+1060)</p></div>
-        <div className="flex items-center gap-2">
-          <ColumnVisibilityControl columns={columnDefs} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
-          <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
-          <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
-        </div>
-      </div>
+    <ReportPage>
+      <PageHeader
+        title={disp ? 'Inventario · Disponibilidad' : 'Inventario'}
+        subtitle={`${formatNumber(sorted.length)} de ${formatNumber(rss.mats.size)} materiales · pivote material × centro · inventario general (1030+1031+1060)`}
+        actions={(
+          <>
+            <ColumnVisibilityControl columns={columnDefs} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
+            <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
+            <ExportButton onClick={exportar} />
+          </>
+        )}
+      />
 
       <ResumenSinContexto
         list={list}
@@ -215,63 +273,53 @@ export function ResumenSinPage() {
         onSector={(sector) => open({ type: 'sector', sector })}
       />
 
-      <div className="flex items-center gap-2">
-        <div className="relative w-64"><Search className="absolute left-2.5 top-2.5 size-3.5 text-text-faint" />
-          <Input placeholder="Buscar material…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" /></div>
+      <FilterBar
+        search={(
+          <div className="relative w-64"><Search className="absolute left-2.5 top-2.5 size-3.5 text-text-faint" />
+            <Input placeholder="Buscar material…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" /></div>
+        )}
+        onClear={clearFilters}
+        zoom={<ZoomControl level={zoom.level} setLevel={zoom.setLevel} />}
+        chips={pasteCodes.length > 0 ? <PasteCodesChip value={pasteCodes} onChange={setPasteCodes} label="material" /> : undefined}
+        columnFilters={(
+          <>
+            <ColumnFilterBar columns={filterCols} rows={list} active={quick} onChange={setQuick} />
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-muted" title="Muestra el nombre de cada centro junto al código (los nombres se configuran en Administración → Nombres).">
+              <input type="checkbox" checked={mostrarNombres} onChange={(e) => setMostrarNombres(e.target.checked)} className="size-3.5 accent-accent" />
+              Mostrar nombres de centro
+            </label>
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-muted" title="Muestra u oculta los estados (Quiebre, Exceso, Inmovilizado…) debajo del inventario y el pendiente de cada celda.">
+              <input type="checkbox" checked={mostrarEstados} onChange={(e) => setMostrarEstados(e.target.checked)} className="size-3.5 accent-accent" />
+              Mostrar estados
+            </label>
+            <TooltipHint text={`${COBERTURA_HELP.quiebre} · ${COBERTURA_HELP.inmovilizado} · ${COBERTURA_HELP.exceso} · ${COBERTURA_HELP.sano} · ${COBERTURA_HELP.aceptable} · Centro 1031 (hub de distribución) queda excluido de estos estados.`}>
+              <button type="button" className="text-xs text-text-faint underline decoration-dotted underline-offset-2 hover:text-text">¿Qué significa cada estado?</button>
+            </TooltipHint>
+            <CellLegend>Celda = inv. del centro · <span className="text-danger">Pend</span> pendiente · <AlertTriangle className="inline size-3 text-warning" /> lento (≥6m sin mov.)</CellLegend>
+          </>
+        )}
+      >
         <GerenteSelect enrich={a.enrich} value={gerente} onChange={setGerente} />
-        <select value={centroFiltro} onChange={(e) => setCentroFiltro(e.target.value)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
-          <option value="">Todos los centros</option>
-          {centrosAll.filter((c) => c !== '1031').map((c) => <option key={c} value={c}>Solo Centro {lblCentro(c)} (+1031)</option>)}
-        </select>
+        <FilterSelect
+          value={centroFiltro}
+          onChange={setCentroFiltro}
+          todos="Centro (todos)"
+          options={centrosAll.filter((c) => c !== '1031').map((c) => ({ value: c, label: `Solo Centro ${lblCentro(c)} (+1031)` }))}
+        />
+        <FilterSelect value={pendFiltro} onChange={setPendFiltro} todos="Pendiente (todos)" options={[{ value: 'con', label: 'Con pendiente' }, { value: 'sin', label: 'Sin pendiente' }]} />
+        <FilterSelect value={lentoFiltro} onChange={setLentoFiltro} todos="Lento (todos)" options={[{ value: 'con', label: 'Solo lento' }, { value: 'sin', label: 'Sin lento' }]} />
+        <FilterSelect value={transitoFiltro} onChange={setTransitoFiltro} todos="En tránsito (todos)" options={[{ value: 'con', label: 'Con tránsito' }, { value: 'sin', label: 'Sin tránsito' }]} />
+        <FilterSelect
+          value={coberturaFiltro}
+          onChange={setCoberturaFiltro}
+          todos="Cobertura (todas)"
+          title="Peor cobertura entre los almacenes de cada centro (no incluye Centro 1031)"
+          options={[{ value: 'quiebre', label: COBERTURA_LABEL.quiebre }, { value: 'inmovilizado', label: COBERTURA_LABEL.inmovilizado }, { value: 'exceso', label: COBERTURA_LABEL.exceso }, { value: 'sano', label: COBERTURA_LABEL.sano }]}
+        />
         <PasteCodesFilter value={pasteCodes} onChange={setPasteCodes} label="material" />
-        <p className="text-xs text-text-faint">Celda = inv. del centro · <span className="text-danger">Pend</span> pendiente · <AlertTriangle className="inline size-3 text-warning" /> lento (≥6m sin mov.)</p>
-        <ClearFiltersButton onClear={clearFilters} />
-        <div className="ml-auto"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
-      </div>
-      {pasteCodes.length > 0 && (
-        <div className="-mt-1 flex items-center gap-1.5">
-          <PasteCodesChip value={pasteCodes} onChange={setPasteCodes} label="material" />
-        </div>
-      )}
+      </FilterBar>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <ColumnFilterBar columns={filterCols} rows={list} active={quick} onChange={setQuick} />
-        <select value={pendFiltro} onChange={(e) => setPendFiltro(e.target.value as typeof pendFiltro)} className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs">
-          <option value="">Pendiente: todos</option>
-          <option value="con">Con pendiente</option>
-          <option value="sin">Sin pendiente</option>
-        </select>
-        <select value={lentoFiltro} onChange={(e) => setLentoFiltro(e.target.value as typeof lentoFiltro)} className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs">
-          <option value="">Lento: todos</option>
-          <option value="con">Solo lento</option>
-          <option value="sin">Sin lento</option>
-        </select>
-        <select value={transitoFiltro} onChange={(e) => setTransitoFiltro(e.target.value as typeof transitoFiltro)} className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs">
-          <option value="">En tránsito: todos</option>
-          <option value="con">Con tránsito</option>
-          <option value="sin">Sin tránsito</option>
-        </select>
-        <select value={coberturaFiltro} onChange={(e) => setCoberturaFiltro(e.target.value as typeof coberturaFiltro)} className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs" title="Peor cobertura entre los almacenes de cada centro (no incluye Centro 1031)">
-          <option value="">Cobertura: todas</option>
-          <option value="quiebre">{COBERTURA_LABEL.quiebre}</option>
-          <option value="inmovilizado">{COBERTURA_LABEL.inmovilizado}</option>
-          <option value="exceso">{COBERTURA_LABEL.exceso}</option>
-          <option value="sano">{COBERTURA_LABEL.sano}</option>
-        </select>
-        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-muted" title="Muestra el nombre de cada centro junto al código (los nombres se configuran en Administración → Nombres).">
-          <input type="checkbox" checked={mostrarNombres} onChange={(e) => setMostrarNombres(e.target.checked)} className="size-3.5 accent-accent" />
-          Mostrar nombres de centro
-        </label>
-        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-text-muted" title="Muestra u oculta los estados (Quiebre, Exceso, Inmovilizado…) debajo del inventario y el pendiente de cada celda.">
-          <input type="checkbox" checked={mostrarEstados} onChange={(e) => setMostrarEstados(e.target.checked)} className="size-3.5 accent-accent" />
-          Mostrar estados
-        </label>
-        <TooltipHint text={`${COBERTURA_HELP.quiebre} · ${COBERTURA_HELP.inmovilizado} · ${COBERTURA_HELP.exceso} · ${COBERTURA_HELP.sano} · ${COBERTURA_HELP.aceptable} · Centro 1031 (hub de distribución) queda excluido de estos estados.`}>
-          <button type="button" className="text-xs text-text-faint underline decoration-dotted underline-offset-2 hover:text-text">¿Qué significa cada estado?</button>
-        </TooltipHint>
-      </div>
-
-      <Card className="h-[36rem] shrink-0 overflow-hidden">
+      <Card className={`${ALTURA_TABLA} shrink-0 overflow-hidden`}>
         <div ref={scrollRef} className="h-full overflow-auto">
           <Table className={zoom.className} wrapperClassName="overflow-visible">
             <TableHeader>
@@ -294,12 +342,24 @@ export function ResumenSinPage() {
                 const mo = sorted[vi.index];
                 const invTot = [...mo.centros.values()].reduce((s, co) => s + invGen(co), 0);
                 const pendTot = [...mo.centros.values()].reduce((s, co) => s + co.pend, 0);
+                const sustMat = sustitutos?.get(mo.material);
                 return (
-                  <TableRow key={mo.material}>
-                    <TableCell><Chip onClick={() => open({ type: 'material', material: mo.material })}>{mo.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{mo.desc}</div>{a.enrich.matPrecioOferta(mo.material) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(a.enrich.matPrecioOferta(mo.material))}</div>}</TableCell>
+                  <TableRow key={mo.material} ref={measureElement} data-index={vi.index} data-material={mo.material} className={resaltado === mo.material ? 'bg-accent/25! [&>td]:bg-accent/25! outline outline-2 -outline-offset-2 outline-accent' : undefined}>
+                    <TableCell><Chip onClick={() => open({ type: 'material', material: mo.material })}>{mo.material}</Chip>{sustMat && (
+                      <SustitutosBadge
+                        info={sustMat}
+                        visible={(m) => filaDe(m) !== -1}
+                        existe={(m) => rss?.mats.has(m) ?? false}
+                        onIr={irAFila}
+                        onQuitarFiltrosEIr={(m) => { clearFilters(); setIrA(m); }}
+                        onDetalle={(m) => open({ type: 'material', material: m })}
+                      />
+                    )}<div className="text-[11px] text-text-faint max-w-64 truncate">{mo.desc}</div>{a.enrich.matPrecioOferta(mo.material) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(a.enrich.matPrecioOferta(mo.material))}</div>}</TableCell>
                     <TableCell>{a.enrich.matUm(mo.material) || '—'}</TableCell>
                     <TableCell>{a.enrich.matSector(mo.material) || '—'}<div className="text-[11px] text-text-faint">{a.enrich.matGrupo(mo.material)}</div></TableCell>
-                    <TableCell><TrendBadge t={tendenciaTexto(serieMaterial(a.rf, mo.material))} /></TableCell>
+                    <TableCell>{disp && !rfTendencia
+                      ? <span className="text-[11px] italic text-text-faint" title="La tendencia sale de la facturación de los libros de Drive (carpeta de Facturación). Sincroniza Facturación desde Carga si no se carga sola.">{faseFac.texto}</span>
+                      : <TrendBadge t={tendenciaTexto(serieMaterial(rfTendencia, mo.material))} />}</TableCell>
                     <TableCell className="text-xs text-text-muted">{statusMat(mo) || '—'}</TableCell>
                     {centros.map((c) => {
                       const co = mo.centros.get(c);
@@ -367,6 +427,6 @@ export function ResumenSinPage() {
       </Card>
 
       <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
-    </div>
+    </ReportPage>
   );
 }

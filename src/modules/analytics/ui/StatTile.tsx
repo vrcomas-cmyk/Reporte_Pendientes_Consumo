@@ -2,6 +2,10 @@ import { Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ReactNode } from 'react';
 import { TooltipHint } from '@/components/ui/tooltip';
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from '@/components/ui/context-menu';
+import { useTilesOcultosStore } from '@/store/tilesOcultosStore';
+import { EyeOff, Copy } from 'lucide-react';
+import { useClipboard } from '@/hooks/useClipboard';
 
 export type TileTone = 'success' | 'warning' | 'danger' | 'info';
 
@@ -40,6 +44,7 @@ export function StatTile({
   compact = false,
   title,
   emphasis = 'default',
+  hideKey,
 }: {
   label: string;
   value: string;
@@ -48,11 +53,18 @@ export function StatTile({
   compact?: boolean;
   title?: string;
   emphasis?: 'hero' | 'default' | 'muted';
+  /** Clave con la que se oculta (clic derecho). Por defecto el label; pásala si el label cambia por material/centro. */
+  hideKey?: string;
 }) {
+  const { copy } = useClipboard();
+  const key = hideKey ?? label;
+  const oculto = useTilesOcultosStore((s) => s.ocultos.includes(key));
+  const ocultar = useTilesOcultosStore((s) => s.ocultar);
+  if (oculto) return null;
   const name = toneName(tone);
   const hero = emphasis === 'hero';
   const valueColor = name ? TEXT[name] : emphasis === 'muted' ? 'text-text-muted' : tone;
-  return (
+  const tile = (
     <div
       className={cn(
         'w-fit rounded-xl border border-border bg-bg-elevated',
@@ -85,4 +97,14 @@ export function StatTile({
       {sub && <p className={cn('mt-0.5 text-text-muted', hero ? 'text-xs' : 'text-[11px]')}>{sub}</p>}
     </div>
   );
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{tile}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={() => void copy(value, 'Valor copiado')}><Copy className="size-3.5" /> Copiar {value}</ContextMenuItem>
+        <ContextMenuItem onSelect={() => ocultar(key)}><EyeOff className="size-3.5" /> Ocultar “{key}”</ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 }
+

@@ -1,8 +1,14 @@
-import { ArrowLeft } from 'lucide-react';
-import { lazy, Suspense, type FC } from 'react';
+import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { lazy, Suspense, useMemo, type FC } from 'react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { usePanelStore, type Panel } from '@/store/panelStore';
+import { TilesOcultosControl } from './ui/TilesOcultosControl';
 import { useAnalytics, type Analytics } from './AnalyticsContext';
+import { useRssFuenteStore } from '@/store/rssFuenteStore';
+import { useFacFuenteStore } from '@/store/facFuenteStore';
+import { conFacturacion } from './facturacionAnalytics';
+import { rfTieneCentro } from '@/core/resumenFac';
+import { renglonesLiberados } from './helpers';
 
 import { SugDetallePanel } from './panels/SugDetallePanel';
 import { PedidoPanel } from './panels/PedidoPanel';
@@ -14,13 +20,12 @@ import { ClientesMesPanel, MesClientesFiltroPanel } from './panels/ClientesMesPa
 import { SectorPanel } from './panels/SectorPanel';
 import { GrupoPanel } from './panels/GrupoPanel';
 import { CeldaPanel } from './panels/CeldaPanel';
-import { MaterialInventarioLateral } from './panels/MaterialInventario';
-import { InventarioPrincipalSection } from './panels/SugDetallePanel';
-import { InvCondLateral } from './panels/InvCondLateral';
 import { InvCondCeldaPanel } from './panels/InvCondCeldaPanel';
 import { MaterialTotalesPanel } from './panels/MaterialTotalesPanel';
 import { ClienteDetallePanel } from './panels/ClienteDetallePanel';
 import { EjecutivoPedidosPanel } from './panels/EjecutivoPedidosPanel';
+import { LotePanel } from './panels/LotePanel';
+import { panelTitulo } from './panelTitulo';
 
 // Los paneles de Oportunidades se cargan con lazy para no arrastrar el módulo
 // (scoring, HubLinks, conocimientoStore) al chunk inicial — PanelHost es eager
@@ -47,6 +52,7 @@ const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
   celda: CeldaPanel,
   invCondCelda: InvCondCeldaPanel,
   materialTotales: MaterialTotalesPanel,
+  lote: LotePanel,
   clienteDetalle: ClienteDetallePanel,
   materialHub: MaterialHubPanel,
   oportunidad: OportunidadPanel,
@@ -60,13 +66,13 @@ const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
 // ancho que un panel de detalle simple — si no, la tabla queda apretada con
 // scroll horizontal interno para casi cualquier cosa.
 const WIDE = new Set<Panel['type']>([
-  'materialHub', 'material', 'sugDetalle', 'consumoMaterial', 'clienteDetalle', 'celda', 'invCondCelda', 'sector', 'grupo', 'materialTotales', 'materialColocacion', 'ejecutivoPedidos',
+  'materialHub', 'material', 'sugDetalle', 'consumoMaterial', 'clienteDetalle', 'celda', 'invCondCelda', 'sector', 'grupo', 'materialTotales', 'materialColocacion', 'ejecutivoPedidos', 'lote',
 ]);
 
 // `pedido` es el único panel de 3 columnas (detalle + inventario + BO) — con
 // el ancho de WIDE (7xl) cada columna queda apretada, así que usa un ancho
 // mayor propio en vez de compartir el set de arriba.
-const EXTRA_WIDE = new Set<Panel['type']>(['pedido']);
+const EXTRA_WIDE = new Set<Panel['type']>(['pedido', 'celda', 'invCondCelda', 'material', 'clienteDetalle']);
 
 /** Dispatcher de paneles: dado el discrim `panel.type` delega al componente de la rama correspondiente en `./panels/`. */
 function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: Panel) => void }) {
@@ -82,58 +88,47 @@ function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: P
 export function PanelHost() {
   const stack = usePanelStore((s) => s.stack);
   const back = usePanelStore((s) => s.back);
+  const goTo = usePanelStore((s) => s.goTo);
   const close = usePanelStore((s) => s.close);
   const push = usePanelStore((s) => s.push);
-  const replaceTop = usePanelStore((s) => s.replaceTop);
-  const a = useAnalytics();
+  const aBase = useAnalytics();
+  // Si hay un módulo Inventario con datos de Disponibilidad abierto, sus paneles leen ESE inventario (`rss`).
+  const fuenteRss = useRssFuenteStore((s) => s.fuente);
+  const facActivo = useFacFuenteStore((s) => s.activo);
+  const aRss = useMemo(() => {
+    // Pedidos pendientes de estos módulos: los renglones LIBERADOS de Seg pedidos (la misma fuente del número de la tabla), no los del reporte anterior.
+    const boLibros = renglonesLiberados(aBase.boSeg);
+    if (fuenteRss === 'disp' && aBase.rssDisp) return { ...aBase, rss: aBase.rssDisp, bo: boLibros };
+    // Inv con Condición: inventario por condición, lotes y pendiente/tránsito/lento de los libros.
+    if (fuenteRss === 'libros') return { ...aBase, rss: aBase.rssDisp ?? aBase.rss, invCondicion: aBase.invCondicionLibros, lotes: aBase.lotesLibros, bo: boLibros };
+    return aBase;
+  }, [aBase, fuenteRss]);
+  // Módulo Facturación abierto: consumo y facturación de los libros de Drive (lo mismo que su tabla).
+  // Con el módulo Facturación abierto, o cuando el Resumen_Fac del reporte no está cargado / no trae la columna Centro (p. ej. Inv. Disponibilidad
+  // alimentado solo por libros), los detalles leen la facturación de los libros de Drive: historial, tendencias por centro, consumo y ABC.
+  // Un módulo de libros abierto (Seg. de pedidos, Inventario…) también cuenta: sus detalles leen SIEMPRE la facturación de los libros.
+  const facPedida = useFacFuenteStore((s) => s.demanda > 0);
+  const usarLibrosFac = facActivo || (!!aRss.facturacion.rf && (facPedida || !rfTieneCentro(aRss.rf)));
+  const a = useMemo(() => (usarLibrosFac ? conFacturacion(aRss) : aRss), [aRss, usarLibrosFac]);
   const panel = stack[stack.length - 1];
-  // Detalle de celda abierto desde Inventario (Resumen Sin) o desde Inv
-  // Condición: panel lateral izquierdo con inventario por centro + "Solicitar
-  // desde inventario".
-  const lateral = panel?.type === 'celda' && panel.origen === 'resumenSin' ? panel : null;
-  const lateralInvCond = panel?.type === 'invCondCelda' ? panel : null;
-  // Resto de detalles con inventario por centro: mismo panel lateral izquierdo
-  // (principales del Centro 1031 + otros centros + Solicitar), en vez de
-  // repetirlo dentro del cuerpo de cada detalle.
-  const lateralMaterial =
-    panel?.type === 'consumoMaterial' ? panel.material
-      : panel?.type === 'clienteDetalle' ? panel.material ?? null
-        : panel?.type === 'celda' && panel.origen !== 'resumenSin' ? panel.material
-          : null;
-  const lateralSug = panel?.type === 'sugDetalle' ? a.boByKey.get(panel.boKey) ?? null : null;
-  const conLateral = !!(lateral || lateralInvCond || lateralMaterial || lateralSug);
-
   return (
     <Sheet open={!!panel} onOpenChange={(o) => !o && close()}>
-      <SheetContent className={`w-full max-w-4xl ${conLateral ? 'lg:max-w-[min(80rem,calc(100vw_-_20rem))]' : ''} ${panel && EXTRA_WIDE.has(panel.type) ? 'sm:max-w-[100rem]' : panel && WIDE.has(panel.type) ? 'sm:max-w-7xl' : 'sm:max-w-4xl'}`}>
+      <SheetContent className={`w-full max-w-4xl ${panel && EXTRA_WIDE.has(panel.type) ? 'sm:max-w-[min(112rem,calc(100vw-2rem))]' : panel && WIDE.has(panel.type) ? 'sm:max-w-[min(96rem,calc(100vw-2rem))]' : 'sm:max-w-4xl'}`}>
         {stack.length > 1 && (
-          <button onClick={back} className="mb-3 inline-flex items-center gap-1 text-sm text-text-muted hover:text-text">
-            <ArrowLeft className="size-4" /> Atrás
-          </button>
+          <nav aria-label="Ruta del detalle" className="mb-3 flex flex-wrap items-center gap-1 text-sm text-text-muted">
+            <button onClick={back} className="mr-1 inline-flex items-center gap-1 hover:text-text"><ArrowLeft className="size-4" /> Atrás</button>
+            {stack.map((p, i) => (
+              <span key={i} className="inline-flex items-center gap-1">
+                {i > 0 && <ChevronRight className="size-3 text-text-faint" />}
+                {i === stack.length - 1
+                  ? <span className="max-w-56 truncate font-medium text-text" aria-current="page">{panelTitulo(p, a)}</span>
+                  : <button type="button" onClick={() => goTo(i)} className="max-w-40 truncate hover:text-accent hover:underline" title="Volver a este nivel">{panelTitulo(p, a)}</button>}
+              </span>
+            ))}
+          </nav>
         )}
+        {panel && <TilesOcultosControl inline />}
         {panel && <PanelBody panel={panel} a={a} push={push} />}
-        {/* Dentro del mismo Dialog: foco, click-fuera y cierre compartidos con el detalle. */}
-        {lateral && (
-          <aside className="fixed inset-y-0 right-[min(80rem,calc(100vw_-_20rem))] z-50 hidden w-80 overflow-y-auto border-r border-border bg-bg-elevated p-5 shadow-xl lg:block">
-            <MaterialInventarioLateral a={a} material={lateral.material} centrosVisibles={lateral.centrosVisibles} centroActivo={lateral.centro} onSelectCentro={(c) => replaceTop({ ...lateral, centro: c })} />
-          </aside>
-        )}
-        {lateralInvCond && (
-          <aside className="fixed inset-y-0 right-[min(80rem,calc(100vw_-_20rem))] z-50 hidden w-80 overflow-y-auto border-r border-border bg-bg-elevated p-5 shadow-xl lg:block">
-            <InvCondLateral a={a} material={lateralInvCond.material} centro={lateralInvCond.centro} onSelectCentro={(c) => replaceTop({ ...lateralInvCond, centro: c })} />
-          </aside>
-        )}
-        {lateralMaterial && (
-          <aside className="fixed inset-y-0 right-[min(80rem,calc(100vw_-_20rem))] z-50 hidden w-80 overflow-y-auto border-r border-border bg-bg-elevated p-5 shadow-xl lg:block">
-            <MaterialInventarioLateral a={a} material={lateralMaterial} conPrincipales />
-          </aside>
-        )}
-        {lateralSug && (
-          <aside className="fixed inset-y-0 right-[min(80rem,calc(100vw_-_20rem))] z-50 hidden w-80 overflow-y-auto border-r border-border bg-bg-elevated p-5 shadow-xl lg:block">
-            <h3 className="font-display text-sm font-semibold">Inventario · {lateralSug.bo.materialBase}</h3>
-            <InventarioPrincipalSection a={a} b={lateralSug.bo} it={lateralSug} push={push} />
-          </aside>
-        )}
       </SheetContent>
     </Sheet>
   );

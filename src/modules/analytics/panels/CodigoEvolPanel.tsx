@@ -1,4 +1,4 @@
-import { EvolChart, ComparativaDual } from '../ui';
+import { EvolChart, ComparativaDual, Chip } from '../ui';
 import { Section } from './_shared';
 import { norm } from '../helpers';
 import { type Serie } from '@/core/resumenFac';
@@ -14,8 +14,9 @@ export function CodigoEvolPanel({ panel, a, push }: { panel: Extract<Panel, { ty
     : (rf.destMats.get(norm(panel.key))?.get(norm(panel.material)) || []);
   return (
     <div>
-      <h2 className="font-display text-lg font-semibold">{panel.material}</h2>
-      <p className="mt-1 text-sm text-text-muted">{rf.matTexto.get(norm(panel.material)) || ''} · {panel.kind === 'solic' ? 'Solicitante' : 'Destinatario'} {panel.key}</p>
+      <h2 className="font-display text-lg font-semibold"><Chip onClick={() => push({ type: 'material', material: panel.material })}>{panel.material}</Chip></h2>
+      <p className="mt-1 text-sm text-text-muted">{rf.matTexto.get(norm(panel.material)) || ''} · <Chip onClick={() => push({ type: 'evol', kind: panel.kind, key: panel.key })}>{panel.kind === 'solic' ? 'Solicitante' : 'Destinatario'} {panel.key}</Chip>
+        {panel.kind === 'dest' && <> · <Chip onClick={() => push({ type: 'clienteDetalle', dest: panel.key, material: panel.material })}>Cliente + material</Chip></>}</p>
       <Section title="Comparativo anual"><ComparativaDual serie={serie} /></Section>
       <Section title="Evolución mensual"><EvolChart serie={serie} onMonth={(mes) => push({ type: 'clientesMes', material: panel.material, mes, ...(panel.kind === 'dest' ? { dest: panel.key } : {}) })} /></Section>
     </div>
