@@ -9,6 +9,7 @@ import { CalculatorWidget } from '@/components/widgets/CalculatorWidget';
 import { useUiStore } from '@/store/uiStore';
 import { useDataStore } from '@/store/dataStore';
 import { getCachedCatalog, checkForCatalogUpdate } from '@/services/catalogService';
+import { usePreciosStore } from '@/store/preciosStore';
 import { getCachedIncremento } from '@/services/incrementoService';
 import { restaurarPedidos } from '@/services/pedidosService';
 import { restaurarFacturacion } from '@/services/facturacionLibrosService';
@@ -83,6 +84,8 @@ export function AppShell() {
       setBootstrapped(true);
       // Facturación (libros de Drive): solo restaura la caché local, DESPUÉS de pintar la app (no frena el arranque); el sync lo dispara el módulo o Carga.
       void restaurarFacturacion();
+      // Precios autorizados (módulo Precios): sustituyen al "Precio oferta" de la hoja; sin tablas en Supabase queda vacío.
+      void usePreciosStore.getState().load();
 
       startCatalogWatch();
       if (!SOLO_LIBROS) startReportSheetsWatch();

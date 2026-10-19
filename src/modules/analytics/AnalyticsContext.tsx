@@ -4,11 +4,13 @@ import { buildRFAsync, mesesDisponibles, type RFIndex } from '@/core/resumenFac'
 import { buildBO, buildBOPorFila, type BOItem } from '@/core/buildBO';
 import { buildRSS, type RSSIndex } from '@/core/resumenSin';
 import { buildFacMensual, type FacMensualIndex } from '@/core/facMensual';
-import { buildEnrich, type EnrichIndex } from '@/core/enrich';
+import { buildEnrich, type EnrichIndex, type PrecioAutorizado } from '@/core/enrich';
+import { usePreciosStore, autorizadosPorMaterial } from '@/store/preciosStore';
+import { usePendienteBloqueoStore } from '@/store/pendienteBloqueoStore';
 import { applyCatalogPriceFallback } from '@/core/analysis';
 import { inventarioDesdeDisponibilidad, sugerenciasDesdeSegPedidos } from '@/core/pedidos';
 import { filasResumenDisponibilidad } from '@/core/resumenDisponibilidad';
-import { filasInvCondicion, indiceRevision, lotesDeCondicion, type DetalleLotesCondicion, type Sustitucion, type InvAlmacenCentro } from '@/core/invCondicionLibros';
+import { filasInvCondicion, indiceRevision, lotesDeCondicion, type DetalleLotesCondicion, type EstadosRevision, type Sustitucion, type InvAlmacenCentro } from '@/core/invCondicionLibros';
 import { hojasDeLibro, usePedidosStore } from '@/store/pedidosStore';
 import { buildAbc, buildAbcPares, type AbcClass, type AbcResult } from '@/core/abc';
 import { estadosConsumoAsync, type IndiceEstados } from '@/core/consumoEstados';
@@ -66,6 +68,8 @@ export interface Analytics {
   facturacionError: string | null;
   /** Libre real por centro/almacén de los materiales en Revision (para el desglose del detalle de material). */
   invRevisionLibros: Record<string, InvAlmacenCentro[]>;
+  /** Status de la pestaña Revision (cada uno es una condición) por material, con su libre general 1030+1031+1060. */
+  estadosRevisionLibros: ReadonlyMap<string, EstadosRevision>;
   /** Facturación mensual por Centro/Almacén/Material (pestaña "Fac_Mensual_CAM")
    * — base del promedio por periodo en el detalle de Inventario. `null` si no
    * se ha sincronizado. */
@@ -80,6 +84,8 @@ export interface Analytics {
   /** Raw catalog InvConsolidado rows (real per-condición precioOferta, no
    * fallback merge) — used to prefer catalog prices over invCondicion's. */
   invConsolidadoCatalog: InvConsolidadoRow[];
+  /** Precios de oferta AUTORIZADOS en el módulo Precios, por material; sustituyen al `precioOferta` de la hoja (ver `preciosPorCondicion`). */
+  preciosAutorizados: ReadonlyMap<string, readonly PrecioAutorizado[]>;
   lotes: InvDetalleRow[];
   curmes: string;
   /** Clasificación ABC/Pareto de materiales y clientes por importe facturado
@@ -227,13 +233,13 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const facMensual = useMemo(() => (facMensualCam?.length ? buildFacMensual(facMensualCam) : null), [facMensualCam]);
   const condLibros = useMemo(() => {
     const hojas = Object.values(hojasSeg).filter((h) => h.libro === 'condicion' || h.libro === 'disponibilidad');
-    if (!hojas.some((h) => h.libro === 'condicion')) return { filas: [] as InvConsolidadoRow[], lotes: [] as InvDetalleRow[], detalle: {} as Record<string, DetalleLotesCondicion>, sustituciones: [] as Sustitucion[], invRevision: {} as Record<string, InvAlmacenCentro[]> };
-    const { filas, lotes, detalle, sustituciones, invRevision } = filasInvCondicion(hojas, {
+    if (!hojas.some((h) => h.libro === 'condicion')) return { filas: [] as InvConsolidadoRow[], lotes: [] as InvDetalleRow[], detalle: {} as Record<string, DetalleLotesCondicion>, sustituciones: [] as Sustitucion[], invRevision: {} as Record<string, InvAlmacenCentro[]>, estadosRevision: new Map<string, EstadosRevision>() };
+    const { filas, lotes, detalle, sustituciones, invRevision, estadosRevision } = filasInvCondicion(hojas, {
       sectorDe: (m) => enrich.matSector(m),
       grupoDe: (m) => enrich.matGrupo(m),
       precioDe: (m) => enrich.matPrecioOferta(m),
     });
-    return { filas, lotes: lotesDeCondicion(lotes), detalle, sustituciones, invRevision };
+    return { filas, lotes: lotesDeCondicion(lotes), detalle, sustituciones, invRevision, estadosRevision };
   }, [hojasSeg, enrich]);
   const invCondicionLibros = condLibros.filas;
   const revisionLibros = useMemo(() => indiceRevision(invCondicionLibros), [invCondicionLibros]);
@@ -241,10 +247,12 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const detalleLotesLibros = condLibros.detalle;
   const sustitucionesLibros = condLibros.sustituciones;
   const invRevisionLibros = condLibros.invRevision;
+  const estadosRevisionLibros = condLibros.estadosRevision;
+  const modoBloqueo = usePendienteBloqueoStore((s) => s.modo);
   const rssDisp = useMemo(() => {
     const dispo = hojasDeLibro(hojasSeg, 'disponibilidad')[0];
-    return dispo ? buildRSS(filasResumenDisponibilidad(dispo, hojasDeLibro(hojasSeg, 'pedidos')[0], facMensual)) : null;
-  }, [hojasSeg, facMensual]);
+    return dispo ? buildRSS(filasResumenDisponibilidad(dispo, hojasDeLibro(hojasSeg, 'pedidos')[0], facMensual, modoBloqueo)) : null;
+  }, [hojasSeg, facMensual, modoBloqueo]);
   const abc = useMemo(() => buildAbc(rf), [rf]);
   const precioDispersion = useMemo(() => (consumo?.length ? buildPrecioDispersion(consumo) : []), [consumo]);
   const mesesDisp = useMemo(() => mesesDisponibles(rf), [rf]);
@@ -256,6 +264,11 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     [inventarioCondicion, invConsolidadoCatalog, catalog],
   );
   const lotes = useMemo(() => [...(catalog?.invDetalle ?? []), ...(lotesCortaCaducidad ?? [])], [catalog, lotesCortaCaducidad]);
+  const propuestasPrecios = usePreciosStore((st) => st.propuestas);
+  const preciosAutorizados = useMemo(
+    () => autorizadosPorMaterial(propuestasPrecios, (m) => enrich.matCosto(m)),
+    [propuestasPrecios, enrich],
+  );
   const incrementoRows = useMemo(() => incremento?.rows ?? [], [incremento]);
 
   // ---- PUENTE a los libros ---------------------------------------------------------------------------------------------------------
@@ -279,8 +292,8 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
         bo: hayLibros ? boSeg : [],
         boSeg, boPedidos: boSeg, boByKey,
         rss: hayLibros ? rssDisp : null,
-        rssDisp, invCondicionLibros, revisionLibros, lotesLibros, detalleLotesLibros, sustitucionesLibros, invRevisionLibros, facturacion, facturacionCalculando, facturacionProgreso: facProgreso, facturacionError: facError, facMensual, facMensualCam, enrich,
-        invCondicion: hayLibros ? invCondicionLibros : [], invConsolidadoCatalog, lotes: hayLibros ? lotesLibros : [],
+        rssDisp, invCondicionLibros, revisionLibros, lotesLibros, detalleLotesLibros, sustitucionesLibros, invRevisionLibros, estadosRevisionLibros, facturacion, facturacionCalculando, facturacionProgreso: facProgreso, facturacionError: facError, facMensual, facMensualCam, enrich,
+        invCondicion: hayLibros ? invCondicionLibros : [], invConsolidadoCatalog, preciosAutorizados, lotes: hayLibros ? lotesLibros : [],
         curmes: hayLibros ? facturacion.rf?.curmes ?? '' : '',
         abc: hayLibros ? facturacion.abc : buildAbc(null),
         precioDispersion: hayLibros ? precioDispersionLibros : [],
@@ -288,10 +301,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       };
     }
     return {
-      result, rf, bo, boSeg, boPedidos, boByKey, rss, rssDisp, invCondicionLibros, revisionLibros, lotesLibros, detalleLotesLibros, sustitucionesLibros, invRevisionLibros, facturacion, facturacionCalculando, facturacionProgreso: facProgreso, facturacionError: facError, facMensual, facMensualCam, enrich, invCondicion, invConsolidadoCatalog, lotes, curmes: rf?.curmes ?? '', abc, precioDispersion,
+      result, rf, bo, boSeg, boPedidos, boByKey, rss, rssDisp, invCondicionLibros, revisionLibros, lotesLibros, detalleLotesLibros, sustitucionesLibros, invRevisionLibros, estadosRevisionLibros, facturacion, facturacionCalculando, facturacionProgreso: facProgreso, facturacionError: facError, facMensual, facMensualCam, enrich, invCondicion, invConsolidadoCatalog, preciosAutorizados, lotes, curmes: rf?.curmes ?? '', abc, precioDispersion,
       incrementoRows, mesesDisponibles: mesesDisp,
     };
-  }, [result, rf, bo, boSeg, boPedidos, boByKey, rss, rssDisp, invCondicionLibros, revisionLibros, lotesLibros, detalleLotesLibros, sustitucionesLibros, invRevisionLibros, facturacion, facturacionCalculando, facProgreso, facError, facMensual, facMensualCam, enrich, invCondicion, invConsolidadoCatalog, lotes, abc, precioDispersion, incrementoRows, mesesDisp, resultLibros, precioDispersionLibros]);
+  }, [result, rf, bo, boSeg, boPedidos, boByKey, rss, rssDisp, invCondicionLibros, revisionLibros, lotesLibros, detalleLotesLibros, sustitucionesLibros, invRevisionLibros, estadosRevisionLibros, facturacion, facturacionCalculando, facProgreso, facError, facMensual, facMensualCam, enrich, invCondicion, invConsolidadoCatalog, preciosAutorizados, lotes, abc, precioDispersion, incrementoRows, mesesDisp, resultLibros, precioDispersionLibros]);
 
   return <AnalyticsCtx.Provider value={value}>{children}</AnalyticsCtx.Provider>;
 }

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { KpiBand } from '@/components/layout/report';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -15,6 +15,7 @@ import { etiquetaCentro, etiquetaAlmacen } from '@/lib/nombres';
 import { usePanelStore } from '@/store/panelStore';
 import { DetalleLayout, InventarioColumna, TabsSugConsumo, AccionTotalesMaterial, ConsumoCostoPrecios } from './DetalleLayout';
 import { LotesOfertablesSection } from './OpcionesOferta';
+import type { LotesOfertados } from './MensajeEjecutivo';
 import { MaterialNavControl, type OpcionMaterial } from './MaterialNavControl';
 import { CentroNavControl } from './CentroNavControl';
 import { TendenciaCentro } from './TendenciaCentro';
@@ -31,6 +32,8 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
   const mostrarNombres = useVistaCentrosStore((s) => s.mostrarNombres);
   const centroTxt = etiquetaCentro(panel.centro, nombresCentros, mostrarNombres);
   const costoMetrica = useCostoMetrica(a, panel.material);
+  // Lotes que muestra (y marca) la tabla de materiales ofertables: alimentan el mensaje al ejecutivo de «Sugerencias / Consumo en este centro».
+  const [lotesOfertados, setLotesOfertados] = useState<LotesOfertados>({ visibles: [], seleccion: [], precioDe: () => 0 });
   // Un solo periodo para todo el módulo (no por material): al navegar entre
   // materiales con las flechas se conserva el rango elegido.
   const { periodo: periodoProm, setPeriodo: setPeriodoProm, esDefault: periodoDefault } = usePeriodoProm(a);
@@ -205,8 +208,8 @@ export function CeldaPanel({ panel, a, push }: { panel: Extract<Panel, { type: '
       )}
       abajo={(
         <>
-          <LotesOfertablesSection a={a} material={panel.material} centroPedido={panel.centro} push={push} />
-          <TabsSugConsumo sug={sug} cons={cons} a={a} push={push} titulo="Sugerencias / Consumo en este centro" />
+          <LotesOfertablesSection a={a} material={panel.material} centroPedido={panel.centro} push={push} onCambio={setLotesOfertados} />
+          <TabsSugConsumo sug={sug} cons={cons} a={a} push={push} titulo="Sugerencias / Consumo en este centro" lotes={lotesOfertados} material={panel.material} centro={centroTxt} descripcion={mo?.desc ?? a.enrich.matTexto(panel.material)} />
         <div className="mt-3">
           <Button variant="outline" size="sm" onClick={() => push({ type: 'materialTotales', material: panel.material })}>Ver totales del material</Button>
         </div>

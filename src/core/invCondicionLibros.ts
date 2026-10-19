@@ -187,8 +187,11 @@ function armarFila(
   };
 }
 
+/** Status de Revision de un material y su libre general. */
+export interface EstadosRevision { estados: string[]; libreGeneral: number }
+
 /** Una fila por material × condición con el inventario por centro; ver el encabezado del archivo. */
-export function filasInvCondicion(hojas: HojaIndexada[], o: OpcionesFilas = {}): { filas: InvConsolidadoRow[]; lotes: LoteCondicion[]; detalle: Record<string, DetalleLotesCondicion>; sustituciones: Sustitucion[]; invRevision: Record<string, InvAlmacenCentro[]> } {
+export function filasInvCondicion(hojas: HojaIndexada[], o: OpcionesFilas = {}): { filas: InvConsolidadoRow[]; lotes: LoteCondicion[]; detalle: Record<string, DetalleLotesCondicion>; sustituciones: Sustitucion[]; invRevision: Record<string, InvAlmacenCentro[]>; estadosRevision: Map<string, EstadosRevision> } {
   const hoy = o.hoy ?? new Date();
   const hoja = (nombre: string) => hojas.find((h) => h.libro === 'condicion' && h.hoja === nombre);
   const dispo = hojas.find((h) => h.libro === 'disponibilidad');
@@ -197,6 +200,8 @@ export function filasInvCondicion(hojas: HojaIndexada[], o: OpcionesFilas = {}):
   const detalle: Record<string, DetalleLotesCondicion> = {};
   /** Libre real por centro/almacén (1030/1031/1060, incluido el centro 1031) de los materiales en Revision. */
   const invRevision: Record<string, InvAlmacenCentro[]> = {};
+  /** Status de la pestaña "Revision" por material (cada Status es una condición) y su libre real general 1030+1031+1060. Nada se deduce. */
+  const estadosRevision = new Map<string, EstadosRevision>();
 
   // --- Corta caducidad: lotes clasificados, inventario = suma de Libre utilización por centro -----------------
   const hojaLotes = hoja('Corta caducidad');
@@ -226,6 +231,7 @@ export function filasInvCondicion(hojas: HojaIndexada[], o: OpcionesFilas = {}):
       const inv = vacioPorCentro();
       const tr = vacioPorCentro();
       for (const c of CENTERS) { inv[c] = sumaAlmacenes(libre, material, c); tr[c] = sumaAlmacenes(transito, material, c); }
+      if (statuses.length) estadosRevision.set(material, { estados: statuses, libreGeneral: libreMaterial.get(material) ?? 0 });
       const texto = fs.map((f) => String(f[iTexto] ?? '').trim()).find(Boolean) ?? '';
       invRevision[material] = CENTROS_LIBROS.flatMap((c) => ALMACENES_NORMAL.map((al) => ({ centro: c, almacen: al, cantidad: libre.get(`${material}|${c}|${al}`) ?? 0 }))).filter((x) => x.cantidad > 0);
       filas.push(armarFila(statuses.length ? statuses.join('/') : '(sin status)', material, texto, inv, tr, libre.get(`${material}|1031|1030`) ?? 0, 0, o, '', libreMaterial.get(material) ?? 0));
@@ -294,7 +300,7 @@ export function filasInvCondicion(hojas: HojaIndexada[], o: OpcionesFilas = {}):
   }
 
   filas.sort((a, b) => a.condicion.localeCompare(b.condicion, 'es') || a.material.localeCompare(b.material, 'es', { numeric: true }));
-  return { filas, lotes, detalle, sustituciones, invRevision };
+  return { filas, lotes, detalle, sustituciones, invRevision, estadosRevision };
 }
 
 /** Relación 1:1 de la hoja Sustituto; el inventario es el del SUSTITUTO (Libre real 1030+1031+1060). */

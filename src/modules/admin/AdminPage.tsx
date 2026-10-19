@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,10 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { toast } from '@/store/toastStore';
-import { MODULE_COLUMNS, MODULE_DETAILS } from '@/core/permissionsRegistry';
+import { MODULE_COLUMNS, MODULE_DETAILS, clasificarModulosAdmin, moduloDeRuta, unirModulos } from '@/core/permissionsRegistry';
+import { NAV, NAV_COMPLETO } from '@/components/layout/Sidebar';
+import { RUTAS_RETIRADAS, SOLO_LIBROS } from '@/lib/modoLibros';
 import type { PermissionRow, RoleRow } from '@/core/permissions';
 import {
-  listRoles, createRole, deleteRole, listModules, listAllowedUsers, inviteUser, setUserRole, removeUser,
+  listRoles, createRole, deleteRole, listModules, registrarModulos, listAllowedUsers, inviteUser, setUserRole, removeUser,
   listPermissionsFor, setPermission, clearPermission, listConnectors, setConnectorValue,
   type ModuleRow, type AllowedUserRow, type ConnectorRow,
 } from '@/services/permissionsService';
@@ -379,15 +381,28 @@ function PermissionsTab({ subjectType }: { subjectType: 'role' | 'user' }) {
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [users, setUsers] = useState<AllowedUserRow[]>([]);
   const [modules, setModules] = useState<ModuleRow[]>([]);
+  /** Módulos del menú que no se pudieron registrar en la base (sin esa fila no se les puede dar acceso a un rol). */
+  const [sinRegistrar, setSinRegistrar] = useState<string[]>([]);
   const [subjectId, setSubjectId] = useState('');
   const [rows, setRows] = useState<PermissionRow[]>([]);
   const [newRoleName, setNewRoleName] = useState('');
 
   useEffect(() => {
-    void Promise.all([listRoles(), listAllowedUsers(), listModules()]).then(([r, u, m]) => {
+    void Promise.all([listRoles(), listAllowedUsers(), listModules()]).then(async ([r, u, m]) => {
       setRoles(r);
       setUsers(u);
-      setModules(m);
+      // La lista sale del menú de la app, no solo de la base: cualquier módulo nuevo aparece aquí aunque nadie haya corrido su migración, y se
+      // registra solo en la base (los permisos necesitan esa fila).
+      const { todos, nuevos } = unirModulos(m, NAV_COMPLETO.map((i) => ({ key: i.moduleKey, label: i.label })));
+      setModules(todos);
+      if (!nuevos.length) return;
+      try {
+        await registrarModulos(nuevos);
+        toast.success('Módulos registrados', `${nuevos.map((x) => x.label).join(', ')}.`);
+      } catch (e) {
+        setSinRegistrar(nuevos.map((x) => x.key));
+        toast.error('No se pudieron registrar módulos nuevos', e instanceof Error ? e.message : String(e));
+      }
     });
   }, []);
 
@@ -396,6 +411,13 @@ function PermissionsTab({ subjectType }: { subjectType: 'role' | 'user' }) {
     setRows(await listPermissionsFor(subjectType, id));
   }, [subjectType]);
   useEffect(() => { void reloadRows(subjectId); }, [subjectId, reloadRows]);
+
+  // Solo se listan los módulos que existen en la app: los retirados (modo «solo libros») sin controles se ocultan; los que aún controlan columnas o
+  // detalles se marcan como «retirados»; y se avisa de los módulos del menú que no están en la base (no se les puede dar acceso a un rol).
+  const { visibles: modulosVisibles, ocultos: modulosOcultos } = useMemo(
+    () => clasificarModulosAdmin(modules, { retirados: new Set(SOLO_LIBROS ? RUTAS_RETIRADAS.map(moduloDeRuta) : []), enMenu: NAV.map((i) => i.moduleKey) }),
+    [modules],
+  );
 
   const rowFor = (moduleKey: string, scope: 'module' | 'column' | 'detail', itemKey: string) =>
     rows.find((r) => r.moduleKey === moduleKey && r.scope === scope && r.itemKey === itemKey);
@@ -472,13 +494,27 @@ function PermissionsTab({ subjectType }: { subjectType: 'role' | 'user' }) {
 
         {subjectId && (
           <div className="flex flex-col gap-3">
-            {modules.map((m) => {
+            {sinRegistrar.length > 0 && (
+              <p role="alert" className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+                Estos módulos están en el menú pero <b>no se pudieron registrar en la base</b>, así que todavía no se les puede dar acceso a un rol: <b>{sinRegistrar.join(', ')}</b>.
+                Revisa que tu usuario sea administrador y recarga esta pantalla.
+              </p>
+            )}
+            {modulosVisibles.map(({ modulo: m, estado, nota }) => {
+              const retirado = estado === 'retirado';
               const moduleRow = rowFor(m.key, 'module', '');
               const moduleAllowed = subjectType === 'role' ? (moduleRow?.allowed ?? false) : (moduleRow ? moduleRow.allowed : null);
               const columns = MODULE_COLUMNS[m.key] ?? [];
               const details = MODULE_DETAILS[m.key] ?? [];
               return (
-                <div key={m.key} className="rounded-md border border-border p-3">
+                <div key={m.key} className={`rounded-md border p-3 ${retirado ? 'border-dashed border-border bg-bg-inset/40' : 'border-border'}`}>
+                  {retirado ? (
+                    // Sin pantalla: la casilla de acceso no tendría ningún efecto, así que solo se muestran sus controles.
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                      {m.label}
+                      <span className="rounded-full border border-border bg-bg-elevated px-2 py-0.5 text-[10px] font-medium text-text-muted" title="Este módulo ya no aparece en el menú (modo «solo libros»)">Retirado del menú</span>
+                    </div>
+                  ) : (
                   <label className="flex items-center gap-2 text-sm font-medium">
                     <input
                       type="checkbox"
@@ -491,7 +527,9 @@ function PermissionsTab({ subjectType }: { subjectType: 'role' | 'user' }) {
                       <button type="button" className="text-[11px] text-accent" onClick={() => toggle(m.key, 'module', '', false, true)}>quitar override</button>
                     )}
                   </label>
-                  {(columns.length > 0 || details.length > 0) && (subjectType === 'role' ? moduleAllowed : true) && (
+                  )}
+                  {retirado && nota && <p className="mt-1 text-[11px] text-text-faint">{nota}</p>}
+                  {(columns.length > 0 || details.length > 0) && (retirado || (subjectType === 'role' ? moduleAllowed : true)) && (
                     <div className="mt-2 flex flex-col gap-1 pl-6">
                       {columns.map((c) => {
                         const r = rowFor(m.key, 'column', c.key);
@@ -520,6 +558,11 @@ function PermissionsTab({ subjectType }: { subjectType: 'role' | 'user' }) {
                 </div>
               );
             })}
+            {modulosOcultos.length > 0 && (
+              <p className="text-[11px] text-text-faint">
+                No se listan {modulosOcultos.length} módulo(s) retirado(s) del menú y sin controles: {modulosOcultos.map((m) => m.label).join(', ')}.
+              </p>
+            )}
           </div>
         )}
       </CardContent>

@@ -32,6 +32,7 @@ import { SolicitarContextMenu } from '@/modules/solicitudes/SolicitarContextMenu
 import { useSolicitudStore } from '@/store/solicitudStore';
 import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import { usePendienteBloqueoStore } from '@/store/pendienteBloqueoStore';
 import { useNombresStore, useVistaCentrosStore } from '@/store/nombresStore';
 import { etiquetaCentro } from '@/lib/nombres';
 import { ResumenSinContexto } from './ResumenSinContexto';
@@ -67,7 +68,19 @@ export function ResumenSinPage({ modo = 'sin' }: ResumenSinPageProps = {}) {
   const [q, setQ] = usePersistedState(`${ns}.q`, '');
   const [centroFiltro, setCentroFiltro] = usePersistedState(`${ns}.centro`, '');
   const [gerente, setGerente] = usePersistedState(`${ns}.gerente`, '');
+  const modoBloqueo = usePendienteBloqueoStore((s) => s.modo);
+  const setModoBloqueo = usePendienteBloqueoStore((s) => s.setModo);
   const [quick, setQuick] = useQuickFilters(`${ns}.quick`);
+  /** Suma un valor al filtro rápido de una columna (el mismo que arman los menús de columna). */
+  const addQuick = (col: string, valor: string) => {
+    if (!valor) return;
+    const i = quick.findIndex((f) => f.col === col);
+    if (i < 0) { setQuick([...quick, { col, values: [valor] }]); return; }
+    if (quick[i].values.includes(valor)) return;
+    const next = quick.slice();
+    next[i] = { col, values: [...quick[i].values, valor] };
+    setQuick(next);
+  };
   const [pendFiltro, setPendFiltro] = usePersistedState<'' | 'con' | 'sin'>(`${ns}.pend`, '');
   const [lentoFiltro, setLentoFiltro] = usePersistedState<'' | 'con' | 'sin'>(`${ns}.lento`, '');
   const [transitoFiltro, setTransitoFiltro] = usePersistedState<'' | 'con' | 'sin'>(`${ns}.transito`, '');
@@ -83,7 +96,7 @@ export function ResumenSinPage({ modo = 'sin' }: ResumenSinPageProps = {}) {
   const lblCentro = (c: string) => etiquetaCentro(c, nombresCentros, mostrarNombres);
   const zoom = useZoom(`${ns}_zoom`);
   const clearFilters = () => {
-    setQ(''); setGerente(''); setCentroFiltro(''); setQuick([]); setPendFiltro(''); setLentoFiltro(''); setTransitoFiltro(''); setCoberturaFiltro(''); setPasteCodes([]);
+    setQ(''); setGerente(''); setCentroFiltro(''); setQuick([]); setPendFiltro(''); setLentoFiltro(''); setTransitoFiltro(''); setCoberturaFiltro(''); setPasteCodes([]); setModoBloqueo('liberados');
   };
   const rss = disp ? a.rssDisp : a.rss;
   const qd = useDebouncedValue(q, 200);
@@ -271,6 +284,11 @@ export function ResumenSinPage({ modo = 'sin' }: ResumenSinPageProps = {}) {
         onCobertura={setCoberturaFiltro}
         onMaterial={(material) => open({ type: 'material', material })}
         onSector={(sector) => open({ type: 'sector', sector })}
+        onFiltrar={(campo, valor) => {
+          if (campo === 'gerente') { setGerente(valor === 'Sin gerente' ? '' : valor); return; }
+          addQuick(campo === 'grupoart' ? 'grupo' : campo, valor);
+        }}
+        storageKey={ns}
       />
 
       <FilterBar
@@ -306,6 +324,14 @@ export function ResumenSinPage({ modo = 'sin' }: ResumenSinPageProps = {}) {
           todos="Centro (todos)"
           options={centrosAll.filter((c) => c !== '1031').map((c) => ({ value: c, label: `Solo Centro ${lblCentro(c)} (+1031)` }))}
         />
+        {disp && (
+          <FilterSelect
+            value={modoBloqueo === 'liberados' ? '' : modoBloqueo}
+            onChange={(v) => setModoBloqueo(v === 'todos' || v === 'bloqueados' ? v : 'liberados')}
+            todos="Pedidos: solo liberados"
+            options={[{ value: 'todos', label: 'Pedidos: liberados + bloqueados' }, { value: 'bloqueados', label: 'Pedidos: solo bloqueados' }]}
+          />
+        )}
         <FilterSelect value={pendFiltro} onChange={setPendFiltro} todos="Pendiente (todos)" options={[{ value: 'con', label: 'Con pendiente' }, { value: 'sin', label: 'Sin pendiente' }]} />
         <FilterSelect value={lentoFiltro} onChange={setLentoFiltro} todos="Lento (todos)" options={[{ value: 'con', label: 'Solo lento' }, { value: 'sin', label: 'Sin lento' }]} />
         <FilterSelect value={transitoFiltro} onChange={setTransitoFiltro} todos="En tránsito (todos)" options={[{ value: 'con', label: 'Con tránsito' }, { value: 'sin', label: 'Sin tránsito' }]} />

@@ -153,6 +153,16 @@ describe('ejecutivos por zona (filtro)', () => {
     expect(etiquetaEjecutivoZona('VACANTE', 2).etiqueta).toBe('002 · VACANTE');
     expect(etiquetaEjecutivoZona('Ana Pérez', '101')).toMatchObject({ etiqueta: 'Ana Pérez', vacante: false });
   });
+  it('ejecutivoNombre (usado en todas las pantallas) muestra la zona de las vacantes y el nombre de los demás', () => {
+    const ej = (zona: string, ejecutivo: string, codOfVtas = '') => ({ zona, ejecutivo, codOfVtas });
+    const catalog = { ejecutivos: [ej('2', 'VACANTE', 'OF2'), ej('101', 'Ana Pérez'), ej('0', 'Vacante Norte')], materiales: [], invConsolidado: [], gerenciaMarca: [] } as unknown as CatalogSnapshot;
+    const e = buildEnrich(catalog);
+    expect(e.ejecutivoNombre('2')).toBe('002 · VACANTE');
+    expect(e.ejecutivoNombre('OF2')).toBe('002 · VACANTE'); // también por oficina de ventas
+    expect(e.ejecutivoNombre('0')).toBe('000 · Vacante Norte');
+    expect(e.ejecutivoNombre('101')).toBe('Ana Pérez');
+    expect(e.ejecutivoNombre('999')).toBe('');
+  });
   it('conserva el orden del catálogo (sin ordenar), una entrada por zona, y resuelve zona u oficina de ventas', () => {
     const ej = (zona: string, ejecutivo: string, codOfVtas = '') => ({ zona, ejecutivo, codOfVtas });
     const catalog = { ejecutivos: [ej('101', 'Zeta'), ej('0', 'Vacante A'), ej('2', 'Ana', 'OF9'), ej('2', 'Ana (dup)')], materiales: [], invConsolidado: [], gerenciaMarca: [] } as unknown as CatalogSnapshot;
@@ -162,5 +172,23 @@ describe('ejecutivos por zona (filtro)', () => {
     expect(e.zonaDeEjecutivo('002')).toBe('2');
     expect(e.zonaDeEjecutivo('OF9')).toBe('2');
     expect(e.zonaDeEjecutivo('999')).toBe('');
+  });
+});
+
+describe('preciosPorCondicion · precios autorizados (módulo Precios)', () => {
+  const rows = [mkRow({ material: '100', condicion: 'Corta caducidad', precioOferta: 90, invSuma: 5 })];
+  it('sin autorizados conserva el precio de la hoja', () => {
+    expect(preciosPorCondicion('100', rows, [])[0].precio).toBe(90);
+  });
+  it('el autorizado sustituye al de la hoja para esa condición', () => {
+    const aut = new Map([['100', [{ condicion: 'Corta caducidad', precio: 72.5 }]]]);
+    const out = preciosPorCondicion('100', rows, [], aut);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ condicion: 'Corta caducidad', precio: 72.5, inv: 5 });
+  });
+  it('una condición autorizada que la hoja no trae se agrega sin inventario', () => {
+    const aut = new Map([['100', [{ condicion: 'Corta caducidad + Lento movimiento', precio: 65 }]]]);
+    const out = preciosPorCondicion('100', rows, [], aut);
+    expect(out.map((r) => r.condicion).sort()).toEqual(['Corta caducidad', 'Corta caducidad + Lento movimiento']);
   });
 });

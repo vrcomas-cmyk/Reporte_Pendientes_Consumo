@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { KpiBand } from '@/components/layout/report';
 import { TrendBadge } from '../ui';
-import { DetalleLayout, InventarioColumna, HistorialConsumo, TabsSugConsumo, AccionTotalesMaterial } from './DetalleLayout';
+import { DetalleLayout, InventarioColumna, HistorialConsumo, TabsSugConsumo, AccionTotalesMaterial, ConsumoCostoPrecios } from './DetalleLayout';
+import { DesgloseAlmacenMaterial } from './DesgloseAlmacenMaterial';
+import type { LotesOfertados } from './MensajeEjecutivo';
 import { Section } from './_shared';
 import { useCostoMetrica } from './CostoMaterial';
 import { ControlesAB, TablaAB, usePeriodosAB } from './ComparaPeriodos';
@@ -20,6 +22,8 @@ export function MaterialPanel({ panel, a, push }: { panel: Extract<Panel, { type
   const { periodo, setPeriodo, esDefault } = usePeriodoProm(a);
   const filtro = panel.filtro;
   const costoMetrica = useCostoMetrica(a, mat);
+  // Lotes que muestra (y marca) la tabla de materiales ofertables: alimentan el mensaje al ejecutivo de Sugerencias / Consumo (igual que en el detalle por centro).
+  const [lotesOfertados, setLotesOfertados] = useState<LotesOfertados>({ visibles: [], seleccion: [], precioDe: () => 0 });
   const ab = usePeriodosAB();
   const { lotesF, totalUni, sug, cons, serie } = useMemo(() => {
     const lotesF = lotes.filter((l) => norm(l.material) === norm(mat));
@@ -98,14 +102,17 @@ export function MaterialPanel({ panel, a, push }: { panel: Extract<Panel, { type
       izquierda={<InventarioColumna a={a} material={mat} push={push} />}
       centro={(
         <>
-          <HistorialConsumo a={a} serie={serie} titulo="Facturación del material" costosMaterial={mat} onMonth={(mes) => push({ type: 'clientesMes', material: mat, mes })}>
+          <ConsumoCostoPrecios a={a} material={mat} />
+          <DesgloseAlmacenMaterial a={a} material={mat} />
+          <HistorialConsumo a={a} serie={serie} titulo="Facturación del material" plegableKey="material.tendencia" onMonth={(mes) => push({ type: 'clientesMes', material: mat, mes })}>
             <PromedioPeriodoSection a={a} material={mat} periodo={periodo} esDefault={esDefault} onChange={setPeriodo} />
           </HistorialConsumo>
         </>
       )}
       abajo={(
         <>
-          <TabsSugConsumo sug={sug} cons={cons} a={a} push={push} />
+          <LotesOfertablesSection a={a} material={mat} push={push} onCambio={setLotesOfertados} />
+          <TabsSugConsumo sug={sug} cons={cons} a={a} push={push} lotes={lotesOfertados} material={mat} centro="" descripcion={enrich.matTexto(mat)} />
           {clientesAB.length > 0 && (
             <Section ancho collapsible defaultOpen={false} storageKey="material.clientes.ab" tono="fac" origen="Resumen_Fac" title={`Clientes del material · ${clientesAB.length} · periodo A vs B · doble clic para ver al cliente`}>
               <ControlesAB ab={ab} />
@@ -113,7 +120,6 @@ export function MaterialPanel({ panel, a, push }: { panel: Extract<Panel, { type
                 filas={clientesAB.map((c) => ({ key: c.dest, titulo: c.razon || c.dest, sub: `Dest ${c.dest}`, serie: c.serie, onOpen: () => push({ type: 'clienteDetalle', dest: c.dest, material: mat }) }))} />
             </Section>
           )}
-          <LotesOfertablesSection a={a} material={mat} push={push} />
         </>
       )}
     />

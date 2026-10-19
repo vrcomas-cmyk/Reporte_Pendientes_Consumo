@@ -110,4 +110,26 @@ describe('pendiente liberado', () => {
     expect(f.importePendiente).toBe(50);
     expect(f.pedidos).toBe('1');
   });
+
+  it('el filtro de bloqueo permite sumar también los bloqueados o ver solo los bloqueados', () => {
+    const d = mkHoja('disponibilidad', [
+      ['Centro', 'Almacén', 'Material', 'Descripción', 'Libre Utilización', 'Cant. en Tránsito', 'Entrega a cliente'],
+      ['1001', '1030', '777', 'X', '10', '0', '0'],
+    ]);
+    const p = mkHoja('pedidos', [
+      ['Pedido', 'Centro', 'Almacén', 'Material', 'Texto Material', 'Pendiente', 'Precio', 'Sts. Créd.', 'Bloqueo Ent.'],
+      ['1', '1001', '1030', '777', 'X', '5', '10', '', ''], // liberado
+      ['2', '1001', '1030', '777', 'X', '3', '10', 'B', ''], // crédito
+      ['3', '1001', '1030', '777', 'X', '2', '10', '', '30'], // bloqueo de entrega
+    ]);
+    const fila = (modo?: 'liberados' | 'todos' | 'bloqueados') =>
+      filasResumenDisponibilidad(d, p, null, modo).find((r) => r.centro === '1001' && r.almacen === '1030' && r.material === '777')!;
+    expect(fila().cantidadPendiente).toBe(5); // por omisión: solo liberados
+    expect(fila('liberados').cantidadPendiente).toBe(5);
+    expect(fila('todos').cantidadPendiente).toBe(10);
+    expect(fila('todos').importePendiente).toBe(100);
+    expect(fila('todos').pedidos).toBe('3');
+    expect(fila('bloqueados').cantidadPendiente).toBe(5); // 3 + 2
+    expect(fila('bloqueados').pedidos).toBe('2');
+  });
 });

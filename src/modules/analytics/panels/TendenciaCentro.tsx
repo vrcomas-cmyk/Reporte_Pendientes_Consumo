@@ -50,7 +50,7 @@ export function TendenciaCentro({ a, material, centro, almacen, centroTxt, almTx
   return (
     <>
       {almacen && (
-        <Section ancho tono="fac" origen="Fac_Mensual_CAM" title={`Tendencia del material · Centro ${centroTxt} / Alm ${almTxt ?? almacen}`}>
+        <Section ancho collapsible defaultOpen={false} storageKey="celda.tendencia.alm" tono="fac" origen="Fac_Mensual_CAM" title={`Tendencia del material · Centro ${centroTxt} / Alm ${almTxt ?? almacen}`}>
           {serieAlm.length ? (
             <>
               <EvolChart serie={serieAlm} height={180} />
@@ -60,7 +60,7 @@ export function TendenciaCentro({ a, material, centro, almacen, centroTxt, almTx
           <button type="button" className="mt-1 text-xs text-accent hover:underline" onClick={onVerCentro}>Ver el centro completo →</button>
         </Section>
       )}
-      <Section ancho tono="fac" origen="Resumen_Fac" title={titulo}>
+      <Section ancho collapsible defaultOpen={false} storageKey="celda.tendencia" tono="fac" origen="Resumen_Fac" title={titulo}>
         {serie.length > 0 && <div className="mb-2"><TrendBadge t={tendenciaTexto(serie)} /></div>}
         <EvolChart serie={serie} height={180} onMonth={(mes) => push({ type: 'clientesMes', material, mes, ...(usaCentro ? { centro } : {}) })} />
         {rf && serie.length > 0 && <div className="mt-3"><ComparativaDual serie={serie} /></div>}

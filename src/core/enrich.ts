@@ -9,11 +9,19 @@
 import type { CatalogSnapshot, InvConsolidadoRow } from './types';
 import { norm } from '@/lib/text';
 
-/** Recolecta cada par distinto (condicion, precio oferta) para `material` desde InvConsolidado/Inventario por condicion. */
+/** Precio de oferta AUTORIZADO (módulo Precios) para un material y una condición (etiqueta visible, p. ej. "Corta caducidad"). */
+export interface PrecioAutorizado { condicion: string; precio: number }
+
+/** Etiqueta visible de una combinación del módulo Precios ('CC + Lento mov + PNC' → 'Corta caducidad + Lento mov + PNC'). */
+export const etiquetaCombinacion = (comb: string): string => comb.split(' + ').map((b) => (b === 'CC' ? 'Corta caducidad' : b)).join(' + ');
+
+/** Recolecta cada par distinto (condicion, precio oferta) para `material` desde InvConsolidado/Inventario por condicion.
+ * Si el módulo Precios tiene un precio AUTORIZADO para esa condición, sustituye al de la hoja (o se agrega si la hoja no trae esa condición). */
 export function preciosPorCondicion(
   material: string,
   invConsolidadoCatalog: InvConsolidadoRow[],
   invCondicion: InvConsolidadoRow[],
+  autorizados?: ReadonlyMap<string, readonly PrecioAutorizado[]>,
 ): { condicion: string; precio: number; inv: number }[] {
   const precioSource = invConsolidadoCatalog.some((r) => norm(r.material) === norm(material))
     ? invConsolidadoCatalog
@@ -26,7 +34,20 @@ export function preciosPorCondicion(
     cur.inv += r.invSuma;
     precioMap.set(key, cur);
   }
-  return [...precioMap.values()].sort((x, y) => y.precio - x.precio);
+  let out = [...precioMap.values()];
+  const aut = autorizados?.get(norm(material));
+  if (aut?.length) {
+    const porCond = new Map(aut.map((a) => [norm(a.condicion), a.precio]));
+    const usadas = new Set<string>();
+    out = out.map((r) => {
+      const p = porCond.get(norm(r.condicion));
+      if (p == null) return r;
+      usadas.add(norm(r.condicion));
+      return { ...r, precio: p };
+    });
+    for (const a of aut) if (!usadas.has(norm(a.condicion))) out.push({ condicion: a.condicion, precio: a.precio, inv: 0 });
+  }
+  return out.sort((x, y) => y.precio - x.precio);
 }
 
 /** Normalizes codes: strips a trailing ".0" and leading zeros so that
@@ -139,10 +160,13 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
   for (const e of catalog.ejecutivos) {
     // legacy joined ejecutivos by Zona; we also index by codOfVtas so both the
     // report's "Gpo.Vdor." (= zona) and "Cod Of Vtas" resolve to a name.
+    // Las VACANTES (el nombre dice "Vacante") se muestran SIEMPRE con su zona a 3 dígitos ("002 · VACANTE"), en todos los lugares donde sale el ejecutivo.
+    const nombreEjec = etiquetaEjecutivoZona(e.ejecutivo ?? '', e.zona || e.codOfVtas);
+    const visible = nombreEjec.vacante ? nombreEjec.etiqueta : e.ejecutivo;
     const zonaKey = normCode(e.zona);
-    if (zonaKey && !mapEjec.has(zonaKey) && e.ejecutivo) mapEjec.set(zonaKey, e.ejecutivo);
+    if (zonaKey && !mapEjec.has(zonaKey) && e.ejecutivo) mapEjec.set(zonaKey, visible);
     const codKey = normCode(e.codOfVtas);
-    if (codKey && !mapEjec.has(codKey) && e.ejecutivo) mapEjec.set(codKey, e.ejecutivo);
+    if (codKey && !mapEjec.has(codKey) && e.ejecutivo) mapEjec.set(codKey, visible);
     const gKey = normCode(e.gpoCte);
     if (gKey && !mapGrupo.has(gKey) && e.grupoCliente) mapGrupo.set(gKey, e.grupoCliente);
   }

@@ -1,6 +1,7 @@
 import * as React from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { cn } from '@/lib/utils';
+import { PortalContainerContext } from './portalContainer';
 
 const Popover = PopoverPrimitive.Root;
 const PopoverTrigger = PopoverPrimitive.Trigger;
@@ -9,8 +10,11 @@ const PopoverAnchor = PopoverPrimitive.Anchor;
 const PopoverContent = React.forwardRef<
   React.ElementRef<typeof PopoverPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
->(({ className, align = 'end', sideOffset = 4, ...props }, ref) => (
-  <PopoverPrimitive.Portal>
+>(({ className, align = 'end', sideOffset = 4, ...props }, ref) => {
+  // Dentro de un Sheet modal el popover se monta en el contenido del Sheet (en `body` no recibiría clics: ver PortalContainerContext).
+  const contenedor = React.useContext(PortalContainerContext);
+  return (
+  <PopoverPrimitive.Portal container={contenedor ?? undefined}>
     <PopoverPrimitive.Content
       ref={ref}
       align={align}
@@ -24,7 +28,8 @@ const PopoverContent = React.forwardRef<
       {...props}
     />
   </PopoverPrimitive.Portal>
-));
+  );
+});
 PopoverContent.displayName = PopoverPrimitive.Content.displayName;
 
 export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent };

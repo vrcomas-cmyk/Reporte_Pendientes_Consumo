@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
 
   Copy,
+  MessageSquare,
 
   Trash2,
 
@@ -43,6 +44,9 @@ import { HistorialConsumo } from './DetalleLayout';
 import { DetalleMosaico, ListaScroll, MetaField, Tile } from './DetalleMosaico';
 
 import { cn, formatCurrency, formatFechaCaducidad, formatNumber } from '@/lib/utils';
+import { esSustituto, textoCambioCodigo } from '@/core/ofertaSustituto';
+import { armarMensajePedido } from '@/core/mensajeEjecutivo';
+import { MensajePedido } from './MensajePedido';
 
 import { norm, num } from '../helpers';
 import { claveMaterial } from '@/core/pedidos';
@@ -126,6 +130,8 @@ export function PedidoPanel({
 
 
   const [seleccion, setSeleccion] = useState<Map<string, Map<string, Sugerencia>>>(new Map());
+  // Mensaje al ejecutivo (folio, materiales, lotes y condiciones elegidos): se muestra al pulsar «Generar mensaje».
+  const [verMensaje, setVerMensaje] = useState(false);
 
   // Ofertable (renglones de Seg. de pedidos): lotes de Corta caducidad con existencia, Revisión o Sustituto — el mismo criterio y el mismo
   // filtro "Considerar centros" que la columna Ofertable de la tabla principal.
@@ -393,13 +399,16 @@ export function PedidoPanel({
 
         const cad = f.fechaCaducidad ? formatFechaCaducidad(f.fechaCaducidad) : '—';
 
-        const precios = preciosPorCondicion(f.materialSugerido, a.invConsolidadoCatalog, a.invCondicion);
+        const precios = preciosPorCondicion(f.materialSugerido, a.invConsolidadoCatalog, a.invCondicion, a.preciosAutorizados);
 
         const precio = precios[0]?.precio || 0;
 
+        // Un sustituto (otro código que el del pedido) lleva delante la instrucción de qué código cambiar por cuál.
+        if (esSustituto(it.bo.materialBase, f.materialSugerido)) lineas.push(textoCambioCodigo(it.bo.materialBase, f.materialSugerido));
+
         lineas.push(
 
-          `${f.materialSugerido}\t${f.descripcionSugerida}\tLote ${f.lote || '—'}\tcad. ${cad}\t${precio ? formatCurrency(precio) : '—'}`,
+          [`${f.materialSugerido}${f.descripcionSugerida ? `	${f.descripcionSugerida}` : ''}`, ...(f.lote ? [`Lote ${f.lote}`] : []), ...(f.fechaCaducidad ? [`cad. ${cad}`] : []), ...(precio ? [formatCurrency(precio)] : [])].join('	'),
 
         );
 
@@ -416,6 +425,31 @@ export function PedidoPanel({
 
 
   const ejecutivoNombre = a.enrich.ejecutivoNombre(b0.gpoVdor) || b0.gpoVdor || '—';
+
+  // Mensaje del pedido: por cada renglón con lotes elegidos, esos lotes con su condición (sustituto / corta caducidad / otras).
+  const mensajePedido = verMensaje && totalSeleccion > 0
+    ? armarMensajePedido({
+      ejecutivo: a.enrich.ejecutivoNombre(b0.gpoVdor),
+      pedido: panel.pedido,
+      oc: b0.oc,
+      cliente: b0.razonSocial,
+      centro: b0.centroPedido,
+      items: items.map((it) => ({
+        material: it.bo.materialBase,
+        descripcion: it.bo.descripcionSolicitada,
+        pendiente: num(it.bo.cantidadPendiente),
+        lotes: [...(seleccion.get(it.k)?.values() ?? [])].map((f) => ({
+          material: f.materialSugerido,
+          descripcion: f.descripcionSugerida,
+          lote: f.lote,
+          caducidad: f.fechaCaducidad ? formatFechaCaducidad(f.fechaCaducidad) : '',
+          disponible: f.disponible,
+          precio: preciosPorCondicion(f.materialSugerido, a.invConsolidadoCatalog, a.invCondicion, a.preciosAutorizados)[0]?.precio || 0,
+          fuente: f.fuente,
+        })),
+      })),
+    })
+    : null;
 
 
 
@@ -853,11 +887,20 @@ export function PedidoPanel({
                 <button
                   type="button"
                   title="Limpiar selección"
-                  onClick={() => setSeleccion(new Map())}
+                  onClick={() => { setSeleccion(new Map()); setVerMensaje(false); }}
                   className="flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm text-text-muted transition-colors hover:border-danger/40 hover:text-danger"
                 >
                   <Trash2 className="size-4" />
                   Limpiar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVerMensaje(true)}
+                  title="Arma el mensaje para el ejecutivo con el folio, los materiales y los lotes elegidos"
+                  className="flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent-soft px-3 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent/20"
+                >
+                  <MessageSquare className="size-4" />
+                  Generar mensaje
                 </button>
                 <button
                   type="button"
@@ -870,6 +913,7 @@ export function PedidoPanel({
               </div>
             </div>
           )}
+          {mensajePedido && <MensajePedido mensaje={mensajePedido} onCerrar={() => setVerMensaje(false)} />}
         </Tile>
 
         {/* 2. Disponibilidad de inventario */}
