@@ -16,7 +16,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
-import { StatePill, TrendBadge, AbcBadge, ClienteOportunidadBadge, Chip, Ranking, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, MonthRangeFilter, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
+import { StatePill, TrendBadge, AbcBadge, ClienteOportunidadBadge, Chip, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, MonthRangeFilter, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { dateSortValue } from '@/lib/fechas';
 import { COLS_CONSUMO } from './columns';
 import { usePromedioModo, promedioDeFila } from './usePromedioModo';
@@ -35,6 +35,8 @@ import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { buildAbcPares, clavePar, type AbcClass } from '@/core/abc';
 import { buildPrecioDispersion } from '@/core/precios';
+import type { NivelFac, RenglonFac } from '@/core/facPorNivel';
+import { FacPorNivel } from './FacPorNivel';
 import { ReportPage, PageHeader, ExportButton, FilterBar, FilterSelect, SegmentedControl, ComparisonCard, KpiBand, ResumenColapsable, CollapsibleCard, CalculandoIndices, ALTURA_TABLA, SIN_DATOS } from '@/components/layout/report';
 import { etiquetaMes, resumirMeses } from '@/core/mesesSeleccion';
 import { MonthSetFilter } from '@/modules/analytics/ui/MonthSetFilter';
@@ -134,7 +136,6 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
   const [gruposOpen, setGruposOpen] = useState(false);
   const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>(`${ns}.periodo`, 'corriente');
   const [promedioModo, setPromedioModo] = usePromedioModo();
-  const [dispersionOpen, setDispersionOpen] = useState(false);
   const [cuadreOpen, setCuadreOpen] = useState(false);
   const [clearTick, setClearTick] = useState(0);
   // "Pegar materiales" estilo SAP — aditivo, no toca los filtros de arriba.
@@ -397,9 +398,14 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
     return out.sort((x, y) => y.imp - x.imp);
   };
 
-  const rankMat = useMemo(() => {
+  // Dispersión de precios entre clientes distintos, para el mismo material (precio unitario vigente de cada cliente).
+  const dispersionBase = useMemo(() => (fac ? buildPrecioDispersion(rows) : a.precioDispersion), [fac, rows, a.precioDispersion]);
+
+  // Facturación promedio mensual por Gerente / Sector / Grupo de artículo / Material, con la dispersión: una fila por material del filtro actual
+  // (importe y piezas facturados en la ventana); `FacPorNivel` los agrupa y desglosa.
+  const renglonesFac = useMemo<RenglonFac[]>(() => {
     if (!a.rf) return [];
-    const { lo, hi, nMeses } = ventana;
+    const { lo, hi } = ventana;
     const seen = new Set<string>();
     const acc = new Map<string, { imp: number; cant: number }>();
     for (const r of filteredAgg) {
@@ -415,48 +421,23 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
         acc.set(m, o);
       }
     }
-    return [...acc.entries()]
-      .map(([m, s]) => ({ code: m, desc: a.rf?.matTexto.get(m) || '', val: s.imp / nMeses, valSub: s.cant / nMeses, tip: `Total ${formatCurrency(s.imp)} ÷ ${nMeses} meses · ${formatNumber(s.cant)} pzas en total` }))
-      .sort((x, y) => y.val - x.val).slice(0, 10);
-  }, [filteredAgg, a.rf, ventana]);
-
-  // Dispersión de precios entre clientes distintos, para el mismo material,
-  // acotada a los materiales visibles bajo el filtro actual — así "Buscar" o
-  // los filtros rápidos también recortan esta tabla, no solo la principal.
-  const dispersionBase = useMemo(() => (dispersionOpen ? (fac ? buildPrecioDispersion(rows) : a.precioDispersion) : []), [dispersionOpen, fac, rows, a.precioDispersion]);
-  const dispersionShown = useMemo(() => {
-    if (!dispersionOpen) return [];
-    if (!filtered.length || filtered.length === rows.length) return dispersionBase.slice(0, 30);
-    const visibles = new Set(filtered.map((r) => norm(r.material)));
-    return dispersionBase.filter((e) => visibles.has(e.material)).slice(0, 30);
-  }, [dispersionOpen, dispersionBase, filtered, rows.length]);
-
-  // #8: top ranking is now Sector-level (with trend), moved above the fold.
-  const rankSector = useMemo(() => {
-    if (!a.rf) return [];
-    const { lo, hi, nMeses } = ventana;
-    const seen = new Set<string>();
-    const bySector = new Map<string, Map<string, { mes: string; cant: number; imp: number }>>();
-    for (const r of filteredAgg) {
-      const k = norm(r.destinatario) + '||' + norm(r.material);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      const sector = ce.sector(r) || '(sin sector)';
-      let bucket = bySector.get(sector);
-      if (!bucket) { bucket = new Map(); bySector.set(sector, bucket); }
-      for (const p of serieFacturada(a.rf, r)) {
-        const c = bucket.get(p.mes) || { mes: p.mes, cant: 0, imp: 0 };
-        c.cant += p.cant; c.imp += p.imp; bucket.set(p.mes, c);
-      }
-    }
-    return [...bySector.entries()].map(([sector, bucket]) => {
-      const serie = [...bucket.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
-      let imp12 = 0, cant12 = 0;
-      serie.forEach((x) => { const mk = mesKey(x.mes); if (mk >= lo && mk <= hi) { imp12 += x.imp; cant12 += x.cant; }}) ;
-      const t = tendenciaTexto(serie);
-      return { code: sector, desc: t.txt, val: imp12 / nMeses, valSub: cant12 / nMeses, tip: `Total ${formatCurrency(imp12)} ÷ ${nMeses} meses · ${formatNumber(cant12)} pzas en total` };
-    }).filter((x) => x.val > 0).sort((x, y) => y.val - x.val).slice(0, 10);
-  }, [filteredAgg, a.rf, ce, ventana]);
+    const dispPorMat = new Map(dispersionBase.map((e) => [e.material, e]));
+    const gerentePorSector = new Map<string, string>();
+    const gerenteDe = (sector: string) => {
+      let g = gerentePorSector.get(sector);
+      if (g === undefined) { g = a.enrich.gerentes.find((x) => a.enrich.sectorDeGerente(sector, x)) ?? ''; gerentePorSector.set(sector, g); }
+      return g;
+    };
+    return [...acc.entries()].map(([m, st]): RenglonFac => {
+      const sector = a.enrich.matSector(m);
+      const e = dispPorMat.get(m);
+      return {
+        material: m, descripcion: a.rf?.matTexto.get(m) || a.enrich.matTexto(m), gerente: gerenteDe(sector), sector, grupo: a.enrich.matGrupo(m),
+        imp: st.imp, cant: st.cant,
+        dispersion: e ? { spread: e.spread, precioMin: e.precioMin, precioMax: e.precioMax, clienteMin: e.clienteMin.razonSocial || e.clienteMin.destinatario, clienteMax: e.clienteMax.razonSocial || e.clienteMax.destinatario, nClientes: e.nClientes } : null,
+      };
+    });
+  }, [filteredAgg, a.rf, a.enrich, ventana, dispersionBase]);
 
   // #6: nueva/reactiva counts for both the current AND the previous quarter, always
   // relative to today's date (mesRefQAnterior derives the previous-quarter reference
@@ -507,6 +488,15 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
 
   // Snapshot de lo que ve el ranking al hacer click: pares destinatario+material
   // de las filas filtradas (opcionalmente acotadas por sector/material) + ventana.
+  /** Clic en una fila de «Facturación promedio mensual por …»: sector / material abren su detalle (con la ventana y los clientes del filtro), grupo abre
+   * su detalle y gerente filtra esta tabla. */
+  const alAbrirNivel = (nivel: NivelFac, valor: string) => {
+    if (nivel === 'sector') abrirConFiltro('sector', valor === 'Sin sector' ? '(sin sector)' : valor);
+    else if (nivel === 'material') abrirConFiltro('material', valor);
+    else if (nivel === 'grupoart') open({ type: 'grupo', grupo: valor });
+    else if (valor !== 'Sin gerente') setGerente(valor);
+  };
+
   const abrirConFiltro = (tipo: 'sector' | 'material', valor: string) => {
     const seen = new Set<string>();
     const pares: string[] = [];
@@ -690,8 +680,39 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
         <EvolChart serie={aggSerie} height={160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes) })} />
       </CollapsibleCard>
 
-      <Ranking collapsible storageKey={`${ns}.rankSector.open`} title={`Sectores · fact. promedio mensual (${ventana.etiqueta}) · $/mes y pzas/mes`} items={rankSector} subLabel="pzas/mes" money wide onRow={(s) => abrirConFiltro('sector', s)} />
-      <Ranking collapsible storageKey={`${ns}.rankMat.open`} title={`Materiales · fact. promedio mensual (${ventana.etiqueta}) · $/mes y pzas/mes`} items={rankMat} subLabel="pzas/mes" money wide onRow={(m) => abrirConFiltro('material', m)} />
+      <FacPorNivel renglones={renglonesFac} nMeses={ventana.nMeses} ventana={ventana.etiqueta} storageKey={ns} onNodo={alAbrirNivel} />
+
+      <div className="rounded-xl border border-border">
+        <button onClick={() => setGruposOpen(!gruposOpen)} className="flex w-full items-center justify-between p-3 text-sm font-medium">
+          <span>Nuevas compras y reactivaciones por Grupo de artículo{gruposOpen && <> · {grupos.reduce((s, g) => s + g.nueva, 0)} nuevas · {grupos.reduce((s, g) => s + g.reactiva, 0)} reactivaciones</>}</span>
+          <ChevronDown className={`size-4 transition-transform ${gruposOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {gruposOpen && (
+          <div className="max-h-72 overflow-auto border-t border-border">
+            <Table wrapperClassName="overflow-visible">
+              <TableHeader><TableRow>
+                <TableHead>Grupo</TableHead>
+                <TableHead className="text-right">Nueva (actual)</TableHead><TableHead className="text-right">Nueva (Q pasado)</TableHead>
+                <TableHead className="text-right">Reactiva (actual)</TableHead><TableHead className="text-right">Reactiva (Q pasado)</TableHead>
+                <TableHead className="text-right"># Solic.</TableHead><TableHead className="text-right">Fact. 12m</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {grupos.map((g) => (
+                  <TableRow key={g.grupo} className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'grupo', grupo: g.grupo })}>
+                    <TableCell><span className="text-text">{g.grupo}</span></TableCell>
+                    <TableCell className="text-right text-info">{g.nueva || '—'}</TableCell>
+                    <TableCell className="text-right text-text-faint">{g.nuevaPrev || '—'}</TableCell>
+                    <TableCell className="text-right text-info">{g.reactiva || '—'}</TableCell>
+                    <TableCell className="text-right text-text-faint">{g.reactivaPrev || '—'}</TableCell>
+                    <TableCell className="text-right">{g.solics}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(g.imp12)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
 
       <Card className={`${ALTURA_TABLA} shrink-0 overflow-hidden`}>
         <div ref={scrollRef} className="h-full overflow-auto">
@@ -779,6 +800,8 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
         </div>
       </Card>
 
+
+
       {/* Detalle de apoyo (plegable): cuadre contra Resumen_Fac, dispersión de precios y grupos */}
       <div className="rounded-xl border border-border">
         <button onClick={() => setCuadreOpen(!cuadreOpen)} className="flex w-full items-center justify-between p-3 text-sm font-medium">
@@ -805,134 +828,6 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-      </div>
-
-      <div className="rounded-xl border border-border">
-        <button
-          onClick={() => setDispersionOpen(!dispersionOpen)}
-          className="flex w-full items-center justify-between p-3 text-sm font-medium"
-        >
-          <span>
-            Dispersión de precios entre clientes · mismo material, precio muy distinto{dispersionOpen && <> · {dispersionShown.length}</>}
-          </span>
-
-          <ChevronDown
-            className={`size-4 transition-transform ${
-              dispersionOpen ? 'rotate-180' : ''
-            }`}
-          />
-        </button>
-
-        {dispersionOpen && (
-          <div className="border-t border-border">
-            {dispersionShown.length === 0 ? (
-              <p className="p-3 text-xs text-text-faint">
-                Sin dispersión detectada (o ningún material del filtro actual tiene 2+ clientes con precio vigente).
-              </p>
-            ) : (
-              <Table wrapperClassName="max-h-64">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Material</TableHead>
-                    <TableHead className="text-right">Spread</TableHead>
-                    <TableHead>Paga menos</TableHead>
-                    <TableHead>Paga más</TableHead>
-                    <TableHead className="text-right"># Clientes</TableHead>
-                  </TableRow>
-                </TableHeader>
-
-                <TableBody>
-                  {dispersionShown.map((e) => (
-                    <TableRow
-                      key={e.material}
-                      className="cursor-pointer"
-                      title="Doble clic para ver detalle"
-                      onDoubleClick={() =>
-                        open({ type: 'material', material: e.material })
-                      }
-                    >
-                      <TableCell>
-                        <Chip
-                          onClick={() =>
-                            open({ type: 'material', material: e.material })
-                          }
-                        >
-                          {e.material}
-                        </Chip>
-
-                        <div className="max-w-64 truncate text-[11px] text-text-faint">
-                          {e.descripcion}
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <span
-                          className={
-                            e.spread > 1
-                              ? 'font-medium text-danger'
-                              : 'font-medium text-warning'
-                          }
-                        >
-                          +{(e.spread * 100).toFixed(0)}%
-                        </span>
-                      </TableCell>
-
-                      <TableCell className="max-w-48 truncate">
-                        {e.clienteMin.razonSocial || e.clienteMin.destinatario}
-                        <div className="text-[11px] text-text-faint">
-                          {formatCurrency(e.clienteMin.precioUnitario)}
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="max-w-48 truncate">
-                        {e.clienteMax.razonSocial || e.clienteMax.destinatario}
-                        <div className="text-[11px] text-text-faint">
-                          {formatCurrency(e.clienteMax.precioUnitario)}
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        {e.nClientes}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="rounded-xl border border-border">
-        <button onClick={() => setGruposOpen(!gruposOpen)} className="flex w-full items-center justify-between p-3 text-sm font-medium">
-          <span>Nuevas compras y reactivaciones por Grupo de artículo{gruposOpen && <> · {grupos.reduce((s, g) => s + g.nueva, 0)} nuevas · {grupos.reduce((s, g) => s + g.reactiva, 0)} reactivaciones</>}</span>
-          <ChevronDown className={`size-4 transition-transform ${gruposOpen ? 'rotate-180' : ''}`} />
-        </button>
-        {gruposOpen && (
-          <div className="max-h-72 overflow-auto border-t border-border">
-            <Table wrapperClassName="overflow-visible">
-              <TableHeader><TableRow>
-                <TableHead>Grupo</TableHead>
-                <TableHead className="text-right">Nueva (actual)</TableHead><TableHead className="text-right">Nueva (Q pasado)</TableHead>
-                <TableHead className="text-right">Reactiva (actual)</TableHead><TableHead className="text-right">Reactiva (Q pasado)</TableHead>
-                <TableHead className="text-right"># Solic.</TableHead><TableHead className="text-right">Fact. 12m</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>
-                {grupos.map((g) => (
-                  <TableRow key={g.grupo} className="cursor-pointer" title="Doble clic para ver detalle" onDoubleClick={() => open({ type: 'grupo', grupo: g.grupo })}>
-                    <TableCell><span className="text-text">{g.grupo}</span></TableCell>
-                    <TableCell className="text-right text-info">{g.nueva || '—'}</TableCell>
-                    <TableCell className="text-right text-text-faint">{g.nuevaPrev || '—'}</TableCell>
-                    <TableCell className="text-right text-info">{g.reactiva || '—'}</TableCell>
-                    <TableCell className="text-right text-text-faint">{g.reactivaPrev || '—'}</TableCell>
-                    <TableCell className="text-right">{g.solics}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(g.imp12)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
           </div>
         )}
       </div>
