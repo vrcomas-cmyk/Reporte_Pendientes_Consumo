@@ -3,6 +3,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PortalContainerContext } from './portalContainer';
 
 const Sheet = DialogPrimitive.Root;
 const SheetTrigger = DialogPrimitive.Trigger;
@@ -32,17 +33,28 @@ export interface SheetContentProps
     VariantProps<typeof sheetVariants> {}
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Content>, SheetContentProps>(
-  ({ side = 'right', className, children, ...props }, ref) => (
-    <SheetPortal>
-      <SheetOverlay />
-      <DialogPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), 'overflow-y-auto', className)} {...props}>
-        {children}
-        <DialogPrimitive.Close aria-label="Cerrar" className="absolute right-4 top-4 rounded-sm opacity-60 transition-opacity hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">
-          <X className="size-4" />
-        </DialogPrimitive.Close>
-      </DialogPrimitive.Content>
-    </SheetPortal>
-  ),
+  ({ side = 'right', className, children, ...props }, ref) => {
+    // El contenido del Sheet es el contenedor de los popovers que se abran dentro (ver `PortalContainerContext`).
+    const [contenedor, setContenedor] = React.useState<HTMLElement | null>(null);
+    const setRefs = React.useCallback((node: HTMLDivElement | null) => {
+      setContenedor(node);
+      if (typeof ref === 'function') ref(node);
+      else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+    }, [ref]);
+    return (
+      <SheetPortal>
+        <SheetOverlay />
+        <DialogPrimitive.Content ref={setRefs} className={cn(sheetVariants({ side }), 'overflow-y-auto', className)} {...props}>
+          <PortalContainerContext.Provider value={contenedor}>
+            {children}
+          </PortalContainerContext.Provider>
+          <DialogPrimitive.Close aria-label="Cerrar" className="absolute right-4 top-4 rounded-sm opacity-60 transition-opacity hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">
+            <X className="size-4" />
+          </DialogPrimitive.Close>
+        </DialogPrimitive.Content>
+      </SheetPortal>
+    );
+  },
 );
 SheetContent.displayName = DialogPrimitive.Content.displayName;
 

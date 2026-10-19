@@ -47,6 +47,7 @@ const SegPedidosPage = lazy(() => import('@/modules/segPedidos/SegPedidosPage').
 const ConsumoPage = lazy(() => import('@/modules/consumo/ConsumoPage').then((m) => ({ default: m.ConsumoPage })));
 const ResumenSinPage = lazy(() => import('@/modules/resumenSin/ResumenSinPage').then((m) => ({ default: m.ResumenSinPage })));
 const AnalisisPage = lazy(() => import('@/modules/analisis/AnalisisPage').then((m) => ({ default: m.AnalisisPage })));
+const PreciosPage = lazy(() => import('@/modules/precios/PreciosPage').then((m) => ({ default: m.PreciosPage })));
 const IncrementoPage = lazy(() => import('@/modules/incremento/IncrementoPage').then((m) => ({ default: m.IncrementoPage })));
 const AnalisisDirectivoPage = lazy(() => import('@/modules/analisisDirectivo/AnalisisDirectivoPage').then((m) => ({ default: m.AnalisisDirectivoPage })));
 const SolicitudesPage = lazy(() => import('@/modules/solicitudes/SolicitudesPage').then((m) => ({ default: m.SolicitudesPage })));
@@ -105,6 +106,7 @@ function App() {
                   {SOLO_LIBROS && RUTAS_RETIRADAS.map((p) => <Route key={p} path={p} element={<Navigate to="/seg-pedidos" replace />} />)}
                   {!SOLO_LIBROS && <Route path="/resumen-sin" element={<ModuleGuard moduleKey="resumen-sin"><Suspense fallback={<RouteFallback />}><ResumenSinPage /></Suspense></ModuleGuard>} />}
                   <Route path="/analisis" element={<ModuleGuard moduleKey="analisis"><Suspense fallback={<RouteFallback />}><AnalisisPage /></Suspense></ModuleGuard>} />
+                  <Route path="/precios" element={<ModuleGuard moduleKey="precios"><Suspense fallback={<RouteFallback />}><PreciosPage /></Suspense></ModuleGuard>} />
                   <Route path="/incremento" element={<ModuleGuard moduleKey="incremento"><Suspense fallback={<RouteFallback />}><IncrementoPage /></Suspense></ModuleGuard>} />
                   <Route path="/analisis-directivo" element={<ModuleGuard moduleKey="analisis-directivo"><Suspense fallback={<RouteFallback />}><AnalisisDirectivoPage /></Suspense></ModuleGuard>} />
                   <Route path="/comparativo" element={<ModuleGuard moduleKey="comparativo"><Suspense fallback={<RouteFallback />}><ComparativoPage /></Suspense></ModuleGuard>} />

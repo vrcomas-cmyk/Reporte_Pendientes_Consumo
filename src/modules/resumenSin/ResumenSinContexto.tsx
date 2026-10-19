@@ -13,6 +13,7 @@ import { COBERTURA_LABEL, COBERTURA_CLS, COBERTURA_HELP, type CoberturaEstado, t
 import { mesKey, serieMaterial, type Serie } from '@/core/resumenFac';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import type { Analytics } from '@/modules/analytics/AnalyticsContext';
+import { PendientePorNivel, type RenglonPendiente } from '@/modules/sugerencias/PendientePorNivel';
 
 const SEG: Record<CoberturaEstado, string> = {
   quiebre: 'bg-danger', inmovilizado: 'bg-warning', exceso: 'bg-warning/50', aceptable: 'bg-info/50', sano: 'bg-success', sinDatos: 'bg-border',
@@ -23,7 +24,7 @@ const NO_1031 = 'No incluye Centro 1031 (hub de distribución).';
 /** Contexto superior de Resumen Sin: hero de salud de cobertura (barra
  * clicable que filtra la tabla) + pestañas Cobertura / Por centro /
  * Rankings / Facturación, todo sobre los materiales YA filtrados. */
-export function ResumenSinContexto({ list, a, lblCentro, coberturaFiltro, onCobertura, onMaterial, onSector }: {
+export function ResumenSinContexto({ list, a, lblCentro, coberturaFiltro, onCobertura, onMaterial, onSector, onFiltrar, storageKey }: {
   list: RSSMaterial[];
   a: Analytics;
   lblCentro: (c: string) => string;
@@ -31,10 +32,30 @@ export function ResumenSinContexto({ list, a, lblCentro, coberturaFiltro, onCobe
   onCobertura: (e: '' | CoberturaEstado) => void;
   onMaterial: (material: string) => void;
   onSector: (sector: string) => void;
+  /** Clic en un gerente / sector / grupo del Top pendiente: filtra la tabla. */
+  onFiltrar: (campo: 'gerente' | 'sector' | 'grupoart', valor: string) => void;
+  /** Prefijo de persistencia del Top pendiente (distinto en Inventario y en Inventario · Disponibilidad). */
+  storageKey: string;
 }) {
   const [tab, setTab] = usePersistedState('resumenSin.contextoTab', 'cobertura');
   const [chartCentro, setChartCentro] = useState<'unidades' | 'riesgo'>('unidades');
   const ctx = useMemo(() => computeContexto(list, (m) => a.enrich.matSector(m)), [list, a.enrich]);
+  // Renglones del Top pendiente: el pendiente (cantidad e importe) de cada material visible, sumado en todos sus centros.
+  const renglonesPend = useMemo<RenglonPendiente[]>(() => {
+    const gerenteDeSector = new Map<string, string>();
+    const gerenteDe = (sector: string) => {
+      let g = gerenteDeSector.get(sector);
+      if (g === undefined) { g = a.enrich.gerentes.find((x) => a.enrich.sectorDeGerente(sector, x)) ?? ''; gerenteDeSector.set(sector, g); }
+      return g;
+    };
+    return list.map((mo) => {
+      let qty = 0;
+      let imp = 0;
+      for (const co of mo.centros.values()) { qty += co.pend; imp += co.impPend; }
+      const sector = a.enrich.matSector(mo.material);
+      return { material: mo.material, descripcion: mo.desc, gerente: gerenteDe(sector), sector, grupo: a.enrich.matGrupo(mo.material), qty, imp };
+    });
+  }, [list, a.enrich]);
   const critico = ctx.quiebreUrgente > 0;
   const clasificados = ctx.estados.filter((e) => e.count > 0);
 
@@ -94,6 +115,7 @@ export function ResumenSinContexto({ list, a, lblCentro, coberturaFiltro, onCobe
           <TabsTrigger value="cobertura">Cobertura</TabsTrigger>
           <TabsTrigger value="centros">Por centro</TabsTrigger>
           <TabsTrigger value="rankings">Rankings críticos</TabsTrigger>
+          <TabsTrigger value="pendiente">Top pendiente</TabsTrigger>
           <TabsTrigger value="facturacion">Facturación</TabsTrigger>
         </TabsList>
 
@@ -169,6 +191,10 @@ export function ResumenSinContexto({ list, a, lblCentro, coberturaFiltro, onCobe
             <Ranking collapsible storageKey="resumenSin.rankMat.open" title="Materiales · importe pendiente en quiebre urgente" items={ctx.topQuiebre} money wide onRow={onMaterial} />
             <Ranking collapsible storageKey="resumenSin.rankSector.open" title="Sectores · pares en quiebre urgente" items={ctx.sectoresQuiebre} wide onRow={onSector} />
           </div>
+        </TabsContent>
+
+        <TabsContent value="pendiente">
+          <PendientePorNivel renglones={renglonesPend} storageKey={storageKey} onMaterial={onMaterial} onFiltrar={onFiltrar} />
         </TabsContent>
 
         <TabsContent value="facturacion">

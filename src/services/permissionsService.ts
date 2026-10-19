@@ -173,3 +173,11 @@ export async function setConnectorValue(key: string, value: string, updatedBy: s
     .eq('key', key);
   if (error) throw error;
 }
+
+/** Registra en la base los módulos del menú que aún no existen (solo admin por RLS). No pisa etiqueta ni orden de los que ya están. */
+export async function registrarModulos(modulos: readonly ModuleRow[]): Promise<void> {
+  if (!modulos.length) return;
+  const { error } = await supabase.from('degasa_modules')
+    .upsert(modulos.map((m) => ({ key: m.key, label: m.label, sort_order: m.sortOrder })), { onConflict: 'key', ignoreDuplicates: true });
+  if (error) throw error;
+}

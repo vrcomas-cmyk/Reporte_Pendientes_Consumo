@@ -6,7 +6,7 @@ import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } 
 import { useTilesOcultosStore } from '@/store/tilesOcultosStore';
 import { useCostoMetrica } from './CostoMaterial';
 import { usePersistedState } from '@/hooks/usePersistedState';
-import { StatePill, Chip, TrendBadge, AbcBadge, DetailChevron, SuggestInput, useColumnVisibility, ColumnVisibilityControl } from '../ui';
+import { StatePill, Chip, TrendBadge, AbcBadge, DetailChevron, SuggestInput, useColumnVisibility, ColumnVisibilityControl, ColumnFilterBar, ColumnFilterMenuMulti, passesFilters, type ActiveFilter, type FilterColumn } from '../ui';
 import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
 import { matchesQuery, num, norm, consumoSerie, consumoStatus, consumoTend, consumoEnrich, transitoFor, buildConsumoIndex, consumoKey } from '../helpers';
 import { consumoDe, mesLabel } from '@/core/resumenFac';
@@ -32,6 +32,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useAnalytics } from '../AnalyticsContext';
 import { MaterialInventarioSection } from './MaterialInventario';
 import { CondicionesMaterialSection } from './CondicionesMaterial';
+import { ComparaCostoSustituto } from './ComparaCostoSustituto';
 
 /** Normaliza una fecha de caducidad y la convierte en un texto legible con clase de color (rojo/ámbar/verde) según los días restantes. */
 export function vigenciaTxt(fecha: string): { txt: string; cls: string } | null {
@@ -63,6 +64,38 @@ export function SubFilter({ value, onChange, placeholder = 'Filtrar…' }: { val
   );
 }
 
+/** Selección de filas (casillas) de las subtablas de Sugerencias / Consumo. Sin ella no hay columna de casillas. */
+export interface SeleccionFilas {
+  isSelected: (key: string) => boolean;
+  onToggle: (key: string) => void;
+  /** Marca o desmarca todas las filas que pasan los filtros. */
+  onToggleAll: (keys: string[], on: boolean) => void;
+}
+
+/** Qué columnas de filtro cuelgan del embudo de cada encabezado de la subtabla de Sugerencias (igual que Seg. de pedidos). */
+const COL_FILTRO_SUG: Record<string, string[]> = {
+  ejecutivo: ['ejecutivo', 'grupocli'], pedido: ['pedido', 'oc'], fecha: ['fecha'], cliente: ['cliente', 'solicitante', 'destinatario'],
+  centro: ['centro', 'almacen'], material: ['material'], sector: ['sector', 'grupoart', 'gerente'], cantped: ['cantped'], pend: ['pend'], precio: ['precio'],
+  consumo: ['consumo'], inv1030: ['inv1030'], inv1031: ['inv1031'], inv1032: ['inv1032'], inv1060: ['inv1060'], bloq: ['bloq'], estado: ['estado'],
+  tendencia: ['tendencia'], fuentes: ['fuente', 'matsug', 'centrosug', 'almacensug', 'lote'],
+};
+/** Ídem para la subtabla de Consumo. */
+const COL_FILTRO_CONS: Record<string, string[]> = {
+  cliente: ['cliente', 'solicitante', 'destinatario'], ejecutivo: ['ejecutivo', 'grupocli'], centro: ['centro'], material: ['material'], abc: ['abc'],
+  sector: ['sector', 'grupo'], consumo: ['consumo'], ultima: ['ultima'], penultima: ['penultima'], impultima: ['impultima'], estado: ['estado'], tendencia: ['tendencia'],
+};
+
+/** Clave estable de una fila de Consumo (cliente × centro × material). */
+export const claveConsumo = (r: ConsumoRow): string => `${r.destinatario}|${r.centro}|${r.material}`;
+
+function CasillaTodas({ keys, seleccion }: { keys: string[]; seleccion: SeleccionFilas }) {
+  const todas = keys.length > 0 && keys.every((k) => seleccion.isSelected(k));
+  return (
+    <input type="checkbox" aria-label="Seleccionar todas las filas filtradas" title="Seleccionar todas las filas filtradas" checked={todas} disabled={!keys.length}
+      onChange={() => seleccion.onToggleAll(keys, !todas)} className="size-3.5 accent-success" />
+  );
+}
+
 /** Subtabla reutilizable de sugerencias (BO), con las MISMAS columnas y la
  * misma preferencia de visibilidad (`useColumnVisibility('sugerencias_columnas')`)
  * que la tabla completa de `/sugerencias` — así el panel de un material dice
@@ -70,8 +103,9 @@ export function SubFilter({ value, onChange, placeholder = 'Filtrar…' }: { val
  * desde la página se refleja aquí también. Sin selección en lote ni menú
  * contextual de "Solicitar" — eso sigue siendo exclusivo de la página
  * completa; aquí el drill-down (`Chip`/`DetailChevron`) es lo que importa. */
-export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push: (p: Panel) => void }) {
+export function SugTable({ list, a, push, selection }: { list: BOItem[]; a: Analytics; push: (p: Panel) => void; /** Con ella aparece la columna de casillas. */ selection?: SeleccionFilas }) {
   const [f, setF] = useState('');
+  const [quick, setQuick] = useState<ActiveFilter[]>([]);
   const perms = usePermissionsStore((s) => s.perms);
   const precioOculto = isColumnHidden(perms, 'sugerencias', 'precio');
   const fuenteOculto = isDetailHidden(perms, 'sugerencias', 'fuente');
@@ -93,37 +127,90 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
     }
     return set;
   }, [solicitudesList]);
+  // Filtros por CUALQUIER columna, las mismas que Seg. de pedidos (incluidas las que comparten celda: OC, almacén, solicitante, destinatario…).
+  const filterCols = useMemo<FilterColumn<BOItem>[]>(() => {
+    const gerenteDe = (mat: string) => a.enrich.gerentes.find((g) => a.enrich.sectorDeGerente(a.enrich.matSector(mat), g)) ?? '';
+    const n = (v: unknown) => formatNumber(num(v));
+    return [
+      { key: 'ejecutivo', label: 'Ejecutivo', get: (it) => a.enrich.ejecutivoNombre(it.bo.gpoVdor) || 'Sin ejecutivo' },
+      { key: 'grupocli', label: 'Grupo cliente', get: (it) => a.enrich.grupoCliente(it.bo.gpoCte) || 'Sin grupo' },
+      { key: 'pedido', label: 'Pedido', get: (it) => it.bo.pedido },
+      { key: 'oc', label: 'OC', get: (it) => it.bo.oc },
+      { key: 'fecha', label: 'Fecha', get: (it) => it.bo.fecha },
+      { key: 'cliente', label: 'Cliente (razón social)', get: (it) => it.bo.razonSocial },
+      { key: 'solicitante', label: 'Solicitante', get: (it) => it.bo.solicitante },
+      { key: 'destinatario', label: 'Destinatario', get: (it) => it.bo.destinatario },
+      { key: 'centro', label: 'Centro', get: (it) => it.bo.centroPedido },
+      { key: 'almacen', label: 'Almacén', get: (it) => it.bo.almacen },
+      { key: 'material', label: 'Material', get: (it) => it.bo.materialBase },
+      { key: 'sector', label: 'Sector', get: (it) => a.enrich.matSector(it.bo.materialBase) || 'Sin sector' },
+      { key: 'grupoart', label: 'Grupo de artículo', get: (it) => a.enrich.matGrupo(it.bo.materialBase) || 'Sin grupo' },
+      { key: 'gerente', label: 'Gerente (marca)', get: (it) => gerenteDe(it.bo.materialBase) || 'Sin gerente' },
+      { key: 'cantped', label: 'Cant. pedida', get: (it) => n(it.bo.cantidadPedido) },
+      { key: 'pend', label: 'Pendiente', get: (it) => n(it.bo.cantidadPendiente) },
+      ...(precioOculto ? [] : [{ key: 'precio', label: 'Precio', get: (it: BOItem) => formatCurrency(num(it.bo.precio)) }]),
+      { key: 'consumo', label: 'Consumo', get: (it) => n(it.consumoProm) },
+      { key: 'inv1030', label: 'Inv. 1030', get: (it) => n(it.bo.invByCenter['1030'] || 0) },
+      { key: 'inv1031', label: 'Inv. 1031', get: (it) => n(it.bo.invByCenter['1031'] || 0) },
+      { key: 'inv1032', label: 'Inv. 1032', get: (it) => n(it.bo.invByCenter['1032'] || 0) },
+      { key: 'inv1060', label: 'Inv. 1060', get: (it) => n(it.bo.invByCenter['1060'] || 0) },
+      { key: 'bloq', label: 'Bloqueado', get: (it) => it.bo.bloqueado || 'Sin bloqueo' },
+      { key: 'estado', label: 'Estado', get: (it) => it.status.label },
+      { key: 'tendencia', label: 'Tendencia', get: (it) => it.tend.txt },
+      ...(fuenteOculto ? [] : [
+        { key: 'fuente', label: 'Fuente', getMany: (it: BOItem) => it.fuentes.map((f) => f.fuente).filter(Boolean) },
+        { key: 'matsug', label: 'Material sugerido', getMany: (it: BOItem) => it.fuentes.map((f) => f.materialSugerido).filter(Boolean) },
+        { key: 'centrosug', label: 'Centro sugerido', getMany: (it: BOItem) => it.fuentes.map((f) => f.centroSugerido).filter(Boolean) },
+        { key: 'almacensug', label: 'Almacén sugerido', getMany: (it: BOItem) => it.fuentes.map((f) => f.almacenSugerido).filter(Boolean) },
+        { key: 'lote', label: 'Lote', getMany: (it: BOItem) => it.fuentes.map((f) => f.lote).filter(Boolean) },
+      ]),
+    ];
+  }, [a.enrich, precioOculto, fuenteOculto]);
+  // Embudo de cada encabezado: reúne las columnas de filtro que le corresponden (p. ej. "Pedido/OC" → pedido y OC), como en Seg. de pedidos.
+  const filtroDe = (k: string) => {
+    const claves = COL_FILTRO_SUG[k];
+    const cols = claves ? filterCols.filter((c) => claves.includes(c.key)) : [];
+    return cols.length ? <ColumnFilterMenuMulti columns={cols} rows={list} active={quick} onChange={setQuick} /> : undefined;
+  };
+  const th = (k: string, etiqueta: string, derecha = false) => (
+    <TableHead className={derecha ? 'text-right' : undefined}>
+      <span className={`inline-flex items-center gap-1 ${derecha ? 'justify-end' : ''}`}>{etiqueta}{filtroDe(k)}</span>
+    </TableHead>
+  );
   if (!list.length) return <p className="text-sm text-text-muted">Sin sugerencias.</p>;
-  const shown = f ? list.filter((it) => matchesQuery(f, `${it.bo.pedido} ${it.bo.razonSocial} ${it.bo.centroPedido}`)) : list;
+  const shown = list.filter((it) => (!f || matchesQuery(f, `${it.bo.pedido} ${it.bo.razonSocial} ${it.bo.centroPedido}`)) && passesFilters(it, filterCols, quick));
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-2">
         <SubFilter value={f} onChange={setF} placeholder="Filtrar pedido, cliente, centro…" />
         <ColumnVisibilityControl columns={cols} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
       </div>
+      <div className="mb-2"><ColumnFilterBar columns={filterCols} rows={list} active={quick} onChange={setQuick} /></div>
+      {shown.length !== list.length && <p className="mb-1 text-[11px] text-text-faint">Mostrando {shown.length} de {list.length}.</p>}
       <div>
         <Table wrapperClassName="max-h-[32rem] rounded-lg border border-border">
           <TableHeader>
             <TableRow>
-              {vis('ejecutivo') && <TableHead>Ejecutivo / Grupo cli.</TableHead>}
-              {vis('pedido') && <TableHead>Pedido/OC</TableHead>}
-              {vis('fecha') && <TableHead>Fecha</TableHead>}
-              {vis('cliente') && <TableHead>Cliente</TableHead>}
-              {vis('centro') && <TableHead>Centro/Alm</TableHead>}
-              {vis('material') && <TableHead>Material</TableHead>}
-              {vis('sector') && <TableHead>Sector/Grupo</TableHead>}
-              {vis('cantped') && <TableHead className="text-right">Cant.ped.</TableHead>}
-              {vis('pend') && <TableHead className="text-right">Pend.</TableHead>}
-              {!precioOculto && vis('precio') && <TableHead className="text-right">Precio</TableHead>}
-              {vis('consumo') && <TableHead className="text-right">Consumo</TableHead>}
-              {vis('inv1030') && <TableHead className="text-right">1030</TableHead>}
-              {vis('inv1031') && <TableHead className="text-right">1031</TableHead>}
-              {vis('inv1032') && <TableHead className="text-right">1032</TableHead>}
-              {vis('inv1060') && <TableHead className="text-right">1060</TableHead>}
-              {vis('bloq') && <TableHead>Bloq.</TableHead>}
-              {vis('estado') && <TableHead>Estado</TableHead>}
-              {vis('tendencia') && <TableHead>Tendencia</TableHead>}
-              {!fuenteOculto && vis('fuentes') && <TableHead className="text-right">Fuentes</TableHead>}
+              {selection && <TableHead className="w-8"><CasillaTodas keys={shown.map((it) => it.k)} seleccion={selection} /></TableHead>}
+              {vis('ejecutivo') && th('ejecutivo', 'Ejecutivo / Grupo cli.')}
+              {vis('pedido') && th('pedido', 'Pedido/OC')}
+              {vis('fecha') && th('fecha', 'Fecha')}
+              {vis('cliente') && th('cliente', 'Cliente')}
+              {vis('centro') && th('centro', 'Centro/Alm')}
+              {vis('material') && th('material', 'Material')}
+              {vis('sector') && th('sector', 'Sector/Grupo')}
+              {vis('cantped') && th('cantped', 'Cant.ped.', true)}
+              {vis('pend') && th('pend', 'Pend.', true)}
+              {!precioOculto && vis('precio') && th('precio', 'Precio', true)}
+              {vis('consumo') && th('consumo', 'Consumo', true)}
+              {vis('inv1030') && th('inv1030', '1030', true)}
+              {vis('inv1031') && th('inv1031', '1031', true)}
+              {vis('inv1032') && th('inv1032', '1032', true)}
+              {vis('inv1060') && th('inv1060', '1060', true)}
+              {vis('bloq') && th('bloq', 'Bloq.')}
+              {vis('estado') && th('estado', 'Estado')}
+              {vis('tendencia') && th('tendencia', 'Tendencia')}
+              {!fuenteOculto && vis('fuentes') && th('fuentes', 'Fuentes', true)}
               <TableHead className="w-8" />
             </TableRow>
           </TableHeader>
@@ -147,7 +234,8 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
                   onVerDetalle={() => push({ type: 'sugDetalle', boKey: it.k })}
                   copyItems={copyItems}
                 >
-                <TableRow className={`group ${isBloqueado ? 'bg-danger/10 hover:bg-danger/15 [&>td:first-child]:shadow-[inset_3px_0_0_var(--danger)]' : ''}`}>
+                <TableRow className={`group ${isBloqueado ? 'bg-danger/10 hover:bg-danger/15 [&>td:first-child]:shadow-[inset_3px_0_0_var(--danger)]' : ''} ${selection?.isSelected(it.k) ? 'bg-success/10' : ''}`}>
+                  {selection && <TableCell><input type="checkbox" aria-label={`Seleccionar pedido ${b.pedido}`} checked={selection.isSelected(it.k)} onChange={() => selection.onToggle(it.k)} className="size-3.5 accent-success" /></TableCell>}
                   {vis('ejecutivo') && <TableCell>{a.enrich.ejecutivoNombre(b.gpoVdor) || '—'}<div className="text-[11px] text-text-faint">{a.enrich.grupoCliente(b.gpoCte) || '—'}</div></TableCell>}
                   {vis('pedido') && <TableCell><Chip onClick={() => push({ type: 'pedido', pedido: b.pedido, boKey: it.k })}>{b.pedido}</Chip><div className="text-[11px] text-text-faint">OC {b.oc || '—'}</div></TableCell>}
                   {vis('fecha') && <TableCell className="whitespace-nowrap text-xs">{b.fecha || '—'}</TableCell>}
@@ -185,8 +273,9 @@ export function SugTable({ list, a, push }: { list: BOItem[]; a: Analytics; push
 /** Subtabla reutilizable de consumo (Resumen_Fac), con las mismas columnas y
  * la misma preferencia de visibilidad (`useColumnVisibility('consumo_columnas')`)
  * que la tabla completa de `/consumo` — ver comentario de `SugTable`. */
-export function ConsumoTable({ list, a, push }: { list: ConsumoRow[]; a: Analytics; push: (p: Panel) => void }) {
+export function ConsumoTable({ list, a, push, selection }: { list: ConsumoRow[]; a: Analytics; push: (p: Panel) => void; /** Con ella aparece la columna de casillas. */ selection?: SeleccionFilas }) {
   const ce = consumoEnrich(a.enrich);
+  const [quick, setQuick] = useState<ActiveFilter[]>([]);
   const [promedioModo] = usePromedioModo();
   const rangoPromedio = useRangoPeriodo();
   const [f, setF] = useState('');
@@ -196,30 +285,63 @@ export function ConsumoTable({ list, a, push }: { list: ConsumoRow[]; a: Analyti
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
   const solicitudSourceKeys = useMemo(() => new Set(solicitudesList.filter((s) => s.origen === 'consumo').map((s) => s.sourceKey)), [solicitudesList]);
+  // Filtros por CUALQUIER columna, las mismas que la página de Consumo.
+  const filterCols = useMemo<FilterColumn<ConsumoRow>[]>(() => [
+    { key: 'cliente', label: 'Cliente (razón social)', get: (r) => r.razonSocial },
+    { key: 'solicitante', label: 'Solicitante', get: (r) => r.solicitante },
+    { key: 'destinatario', label: 'Destinatario', get: (r) => r.destinatario },
+    { key: 'ejecutivo', label: 'Ejecutivo', get: (r) => ce.ejec(r) || 'Sin ejecutivo' },
+    { key: 'grupocli', label: 'Grupo cliente', get: (r) => ce.grupoCli(r) || 'Sin grupo' },
+    { key: 'centro', label: 'Centro', get: (r) => r.centro || 'Sin centro' },
+    { key: 'material', label: 'Material', get: (r) => r.material },
+    { key: 'abc', label: 'Clase ABC', get: (r) => claseDe(r) || 'Sin clase' },
+    { key: 'sector', label: 'Sector', get: (r) => ce.sector(r) || 'Sin sector' },
+    { key: 'grupo', label: 'Grupo de artículo', get: (r) => ce.grupoArt(r) || 'Sin grupo' },
+    { key: 'consumo', label: 'Consumo actual', get: (r) => formatNumber(r.consumoActual) },
+    { key: 'ultima', label: 'Última (cant.)', get: (r) => formatNumber(r.cantidadUltima) },
+    { key: 'penultima', label: 'Penúltima (cant.)', get: (r) => formatNumber(num(r.cantidadPenultima)) },
+    { key: 'impultima', label: 'Importe última', get: (r) => formatCurrency(r.importeUltima) },
+    { key: 'estado', label: 'Estado', get: (r) => consumoStatus(a.rf, r).label },
+    { key: 'tendencia', label: 'Tendencia', get: (r) => consumoTend(a.rf, r).txt },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [a.enrich, a.rf, a.abc]);
+  const filtroDe = (k: string) => {
+    const claves = COL_FILTRO_CONS[k];
+    const cols = claves ? filterCols.filter((c) => claves.includes(c.key)) : [];
+    return cols.length ? <ColumnFilterMenuMulti columns={cols} rows={list} active={quick} onChange={setQuick} /> : undefined;
+  };
+  const th = (k: string, etiqueta: string, derecha = false) => (
+    <TableHead className={derecha ? 'text-right' : undefined}>
+      <span className={`inline-flex items-center gap-1 ${derecha ? 'justify-end' : ''}`}>{etiqueta}{filtroDe(k)}</span>
+    </TableHead>
+  );
   if (!list.length) return <p className="text-sm text-text-muted">Sin facturación de consumo.</p>;
-  const shown = f ? list.filter((r) => matchesQuery(f, `${r.razonSocial} ${r.destinatario} ${r.centro}`)) : list;
+  const shown = list.filter((r) => (!f || matchesQuery(f, `${r.razonSocial} ${r.destinatario} ${r.centro}`)) && passesFilters(r, filterCols, quick));
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-2">
         <SubFilter value={f} onChange={setF} placeholder="Filtrar cliente, centro…" />
         <ColumnVisibilityControl columns={COLS_CONSUMO} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
       </div>
+      <div className="mb-2"><ColumnFilterBar columns={filterCols} rows={list} active={quick} onChange={setQuick} /></div>
+      {shown.length !== list.length && <p className="mb-1 text-[11px] text-text-faint">Mostrando {shown.length} de {list.length}.</p>}
       <div>
         <Table wrapperClassName="max-h-[32rem] rounded-lg border border-border">
           <TableHeader>
             <TableRow>
-              {vis('cliente') && <TableHead>Cliente</TableHead>}
-              {vis('ejecutivo') && <TableHead>Ejecutivo / Grupo cli.</TableHead>}
-              {vis('centro') && <TableHead>Centro</TableHead>}
-              {vis('material') && <TableHead>Material</TableHead>}
-              {vis('abc') && <TableHead>ABC</TableHead>}
-              {vis('sector') && <TableHead>Sector/Grupo</TableHead>}
-              {vis('consumo') && <TableHead className="text-right">Consumo/prom</TableHead>}
-              {vis('ultima') && <TableHead className="text-right">Última</TableHead>}
-              {vis('penultima') && <TableHead className="text-right">Penúltima</TableHead>}
-              {vis('impultima') && <TableHead className="text-right">Imp. última</TableHead>}
-              {vis('estado') && <TableHead>Estado</TableHead>}
-              {vis('tendencia') && <TableHead>Tendencia</TableHead>}
+              {selection && <TableHead className="w-8"><CasillaTodas keys={shown.map(claveConsumo)} seleccion={selection} /></TableHead>}
+              {vis('cliente') && th('cliente', 'Cliente')}
+              {vis('ejecutivo') && th('ejecutivo', 'Ejecutivo / Grupo cli.')}
+              {vis('centro') && th('centro', 'Centro')}
+              {vis('material') && th('material', 'Material')}
+              {vis('abc') && th('abc', 'ABC')}
+              {vis('sector') && th('sector', 'Sector/Grupo')}
+              {vis('consumo') && th('consumo', 'Consumo/prom', true)}
+              {vis('ultima') && th('ultima', 'Última', true)}
+              {vis('penultima') && th('penultima', 'Penúltima', true)}
+              {vis('impultima') && th('impultima', 'Imp. última', true)}
+              {vis('estado') && th('estado', 'Estado')}
+              {vis('tendencia') && th('tendencia', 'Tendencia')}
               <TableHead className="w-8" />
             </TableRow>
           </TableHeader>
@@ -240,7 +362,8 @@ export function ConsumoTable({ list, a, push }: { list: ConsumoRow[]; a: Analyti
                 onVerDetalle={() => push({ type: 'consumoMaterial', dest: r.destinatario, material: r.material })}
                 copyItems={copyItems}
               >
-              <TableRow className="group">
+              <TableRow className={`group ${selection?.isSelected(claveConsumo(r)) ? 'bg-success/10' : ''}`}>
+                {selection && <TableCell><input type="checkbox" aria-label={`Seleccionar ${r.razonSocial}`} checked={selection.isSelected(claveConsumo(r))} onChange={() => selection.onToggle(claveConsumo(r))} className="size-3.5 accent-success" /></TableCell>}
                 {vis('cliente') && <TableCell className="max-w-64 truncate">{r.razonSocial}<div className="text-[11px]"><Chip onClick={() => push({ type: 'evol', kind: 'solic', key: r.solicitante })}>S {r.solicitante}</Chip> · <Chip onClick={() => push({ type: 'evol', kind: 'dest', key: r.destinatario })}>D {r.destinatario}</Chip></div></TableCell>}
                 {vis('ejecutivo') && <TableCell>{ce.ejec(r) || '—'}<div className="text-[11px] text-text-faint">{ce.grupoCli(r) || '—'}</div></TableCell>}
                 {vis('centro') && <TableCell>{r.centro || ce.grupoCli(r) || '—'}</TableCell>}
@@ -395,6 +518,8 @@ export function FuentesTable({ fuentes, push, selection, precioDe }: { fuentes: 
   // diálogo encima del detalle (sin navegar), para revisar y volver.
   const analytics = useAnalytics();
   const [vistaRapida, setVistaRapida] = useState<string | null>(null);
+  // Código que viene en el pedido de la fila abierta: si es otro (un sustituto) la ventana permite comparar costo.
+  const [vistaOriginal, setVistaOriginal] = useState('');
   const centros = useMemo(() => [...new Set(fuentes.map((x) => x.centroSugerido).filter(Boolean))].sort(), [fuentes]);
   const lotes = useMemo(() => [...new Set(fuentes.map((x) => x.lote).filter(Boolean))].sort(), [fuentes]);
   const materiales = useMemo(() => [...new Set(fuentes.map((x) => x.materialSugerido).filter(Boolean))].sort(), [fuentes]);
@@ -432,7 +557,7 @@ export function FuentesTable({ fuentes, push, selection, precioDe }: { fuentes: 
                     </TableCell>
                   )}
                   <TableCell><StatePill label={f2.fuente} cls={/corta/i.test(f2.fuente) ? 'rojo' : 'azul'} /></TableCell>
-                  <TableCell><Chip title="Ver inventario de este material sin salir del detalle" onClick={() => setVistaRapida(f2.materialSugerido)}>{f2.materialSugerido}</Chip><div className="text-[11px] text-text-faint">{f2.descripcionSugerida}</div></TableCell>
+                  <TableCell><Chip title="Ver inventario de este material sin salir del detalle" onClick={() => { setVistaOriginal(f2.materialBase || f2.materialSolicitado); setVistaRapida(f2.materialSugerido); }}>{f2.materialSugerido}</Chip><div className="text-[11px] text-text-faint">{f2.descripcionSugerida}</div></TableCell>
                   <TableCell>{f2.centroSugerido}{f2.almacenSugerido ? ` / ${f2.almacenSugerido}` : ''}</TableCell>
                   <TableCell className="text-right">{formatNumber(f2.disponible)}</TableCell>
                   {precioDe && <TableCell className="text-right font-mono">{precioDe(f2) ? formatCurrency(precioDe(f2)) : '—'}</TableCell>}
@@ -450,6 +575,7 @@ export function FuentesTable({ fuentes, push, selection, precioDe }: { fuentes: 
             <DialogTitle>{vistaRapida}</DialogTitle>
             <DialogDescription>{vistaRapida ? analytics.enrich.matTexto(vistaRapida) : ''}</DialogDescription>
           </DialogHeader>
+          {vistaRapida && <ComparaCostoSustituto a={analytics} original={vistaOriginal} sustituto={vistaRapida} />}
           {vistaRapida && <MaterialInventarioSection a={analytics} material={vistaRapida} />}
           {vistaRapida && <CondicionesMaterialSection a={analytics} material={vistaRapida} push={push} />}
           {vistaRapida && (
@@ -579,7 +705,7 @@ export function Section({ title, children, collapsible = false, storageKey, tono
 
 /** Recolecta cada par distinto (condición, precio oferta) para `material` desde InvConsolidado/Inventario por condición. */
 export function precioPorCondicion(a: Analytics, material: string) {
-  return preciosPorCondicion(material, a.invConsolidadoCatalog, a.invCondicion);
+  return preciosPorCondicion(material, a.invConsolidadoCatalog, a.invCondicion, a.preciosAutorizados);
 }
 
 /** Renderiza un recuadro por condición para `material` (Material / Descripción / Condición / Precio Oferta). */

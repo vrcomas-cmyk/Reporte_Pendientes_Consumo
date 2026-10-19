@@ -28,6 +28,7 @@ import {
   Presentation,
   ArrowLeftRight,
   ListChecks,
+  Tag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/store/uiStore';
@@ -66,6 +67,7 @@ const NAV_GROUPS_TODOS = [
       { to: '/inv-con-condicion', moduleKey: 'inv-con-condicion', label: 'Inv con Condición', icon: Boxes },
       { to: '/analisis', moduleKey: 'analisis', label: 'Análisis', icon: LineChart },
       { to: '/incremento', moduleKey: 'incremento', label: 'Incremento de costos', icon: TrendingUp },
+      { to: '/precios', moduleKey: 'precios', label: 'Precios', icon: Tag },
       { to: '/comparativo', moduleKey: 'comparativo', label: 'Comparativo de periodos', icon: ArrowLeftRight },
       { to: '/analisis-directivo', moduleKey: 'analisis-directivo', label: 'Análisis Directivo', icon: Presentation },
       { to: '/oportunidades', moduleKey: 'oportunidades', label: 'Oportunidades', icon: Target },
@@ -88,6 +90,9 @@ const NAV_GROUPS_TODOS = [
 export const NAV_GROUPS = NAV_GROUPS_TODOS.map((g) => ({ ...g, items: g.items.filter((i) => !rutaRetirada(i.to)) }));
 
 export const NAV = NAV_GROUPS.flatMap((g) => g.items);
+
+/** TODOS los módulos del menú (también los retirados en el modo «solo libros»): de aquí sale la lista de Administración → Roles y permisos. */
+export const NAV_COMPLETO = NAV_GROUPS_TODOS.flatMap((g) => g.items);
 
 // Not module-gated by permission (see ModuleGuard/AdminGuard), so it isn't
 // part of NAV — but the Topbar still needs its label for the header title.

@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Copy } from 'lucide-react';
 import { useClipboard } from '@/hooks/useClipboard';
 import { formatCurrency, formatFechaCaducidad } from '@/lib/utils';
+import { disponibleEnCentros, esSustituto, textoCambioCodigo } from '@/core/ofertaSustituto';
+import type { LotesOfertados } from './MensajeEjecutivo';
 import { norm } from '../helpers';
 import { Section, FuentesTable, precioPorCondicion, type FuentesSelection } from './_shared';
 import { CentrosFiltroBar } from './CentrosFiltroBar';
@@ -111,8 +113,10 @@ function useFilasOfertables(a: Analytics, material: string, it?: BOItem): { fila
  * centro/lote/material, "Considerar centros (+ centro)", casillas para seleccionar (hasta 2) y "Copiar datos de oferta".
  * Con `it` (renglón de pedido) suma las fuentes de Todas las Sugerencias y el centro del pedido. `selection` externa
  * (detalle de pedido, que arma su propia selección por material) reemplaza a la interna. */
-export function LotesOfertablesSection({ a, material, it, centroPedido, cliente, push, selection }: {
+export function LotesOfertablesSection({ a, material, it, centroPedido, cliente, push, selection, onCambio }: {
   a: Analytics; material: string; it?: BOItem; centroPedido?: string; cliente?: string; push: (p: Panel) => void; selection?: FuentesSelection;
+  /** Avisa a quien lo pida qué lotes se ven y cuáles están marcados (p. ej. para armar el mensaje al ejecutivo). */
+  onCambio?: (info: LotesOfertados) => void;
 }) {
   const perms = usePermissionsStore((s) => s.perms);
   const fuenteOculta = isDetailHidden(perms, 'sugerencias', 'fuente');
@@ -120,21 +124,39 @@ export function LotesOfertablesSection({ a, material, it, centroPedido, cliente,
   const { copy } = useClipboard();
   const centro = centroPedido ?? it?.bo.centroPedido ?? '';
   const { filas, precioDe } = useFilasOfertables(a, material, it && !fuenteOculta ? it : undefined);
-  const visibles = useMemo(
-    () => (centrosElegidos.length ? filas.filter((f) => centroPasaFiltro(f.centroSugerido, centro, centrosElegidos)) : filas),
-    [filas, centrosElegidos, centro],
-  );
+  const visibles = useMemo(() => {
+    if (!centrosElegidos.length) return filas;
+    return filas.flatMap((f) => {
+      // Lotes con centro: pasan o no el filtro «Considerar centros».
+      if (f.centroSugerido) return centroPasaFiltro(f.centroSugerido, centro, centrosElegidos) ? [f] : [];
+      // Existencia general del sustituto / Status (sin centro): solo cuenta el inventario de los centros que pasan el filtro.
+      const disp = disponibleEnCentros(f.invByCenter, (c) => centroPasaFiltro(c, centro, centrosElegidos));
+      return disp > 0 ? [{ ...f, disponible: disp }] : [];
+    });
+  }, [filas, centrosElegidos, centro]);
   const [sel, setSel] = useState<Map<string, Sugerencia>>(new Map());
+  // Lo marcado que sigue visible, con la existencia ya filtrada por centros (lo que se copia y se manda al ejecutivo).
+  const marcados = useMemo(() => visibles.filter((f) => sel.has(llaveFila(f))), [visibles, sel]);
   const interna: FuentesSelection = {
     isSelected: (f) => sel.has(llaveFila(f)),
     onToggle: (f) => setSel((m) => { const n = new Map(m); const k = llaveFila(f); if (n.has(k)) n.delete(k); else if (n.size < MAX_LOTES_SELECCION) n.set(k, f); return n; }),
     full: sel.size >= MAX_LOTES_SELECCION,
   };
+  useEffect(() => {
+    onCambio?.({ visibles, seleccion: marcados, precioDe });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `precioDe` cambia en cada render; basta con que cambien los lotes o la selección
+  }, [visibles, marcados]);
   const copiar = () => {
-    const lineas = [...sel.values()].map((f) => {
-      const cad = f.fechaCaducidad ? formatFechaCaducidad(f.fechaCaducidad) : '—';
+    // Un sustituto (otro código que el del pedido) lleva delante la instrucción de qué código cambiar por cuál.
+    const lineas = marcados.flatMap((f) => {
       const precio = precioDe(f);
-      return `${f.materialSugerido}\t${f.descripcionSugerida}\tLote ${f.lote || '—'}\tcad. ${cad}\t${precio ? formatCurrency(precio) : '—'}`;
+      // Solo lo que existe: sin «—» ni «sin precio» cuando falta un dato.
+      const partes = [`${f.materialSugerido}${f.descripcionSugerida ? `	${f.descripcionSugerida}` : ''}`];
+      if (f.lote) partes.push(`Lote ${f.lote}`);
+      if (f.fechaCaducidad) partes.push(`cad. ${formatFechaCaducidad(f.fechaCaducidad)}`);
+      if (precio) partes.push(formatCurrency(precio));
+      const dato = partes.join('	');
+      return esSustituto(material, f.materialSugerido) ? [textoCambioCodigo(material, f.materialSugerido), dato] : [dato];
     });
     copy([`Material ${material}`, ...(cliente ? [`Cliente ${cliente}`] : []), ...lineas].join('\n'), 'Datos de oferta copiados');
   };
@@ -147,8 +169,8 @@ export function LotesOfertablesSection({ a, material, it, centroPedido, cliente,
             <FuentesTable fuentes={visibles} push={push} selection={selection ?? interna} precioDe={precioDe} />
             {!selection && (
               <div className="mt-2 flex items-center gap-2">
-                <button type="button" disabled={!sel.size} onClick={copiar} className="inline-flex items-center gap-1.5 rounded-md border border-success/40 bg-success/10 px-2.5 py-1.5 text-xs font-medium text-success hover:bg-success/20 disabled:opacity-40">
-                  <Copy className="size-3.5" /> Copiar datos de oferta ({sel.size})
+                <button type="button" disabled={!marcados.length} onClick={copiar} className="inline-flex items-center gap-1.5 rounded-md border border-success/40 bg-success/10 px-2.5 py-1.5 text-xs font-medium text-success hover:bg-success/20 disabled:opacity-40">
+                  <Copy className="size-3.5" /> Copiar datos de oferta ({marcados.length})
                 </button>
                 {sel.size > 0 && <button type="button" onClick={() => setSel(new Map())} className="text-xs text-text-faint hover:text-danger">Limpiar selección</button>}
               </div>

@@ -96,8 +96,14 @@ describe('filasInvCondicion', () => {
     ['', '1031', '1038', '9990001', 'JERINGA', '9', 'TS9', 'CA', '', '', '', '6', 'EMPAQUE DAÑADO'],
     ['', '1017', '1099', '9990001', 'JERINGA', '9', 'TS7', 'CA', '', '', '', '3', 'EMPAQUE DAÑADO'],
   ]);
-  const { filas, lotes, detalle, sustituciones, invRevision } = filasInvCondicion([dispo, lotesHoja, revision, sustituto, pnc], { hoy: HOY });
+  const { filas, lotes, detalle, sustituciones, invRevision, estadosRevision } = filasInvCondicion([dispo, lotesHoja, revision, sustituto, pnc], { hoy: HOY });
   const fila = (cond: string, mat: string) => filas.find((f) => f.condicion === cond && f.material === mat);
+
+  it('estadosRevision: cada Status de Revision por material (con su libre general); lo que no está en Revision no aparece', () => {
+    expect(estadosRevision.get('100950')?.estados).toEqual(['Revision Liz', 'Urgente', 'Calidad']);
+    expect(estadosRevision.has('9990001')).toBe(false); // solo está en PNC
+    expect(estadosRevision.has('502000')).toBe(false); // sin status: no hay condición
+  });
 
   it('Revision: UNA fila por material con sus N status juntos', () => {
     const r = filas.filter((f) => f.material === '100950' && f.condicion !== 'Corta caducidad');

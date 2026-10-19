@@ -1,7 +1,8 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { InvGrid, EvolChart, ComparativaDual } from '../ui';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Section, SugTable, ConsumoTable, ConsumoMaterialCard, PrecioCondicionBox } from './_shared';
+import { Section, SugTable, ConsumoTable, ConsumoMaterialCard, PrecioCondicionBox, type SeleccionFilas } from './_shared';
+import { MensajeEjecutivo, type LotesOfertados } from './MensajeEjecutivo';
 import { SolicitarGrid } from './MaterialInventario';
 import { puntosSolicitarInventario } from '../inventario1031';
 import { inventarioBloques } from '../inventarioBloques';
@@ -128,20 +129,36 @@ export function HistorialConsumo({ a, serie, titulo = 'Historial de facturación
   );
 }
 
-/** Pestañas Sugerencias / Consumo (como en el detalle de Inventario · Disponibilidad). */
-export function TabsSugConsumo({ sug, cons, a, push, titulo = 'Sugerencias / Consumo' }: {
+/** Pestañas Sugerencias / Consumo (como en el detalle de Inventario · Disponibilidad). Con `lotes` (la tabla de materiales ofertables del mismo detalle)
+ * las filas se pueden filtrar por cualquier columna y marcar para armar un mensaje al ejecutivo ("¿puedes ofertar alguno de estos productos?"). */
+export function TabsSugConsumo({ sug, cons, a, push, titulo = 'Sugerencias / Consumo', lotes, material, centro, descripcion }: {
   sug: BOItem[]; cons: ConsumoRow[]; a: Analytics; push: (p: Panel) => void; titulo?: string;
+  lotes?: LotesOfertados; material?: string; centro?: string; descripcion?: string;
 }) {
+  const [selSug, setSelSug] = useState<ReadonlySet<string>>(new Set());
+  const [selCons, setSelCons] = useState<ReadonlySet<string>>(new Set());
+  const fabrica = (set: ReadonlySet<string>, setSet: (s: ReadonlySet<string>) => void): SeleccionFilas => ({
+    isSelected: (k) => set.has(k),
+    onToggle: (k) => { const n = new Set(set); if (n.has(k)) n.delete(k); else n.add(k); setSet(n); },
+    onToggleAll: (keys, on) => { const n = new Set(set); for (const k of keys) { if (on) n.add(k); else n.delete(k); } setSet(n); },
+  });
+  const conSeleccion = !!lotes && !!material;
   return (
     <Section ancho tono="ped" origen="Seg pedidos · Resumen_Fac" title={titulo}>
       <Tabs defaultValue={sug.length || !cons.length ? 'sug' : 'cons'}>
         <TabsList>
-          <TabsTrigger value="sug">Sugerencias ({sug.length})</TabsTrigger>
-          <TabsTrigger value="cons">Consumo ({cons.length})</TabsTrigger>
+          <TabsTrigger value="sug">Sugerencias ({sug.length}){selSug.size > 0 && ` · ${selSug.size} ✓`}</TabsTrigger>
+          <TabsTrigger value="cons">Consumo ({cons.length}){selCons.size > 0 && ` · ${selCons.size} ✓`}</TabsTrigger>
         </TabsList>
-        <TabsContent value="sug"><SugTable list={sug} a={a} push={push} /></TabsContent>
-        <TabsContent value="cons"><ConsumoTable list={cons} a={a} push={push} /></TabsContent>
+        <TabsContent value="sug"><SugTable list={sug} a={a} push={push} selection={conSeleccion ? fabrica(selSug, setSelSug) : undefined} /></TabsContent>
+        <TabsContent value="cons"><ConsumoTable list={cons} a={a} push={push} selection={conSeleccion ? fabrica(selCons, setSelCons) : undefined} /></TabsContent>
       </Tabs>
+      {conSeleccion && lotes && material && (
+        <MensajeEjecutivo
+          a={a} material={material} centro={centro ?? ''} descripcion={descripcion ?? ''} sug={sug} cons={cons} selSug={selSug} selCons={selCons} lotes={lotes}
+          onLimpiar={() => { setSelSug(new Set()); setSelCons(new Set()); }}
+        />
+      )}
     </Section>
   );
 }

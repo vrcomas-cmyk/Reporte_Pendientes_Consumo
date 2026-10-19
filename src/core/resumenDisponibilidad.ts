@@ -5,7 +5,8 @@
 //
 //   · Inventario → Disponibilidad: Libre real = Libre Utilización − Entrega a cliente (piso 0 por fila),
 //                  y Cant. en Tránsito.
-//   · Pendiente  → Seg pedidos (pendiente > 0 y LIBERADO: sin bloqueo de crédito ni de entrega) por Centro/Almacén/Material.
+//   · Pendiente  → Seg pedidos (pendiente > 0) por Centro/Almacén/Material. Por omisión solo el LIBERADO (sin bloqueo de crédito ni de
+//                  entrega); `modoBloqueo` permite sumar también los bloqueados o ver solo los bloqueados.
 //   · Consumo    → Fac_Mensual_CAM (promedio de los 12 meses cerrados, último y penúltimo mes con venta) — el
 //                  mismo cálculo que ya usa el detalle de Inventario (`promedioPeriodo`).
 //
@@ -16,6 +17,9 @@ import { libreReal } from './inventoryRules';
 import { bloqueoPedido, claveMaterial, indiceColumna, numero, type HojaIndexada } from './pedidos';
 import { mesDeKey, periodo12Cerrados, promedioPeriodo, type FacMensualIndex } from './facMensual';
 import type { ResumenSinSugerenciaRow } from './types';
+
+/** Qué pendiente cuenta: solo el liberado (por omisión), liberado + bloqueado, o solo el bloqueado (crédito y/o entrega). */
+export type ModoBloqueo = 'liberados' | 'todos' | 'bloqueados';
 
 const ALMACENES_GENERALES = ['1030', '1031', '1060'];
 const ALMACENES_INV = ['1030', '1031', '1032', '1060'] as const;
@@ -49,6 +53,7 @@ export function filasResumenDisponibilidad(
   dispo: HojaIndexada,
   pedidos: HojaIndexada | undefined,
   fac: FacMensualIndex | null,
+  modoBloqueo: ModoBloqueo = 'liberados',
 ): ResumenSinSugerenciaRow[] {
   const iCentro = indiceColumna(dispo.nombres, ['centro']);
   const iAlmacen = indiceColumna(dispo.nombres, ['almacen']);
@@ -81,8 +86,10 @@ export function filasResumenDisponibilidad(
       const cantidad = numero(f[iPendiente]);
       const mat = claveMaterial(f[pedidos.idxMaterial]);
       if (cantidad <= 0 || !mat) continue;
-      // Solo el pendiente LIBERADO: un pedido con bloqueo de crédito o de entrega puede no liberarse y cancelarse, así que no cuenta.
-      if (bloqueoPedido(String(f[iCredito] ?? '').trim(), String(f[iBloqueo] ?? '').trim()) !== '') continue;
+      // Por omisión solo el pendiente LIBERADO: un pedido con bloqueo de crédito o de entrega puede no liberarse y cancelarse, así que no cuenta.
+      const bloqueado = bloqueoPedido(String(f[iCredito] ?? '').trim(), String(f[iBloqueo] ?? '').trim()) !== '';
+      if (modoBloqueo === 'liberados' && bloqueado) continue;
+      if (modoBloqueo === 'bloqueados' && !bloqueado) continue;
       const k = claveCA(mat, claveMaterial(f[iPCentro]), claveMaterial(f[iPAlm]));
       const p = pend.get(k) ?? { cantidad: 0, importe: 0, pedidos: new Set<string>() };
       p.cantidad += cantidad;
