@@ -20,9 +20,11 @@ import {
 export interface HistorialPrecio { puntos: PuntoPrecio[]; min: number; max: number }
 
 /** Resumen_Fac → historial por material (clave normalizada) de los meses indicados. Precio = importe / cantidad; mín/máx de las líneas si la fila los trae. */
-export function historialDeFacturacion(rows: readonly ResumenFacRow[], meses: ReadonlySet<string>): Map<string, HistorialPrecio> {
+export function historialDeFacturacion(rows: readonly ResumenFacRow[], meses: ReadonlySet<string>, soloMaterial?: string): Map<string, HistorialPrecio> {
   const out = new Map<string, HistorialPrecio>();
+  const solo = soloMaterial ? norm(soloMaterial) : '';
   for (const r of rows) {
+    if (solo && norm(r.material) !== solo) continue;
     const cant = num(r.cantidadFacturada);
     const imp = num(r.importeFacturado);
     if (!(cant > 0) || !(imp > 0)) continue;
@@ -40,6 +42,16 @@ export function historialDeFacturacion(rows: readonly ResumenFacRow[], meses: Re
     out.set(mat, h);
   }
   return out;
+}
+
+/** Precio unitario facturado de un material en la ventana: mínimo y máximo de las líneas, promedio ponderado por volumen y mediana (P50). */
+export interface EstadisticasPrecio { min: number; max: number; promedio: number; p50: number; /** Facturas (cliente × mes) consideradas. */ n: number }
+
+export function estadisticasDeHistorial(h: HistorialPrecio | undefined): EstadisticasPrecio | null {
+  if (!h || !h.puntos.length) return null;
+  const pesoTot = h.puntos.reduce((s, x) => s + Math.max(0, x.peso), 0);
+  const promedio = pesoTot > 0 ? h.puntos.reduce((s, x) => s + x.valor * Math.max(0, x.peso), 0) / pesoTot : 0;
+  return { min: Number.isFinite(h.min) ? h.min : 0, max: h.max, promedio, p50: percentilPonderado(h.puntos, 0.5), n: h.puntos.length };
 }
 
 export interface MaterialPrecio {

@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/select';
 import { useEffect, useMemo, useState } from 'react';
 import { Search, Lock, LockOpen, AlertTriangle, ChevronDown, ChevronRight, Maximize2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -15,9 +16,9 @@ import type { InvDetalleRow } from '@/core/types';
 import { StatePill, Chip, Ranking, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, useColumnVisibility, ColumnVisibilityControl, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { norm, matchesQuery } from '@/modules/analytics/helpers';
 import { esCondicionCortaCaducidad } from '@/core/inventoryRules';
-import { pendPorCondicion, transitoPorCondicion, esLentoPorCondicion } from '@/core/resumenSin';
+import { pendSegunAmbito, transitoPorCondicion, esLentoPorCondicion, type AmbitoPend } from '@/core/resumenSin';
 import { EmptyState } from '@/components/feedback/EmptyState';
-import { ReportPage, PageHeader, ExportButton, KpiBand, ResumenColapsable, FilterBar, FilterSelect, CellLegend, ALTURA_TABLA, SIN_DATOS } from '@/components/layout/report';
+import { ReportPage, PageHeader, ExportButton, KpiBand, ResumenColapsable, FilterBar, FilterSelect, SegmentedControl, CellLegend, ALTURA_TABLA, SIN_DATOS } from '@/components/layout/report';
 import { useRssFuenteStore } from '@/store/rssFuenteStore';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { useDataStore } from '@/store/dataStore';
@@ -71,15 +72,15 @@ function LotesPeriodoFiltro({ op, dias, onOpChange, onDiasChange }: {
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <select
+      <Select
         value={op}
         onChange={(e) => onOpChange(e.target.value as '' | 'gt' | 'lt')}
-        className="h-7 rounded-md border border-border bg-bg-elevated px-1.5 text-xs"
+        className="h-8 w-auto text-xs"
       >
         <option value="">Todos</option>
         <option value="gt">Mayor que</option>
         <option value="lt">Menor que</option>
-      </select>
+      </Select>
       {op && (
         <>
           <input
@@ -127,7 +128,7 @@ function LotesPorVencerTable({ lotes, open, wrapperClassName }: {
               <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
               <TableCell className="whitespace-nowrap text-xs">
                 <StatePill label={`${l.dias} d`} cls={l.dias <= 31 ? 'rojo' : l.dias <= 60 ? 'amb' : 'gris'} />
-                <div className="text-[10px] text-text-faint">{formatFechaCaducidad(l.fechaCaducidad)}</div>
+                <div className="text-[11px] text-text-faint">{formatFechaCaducidad(l.fechaCaducidad)}</div>
               </TableCell>
               <TableCell className="text-right">{l.demanda > 0 ? formatNumber(l.demanda) : <span className="text-text-faint">sin demanda</span>}</TableCell>
               <TableCell className="max-w-48 truncate text-xs">
@@ -168,6 +169,11 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   const [q, setQ] = usePersistedState(`${ns}.q`, '');
   const { prefiltro, clear: clearPrefiltro } = useMaterialPrefiltro(setQ);
   const [cond, setCond] = usePersistedState(`${ns}.cond`, '');
+  // Alcance del pendiente por celda: solo los almacenes que aplican a la condición (RN-INV-002) o todo el del centro.
+  const [ambitoPend, setAmbitoPend] = usePersistedState<AmbitoPend>(`${ns}.ambitoPend`, 'condicion');
+  // Filtros por las sumas de la fila: «Pend. suma» (todos los centros, según el alcance elegido) e «Inv Suma».
+  const [pendFiltro, setPendFiltro] = usePersistedState<'' | 'con' | 'sin'>(`${ns}.pendFiltro`, '');
+  const [invFiltro, setInvFiltro] = usePersistedState<'' | 'con' | 'sin'>(`${ns}.invFiltro`, '');
   const [sector, setSector] = usePersistedState(`${ns}.sector`, '');
   const [gerente, setGerente] = usePersistedState(`${ns}.gerente`, '');
   const [centro, setCentro] = usePersistedState(`${ns}.centro`, '');
@@ -177,7 +183,7 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   // "Pegar materiales" estilo SAP — aditivo, no toca los filtros de arriba.
   const [pasteCodes, setPasteCodes] = usePersistedState<string[]>(`${ns}.pasteCodes`, []);
   const zoom = useZoom(`${ns}_zoom`);
-  const clearFilters = () => { setQ(''); setCond(''); setSector(''); setGerente(''); setCentro(''); setQuick([]); setPasteCodes([]); };
+  const clearFilters = () => { setQ(''); setCond(''); setSector(''); setGerente(''); setCentro(''); setQuick([]); setPasteCodes([]); setPendFiltro(''); setInvFiltro(''); };
 
   const colVis = useColumnVisibility(`${ns}_columnas`);
   const columnDefs: ColDef[] = useMemo(() => [
@@ -186,17 +192,19 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
     { key: 'disp3132', label: 'Disp 31·32' },
     ...CENTERS.map((c) => ({ key: `centro_${c}`, label: `Inv ${c}` })),
     { key: 'invsuma', label: 'Inv Suma' },
+    { key: 'pendsuma', label: 'Pend. suma' },
     { key: 'importe', label: 'Importe $' },
   ], [libros]);
 
   // Vistas guardadas: snapshot de filtros (condicion/sector/centro/quick) + columnas ocultas, persistido entre sesiones.
-  const savedViews = useSavedViews<{ cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[]; pasteCodes?: string[] }>(`${ns}_vistas`);
-  const applyView = (state: { cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[]; pasteCodes?: string[] }) => {
+  const savedViews = useSavedViews<{ cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[]; pasteCodes?: string[]; pendFiltro?: '' | 'con' | 'sin'; invFiltro?: '' | 'con' | 'sin' }>(`${ns}_vistas`);
+  const applyView = (state: { cond: string; sector: string; centro: string; quick: ActiveFilter[]; hidden?: string[]; pasteCodes?: string[]; pendFiltro?: '' | 'con' | 'sin'; invFiltro?: '' | 'con' | 'sin' }) => {
     setCond(state.cond); setSector(state.sector); setCentro(state.centro); setQuick(state.quick);
     setPasteCodes(state.pasteCodes ?? []);
+    setPendFiltro(state.pendFiltro ?? ''); setInvFiltro(state.invFiltro ?? '');
     if (state.hidden) colVis.apply(state.hidden);
   };
-  const saveCurrentView = (name: string) => savedViews.save(name, { cond, sector, centro, quick, hidden: [...colVis.hidden], pasteCodes });
+  const saveCurrentView = (name: string) => savedViews.save(name, { cond, sector, centro, quick, hidden: [...colVis.hidden], pasteCodes, pendFiltro, invFiltro });
   const qd = useDebouncedValue(q, 200);
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
@@ -285,6 +293,8 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   // aplican según la condición (RN-INV-002: solo 1032 en corta caducidad,
   // 1030+1031+1060 en cualquier otro caso), igual que el módulo Inventario.
   const rssCentro = (r: (typeof rows)[number], c: string) => rss?.mats.get(norm(r.material))?.centros.get(c);
+  // Pendiente de la fila sumado en TODOS los centros, con el alcance elegido (por condición / todo el centro).
+  const pendSumaCond = (r: (typeof rows)[number]) => CENTERS.reduce((sum, c) => sum + pendSegunAmbito(rssCentro(r, c), r.condicion, ambitoPend), 0);
 
   const conds = useMemo(() => [...new Set(rows.map((r) => r.condicion).filter(Boolean))].sort(), [rows]);
   const sectores = useMemo(() => [...new Set(rows.map((r) => a.enrich.matSector(r.material) || r.sector).filter(Boolean))].sort(), [rows, a.enrich]);
@@ -308,9 +318,12 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
       if (qd && !matchesQuery(qd, `${r.material} ${r.textoBreve}`)) return false;
       if (!isAdmin && hidden.has(rowKey(r.material, r.condicion))) return false;
       if (!matchesCodes(pasteCodes, r.material)) return false;
+      if (pendFiltro && (pendSumaCond(r) > 0) !== (pendFiltro === 'con')) return false;
+      if (invFiltro && (invSumaCond(r) > 0) !== (invFiltro === 'con')) return false;
       return true;
     });
-  }, [rows, qd, cond, sector, gerente, centro, a.enrich, isAdmin, hidden, filterCols, quick, pasteCodes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, qd, cond, sector, gerente, centro, a.enrich, isAdmin, hidden, filterCols, quick, pasteCodes, pendFiltro, invFiltro, ambitoPend, rss]);
 
   const kpis = useMemo(() => {
     const mats = new Set(filtered.map((r) => norm(r.material)));
@@ -329,6 +342,23 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
     return { mats: mats.size, imp, stock, rk, porCond: [...porCond].map(([condicion, v]) => ({ condicion, ...v })).sort((x, y) => y.imp - x.imp || y.stock - x.stock) };
   }, [filtered]);
 
+  // Totales de la tabla según el filtro activo: por centro (inventario y pendiente) y las sumas de fila.
+  const totales = useMemo(() => {
+    const invC: Record<string, number> = {};
+    const pendC: Record<string, number> = {};
+    let inv = 0, pend = 0, imp = 0, d3130 = 0, d3132 = 0;
+    for (const r of filtered) {
+      for (const c of CENTERS) {
+        invC[c] = (invC[c] ?? 0) + invCond(r, c);
+        pendC[c] = (pendC[c] ?? 0) + pendSegunAmbito(rssCentro(r, c), r.condicion, ambitoPend);
+      }
+      d3130 += r.disponible31_30 || 0; d3132 += r.disponible31_32 || 0;
+      inv += invSumaCond(r); pend += pendSumaCond(r); imp += invSumaCond(r) * r.precioOferta;
+    }
+    return { invC, pendC, inv, pend, imp, d3130, d3132 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, ambitoPend, rss]);
+
   const sortAcc = useMemo(() => ({
     material: (r: (typeof filtered)[number]) => r.material,
     condicion: (r: (typeof filtered)[number]) => r.condicion,
@@ -339,8 +369,10 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
     disp3130: (r: (typeof filtered)[number]) => r.disponible31_30,
     disp3132: (r: (typeof filtered)[number]) => r.disponible31_32,
     invsuma: (r: (typeof filtered)[number]) => invSumaCond(r),
+    pendsuma: (r: (typeof filtered)[number]) => pendSumaCond(r),
     importe: (r: (typeof filtered)[number]) => invSumaCond(r) * r.precioOferta,
-  }), [a.enrich]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [a.enrich, ambitoPend, rss]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
   // Materiales (únicos) en el orden/filtro de la tabla, para recorrerlos con ◀/▶ en el detalle de celda.
@@ -349,7 +381,7 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   const colCount = (isAdmin ? 1 : 0) + 5 + (libros && colVis.isVisible('detalle') ? 1 : 0)
     + (colVis.isVisible('disp3130') ? 1 : 0) + (colVis.isVisible('disp3132') ? 1 : 0)
     + visibleCenters.length
-    + (colVis.isVisible('invsuma') ? 1 : 0) + (colVis.isVisible('importe') ? 1 : 0);
+    + (colVis.isVisible('invsuma') ? 1 : 0) + (colVis.isVisible('pendsuma') ? 1 : 0) + (colVis.isVisible('importe') ? 1 : 0);
 
   // Fixed pixel widths for the sticky (frozen) columns — the previous
   // hardcoded `left-[Npx]` offsets assumed specific column widths, but those
@@ -381,7 +413,7 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
         UM: a.enrich.matUm(r.material), Precio: r.precioOferta, 'Disp 1031-1030': r.disponible31_30, 'Disp 1031-1032': r.disponible31_32,
       };
       CENTERS.forEach((c) => { o['Inv ' + c] = invCond(r, c); });
-      o['Inv Suma'] = invSumaCond(r); o['Importe $'] = invSumaCond(r) * r.precioOferta;
+      o['Inv Suma'] = invSumaCond(r); o['Pend. suma'] = pendSumaCond(r); o['Importe $'] = invSumaCond(r) * r.precioOferta;
       return o;
     });
     // Los renglones son material × condición (el inventario se reparte entre
@@ -400,10 +432,19 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   return (
     <ReportPage>
       <PageHeader
-        title={libros ? 'Inv con Condición' : 'Inv Condición'}
+        title={libros ? 'Inventario con condición' : 'Inventario por condición'}
         subtitle={`${formatNumber(filtered.length)} renglones · clic en material = detalle del material · clic en cantidad de un centro = detalle de ese centro`}
         actions={(
           <>
+            <SegmentedControl
+              ariaLabel="Alcance del pendiente"
+              value={ambitoPend}
+              onChange={setAmbitoPend}
+              options={[
+                { value: 'condicion', label: 'Pend. por condición', title: 'Solo los almacenes que aplican a la condición: 1032 en corta caducidad; 1030+1031+1060 en las demás.' },
+                { value: 'centro', label: 'Pend. todo el centro', title: 'Todo el pendiente del material en el centro, sin importar el almacén.' },
+              ]}
+            />
             <ColumnVisibilityControl columns={columnDefs} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
             <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
             <ExportButton onClick={exportar} />
@@ -483,7 +524,7 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
         columnFilters={(
           <>
             <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
-            <CellLegend>Debajo de cada celda: <span className="text-danger">Pend</span> pendiente · <span className="text-success">+N</span> tránsito · <AlertTriangle className="inline size-3 text-warning" /> lento (≥6m sin consumo)</CellLegend>
+            <CellLegend>Debajo de cada celda: <span className="text-danger">Pend</span> pendiente ({ambitoPend === 'centro' ? 'todo el centro' : 'por condición'}) · <span className="text-success">+N</span> tránsito · <AlertTriangle className="inline size-3 text-warning" /> lento (≥6m sin consumo)</CellLegend>
           </>
         )}
       >
@@ -491,6 +532,8 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
         <GerenteSelect enrich={a.enrich} value={gerente} onChange={setGerente} />
         <FilterSelect value={sector} onChange={setSector} todos="Sector (todos)" options={sectores.map((s) => ({ value: s, label: s }))} />
         <FilterSelect value={centro} onChange={setCentro} todos="Centro (todos)" options={CENTERS.map((c) => ({ value: c, label: c }))} />
+        <FilterSelect value={pendFiltro} onChange={setPendFiltro} todos="Pendiente (todos)" title="Pend. suma: el pendiente del renglón sumado en todos los centros, con el alcance elegido arriba." options={[{ value: 'con', label: 'Con pendiente' }, { value: 'sin', label: 'Sin pendiente' }]} />
+        <FilterSelect value={invFiltro} onChange={setInvFiltro} todos="Inv Suma (todos)" title="Inv Suma: el inventario del renglón sumado en todos los centros (más Disp 31-30 y 31-32)." options={[{ value: 'con', label: 'Con inventario' }, { value: 'sin', label: 'Sin inventario' }]} />
         <PasteCodesFilter value={pasteCodes} onChange={setPasteCodes} label="material" />
         <Button
           variant={isAdmin ? 'default' : 'outline'}
@@ -517,8 +560,9 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
                 {libros && colVis.isVisible('detalle') && <SortableTableHead sortKey="detalle" activeKey={sortKey} dir={dir} onSort={toggleSort} title="Detalle de la condición, aparte del material (p. ej. el motivo de un PNC).">Detalle condición</SortableTableHead>}
                 {colVis.isVisible('disp3130') && <SortableTableHead sortKey="disp3130" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Cantidad disponible para mover del centro 1031 (hub de distribución) al almacén 1030.">Disp 31·30</SortableTableHead>}
                 {colVis.isVisible('disp3132') && <SortableTableHead sortKey="disp3132" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Cantidad disponible para mover del centro 1031 (hub de distribución) al almacén 1032.">Disp 31·32</SortableTableHead>}
-                {visibleCenters.map((c) => <TableHead key={c} className="text-right" title={`Inventario de este material en el centro ${c}, tal como viene en el reporte "InvConsolidado". Clic = desglose por lote (InvDetalle). Debajo: pendiente (rojo) y tránsito ("+N", solo hacia los almacenes que aplican según la condición). El ícono ⚠ indica "lento" (≥6 meses sin consumo y sin pendiente en ese centro).`}>Inv {c}</TableHead>)}
+                {visibleCenters.map((c) => <TableHead key={c} className="text-right" title={`Inventario de este material en el centro ${c}, tal como viene en el reporte "InvConsolidado". Clic = desglose por lote (InvDetalle). Debajo: pendiente (rojo; ${ambitoPend === 'centro' ? 'todo el del centro' : 'solo de los almacenes que aplican según la condición'}) y tránsito ("+N", solo hacia los almacenes que aplican según la condición). El ícono ⚠ indica "lento" (≥6 meses sin consumo y sin pendiente en ese centro).`}>Inv {c}</TableHead>)}
                 {colVis.isVisible('invsuma') && <SortableTableHead sortKey="invsuma" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Suma del inventario (por condición) de este material en todos los centros, más Disp 31-30 y Disp 31-32.">Inv Suma</SortableTableHead>}
+                {colVis.isVisible('pendsuma') && <SortableTableHead sortKey="pendsuma" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title={`Pendiente de este renglón sumado en todos los centros (${ambitoPend === 'centro' ? 'todo el pendiente del centro' : 'solo de los almacenes que aplican a la condición'}).`}>Pend. suma</SortableTableHead>}
                 {colVis.isVisible('importe') && <SortableTableHead sortKey="importe" activeKey={sortKey} dir={dir} onSort={toggleSort} className="text-right" title="Valor del inventario por condición (cantidad × precio de oferta).">Importe $</SortableTableHead>}
               </TableRow>
             </TableHeader>
@@ -574,25 +618,26 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
                     <TableCell className="sticky z-10 bg-bg-elevated" style={{ left: umLeft, width: UM_W, minWidth: UM_W }}>{a.enrich.matUm(r.material) || '—'}</TableCell>
                     <TableCell className="sticky z-10 bg-bg-elevated" style={{ left: condicionLeft, width: CONDICION_W, minWidth: CONDICION_W }}><StatePill label={r.condicion || '—'} cls={corta ? 'rojo' : 'gris'} /></TableCell>
                     <TableCell className="sticky z-10 truncate bg-bg-elevated" style={{ left: sectorLeft, width: SECTOR_W, minWidth: SECTOR_W }}>{a.enrich.matSector(r.material) || r.sector || '—'}<div className="truncate text-[11px] text-text-faint">{a.enrich.matGrupo(r.material) || r.grupo}</div></TableCell>
-                    <TableCell className="sticky z-10 bg-bg-elevated text-right" style={{ left: precioLeft, width: PRECIO_W, minWidth: PRECIO_W }}>{r.precioOferta ? formatCurrency(r.precioOferta) : '—'}</TableCell>
+                    <TableCell className="sticky z-10 bg-bg-elevated text-right" style={{ left: precioLeft, width: PRECIO_W, minWidth: PRECIO_W }}>{r.precioOferta ? formatCurrency(r.precioOferta) : <span className="text-text-faint" title="Sin precio autorizado para esta condición">-</span>}</TableCell>
                     {libros && colVis.isVisible('detalle') && <TableCell className="max-w-56 truncate text-xs" title={r.detalle || undefined}>{r.detalle || '—'}</TableCell>}
                     {colVis.isVisible('disp3130') && <TableCell className="text-right"><Chip title="Ver el detalle del centro 1031 · almacén 1030" onClick={() => open({ type: 'invCondCelda', material: r.material, centro: '1031', almacen: '1030', lista: listaMateriales, condicion: r.condicion })}>{formatNumber(r.disponible31_30)}</Chip></TableCell>}
                     {colVis.isVisible('disp3132') && <TableCell className="text-right"><Chip title="Ver el detalle del centro 1031 · almacén 1032" onClick={() => open({ type: 'invCondCelda', material: r.material, centro: '1031', almacen: '1032', lista: listaMateriales, condicion: r.condicion })}>{formatNumber(r.disponible31_32)}</Chip></TableCell>}
                     {visibleCenters.map((c) => {
                       const co = rssCentro(r, c);
-                      const pend = pendPorCondicion(co, r.condicion);
+                      const pend = pendSegunAmbito(co, r.condicion, ambitoPend);
                       const transito = transitoPorCondicion(co, r.condicion);
-                      const lento = rss ? esLentoPorCondicion(co, r.condicion, rss.curMes) : false;
+                      const lento = rss ? esLentoPorCondicion(co, r.condicion, rss.curMes, ambitoPend) : false;
                       return (
                         <TableCell key={c} className="text-right">
                           <Chip onClick={() => open({ type: 'invCondCelda', material: r.material, centro: c, lista: listaMateriales, condicion: r.condicion })}>{formatNumber(invCond(r, c))}</Chip>
                           {transito > 0 && <span className="text-success"> +{formatNumber(transito)}</span>}
-                          {lento && <span title="Lento: sin consumo hace ≥6 meses y sin pendiente aplicable en este centro."><AlertTriangle className="ml-1 inline size-3 text-warning" /></span>}
+                          {lento && <span title={ambitoPend === 'centro' ? 'Lento: sin consumo hace ≥6 meses y sin pendiente en este centro (todos los almacenes).' : 'Lento: sin consumo hace ≥6 meses y sin pendiente aplicable en este centro.'}><AlertTriangle className="ml-1 inline size-3 text-warning" /></span>}
                           {pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(pend)}</div>}
                         </TableCell>
                       );
                     })}
                     {colVis.isVisible('invsuma') && <TableCell className="text-right font-medium">{formatNumber(invSumaCond(r))}</TableCell>}
+                    {colVis.isVisible('pendsuma') && <TableCell className={`text-right font-medium ${pendSumaCond(r) > 0 ? 'text-danger' : 'text-text-faint'}`}>{formatNumber(pendSumaCond(r))}</TableCell>}
                     {colVis.isVisible('importe') && <TableCell className="text-right">{formatCurrency(invSumaCond(r) * r.precioOferta)}</TableCell>}
                   </TableRow>
                   </SolicitarContextMenu>
@@ -600,6 +645,24 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
               })}
               {paddingBottom > 0 && <tr><td style={{ height: paddingBottom }} colSpan={colCount} /></tr>}
             </TableBody>
+            {/* Totales del filtro activo: inventario y pendiente por centro, y las sumas de fila. */}
+            <tfoot className="sticky bottom-0 z-10 border-t-2 border-border bg-bg-elevated text-sm font-semibold shadow-[0_-1px_0_var(--border)]">
+              <tr>
+                <td colSpan={(isAdmin ? 1 : 0) + 5} className="sticky left-0 z-20 bg-bg-elevated px-3 py-2">Total · {formatNumber(sorted.length)} renglones</td>
+                {libros && colVis.isVisible('detalle') && <td />}
+                {colVis.isVisible('disp3130') && <td className="px-3 py-2 text-right tabular-nums">{formatNumber(totales.d3130)}</td>}
+                {colVis.isVisible('disp3132') && <td className="px-3 py-2 text-right tabular-nums">{formatNumber(totales.d3132)}</td>}
+                {visibleCenters.map((c) => (
+                  <td key={c} className="px-3 py-2 text-right tabular-nums">
+                    {formatNumber(totales.invC[c] ?? 0)}
+                    {(totales.pendC[c] ?? 0) > 0 && <div className="text-[11px] font-normal text-danger">Pend {formatNumber(totales.pendC[c] ?? 0)}</div>}
+                  </td>
+                ))}
+                {colVis.isVisible('invsuma') && <td className="px-3 py-2 text-right tabular-nums">{formatNumber(totales.inv)}</td>}
+                {colVis.isVisible('pendsuma') && <td className={`px-3 py-2 text-right tabular-nums ${totales.pend > 0 ? 'text-danger' : 'text-text-faint'}`}>{formatNumber(totales.pend)}</td>}
+                {colVis.isVisible('importe') && <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(totales.imp)}</td>}
+              </tr>
+            </tfoot>
           </Table>
         </div>
       </Card>

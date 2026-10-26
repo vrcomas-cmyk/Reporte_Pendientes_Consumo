@@ -399,7 +399,7 @@ export function PedidoPanel({
 
         const cad = f.fechaCaducidad ? formatFechaCaducidad(f.fechaCaducidad) : '—';
 
-        const precios = preciosPorCondicion(f.materialSugerido, a.invConsolidadoCatalog, a.invCondicion, a.preciosAutorizados);
+        const precios = preciosPorCondicion(f.materialSugerido, a.invConsolidadoCatalog, a.invCondicion, a.preciosAutorizados, true);
 
         const precio = precios[0]?.precio || 0;
 
@@ -444,7 +444,7 @@ export function PedidoPanel({
           lote: f.lote,
           caducidad: f.fechaCaducidad ? formatFechaCaducidad(f.fechaCaducidad) : '',
           disponible: f.disponible,
-          precio: preciosPorCondicion(f.materialSugerido, a.invConsolidadoCatalog, a.invCondicion, a.preciosAutorizados)[0]?.precio || 0,
+          precio: preciosPorCondicion(f.materialSugerido, a.invConsolidadoCatalog, a.invCondicion, a.preciosAutorizados, true)[0]?.precio || 0,
           fuente: f.fuente,
         })),
       })),
@@ -466,7 +466,7 @@ export function PedidoPanel({
 
             <div className="flex flex-col leading-tight">
 
-              <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-accent">
+              <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-accent">
 
                 Pedido
 
@@ -623,17 +623,13 @@ export function PedidoPanel({
 
             <div className="flex items-center justify-between">
 
-              <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-text-faint">
+              <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-text-faint">
 
                 Totales del pedido
 
               </span>
 
-              <span className="rounded-full bg-bg-inset px-2 py-0.5 text-[10px] font-medium text-text-muted">
-
-                {items.length} {items.length === 1 ? 'renglón' : 'renglones'}
-
-              </span>
+              <StatePill label={`${items.length} ${items.length === 1 ? 'renglón' : 'renglones'}`} cls="gris" />
 
             </div>
 
@@ -641,7 +637,7 @@ export function PedidoPanel({
 
               <div className="flex flex-col">
 
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-text-faint">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-text-faint">
 
                   Importe pend.
 
@@ -657,7 +653,7 @@ export function PedidoPanel({
 
               <div className="flex flex-col">
 
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-text-faint">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-text-faint">
 
                   Materiales
 
@@ -673,7 +669,7 @@ export function PedidoPanel({
 
               <div className="flex flex-col">
 
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-text-faint">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-text-faint">
 
                   Cant. pend.
 
@@ -737,7 +733,7 @@ export function PedidoPanel({
 
               <div className="flex flex-col">
 
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-text-faint">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-text-faint">
 
                   Pendiente
 
@@ -761,7 +757,7 @@ export function PedidoPanel({
 
               <div className="flex flex-col">
 
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-text-faint">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-text-faint">
 
                   Precio
 
@@ -779,7 +775,7 @@ export function PedidoPanel({
 
               <div className="flex min-w-0 flex-col">
 
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-text-faint">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-text-faint">
 
                   Estado
 

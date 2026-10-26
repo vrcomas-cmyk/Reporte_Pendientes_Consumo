@@ -90,9 +90,9 @@ function TooltipEvol({ active, payload, conMargen, conCantidad, colores }: {
       <span className="flex items-center gap-1.5"><span className="inline-block size-2.5 rounded-full" style={{ background: color }} />{nombre}</span>
       <span className="tabular-nums">
         {hayProy && proyectado !== undefined
-          ? <>{fmt(proyectado)} <span className="text-[10px] text-text-faint">proyectado</span></>
+          ? <>{fmt(proyectado)} <span className="text-[11px] text-text-faint">proyectado</span></>
           : fmt(real ?? 0)}
-        {hayProy && acum !== undefined && <span className="ml-1.5 text-[10px] text-text-faint">· a la fecha {fmt(acum)}</span>}
+        {hayProy && acum !== undefined && <span className="ml-1.5 text-[11px] text-text-faint">· a la fecha {fmt(acum)}</span>}
       </span>
     </div>
   );
@@ -104,7 +104,7 @@ function TooltipEvol({ active, payload, conMargen, conCantidad, colores }: {
         {conCantidad && fila('Cantidad', colores[1], row.cant, row.cant_proy, row.cant_acum, (n) => formatNumber(n), proy && row.cant_proy !== undefined && row.cant === null)}
         {conMargen && fila('Rendimiento aprox.', colores[2], row.margen, row.margen_proy, row.margen_acum, formatCurrency, proy)}
       </div>
-      {proy && <p className="mt-1.5 border-t border-border/60 pt-1 text-[10px] text-text-faint">Mes en curso: cierre estimado con el ritmo del mes y el promedio de los últimos 3 meses.</p>}
+      {proy && <p className="mt-1.5 border-t border-border/60 pt-1 text-[11px] text-text-faint">Mes en curso: cierre estimado con el ritmo del mes y el promedio de los últimos 3 meses.</p>}
     </div>
   );
 }

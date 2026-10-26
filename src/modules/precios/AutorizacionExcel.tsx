@@ -3,7 +3,7 @@ import { Download, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatFraccion } from '@/lib/utils';
 import { stamp } from '@/lib/exportXlsx';
 import { exportarParaDirector, leerArchivoDirector } from '@/lib/autorizacionXlsx';
 import { toast } from '@/store/toastStore';
@@ -12,7 +12,6 @@ import { evaluarAutorizacion, filasParaDirector, leerArchivo, type EstadoRenglon
 import { aplicarAutorizacion, type DecisionArchivo, type Propuesta } from '@/services/preciosService';
 import type { Analytics } from '@/modules/analytics/AnalyticsContext';
 
-const pct = (n: number) => `${Math.round(n * 1000) / 10}%`;
 const ESTADO_TXT: Record<EstadoRenglon, { txt: string; cls: string }> = {
   aceptado: { txt: 'Aceptado', cls: 'text-success' },
   modificado: { txt: 'Modificado', cls: 'text-warning' },
@@ -132,9 +131,9 @@ export function AutorizacionExcel({ a, pendientes, isAdmin, email, costoVisible,
                       <TableCell className="text-right tabular-nums">{r.propuesta ? formatCurrency(r.propuesta.precioPropuesto) : '—'}</TableCell>
                       <TableCell className="text-right font-medium tabular-nums">{r.autorizado != null ? formatCurrency(r.autorizado) : '—'}</TableCell>
                       <TableCell className="text-right tabular-nums">{r.diferencia != null && r.estado === 'modificado' ? `${r.diferencia > 0 ? '+' : '−'}${formatCurrency(Math.abs(r.diferencia))}` : '—'}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.descuento != null ? pct(r.descuento) : '—'}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.cede != null ? pct(r.cede) : '—'}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.margen != null ? pct(r.margen) : '—'}</TableCell>
+                      <TableCell className="text-right tabular-nums">{r.descuento != null ? formatFraccion(r.descuento) : '—'}</TableCell>
+                      <TableCell className="text-right tabular-nums">{r.cede != null ? formatFraccion(r.cede) : '—'}</TableCell>
+                      <TableCell className="text-right tabular-nums">{r.margen != null ? formatFraccion(r.margen) : '—'}</TableCell>
                       <TableCell className={ESTADO_TXT[r.estado].cls}>{ESTADO_TXT[r.estado].txt}</TableCell>
                       <TableCell className="max-w-64 text-text-muted">{r.error ?? r.comentario}</TableCell>
                     </TableRow>

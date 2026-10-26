@@ -100,10 +100,10 @@ function FichaCliente({ razon, onClose }: { razon: string; onClose: () => void }
             <TableCell className="text-right"><RoiCell v={d[F.roi]} /></TableCell>
             <TableCell>{t(d, F.pmFact) || '—'}</TableCell>
             <TableCell className="text-right tabular-nums">{fmt(d[F.pmFactImp])}</TableCell>
-            <TableCell className="text-right tabular-nums">{fmt(d[F.umFactImp])} <Delta act={d[F.umFactImp]} prev={d[F.pmFactImp]} /><div className="text-[10px] text-text-faint">{t(d, F.umFact) || '—'}</div></TableCell>
+            <TableCell className="text-right tabular-nums">{fmt(d[F.umFactImp])} <Delta act={d[F.umFactImp]} prev={d[F.pmFactImp]} /><div className="text-[11px] text-text-faint">{t(d, F.umFact) || '—'}</div></TableCell>
             <TableCell>{t(d, F.pmComod) || '—'}</TableCell>
             <TableCell className="text-right tabular-nums">{d[F.pmComodCant] != null ? String(d[F.pmComodCant]) : '—'}</TableCell>
-            <TableCell className="text-right tabular-nums">{d[F.umComodCant] != null ? String(d[F.umComodCant]) : '—'} <Delta act={d[F.umComodCant]} prev={d[F.pmComodCant]} /><div className="text-[10px] text-text-faint">{t(d, F.umComod) || '—'}</div></TableCell>
+            <TableCell className="text-right tabular-nums">{d[F.umComodCant] != null ? String(d[F.umComodCant]) : '—'} <Delta act={d[F.umComodCant]} prev={d[F.pmComodCant]} /><div className="text-[11px] text-text-faint">{t(d, F.umComod) || '—'}</div></TableCell>
             <TableCell className="max-w-64 text-xs">{t(d, F.accion)}</TableCell>
           </TableRow>
         ))}
@@ -175,7 +175,7 @@ function FichaCanister({ desc, cod, onClose }: { desc: string; cod: string; onCl
         cols={[{ t: 'Cliente' }, { t: 'Zona' }, { t: 'Grupo' }, { t: 'Piezas en comodato', num: true }, { t: 'Facturación acumulada', num: true }, { t: 'Margen acumulado', num: true }, { t: 'ROI (veces)', num: true }, { t: 'Estado' }, { t: 'Tendencia' }]}
         filas={clientes.map((d, i) => (
           <TableRow key={i} className="cursor-pointer" onClick={() => abrir({ tipo: 'cliente', razon: t(d, F.razon) })}>
-            <TableCell><b>{t(d, F.razon)}</b><div className="text-[10px] text-text-faint">{t(d, F.cliente)}</div></TableCell>
+            <TableCell><b>{t(d, F.razon)}</b><div className="text-[11px] text-text-faint">{t(d, F.cliente)}</div></TableCell>
             <TableCell>{fmtZona(d[F.zona]) || '—'}</TableCell>
             <TableCell>{t(d, F.grupo) || '—'}</TableCell>
             <TableCell className="text-right tabular-nums">{num(d[F.cant])}</TableCell>
@@ -228,7 +228,7 @@ function DetalleMes({ periodo, cliCod, equipoCod, metric }: { periodo: string; c
           const razon = codToRazon.get(cod) ?? `Cliente ${cod}`;
           return (
             <TableRow key={cod} className={cn(codToRazon.has(cod) && 'cursor-pointer')} onClick={() => codToRazon.has(cod) && abrir({ tipo: 'cliente', razon })}>
-              <TableCell><b>{razon}</b><div className="text-[10px] text-text-faint">{cod}</div></TableCell>
+              <TableCell><b>{razon}</b><div className="text-[11px] text-text-faint">{cod}</div></TableCell>
               <TableCell className="text-right tabular-nums">{fmt(v.imp)}</TableCell>
               <TableCell className="text-right tabular-nums">{fmtN(v.bol)}</TableCell>
               <TableCell className="text-right tabular-nums">{fmt(v.mar)}</TableCell>

@@ -31,19 +31,19 @@ interface Cmd {
 }
 
 const PAGES_TODAS: { to: string; label: string; icon: LucideIcon; hint: string }[] = [
-  { to: '/', label: 'Panel general', icon: LayoutDashboard, hint: 'g d' },
+  { to: '/', label: 'Panel', icon: LayoutDashboard, hint: 'g d' },
   { to: '/hoy', label: 'Hoy', icon: Sunrise, hint: 'g y' },
-  { to: '/carga', label: 'Carga de archivos', icon: UploadCloud, hint: 'g c' },
+  { to: '/carga', label: 'Carga', icon: UploadCloud, hint: 'g c' },
   { to: '/resultados', label: 'Resultados', icon: Table2, hint: 'g t' },
   { to: '/sugerencias', label: 'Pedidos', icon: ClipboardList, hint: 'g s' },
   { to: '/consumo', label: 'Consumo', icon: Activity, hint: 'g o' },
-  { to: '/resumen-sin', label: 'Inventario', icon: Grid3x3, hint: 'g n' },
-  { to: '/inventario', label: 'Inv Condición', icon: Boxes, hint: 'g i' },
+  { to: '/resumen-sin', label: 'Inventario general', icon: Grid3x3, hint: 'g n' },
+  { to: '/inventario', label: 'Inventario por condición', icon: Boxes, hint: 'g i' },
   { to: '/analisis', label: 'Análisis', icon: LineChart, hint: 'g a' },
   { to: '/oportunidades', label: 'Oportunidades', icon: Target, hint: 'g p' },
   { to: '/comparativo', label: 'Comparativo de periodos', icon: LineChart, hint: 'g r' },
   { to: '/comodato-libros', label: 'Comodato (libros)', icon: HandCoins, hint: 'g b' },
-  { to: '/comodato', label: 'Comodato vs. Fac.', icon: HandCoins, hint: 'g m' },
+  { to: '/comodato', label: 'Comodato vs. facturación', icon: HandCoins, hint: 'g m' },
   { to: '/solicitudes', label: 'Solicitudes DRP', icon: Truck, hint: 'g q' },
   { to: '/historial', label: 'Historial', icon: History, hint: 'g h' },
   { to: '/registros', label: 'Registros', icon: ScrollText, hint: 'g l' },
@@ -155,7 +155,7 @@ export function CommandPalette() {
               autoComplete="off"
               spellCheck={false}
             />
-            <kbd className="rounded border border-border bg-bg-inset px-1.5 py-0.5 text-[10px] text-text-faint">Esc</kbd>
+            <kbd className="rounded border border-border bg-bg-inset px-1.5 py-0.5 text-[11px] text-text-faint">Esc</kbd>
           </div>
           <div className="max-h-[60vh] overflow-y-auto py-1">
             {filtered.length === 0 && (
@@ -177,7 +177,7 @@ export function CommandPalette() {
                   {Icon && <Icon className="size-4 shrink-0" aria-hidden />}
                   <span className="flex-1 truncate">{c.label}</span>
                   {c.hint && (
-                    <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 text-[10px] text-text-faint">{c.hint}</kbd>
+                    <kbd className="rounded border border-border bg-bg px-1.5 py-0.5 text-[11px] text-text-faint">{c.hint}</kbd>
                   )}
                 </button>
               );

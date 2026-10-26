@@ -1,3 +1,4 @@
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useEffect, useState } from 'react';
 import { ScrollText, Info, AlertTriangle, XCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,11 +22,8 @@ export function LogsPage() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col gap-4 p-8">
-      <div>
-        <h2 className="font-display text-2xl font-semibold">Registros del sistema</h2>
-        <p className="text-sm text-text-muted">Carga de catálogo, inicio/fin de análisis y errores.</p>
-      </div>
+    <ReportPage>
+      <PageHeader title="Registros" subtitle="Registros del sistema: carga de catálogo, inicio/fin de análisis y errores." />
       <Card className="min-h-0 flex-1 overflow-hidden">
         <div className="h-full overflow-auto">
           {!loading && logs.length === 0 ? (
@@ -55,6 +53,6 @@ export function LogsPage() {
           )}
         </div>
       </Card>
-    </div>
+    </ReportPage>
   );
 }

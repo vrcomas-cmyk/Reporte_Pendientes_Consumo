@@ -1,3 +1,4 @@
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useEffect, useState } from 'react';
 import { History as HistoryIcon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,11 +19,8 @@ export function HistoryPage() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col gap-4 p-8">
-      <div>
-        <h2 className="font-display text-2xl font-semibold">Historial de análisis</h2>
-        <p className="text-sm text-text-muted">Cada vez que procesas un reporte diario se guarda un registro aquí.</p>
-      </div>
+    <ReportPage>
+      <PageHeader title="Historial" subtitle="Historial de análisis: cada vez que procesas un reporte diario se guarda un registro aquí." />
       <Card className="min-h-0 flex-1 overflow-hidden">
         <div className="h-full overflow-auto">
           {!loading && entries.length === 0 ? (
@@ -58,6 +56,6 @@ export function HistoryPage() {
           )}
         </div>
       </Card>
-    </div>
+    </ReportPage>
   );
 }

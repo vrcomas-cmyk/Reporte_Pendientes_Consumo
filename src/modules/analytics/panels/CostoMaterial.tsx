@@ -56,7 +56,7 @@ export function CostoOcultable({ a, material, className }: { a: Analytics; mater
   if (!m) return null;
   return (
     <div className={className ?? 'flex flex-col'}>
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-text-faint">{m.etiqueta}</span>
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-text-faint">{m.etiqueta}</span>
       <span className="font-bold tabular-nums text-text">{m.valor}</span>
     </div>
   );

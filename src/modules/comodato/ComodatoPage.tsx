@@ -1,3 +1,4 @@
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useCallback, useMemo, useState } from 'react';
 import { AlertTriangle, Loader2, PlayCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -50,15 +51,8 @@ export function ComodatoPage() {
   }, [mmFile, materiales, ejecutivos]);
 
   return (
-    <div className="mx-auto flex h-full max-w-6xl flex-col gap-6 p-8">
-      <div>
-        <h2 className="font-display text-2xl font-semibold">Comodato vs. Facturación</h2>
-        <p className="text-sm text-text-muted">
-          Cruza equipos en comodato contra su consumo facturado — reusa el mismo query DuckDB del proyecto original,
-          sin reescribirlo. Facturación viene del acumulado en R2 (no del Resumen_Fac de la app); Materiales y
-          Ejecutivos/Zona, del catálogo sincronizado — solo pide el archivo de movimientos de comodato.
-        </p>
-      </div>
+    <ReportPage className="mx-auto max-w-6xl">
+      <PageHeader title="Comodato vs. facturación" subtitle="Cruza equipos en comodato contra su consumo facturado. Facturación viene del acumulado en R2; Materiales y Ejecutivos/Zona, del catálogo sincronizado — solo pide el archivo de movimientos de comodato." />
 
       <ApiLauncherCard />
 
@@ -139,6 +133,6 @@ export function ComodatoPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </ReportPage>
   );
 }

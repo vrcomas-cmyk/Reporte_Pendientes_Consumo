@@ -368,13 +368,42 @@ function _obtenerMapeo(hoja, fileId, version) {
   return mapeo;
 }
 
-function _perteneceACarpeta(archivo, idCarpeta) {
-  var padres = archivo.getParents();
+// Todos los Google Sheets bajo la carpeta, incluidas las subcarpetas a cualquier profundidad.
+function _listarSheetsRecursivo(idCarpeta) {
+  var salida = [];
+  var pendientes = [idCarpeta];
+  var vistas = {};
 
-  while (padres.hasNext()) {
-    if (padres.next().getId() === idCarpeta) {
-      return true;
+  while (pendientes.length) {
+    var id = pendientes.pop();
+    if (vistas[id]) continue;
+    vistas[id] = true;
+
+    var carpeta = DriveApp.getFolderById(id);
+    var archivos = carpeta.getFilesByType(MimeType.GOOGLE_SHEETS);
+    while (archivos.hasNext()) salida.push(archivos.next());
+
+    var subs = carpeta.getFolders();
+    while (subs.hasNext()) pendientes.push(subs.next().getId());
+  }
+  return salida;
+}
+
+// El archivo esta en la carpeta o en cualquiera de sus subcarpetas (se sube por los padres).
+function _perteneceACarpeta(archivo, idCarpeta) {
+  var nivel = [archivo];
+
+  for (var profundidad = 0; profundidad < 10 && nivel.length; profundidad++) {
+    var siguiente = [];
+    for (var i = 0; i < nivel.length; i++) {
+      var padres = nivel[i].getParents();
+      while (padres.hasNext()) {
+        var padre = padres.next();
+        if (padre.getId() === idCarpeta) return true;
+        siguiente.push(padre);
+      }
     }
+    nivel = siguiente;
   }
   return false;
 }
@@ -522,24 +551,25 @@ const FAC_ALIAS = {
 
 function obtenerManifiestoFacturacion() {
   var cache = CacheService.getScriptCache();
-  var guardado = cache.get("fac_manifest_" + CARPETA_ID + "_v4");
+  var guardado = cache.get("fac_manifest_" + CARPETA_ID + "_v5");
   if (guardado) return JSON.parse(guardado);
 
-  var archivos = DriveApp.getFolderById(CARPETA_ID).getFilesByType(MimeType.GOOGLE_SHEETS);
+  // Todos los Sheets de la carpeta Y de sus subcarpetas (Q1, Q2...). Un libro sin "1Q 2024" en el nombre
+  // (informacion anexada de meses/anios anteriores) tambien cuenta: orden 0 = va antes de los trimestrales.
+  var archivos = _listarSheetsRecursivo(CARPETA_ID);
   var libros = [];
 
-  while (archivos.hasNext()) {
-    var archivo = archivos.next();
+  for (var k = 0; k < archivos.length; k++) {
+    var archivo = archivos[k];
     var periodo = _parsearPeriodo(archivo.getName());
-    if (!periodo) continue;
 
     var actualizado = archivo.getLastUpdated();
     var info = _infoLibroFacturacion(archivo.getId(), actualizado.getTime(), null);
     libros.push({
       id: archivo.getId(),
       nombre: archivo.getName(),
-      periodo: periodo.trimestre + "Q " + periodo.anio,
-      orden: periodo.anio * 10 + periodo.trimestre,
+      periodo: periodo ? periodo.trimestre + "Q " + periodo.anio : archivo.getName(),
+      orden: periodo ? periodo.anio * 10 + periodo.trimestre : 0,
       ultimaModificacion: actualizado.toISOString(),
       totalRows: info.totalRows,
       chunkSize: FAC_CHUNK_SIZE,
@@ -551,7 +581,7 @@ function obtenerManifiestoFacturacion() {
 
   var resultado = { ok: true, libros: libros };
   try {
-    cache.put("fac_manifest_" + CARPETA_ID + "_v4", JSON.stringify(resultado), FAC_CACHE_MANIFIESTO_SEG);
+    cache.put("fac_manifest_" + CARPETA_ID + "_v5", JSON.stringify(resultado), FAC_CACHE_MANIFIESTO_SEG);
   } catch (error) {
     // Cache lleno: solo se pierde la optimizacion.
   }

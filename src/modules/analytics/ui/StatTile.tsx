@@ -75,7 +75,7 @@ export function StatTile({
       <p
         className={cn(
           'flex items-center gap-1 uppercase tracking-wide whitespace-nowrap',
-          hero ? 'text-[11px] font-medium text-text-muted' : 'text-[10px] text-text-faint',
+          hero ? 'text-[11px] font-medium text-text-muted' : 'text-[11px] text-text-faint',
         )}
       >
         {label}

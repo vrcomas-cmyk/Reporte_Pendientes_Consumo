@@ -1,3 +1,4 @@
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useMemo } from 'react';
 import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
 import { AlertTriangle, Users, Clock4 } from 'lucide-react';
@@ -71,11 +72,8 @@ export function HoyPage() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-auto p-6">
-      <div>
-        <h2 className="font-display text-2xl font-semibold">Hoy</h2>
-        <p className="text-sm text-text-muted">Estado actual — pedidos bloqueados, clientes en riesgo y lotes por vencer, en un vistazo</p>
-      </div>
+    <ReportPage>
+      <PageHeader title="Hoy" subtitle="Estado actual — pedidos bloqueados, clientes en riesgo y lotes por vencer, en un vistazo" />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile emphasis="hero" label="En riesgo por caducidad (≤12m)" value={formatCurrency(riesgoCaducidadImpTotal)} sub={`${formatCurrency(riesgoCaducidadImpSinDemanda)} sin demanda reciente`} tone="danger" />
@@ -131,7 +129,7 @@ export function HoyPage() {
                       <TableCell><Chip onClick={() => open({ type: 'material', material: l.material })}>{l.material}</Chip><div className="text-[11px] text-text-faint max-w-56 truncate">{l.textoBreve}</div></TableCell>
                       <TableCell className="whitespace-nowrap text-xs">{l.lote || '—'} · {l.centro}</TableCell>
                       <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
-                      <TableCell className="whitespace-nowrap text-xs">{l.dias} d<div className="text-[10px] text-text-faint">{formatFechaCaducidad(l.fechaCaducidad)}</div></TableCell>
+                      <TableCell className="whitespace-nowrap text-xs">{l.dias} d<div className="text-[11px] text-text-faint">{formatFechaCaducidad(l.fechaCaducidad)}</div></TableCell>
                       <TableCell>{l.conDemanda ? <span className="text-success">Activa</span> : <span className="text-text-faint">Sin consumo reciente</span>}</TableCell>
                     </TableRow>
                   </RowContextMenu>
@@ -190,6 +188,6 @@ export function HoyPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </ReportPage>
   );
 }

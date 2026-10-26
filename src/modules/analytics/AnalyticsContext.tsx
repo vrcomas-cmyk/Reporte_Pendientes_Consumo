@@ -4,8 +4,9 @@ import { buildRFAsync, mesesDisponibles, type RFIndex } from '@/core/resumenFac'
 import { buildBO, buildBOPorFila, type BOItem } from '@/core/buildBO';
 import { buildRSS, type RSSIndex } from '@/core/resumenSin';
 import { buildFacMensual, type FacMensualIndex } from '@/core/facMensual';
-import { buildEnrich, type EnrichIndex, type PrecioAutorizado } from '@/core/enrich';
-import { usePreciosStore, autorizadosPorMaterial } from '@/store/preciosStore';
+import { buildEnrich, type EnrichIndex } from '@/core/enrich';
+import { crearPreciosAutorizados, type PreciosAutorizados } from '@/core/precioAutorizado';
+import { usePreciosStore, autorizadosVigentes } from '@/store/preciosStore';
 import { usePendienteBloqueoStore } from '@/store/pendienteBloqueoStore';
 import { applyCatalogPriceFallback } from '@/core/analysis';
 import { inventarioDesdeDisponibilidad, sugerenciasDesdeSegPedidos } from '@/core/pedidos';
@@ -85,7 +86,7 @@ export interface Analytics {
    * fallback merge) — used to prefer catalog prices over invCondicion's. */
   invConsolidadoCatalog: InvConsolidadoRow[];
   /** Precios de oferta AUTORIZADOS en el módulo Precios, por material; sustituyen al `precioOferta` de la hoja (ver `preciosPorCondicion`). */
-  preciosAutorizados: ReadonlyMap<string, readonly PrecioAutorizado[]>;
+  preciosAutorizados: PreciosAutorizados;
   lotes: InvDetalleRow[];
   curmes: string;
   /** Clasificación ABC/Pareto de materiales y clientes por importe facturado
@@ -109,7 +110,9 @@ const FACTURACION_VACIA: Analytics['facturacion'] = { rf: null, consumo: [], abc
 const AnalyticsCtx = createContext<Analytics | null>(null);
 
 export function AnalyticsProvider({ children }: { children: ReactNode }) {
-  const result = useDataStore((s) => s.activeAnalysis);
+  // Solo libros nuevos: el reporte anterior (Resumen_Fac y demás pestañas) nunca alimenta la app, aunque quede algo restaurado en el navegador.
+  const resultGuardado = useDataStore((s) => s.activeAnalysis);
+  const result = SOLO_LIBROS ? null : resultGuardado;
   const catalog = useDataStore((s) => s.catalog);
   const incremento = useDataStore((s) => s.incremento);
 
@@ -241,13 +244,29 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     });
     return { filas, lotes: lotesDeCondicion(lotes), detalle, sustituciones, invRevision, estadosRevision };
   }, [hojasSeg, enrich]);
-  const invCondicionLibros = condLibros.filas;
-  const revisionLibros = useMemo(() => indiceRevision(invCondicionLibros), [invCondicionLibros]);
+  const revisionLibros = useMemo(() => indiceRevision(condLibros.filas), [condLibros.filas]);
   const lotesLibros = condLibros.lotes;
   const detalleLotesLibros = condLibros.detalle;
   const sustitucionesLibros = condLibros.sustituciones;
   const invRevisionLibros = condLibros.invRevision;
   const estadosRevisionLibros = condLibros.estadosRevision;
+  // Precios de oferta AUTORIZADOS en Precios: se muestran en todos los lugares con materiales ofertables, con las MISMAS condiciones de Precios
+  // (Corta caducidad, PNC y los Status de Revision incluidos; ver `core/precioAutorizado.ts`).
+  const propuestasPrecios = usePreciosStore((st) => st.propuestas);
+  const politicaPrecios = usePreciosStore((st) => st.politica);
+  const preciosAutorizados = useMemo<PreciosAutorizados>(
+    () => crearPreciosAutorizados(
+      autorizadosVigentes(propuestasPrecios, (m) => enrich.matCosto(m)),
+      (m) => (estadosRevisionLibros.get(m.trim().replace(/\.0+$/, ''))?.estados ?? []).filter((st) => politicaPrecios.condiciones[st]?.incluida),
+    ),
+    [propuestasPrecios, politicaPrecios, enrich, estadosRevisionLibros],
+  );
+  // Inv con Condición: una fila por material × condición con SU precio autorizado (condición exacta). Sin autorizar = 0 («-»): el precio viejo de la
+  // hoja es de nivel material y se copiaba a todas las condiciones.
+  const invCondicionLibros = useMemo(() => condLibros.filas.map((r) => {
+    const p = preciosAutorizados.precio(r.material, r.condicion) ?? 0;
+    return { ...r, precioOferta: p, importeInventario: p * r.invSuma };
+  }), [condLibros.filas, preciosAutorizados]);
   const modoBloqueo = usePendienteBloqueoStore((s) => s.modo);
   const rssDisp = useMemo(() => {
     const dispo = hojasDeLibro(hojasSeg, 'disponibilidad')[0];
@@ -264,11 +283,6 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     [inventarioCondicion, invConsolidadoCatalog, catalog],
   );
   const lotes = useMemo(() => [...(catalog?.invDetalle ?? []), ...(lotesCortaCaducidad ?? [])], [catalog, lotesCortaCaducidad]);
-  const propuestasPrecios = usePreciosStore((st) => st.propuestas);
-  const preciosAutorizados = useMemo(
-    () => autorizadosPorMaterial(propuestasPrecios, (m) => enrich.matCosto(m)),
-    [propuestasPrecios, enrich],
-  );
   const incrementoRows = useMemo(() => incremento?.rows ?? [], [incremento]);
 
   // ---- PUENTE a los libros ---------------------------------------------------------------------------------------------------------

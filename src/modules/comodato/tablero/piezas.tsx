@@ -77,7 +77,7 @@ export function RecupCell({ v }: { v: unknown }) {
 }
 
 export function TipoTag({ tipo }: { tipo: TipoEquipo }) {
-  return <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', tipo === 'Canister' ? 'bg-accent-soft text-accent' : 'bg-bg-inset text-text-muted')}>{tipo}</span>;
+  return <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium', tipo === 'Canister' ? 'bg-accent-soft text-accent' : 'bg-bg-inset text-text-muted')}>{tipo}</span>;
 }
 
 export const fmtK = (n: unknown): string => {

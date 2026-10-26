@@ -4,10 +4,12 @@ import { useClipboard } from '@/hooks/useClipboard';
 import { formatCurrency, formatFechaCaducidad } from '@/lib/utils';
 import { disponibleEnCentros, esSustituto, textoCambioCodigo } from '@/core/ofertaSustituto';
 import type { LotesOfertados } from './MensajeEjecutivo';
-import { norm } from '../helpers';
-import { Section, FuentesTable, precioPorCondicion, type FuentesSelection } from './_shared';
+import { Section, FuentesTable, type FuentesSelection } from './_shared';
+import { filasOfertablesDe, sugerenciasDeOpciones, llaveFila } from '../filasOfertables';
+import { useConocimientoStore } from '@/store/conocimientoStore';
+import { aceptacionesPrevias, textoAceptacionPrevia } from '@/core/ofertasEjecutivo';
 import { CentrosFiltroBar } from './CentrosFiltroBar';
-import { opcionesDeOferta, condicionesDeMaterial, CONDICION_CORTA_CADUCIDAD, CONDICION_PNC, type OpcionOferta } from '@/core/invCondicionLibros';
+import { opcionesDeOferta, type OpcionOferta } from '@/core/invCondicionLibros';
 import { centroPasaFiltro, useCentrosFiltroStore } from '@/store/centrosFiltroStore';
 import { usePermissionsStore } from '@/store/permissionsStore';
 import { isDetailHidden } from '@/core/permissions';
@@ -15,39 +17,6 @@ import type { BOItem } from '@/core/buildBO';
 import type { Sugerencia } from '@/core/types';
 import type { Panel } from '@/store/panelStore';
 import type { Analytics } from '../AnalyticsContext';
-
-const GENERAL = '1030+1031+1060';
-/** Condiciones que se muestran por lote (con su centro/almacén de la hoja); el resto va en una fila general 1030+1031+1060. */
-const POR_LOTE = new Set([CONDICION_CORTA_CADUCIDAD, CONDICION_PNC]);
-
-/** Convierte las opciones en `Sugerencia`s para reutilizar EXACTAMENTE la tabla de "Fuentes / materiales ofertables"
- * (mismas columnas, filtros, vigencia, vista rápida del inventario por centro y selección). Sustituto / Status →
- * una fila con la suma general; Corta caducidad y PNC → una fila por lote con el centro, almacén, lote y caducidad de su hoja. */
-function sugerenciasDeOpciones(material: string, opciones: OpcionOferta[], a: Analytics): Sugerencia[] {
-  const base = (o: OpcionOferta): Sugerencia => ({
-    gpoCte: '', fecha: '', oc: '', pedido: '', gpoVdor: '', solicitante: '', destinatario: '', razonSocial: '', centroPedido: '', almacen: '',
-    materialSolicitado: material, materialBase: material, descripcionSolicitada: '', cantidadPedido: 0, cantidadPendiente: 0, cantidadOfertar: 0,
-    precio: 0, consumoPromedio: 0, fuente: o.tipo, materialSugerido: o.material, descripcionSugerida: o.textoBreve, centroSugerido: '',
-    almacenSugerido: '', disponible: 0, lote: '', fechaCaducidad: '', mesesVigenciaLote: 0, centroInv: '', mesesInventario: 0,
-    promedioConsumo12M: 0, cantTransito: 0, bloqueado: '', invByCenter: {}, raw: {},
-  });
-  const out: Sugerencia[] = [];
-  for (const o of opciones) {
-    const general = o.fuentes.filter((f) => !POR_LOTE.has(f.tipo));
-    const tipoGeneral = general.map((f) => f.tipo).join('/');
-    if (general.length) {
-      out.push({ ...base(o), fuente: tipoGeneral, almacenSugerido: GENERAL, disponible: general.reduce((s, f) => s + f.invSuma, 0), invByCenter: o.fuentes[0]?.invByCenter ?? {} });
-    }
-    const porLote = condicionesDeMaterial(o.material, {
-      filas: a.invCondicionLibros, lotes: a.lotesLibros, detalle: a.detalleLotesLibros, sustituciones: a.sustitucionesLibros, invRevision: a.invRevisionLibros,
-    }).filter((f) => POR_LOTE.has(f.condicion));
-    for (const f of porLote) {
-      const fuente = general.length ? `${tipoGeneral}/${f.condicion}` : f.condicion;
-      out.push({ ...base(o), fuente, centroSugerido: f.centro, almacenSugerido: f.almacen, disponible: f.cantidad, lote: f.lote, fechaCaducidad: f.caducidad, ...(f.detalle ? { descripcionSugerida: `${o.textoBreve} · ${f.detalle}` } : {}) });
-    }
-  }
-  return out;
-}
 
 /** Opciones de los libros (sustituto + el mismo material bajo otras condiciones) de `material`, como filas de la tabla de fuentes. */
 function useOpciones(a: Analytics, material: string): { opciones: OpcionOferta[]; filas: Sugerencia[] } {
@@ -73,40 +42,9 @@ export function OpcionesOfertaSection({ a, material, push, selection }: { a: Ana
 }
 
 const MAX_LOTES_SELECCION = 2;
-const llaveFila = (f: Sugerencia): string => `${f.lote}|${f.materialSugerido}|${f.centroSugerido}|${f.almacenSugerido}|${f.fechaCaducidad}|${f.fuente}`;
 
-/** Filas de TODO lo que hay y se puede ofrecer de `material`: sus lotes (General), los lotes con condición (Corta caducidad, PNC),
- * el sustituto / Status de los libros y, si hay pedido, las fuentes de Todas las Sugerencias. Con el precio de cada una. */
 function useFilasOfertables(a: Analytics, material: string, it?: BOItem): { filas: Sugerencia[]; precioDe: (f: Sugerencia) => number } {
-  const { filas: opciones } = useOpciones(a, material);
-  return useMemo(() => {
-    const matN = norm(material);
-    const precios = new Map<string, number>();
-    const precioCond = (mat: string, cond: string) => {
-      const ps = precioPorCondicion(a, mat);
-      return ps.find((p) => cond.includes(p.condicion))?.precio || ps[0]?.precio || 0;
-    };
-    const lotesMat = a.lotes.filter((l) => norm(l.material) === matN);
-    const precioLote = (f: Sugerencia) => lotesMat.find((l) => norm(l.centro) === norm(f.centroSugerido) && norm(l.almacen) === norm(f.almacenSugerido) && norm(l.lote) === norm(f.lote))?.precioOferta ?? 0;
-    const filas: Sugerencia[] = [];
-    for (const f of it?.fuentes ?? []) filas.push(f);
-    for (const f of opciones) { filas.push(f); precios.set(llaveFila(f), precioLote(f) || precioCond(f.materialSugerido, f.fuente)); }
-    const cubiertos = new Set(filas.filter((f) => f.lote).map((f) => `${norm(f.centroSugerido)}|${norm(f.almacenSugerido)}|${norm(f.lote)}`));
-    for (const l of lotesMat) {
-      if (cubiertos.has(`${norm(l.centro)}|${norm(l.almacen)}|${norm(l.lote)}`)) continue;
-      const g: Sugerencia = {
-        gpoCte: '', fecha: '', oc: '', pedido: '', gpoVdor: '', solicitante: '', destinatario: '', razonSocial: '', centroPedido: '', almacen: '',
-        materialSolicitado: material, materialBase: material, descripcionSolicitada: '', cantidadPedido: 0, cantidadPendiente: 0, cantidadOfertar: 0,
-        precio: 0, consumoPromedio: 0, fuente: 'General', materialSugerido: material, descripcionSugerida: a.enrich.matTexto(material) || l.textoBreve,
-        centroSugerido: l.centro, almacenSugerido: l.almacen, disponible: l.cantidadDisp, lote: l.lote, fechaCaducidad: l.fechaCaducidad ?? '',
-        mesesVigenciaLote: 0, centroInv: '', mesesInventario: 0, promedioConsumo12M: 0, cantTransito: 0, bloqueado: '', invByCenter: {}, raw: {},
-      };
-      filas.push(g);
-      precios.set(llaveFila(g), l.precioOferta ?? 0);
-    }
-    // Solo lo que tiene existencia: las filas en 0 no se muestran.
-    return { filas: filas.filter((f) => f.disponible > 0), precioDe: (f: Sugerencia) => precios.get(llaveFila(f)) ?? 0 };
-  }, [a, material, opciones, it]);
+  return useMemo(() => filasOfertablesDe(a, material, it), [a, material, it]);
 }
 
 /** UNA sola tabla "Lotes, condiciones y materiales ofertables" con la MISMA estructura y acciones en todos los detalles: filtros de
@@ -134,6 +72,19 @@ export function LotesOfertablesSection({ a, material, it, centroPedido, cliente,
       return disp > 0 ? [{ ...f, disponible: disp }] : [];
     });
   }, [filas, centrosElegidos, centro]);
+  // Alerta: el mismo destinatario ya aceptó antes alguno de estos materiales (con su lote si se conoce).
+  const ofertasRegistradas = useConocimientoStore((s) => s.ofertas);
+  const destinatario = it?.bo.destinatario ?? '';
+  const previas = useMemo(() => {
+    if (!destinatario) return [];
+    const vistos = new Set<string>();
+    return visibles.flatMap((f) => {
+      if (vistos.has(f.materialSugerido)) return [];
+      vistos.add(f.materialSugerido);
+      const p = aceptacionesPrevias(ofertasRegistradas, destinatario, f.materialSugerido)[0];
+      return p ? [{ material: f.materialSugerido, texto: textoAceptacionPrevia(p) }] : [];
+    });
+  }, [destinatario, visibles, ofertasRegistradas]);
   const [sel, setSel] = useState<Map<string, Sugerencia>>(new Map());
   // Lo marcado que sigue visible, con la existencia ya filtrada por centros (lo que se copia y se manda al ejecutivo).
   const marcados = useMemo(() => visibles.filter((f) => sel.has(llaveFila(f))), [visibles, sel]);
@@ -164,9 +115,14 @@ export function LotesOfertablesSection({ a, material, it, centroPedido, cliente,
     <>
       <Section ancho tono="inv" origen="Inv_Condicion · Disponibilidad" title={`Lotes, condiciones y materiales ofertables (${visibles.length}${visibles.length !== filas.length ? ` de ${filas.length}` : ''})`}>
         <CentrosFiltroBar centroPedido={centro} />
+        {previas.length > 0 && (
+          <ul className="mt-2 space-y-0.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+            {previas.map((p) => <li key={p.material}><span className="font-medium tabular-nums">{p.material}</span>: {p.texto}</li>)}
+          </ul>
+        )}
         {visibles.length ? (
           <>
-            <FuentesTable fuentes={visibles} push={push} selection={selection ?? interna} precioDe={precioDe} />
+            <FuentesTable fuentes={visibles} push={push} selection={selection ?? interna} precioDe={precioDe} centroPedido={centro} />
             {!selection && (
               <div className="mt-2 flex items-center gap-2">
                 <button type="button" disabled={!marcados.length} onClick={copiar} className="inline-flex items-center gap-1.5 rounded-md border border-success/40 bg-success/10 px-2.5 py-1.5 text-xs font-medium text-success hover:bg-success/20 disabled:opacity-40">

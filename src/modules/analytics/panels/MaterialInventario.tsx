@@ -16,6 +16,7 @@ import { useNombresStore, useVistaCentrosStore } from '@/store/nombresStore';
 import { etiquetaCentro, etiquetaAlmacen } from '@/lib/nombres';
 import type { Analytics } from '../AnalyticsContext';
 import { invAlmacen1031, puntosSolicitarInventario, type PuntoSolicitar } from '../inventario1031';
+import { inventarioBloques } from '../inventarioBloques';
 
 export { invAlmacen1031, puntosSolicitarInventario, type PuntoSolicitar };
 
@@ -73,7 +74,7 @@ export function SolicitarGrid({ a, material, mat, puntos, tituloDe, onAbrir }: {
             <div onClick={onAbrir ? () => onAbrir(p) : undefined} title={onAbrir ? 'Clic: ver este almacén · clic derecho: Solicitar' : undefined} className="cursor-context-menu rounded-md border border-border px-2.5 py-1.5 hover:border-accent">
               <p className="text-[11px] text-text-faint">{tituloDe(p)}</p>
               <p className="font-mono text-sm">{formatNumber(p.cantidad)}</p>
-              {p.nota && <p className="text-[10px] text-warning">{p.nota}</p>}
+              {p.nota && <p className="text-[11px] text-warning">{p.nota}</p>}
             </div>
           </SolicitarContextMenu>
         ))}
@@ -89,19 +90,21 @@ export function SolicitarGrid({ a, material, mat, puntos, tituloDe, onAbrir }: {
  * catálogo) — con o sin condición — para poder consultarlo desde cualquier
  * detalle (Consumo, Inventario, Inv Condición, fuentes de un pedido). Respeta
  * el filtro "Considerar centros" (solo afecta a "Otros centros"). */
-export function MaterialInventarioSection({ a, material }: { a: Analytics; material: string }) {
+export function MaterialInventarioSection({ a, material, centro }: { a: Analytics; material: string; /** Centro del pedido que se revisa: sus almacenes 1030/1031/1032/1060 son los «principales». Sin él, el Centro 1031. */ centro?: string }) {
   const centrosElegidos = useCentrosFiltroStore((s) => s.centros);
   const { mat, principales, otros, transito, condiciones, puntos } = useMaterialInventario(a, material);
 
-  const invPrin: [string, number][] = PRINCIPALES.map((c) => [c, principales[c] || 0]);
-  const invOtros: [string, number, number?][] = CENTERS
-    .filter((c) => centroPasaFiltro(c, '', centrosElegidos))
-    .map((c) => [c, otros[c] || 0, transito[c] || 0]);
+  // Con el centro del pedido: sus almacenes (Disponibilidad) y los demás centros; sin él, el comportamiento de siempre (Centro 1031).
+  const delPedido = centro && centro.trim() !== '' ? inventarioBloques(a, material, centro.trim(), centrosElegidos) : null;
+  const invPrin: [string, number][] = delPedido ? delPedido.principales.map((x) => [x.clave, x.cantidad]) : PRINCIPALES.map((c) => [c, principales[c] || 0]);
+  const invOtros: [string, number, number?][] = delPedido
+    ? delPedido.otrosCentros.map((x) => [x.clave, x.cantidad, x.transito || 0])
+    : CENTERS.filter((c) => centroPasaFiltro(c, '', centrosElegidos)).map((c) => [c, otros[c] || 0, transito[c] || 0]);
 
   return (
     <>
-      <Section title="Inventario principales · Centro 1031" collapsible storageKey="inv.principales"><InvGrid items={invPrin} /></Section>
-      <Section title={`Otros centros (1001–1036)${centrosElegidos.length ? ' · filtrado' : ''}`} collapsible storageKey="inv.otros">
+      <Section title={`Inventario principales · Centro ${delPedido ? delPedido.centro : '1031'}${delPedido ? ' (centro del pedido)' : ''}`} collapsible storageKey="inv.principales"><InvGrid items={invPrin} /></Section>
+      <Section title={`Otros centros${delPedido ? '' : ' (1001–1036)'}${centrosElegidos.length ? ' · filtrado' : ''}`} collapsible storageKey="inv.otros">
         {invOtros.length ? <InvGrid items={invOtros} /> : <p className="text-sm text-text-muted">Ningún centro elegido en el filtro.</p>}
       </Section>
       <Section title="Solicitar desde inventario (click derecho)" collapsible storageKey="inv.solicitar">

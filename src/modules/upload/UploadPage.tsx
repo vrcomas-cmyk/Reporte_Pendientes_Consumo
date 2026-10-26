@@ -1,3 +1,4 @@
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useCallback, useState } from 'react';
 import { SOLO_LIBROS } from '@/lib/modoLibros';
 import { RefreshCcw, Cloud, AlertTriangle, FileSpreadsheet } from 'lucide-react';
@@ -133,22 +134,19 @@ export function UploadPage() {
   }, [catalog, settings, activeAnalysis, sheetsRoles, setActiveAnalysis]);
 
   return (
-    <div className="mx-auto flex h-full max-w-5xl flex-col gap-6 p-8">
-      <div>
-        <h2 className="font-display text-2xl font-semibold">Carga de archivos</h2>
-        <p className="text-sm text-text-muted">Sincroniza el catálogo maestro y el reporte diario — ambos en vivo desde Google Sheets.</p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          onClick={() => void handleSyncTodoLibros()}
-          disabled={librosSyncing || facSyncing}
-          title="Sincroniza a la vez los libros (Seg pedidos, Disponibilidad, Inv_Condicion) y la facturación de la carpeta de Drive. La primera vez trae todo; después solo lo modificado."
-        >
-          <RefreshCcw className={`size-4 ${librosSyncing || facSyncing ? 'animate-spin' : ''}`} />
-          {librosSyncing || facSyncing ? 'Sincronizando…' : 'Sincronizar libros y facturación'}
-        </Button>
-      </div>
+    <ReportPage className="mx-auto max-w-5xl">
+      <PageHeader title="Carga" subtitle="Sincroniza el catálogo maestro y el reporte diario — ambos en vivo desde Google Sheets." actions={
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => void handleSyncTodoLibros()}
+      disabled={librosSyncing || facSyncing}
+      title="Sincroniza a la vez los libros (Seg pedidos, Disponibilidad, Inv_Condicion) y la facturación de la carpeta de Drive. La primera vez trae todo; después solo lo modificado."
+    >
+      <RefreshCcw className={`mr-1 size-3.5 ${librosSyncing || facSyncing ? 'animate-spin' : ''}`} />
+      {librosSyncing || facSyncing ? 'Sincronizando…' : 'Sincronizar libros y facturación'}
+    </Button>
+  } />
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <Card>
@@ -434,6 +432,6 @@ export function UploadPage() {
           <RefreshCcw className="size-3.5" /> Carga el catálogo maestro primero para poder cruzarlo contra el reporte diario.
         </div>
       )}
-    </div>
+    </ReportPage>
   );
 }

@@ -11,7 +11,7 @@ export function SolicitadoBadge({ solicitado }: { solicitado: boolean }) {
   return (
     <span
       title="Ya se solicitó este lote/material"
-      className="inline-flex items-center gap-1 rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-medium text-success"
+      className="inline-flex items-center gap-1 rounded-full bg-success/15 px-1.5 py-0.5 text-[11px] font-medium text-success"
     >
       <CheckCircle2 className="size-3" />Solicitado
     </span>

@@ -1,17 +1,8 @@
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useEffect, useState } from 'react';
 import { SOLO_LIBROS } from '@/lib/modoLibros';
-import { Link } from 'react-router-dom';
-import {
-  Boxes,
-  Users,
-  PackageX,
-  Clock4,
-  TrendingDown,
-  Warehouse,
-  CircleDollarSign,
-  UploadCloud,
-  Ban,
-} from 'lucide-react';
+import { Warehouse } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -28,9 +19,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { KpiTile } from './KpiTile';
+import { StatTile } from '@/modules/analytics/ui';
 import { Heatmap } from './Heatmap';
 import { useDataStore } from '@/store/dataStore';
 import { getLatestAnalysis } from '@/services/reportService';
@@ -92,22 +82,7 @@ export function DashboardPage() {
   // (materiales, facturación, inventario) until it syncs too.
   if (!activeAnalysis && !catalog) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-        <div className="flex size-14 items-center justify-center rounded-full bg-accent-soft text-accent">
-          <Warehouse className="size-7" />
-        </div>
-        <div>
-          <h2 className="font-display text-lg font-semibold">Aún no hay análisis</h2>
-          <p className="mt-1 max-w-sm text-sm text-text-muted">
-            Sube el catálogo maestro y el reporte diario para ver KPIs, tendencias y el top de materiales y ejecutivos.
-          </p>
-        </div>
-        <Button asChild>
-          <Link to="/carga">
-            <UploadCloud className="size-4" /> Ir a Carga
-          </Link>
-        </Button>
-      </div>
+      <ReportPage><PageHeader title="Panel" /><EmptyState icon={Warehouse} title="Aún no hay análisis" description="Sube el catálogo maestro y el reporte diario para ver KPIs, tendencias y el top de materiales y ejecutivos." action={{ to: '/carga', label: 'Ir a Carga' }} /></ReportPage>
     );
   }
 
@@ -127,44 +102,39 @@ export function DashboardPage() {
   const lineData = monthlyInvoicing.map((m) => ({ mes: m.mes, importe: Math.round(m.importe) }));
 
   return (
-    <div className="flex h-full flex-col gap-5 overflow-auto p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-display text-2xl font-semibold">Panel general</h2>
-          <p className="text-sm text-text-muted">
-            {activeAnalysis ? <>{activeAnalysis.fileName} · {formatNumber(activeAnalysis.rowCount)} filas</> : 'Reporte diario aún no sincronizado'} · catálogo {catalog ? 'sincronizado' : 'no disponible'}
-          </p>
-        </div>
-      </div>
+    <ReportPage>
+      <PageHeader title="Panel" subtitle={<>
+    {activeAnalysis ? <>{activeAnalysis.fileName} · {formatNumber(activeAnalysis.rowCount)} filas</> : 'Reporte diario aún no sincronizado'} · catálogo {catalog ? 'sincronizado' : 'no disponible'}
+  </>} />
 
       {/* Two-tier KPI hierarchy instead of 8 equal-weight tiles in one row:
           the 4 "needs attention" numbers (what to act on today) lead, larger;
           the 4 context numbers (what the analysis covers) follow, smaller. */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-        <KpiTile
-          emphasis="hero"
-          className="col-span-2"
-          label="Bloqueado"
-          value={formatCurrency(kpis?.bloqueadosImportePendiente ?? 0)}
-          icon={Ban}
-          tone="danger"
-          sub={
-            kpis?.bloqueadosPorMotivo.length
-              ? kpis.bloqueadosPorMotivo.map((m) => `${m.motivo} (${formatNumber(m.count)})`).join(' · ')
-              : undefined
-          }
-        />
-        <KpiTile label="Corta caducidad" value={formatNumber(kpis?.productosCortaCaducidad ?? 0)} icon={Clock4} tone="warning" />
-        <KpiTile label="Sin consumo" value={formatNumber(kpis?.productosSinConsumo ?? 0)} icon={PackageX} />
-        <KpiTile label="Lento movimiento" value={formatNumber(kpis?.productosLentoMovimiento ?? 0)} icon={TrendingDown} />
+        <div className="col-span-2">
+          <StatTile
+            emphasis="hero"
+            label="Bloqueado"
+            value={formatCurrency(kpis?.bloqueadosImportePendiente ?? 0)}
+            tone="danger"
+            sub={
+              kpis?.bloqueadosPorMotivo.length
+                ? kpis.bloqueadosPorMotivo.map((m) => `${m.motivo} (${formatNumber(m.count)})`).join(' · ')
+                : undefined
+            }
+          />
+        </div>
+        <StatTile label="Corta caducidad" value={formatNumber(kpis?.productosCortaCaducidad ?? 0)} tone="warning" />
+        <StatTile label="Sin consumo" value={formatNumber(kpis?.productosSinConsumo ?? 0)} />
+        <StatTile label="Lento movimiento" value={formatNumber(kpis?.productosLentoMovimiento ?? 0)} />
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiTile label="Materiales analizados" value={formatNumber(kpis?.materialesAnalizados ?? 0)} icon={Boxes} size="sm" />
+        <StatTile emphasis="muted" label="Materiales analizados" value={formatNumber(kpis?.materialesAnalizados ?? 0)} />
         {/* Ejecutivos comes from the catalog directly (topEjecutivos.length), not kpis —
             it must show real numbers the instant the catalog syncs, before any daily report. */}
-        <KpiTile label="Ejecutivos" value={formatNumber(topEjecutivos.length)} icon={Users} size="sm" />
-        <KpiTile label="Inventario total" value={formatNumber(kpis?.inventarioTotal ?? 0)} icon={Warehouse} size="sm" />
-        <KpiTile label="Valor económico" value={formatCurrency(kpis?.valorEconomico ?? 0)} icon={CircleDollarSign} size="sm" />
+        <StatTile emphasis="muted" label="Ejecutivos" value={formatNumber(topEjecutivos.length)} />
+        <StatTile emphasis="muted" label="Inventario total" value={formatNumber(kpis?.inventarioTotal ?? 0)} />
+        <StatTile emphasis="muted" label="Valor económico" value={formatCurrency(kpis?.valorEconomico ?? 0)} />
       </div>
 
       <Card>
@@ -280,6 +250,6 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </ReportPage>
   );
 }

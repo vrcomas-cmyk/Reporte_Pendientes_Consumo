@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { SolicitudDRP, Oportunidad, Interaccion, ClienteConocimiento, Observacion, Oferta, ReglaAceptacion, IncrementoSnapshot } from '@/core/types';
+import type { SolicitudDRP, Oportunidad, Interaccion, ClienteConocimiento, Observacion, Oferta, Traslado, ReglaAceptacion, IncrementoSnapshot } from '@/core/types';
 import type { HojaCruda } from '@/core/pedidos';
 import type { FilaFac } from '@/core/facturacionLibros';
 
@@ -103,6 +103,8 @@ export class DegasaDb extends Dexie {
   observaciones!: Table<Observacion, number>;
   /** Fase 3: registro de ofertas — alimenta el tab Historial y el timeline. */
   ofertas!: Table<Oferta, number>;
+  /** Módulo «Ofertas y traslados»: solicitudes de traslado (fuente de verdad en Supabase; esta copia es para lectura sin conexión). */
+  traslados!: Table<Traslado, number>;
   /** Módulo "Ofertas por Cliente": reglas de aceptación por destinatario
    * (global cuando `material` es null) — ver ReglaAceptacionRepository. */
   reglasAceptacion!: Table<ReglaAceptacion, number>;
@@ -297,6 +299,28 @@ export class DegasaDb extends Dexie {
       facDerivados: 'id',
     }).upgrade(() => {
       // noop: v14 adds `facDerivados` (índices de facturación ya calculados).
+    });
+
+    this.version(15).stores({
+      catalog: 'id',
+      analyses: '++id, processedAt',
+      solicitudes: '++id, sync, sourceKey, fechaSolicitud',
+      sheetsCache: 'tab',
+      oportunidades: '++id, material, estado, condicion, creadaEn',
+      interacciones: '++id, dest, oportunidadId, fecha',
+      clientesConocimiento: '++id, &dest, razonSocial',
+      observaciones: '++id, dest, material, creadoEn',
+      ofertas: '++id, dest, material, oportunidadId, resultado, fechaOferta, pedido',
+      traslados: '++id, pedido, material, estatus, ofertaId',
+      reglasAceptacion: '++id, dest, material, activa',
+      incrementoCostos: 'id',
+      pedidosCache: 'id',
+      pedidosFuentes: 'clave',
+      facturacionLibros: 'id',
+      facturacionMeta: 'id',
+      facDerivados: 'id',
+    }).upgrade(() => {
+      // noop: v15 adds `traslados` (módulo Ofertas y traslados) e indexa `ofertas.pedido`.
     });
   }
 }

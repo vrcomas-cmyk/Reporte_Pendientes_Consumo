@@ -8,44 +8,42 @@
 // ---------------------------------------------------------------------------
 import type { CatalogSnapshot, InvConsolidadoRow } from './types';
 import { norm } from '@/lib/text';
-
-/** Precio de oferta AUTORIZADO (módulo Precios) para un material y una condición (etiqueta visible, p. ej. "Corta caducidad"). */
-export interface PrecioAutorizado { condicion: string; precio: number }
+import { SIN_PRECIOS_AUTORIZADOS, type PreciosAutorizados } from './precioAutorizado';
 
 /** Etiqueta visible de una combinación del módulo Precios ('CC + Lento mov + PNC' → 'Corta caducidad + Lento mov + PNC'). */
 export const etiquetaCombinacion = (comb: string): string => comb.split(' + ').map((b) => (b === 'CC' ? 'Corta caducidad' : b)).join(' + ');
 
 /** Recolecta cada par distinto (condicion, precio oferta) para `material` desde InvConsolidado/Inventario por condicion.
- * Si el módulo Precios tiene un precio AUTORIZADO para esa condición, sustituye al de la hoja (o se agrega si la hoja no trae esa condición). */
+ * Si el módulo Precios tiene un precio AUTORIZADO para esa condición (con las MISMAS condiciones de Precios: ver `core/precioAutorizado.ts`) sustituye
+ * al de la hoja; los autorizados cuya combinación no trae ninguna fila de la hoja se agregan al final (sin inventario). */
 export function preciosPorCondicion(
   material: string,
   invConsolidadoCatalog: InvConsolidadoRow[],
   invCondicion: InvConsolidadoRow[],
-  autorizados?: ReadonlyMap<string, readonly PrecioAutorizado[]>,
+  autorizados: PreciosAutorizados = SIN_PRECIOS_AUTORIZADOS,
+  /** Con `true` el precio de cada fila es SOLO el autorizado en Precios para esa condición exacta (0 si no hay): el precio viejo de la hoja es de nivel
+   * material y revolvería las condiciones. */
+  soloAutorizados = false,
 ): { condicion: string; precio: number; inv: number }[] {
   const precioSource = invConsolidadoCatalog.some((r) => norm(r.material) === norm(material))
     ? invConsolidadoCatalog
     : invCondicion;
   const precioMap = new Map<string, { condicion: string; precio: number; inv: number }>();
+  const combosUsadas = new Set<string>();
   for (const r of precioSource) {
     if (norm(r.material) !== norm(material)) continue;
-    const key = `${r.condicion}|${r.precioOferta}`;
-    const cur = precioMap.get(key) || { condicion: r.condicion || '(sin condicion)', precio: r.precioOferta, inv: 0 };
+    const aut = autorizados.precio(material, r.condicion);
+    const comb = autorizados.combinacion(material, r.condicion);
+    if (aut != null && comb) combosUsadas.add(comb);
+    const precio = soloAutorizados ? aut ?? 0 : aut ?? r.precioOferta;
+    const key = `${r.condicion}|${precio}`;
+    const cur = precioMap.get(key) || { condicion: r.condicion || '(sin condicion)', precio, inv: 0 };
     cur.inv += r.invSuma;
     precioMap.set(key, cur);
   }
-  let out = [...precioMap.values()];
-  const aut = autorizados?.get(norm(material));
-  if (aut?.length) {
-    const porCond = new Map(aut.map((a) => [norm(a.condicion), a.precio]));
-    const usadas = new Set<string>();
-    out = out.map((r) => {
-      const p = porCond.get(norm(r.condicion));
-      if (p == null) return r;
-      usadas.add(norm(r.condicion));
-      return { ...r, precio: p };
-    });
-    for (const a of aut) if (!usadas.has(norm(a.condicion))) out.push({ condicion: a.condicion, precio: a.precio, inv: 0 });
+  const out = [...precioMap.values()];
+  for (const a of autorizados.deMaterial(material)) {
+    if (!combosUsadas.has(a.combinacion)) out.push({ condicion: etiquetaCombinacion(a.combinacion), precio: a.precio, inv: 0 });
   }
   return out.sort((x, y) => y.precio - x.precio);
 }

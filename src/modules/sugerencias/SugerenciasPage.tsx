@@ -647,7 +647,7 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
   return (
     <ReportPage>
       <PageHeader
-        title={seg ? 'Seguimiento de Pedidos' : 'Pedidos Vivos en Sistema'}
+        title={seg ? 'Seguimiento de pedidos' : 'Pedidos'}
         subtitle={agrupado
           ? <>Órdenes pendientes por facturar (BO) de un año para aca · {formatNumber(filtered.length)} renglones</>
           : <>Detalle por fuente, sin agrupar · {formatNumber(flatRaw.length)} renglones</>}
@@ -820,7 +820,7 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
                   return (
                     <TableCell key={`inv${alm}`} className="text-right">
                       {formatNumber(num(b.invByCenter[alm] || 0))}
-                      {tr > 0 && <div className="text-[10px] text-success">↻+{formatNumber(tr)}</div>}
+                      {tr > 0 && <div className="text-[11px] text-success">↻+{formatNumber(tr)}</div>}
                     </TableCell>
                   );
                 };
@@ -830,7 +830,7 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
                   fecha: <TableCell key="fecha" className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>,
                   cliente: <TableCell key="cliente" className="max-w-64 truncate">{b.razonSocial} <ClienteOportunidadBadge dest={b.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>,
                   centro: <TableCell key="centro">{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>,
-                  material: <TableCell key="material"><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip>{onDetalleLibros && <button type="button" onClick={(ev) => { ev.stopPropagation(); onDetalleLibros(b.materialBase); }} title="Detalle en libros: Disponibilidad (Libre real), Corta caducidad, Sustituto…" aria-label="Detalle del material en los libros" className="ml-1 inline-flex align-middle text-text-faint hover:text-accent"><Layers className="size-3.5" /></button>}<div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>,
+                  material: <TableCell key="material"><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip>{onDetalleLibros && <button type="button" onClick={(ev) => { ev.stopPropagation(); onDetalleLibros(b.materialBase); }} title="Detalle en libros: Disponibilidad (Libre real), Corta caducidad, Sustituto…" aria-label="Detalle del material en los libros" className="ml-1 inline-flex align-middle text-text-faint hover:text-accent"><Layers className="size-3.5" /></button>}<div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[11px] text-text">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>,
                   sector: <TableCell key="sector">{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>,
                   cantped: <TableCell key="cantped" className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>,
                   pend: <TableCell key="pend" className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>,
@@ -839,7 +839,7 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
                   invtotal: (
                     <TableCell key="invtotal" className="text-right" title={INV_ALL.map((c) => `${c}: ${formatNumber(num(b.invByCenter[c] || 0))}`).join(' · ')}>
                       {formatNumber(invTotal(b))}
-                      {invTransitoTotal(b) > 0 && <div className="text-[10px] text-success">↻+{formatNumber(invTransitoTotal(b))}</div>}
+                      {invTransitoTotal(b) > 0 && <div className="text-[11px] text-success">↻+{formatNumber(invTransitoTotal(b))}</div>}
                     </TableCell>
                   ),
                   inv1030: celdaAlm('1030'),
@@ -966,7 +966,7 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
                     {vis('fecha') && <TableCell className="whitespace-nowrap text-xs"><span className="inline-flex items-center gap-1"><UrgenciaDot fecha={b.fecha} />{b.fecha || '—'}</span></TableCell>}
                     {vis('cliente') && <TableCell className="max-w-64 truncate">{b.razonSocial} <ClienteOportunidadBadge dest={b.destinatario} /><div className="text-[11px]"><Chip onClick={() => open({ type: 'evol', kind: 'solic', key: b.solicitante })}>S {b.solicitante}</Chip> · <Chip onClick={() => open({ type: 'evol', kind: 'dest', key: b.destinatario })}>D {b.destinatario}</Chip></div></TableCell>}
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
-                    {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip>{onDetalleLibros && <button type="button" onClick={(ev) => { ev.stopPropagation(); onDetalleLibros(b.materialBase); }} title="Detalle en libros: Disponibilidad (Libre real), Corta caducidad, Sustituto…" aria-label="Detalle del material en los libros" className="ml-1 inline-flex align-middle text-text-faint hover:text-accent"><Layers className="size-3.5" /></button>}<div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
+                    {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip>{onDetalleLibros && <button type="button" onClick={(ev) => { ev.stopPropagation(); onDetalleLibros(b.materialBase); }} title="Detalle en libros: Disponibilidad (Libre real), Corta caducidad, Sustituto…" aria-label="Detalle del material en los libros" className="ml-1 inline-flex align-middle text-text-faint hover:text-accent"><Layers className="size-3.5" /></button>}<div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[11px] text-text">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
                     {vis('sector') && <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>}
                     {vis('cantped') && <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>}
                     {vis('pend') && <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>}
@@ -976,7 +976,7 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
                       vis('invtotal') && (
                         <TableCell className="text-right" title={INV_ALL.map((c) => `${c}: ${formatNumber(num(b.invByCenter[c] || 0))}`).join(' · ')}>
                           {formatNumber(invTotal(b))}
-                          {invTransitoTotal(b) > 0 && <div className="text-[10px] text-success">↻+{formatNumber(invTransitoTotal(b))}</div>}
+                          {invTransitoTotal(b) > 0 && <div className="text-[11px] text-success">↻+{formatNumber(invTransitoTotal(b))}</div>}
                         </TableCell>
                       )
                     ) : (
@@ -987,7 +987,7 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
                           return (
                             <TableCell key={alm} className="text-right">
                               {formatNumber(invVal)}
-                              {tr > 0 && <div className="text-[10px] text-success">↻+{formatNumber(tr)}</div>}
+                              {tr > 0 && <div className="text-[11px] text-success">↻+{formatNumber(tr)}</div>}
                             </TableCell>
                           );
                         })}

@@ -72,7 +72,7 @@ const WIDE = new Set<Panel['type']>([
 // `pedido` es el único panel de 3 columnas (detalle + inventario + BO) — con
 // el ancho de WIDE (7xl) cada columna queda apretada, así que usa un ancho
 // mayor propio en vez de compartir el set de arriba.
-const EXTRA_WIDE = new Set<Panel['type']>(['pedido', 'celda', 'invCondCelda', 'material', 'clienteDetalle']);
+const EXTRA_WIDE = new Set<Panel['type']>(['pedido', 'celda', 'invCondCelda', 'material', 'clienteDetalle', 'clientesMes', 'mesClientesFiltro']);
 
 /** Dispatcher de paneles: dado el discrim `panel.type` delega al componente de la rama correspondiente en `./panels/`. */
 function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: Panel) => void }) {

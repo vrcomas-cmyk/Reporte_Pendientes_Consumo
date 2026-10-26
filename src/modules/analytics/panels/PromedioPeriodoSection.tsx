@@ -109,7 +109,7 @@ export function PromedioPeriodoSection({ a, material, centro, periodo, esDefault
                   return (
                     <div className="flex min-w-0 flex-col justify-between gap-3 rounded-lg border border-accent/30 bg-accent-soft p-4">
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-accent">Promedio mensual · {mesLabel(periodo.desde)} – {mesLabel(periodo.hasta)}</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">Promedio mensual · {mesLabel(periodo.desde)} – {mesLabel(periodo.hasta)}</p>
                         <SegmentedControl
                           value={modoProm}
                           onChange={setModoProm}
@@ -149,7 +149,7 @@ export function PromedioPeriodoSection({ a, material, centro, periodo, esDefault
                   ).map(([et, p]) => (
                     <div key={et} className="min-w-0 flex-1 rounded-lg border border-border bg-bg-elevated p-4">
                       <div className="mb-2 flex items-baseline justify-between gap-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint">Precio unitario · {et}</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-text-faint">Precio unitario · {et}</p>
                         <span className="text-[11px] text-text-faint">{formatNumber(p.meses)} meses con precio</span>
                       </div>
                       <div className="flex items-baseline gap-2">
@@ -193,8 +193,8 @@ function RangoPrecio({ min, prom, max, hay }: { min: number; prom: number; max: 
         <div className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-bg-elevated bg-accent shadow" style={{ left: `${pos}%` }} />
       </div>
       <div className="mt-1.5 flex items-start justify-between text-xs">
-        <span><span className="block text-[10px] uppercase tracking-wide text-text-faint">Mín.</span><span className="font-semibold tabular-nums">{formatCurrency(min)}</span></span>
-        <span className="text-right"><span className="block text-[10px] uppercase tracking-wide text-text-faint">Máx.</span><span className="font-semibold tabular-nums">{formatCurrency(max)}</span></span>
+        <span><span className="block text-[11px] uppercase tracking-wide text-text-faint">Mín.</span><span className="font-semibold tabular-nums">{formatCurrency(min)}</span></span>
+        <span className="text-right"><span className="block text-[11px] uppercase tracking-wide text-text-faint">Máx.</span><span className="font-semibold tabular-nums">{formatCurrency(max)}</span></span>
       </div>
     </div>
   );

@@ -1,3 +1,5 @@
+import { StatePill } from '@/modules/analytics/ui';
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -31,11 +33,8 @@ import type { NombresMap } from '@/lib/nombres';
 
 export function AdminPage() {
   return (
-    <div className="flex h-full flex-col gap-4 overflow-auto p-6">
-      <div>
-        <h2 className="font-display text-2xl font-semibold">Administración</h2>
-        <p className="text-sm text-text-muted">Usuarios invitados, roles/permisos por módulo y conectores del portal.</p>
-      </div>
+    <ReportPage>
+      <PageHeader title="Administración" subtitle="Usuarios invitados, roles/permisos por módulo y conectores del portal." />
       <Tabs defaultValue="usuarios">
         <TabsList>
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
@@ -54,7 +53,7 @@ export function AdminPage() {
         <TabsContent value="nombres"><NombresTab /></TabsContent>
         <TabsContent value="filtros"><FiltrosTab /></TabsContent>
       </Tabs>
-    </div>
+    </ReportPage>
   );
 }
 
@@ -512,7 +511,7 @@ function PermissionsTab({ subjectType }: { subjectType: 'role' | 'user' }) {
                     // Sin pantalla: la casilla de acceso no tendría ningún efecto, así que solo se muestran sus controles.
                     <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
                       {m.label}
-                      <span className="rounded-full border border-border bg-bg-elevated px-2 py-0.5 text-[10px] font-medium text-text-muted" title="Este módulo ya no aparece en el menú (modo «solo libros»)">Retirado del menú</span>
+                      <span title="Este módulo ya no aparece en el menú (modo «solo libros»)"><StatePill label="Retirado del menú" cls="gris" /></span>
                     </div>
                   ) : (
                   <label className="flex items-center gap-2 text-sm font-medium">
@@ -538,7 +537,7 @@ function PermissionsTab({ subjectType }: { subjectType: 'role' | 'user' }) {
                           <label key={c.key} className="flex items-center gap-2 text-xs text-text-muted">
                             <input type="checkbox" checked={visible} onChange={(e) => toggle(m.key, 'column', c.key, e.target.checked, e.target.checked && subjectType === 'role')} />
                             Columna: {c.label}
-                            {r && <button type="button" className="text-[10px] text-accent" onClick={() => toggle(m.key, 'column', c.key, true, true)}>default</button>}
+                            {r && <button type="button" className="text-[11px] text-accent" onClick={() => toggle(m.key, 'column', c.key, true, true)}>default</button>}
                           </label>
                         );
                       })}
@@ -549,7 +548,7 @@ function PermissionsTab({ subjectType }: { subjectType: 'role' | 'user' }) {
                           <label key={d.key} className="flex items-center gap-2 text-xs text-text-muted">
                             <input type="checkbox" checked={visible} onChange={(e) => toggle(m.key, 'detail', d.key, e.target.checked, e.target.checked && subjectType === 'role')} />
                             Detalle: {d.label}
-                            {r && <button type="button" className="text-[10px] text-accent" onClick={() => toggle(m.key, 'detail', d.key, true, true)}>default</button>}
+                            {r && <button type="button" className="text-[11px] text-accent" onClick={() => toggle(m.key, 'detail', d.key, true, true)}>default</button>}
                           </label>
                         );
                       })}

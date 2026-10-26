@@ -64,6 +64,11 @@ export function formatPercent(p: number, digits = 1): string {
   return `${p.toLocaleString('es-MX', { maximumFractionDigits: digits, minimumFractionDigits: digits })}%`;
 }
 
+/** Fracción como porcentaje sin ceros de sobra: 0.1 → "10%", 0.125 → "12.5%". */
+export function formatFraccion(n: number): string {
+  return `${Math.round(n * 1000) / 10}%`;
+}
+
 /** Cifra compacta para tarjetas: 12,345 → "12.3 k", 2,500,000 → "2.5 M", 3.2e9 → "3.2 mil M"; menos de 10,000 se muestra completa. */
 export function formatCompact(n: number, digits = 1): string {
   const a = Math.abs(n);

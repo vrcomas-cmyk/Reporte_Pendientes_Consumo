@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { oportunidadRepository, clienteConocimientoRepository, ofertaRepository, reglaAceptacionRepository } from '@/repositories';
 import { toast } from '@/store/toastStore';
+import { supabase } from '@/lib/supabaseClient';
 import { norm } from '@/lib/text';
-import { ESTADOS_OPORTUNIDAD, PROXIMO_PASO, type Oportunidad, type Interaccion, type EstadoOportunidad, type ClienteConocimiento, type Observacion, type Oferta, type ReglaAceptacion } from '@/core/types';
+import { cambioDeEstatus, llaveOferta } from '@/core/ofertasEjecutivo';
+import { ESTADOS_OPORTUNIDAD, PROXIMO_PASO, type EstatusOferta, type Oportunidad, type Interaccion, type EstadoOportunidad, type ClienteConocimiento, type Observacion, type Oferta, type ReglaAceptacion } from '@/core/types';
 
 interface ConocimientoState {
   oportunidades: Oportunidad[];
@@ -26,6 +28,9 @@ interface ConocimientoState {
   removeObservacion: (id: number) => Promise<void>;
   addOferta: (o: Oferta) => Promise<void>;
   registrarResultado: (id: number, patch: Pick<Oferta, 'resultado'> & Partial<Oferta>) => Promise<void>;
+  /** Ofertas por ejecutivo: alta masiva (una por línea del Excel; ya registradas se omiten) y cambio de estatus con historial. */
+  registrarOfertasLote: (ofertas: Oferta[]) => Promise<number>;
+  cambiarEstatusOferta: (id: number, estatus: EstatusOferta, datos?: { cantidad?: number; lote?: string; comentario?: string }) => Promise<void>;
   upsertRegla: (r: ReglaAceptacion) => Promise<void>;
   upsertClientesBulk: (clientes: ClienteConocimiento[]) => Promise<void>;
   removeRegla: (id: number) => Promise<void>;
@@ -239,6 +244,43 @@ export const useConocimientoStore = create<ConocimientoState>()((set, get) => ({
     } catch (err) {
       set({ ofertas: prevOfertas, clientesByDest: byDest(clientes, prevOfertas) });
       toast.fromError(err, 'No se pudo registrar la oferta');
+    }
+  },
+
+  registrarOfertasLote: async (nuevas) => {
+    const existentes = new Set(get().ofertas.map((o) => llaveOferta({ ...(o.pedido ? { pedido: o.pedido } : {}), dest: o.dest, material: o.material, ...(o.centroOrigen ? { centroOrigen: o.centroOrigen } : {}), ...(o.lote ? { lote: o.lote } : {}), ...(o.condicionTexto ? { condicionTexto: o.condicionTexto } : {}) })));
+    const porRegistrar = nuevas.filter((o) => !existentes.has(llaveOferta({ ...(o.pedido ? { pedido: o.pedido } : {}), dest: o.dest, material: o.material, ...(o.centroOrigen ? { centroOrigen: o.centroOrigen } : {}), ...(o.lote ? { lote: o.lote } : {}), ...(o.condicionTexto ? { condicionTexto: o.condicionTexto } : {}) })));
+    let hechas = 0;
+    for (const o of porRegistrar) {
+      try {
+        const id = await ofertaRepository.addOferta(o);
+        set((s) => {
+          const ofertas = [{ ...o, id }, ...s.ofertas];
+          return { ofertas, clientesByDest: byDest(s.clientes, ofertas) };
+        });
+        hechas += 1;
+      } catch (err) {
+        toast.fromError(err, 'No se pudo registrar una oferta');
+        break;
+      }
+    }
+    return hechas;
+  },
+
+  cambiarEstatusOferta: async (id, estatus, datos) => {
+    const prevOfertas = get().ofertas;
+    const target = prevOfertas.find((o) => o.id === id);
+    if (!target) return;
+    const { data } = await supabase.auth.getUser();
+    const por = data.user?.email ?? 'desconocido';
+    const patch = cambioDeEstatus(target, estatus, por, new Date().toISOString(), datos);
+    const nextOfertas = prevOfertas.map((o) => (o.id === id ? { ...o, ...patch } : o));
+    set({ ofertas: nextOfertas, clientesByDest: byDest(get().clientes, nextOfertas) });
+    try {
+      await ofertaRepository.updateOferta(id, patch);
+    } catch (err) {
+      set({ ofertas: prevOfertas, clientesByDest: byDest(get().clientes, prevOfertas) });
+      toast.fromError(err, 'No se pudo actualizar el estatus de la oferta');
     }
   },
 

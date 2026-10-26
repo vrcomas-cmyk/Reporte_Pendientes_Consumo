@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Section, vigenciaTxt, precioPorCondicion } from './_shared';
+import { Section, vigenciaTxt } from './_shared';
+import { condicionDeLote } from '@/core/precioAutorizado';
 import { Chip, StatePill } from '../ui';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { condicionesDeMaterial, type FilaCondicionMaterial } from '@/core/invCondicionLibros';
@@ -18,17 +19,16 @@ type FilaUnificada = FilaCondicionMaterial & { precio: number };
  * o, si no lo trae, el precio oferta de su condición. Aparece solo si el material tiene alguna condición o lote. */
 export function CondicionesMaterialSection({ a, material, push }: { a: Analytics; material: string; push: (p: Panel) => void }) {
   const filas = useMemo<FilaUnificada[]>(() => {
-    const precios = precioPorCondicion(a, material);
-    const precioDe = (cond: string) => precios.find((p) => p.condicion === cond)?.precio ?? 0;
     const cond = condicionesDeMaterial(material, {
       filas: a.invCondicionLibros, lotes: a.lotesLibros, detalle: a.detalleLotesLibros, sustituciones: a.sustitucionesLibros, invRevision: a.invRevisionLibros,
     });
     const cubiertos = new Set(cond.filter((f) => f.lote).map((f) => `${norm(f.centro)}|${norm(f.almacen)}|${norm(f.lote)}`));
-    const lotesPrecio = new Map(a.lotes.filter((l) => norm(l.material) === norm(material)).map((l) => [`${norm(l.centro)}|${norm(l.almacen)}|${norm(l.lote)}`, l.precioOferta ?? 0]));
-    const conPrecio = cond.map((f) => ({ ...f, precio: lotesPrecio.get(`${norm(f.centro)}|${norm(f.almacen)}|${norm(f.lote)}`) || precioDe(f.condicion) }));
+    // Solo el precio AUTORIZADO en Precios para la condición EXACTA de cada lote (un PNC con ≤ 12 meses es «CC + PNC»); sin autorizar = 0 («-»).
+    // (la fila «Sustituto» es la existencia del OTRO código: se busca con el código y los Status del sustituto, no con los del material).
+    const conPrecio = cond.map((f) => ({ ...f, precio: a.preciosAutorizados.precio(f.relacionado?.material ?? material, condicionDeLote(f.condicion, f.caducidad)) ?? 0 }));
     const generales: FilaUnificada[] = a.lotes
       .filter((l) => norm(l.material) === norm(material) && !cubiertos.has(`${norm(l.centro)}|${norm(l.almacen)}|${norm(l.lote)}`))
-      .map((l) => ({ condicion: 'General', centro: l.centro, almacen: l.almacen, lote: l.lote, caducidad: l.fechaCaducidad ?? '', cantidad: l.cantidadDisp, detalle: '', precio: l.precioOferta ?? 0 }));
+      .map((l) => ({ condicion: 'General', centro: l.centro, almacen: l.almacen, lote: l.lote, caducidad: l.fechaCaducidad ?? '', cantidad: l.cantidadDisp, detalle: '', precio: a.preciosAutorizados.precio(material, 'General') ?? 0 }));
     return [...conPrecio, ...generales].filter((f) => f.cantidad > 0);
   }, [a, material]);
   if (!filas.length) return null;
@@ -51,7 +51,7 @@ export function CondicionesMaterialSection({ a, material, push }: { a: Analytics
                 <TableCell>{f.lote ? <Chip title="Ver el detalle del lote" onClick={() => push({ type: 'lote', material, lote: f.lote })}>{f.lote}</Chip> : '—'}</TableCell>
                 <TableCell>{f.caducidad ? formatFechaCaducidad(f.caducidad) : '—'}{vg && <div className="text-[11px]"><StatePill label={vg.txt} cls={vg.cls} /></div>}</TableCell>
                 <TableCell className="text-right">{formatNumber(f.cantidad)}</TableCell>
-                <TableCell className="text-right font-mono">{f.precio ? formatCurrency(f.precio) : '—'}</TableCell>
+                <TableCell className="text-right font-mono">{f.precio ? formatCurrency(f.precio) : <span className="text-text-faint" title="Sin precio autorizado para esta condición">-</span>}</TableCell>
                 <TableCell>
                   {f.relacionado
                     ? <><Chip title="Ver el detalle del sustituto" onClick={() => push({ type: 'material', material: f.relacionado!.material })}>{f.relacionado.material}</Chip> <span className="text-[11px] text-text-faint">{f.relacionado.texto}</span></>

@@ -34,7 +34,7 @@ function ExcepcionesMaterial({ dest }: { dest: string }) {
           <div key={r.id ?? r.material} className="rounded-lg border border-border bg-bg-elevated">
             <div className="flex items-center justify-between px-3 pt-2">
               <span className="font-mono text-xs text-text">{r.material}</span>
-              <button type="button" onClick={() => r.id != null && removeRegla(r.id)} className="text-text-faint hover:text-danger" title="Eliminar excepción"><Trash2 className="size-3.5" /></button>
+              <button type="button" onClick={() => r.id != null && removeRegla(r.id)} className="text-text-faint hover:text-danger" aria-label="Eliminar excepción" title="Eliminar excepción"><Trash2 className="size-3.5" /></button>
             </div>
             <div className="p-3 pt-1"><ReglaMaterialForm dest={dest} material={r.material ?? ''} existing={r} /></div>
           </div>
