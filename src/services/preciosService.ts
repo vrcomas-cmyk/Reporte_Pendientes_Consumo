@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { logWarn } from '@/lib/logError';
 import { prepararEnvio } from '@/core/estatusPrecios';
 import { POLITICA_DEFECTO, SECTOR_GLOBAL, precioValido, type AmbitoMargen, type Politica, type ReglaMarkdown, type TramoCc } from '@/core/politicaPrecios';
 
@@ -52,8 +53,10 @@ interface PropuestaDb {
   autorizado_por: string | null; autorizado_en: string | null; comentario: string | null; precio_enviado: number | null; archivo_autorizacion: string | null; lotes_enviados: string[] | null; vigente_desde?: string | null; vigente_hasta?: string | null;
 }
 
+const COLUMNAS_SIN_COSTO = 'id, material, concepto, condicion, lote, precio_calculado, precio_propuesto, estado, solicitado_por, solicitado_en, autorizado_por, autorizado_en, comentario, base_al_enviar, precio_enviado, archivo_autorizacion, lotes_enviados, vigente_desde, vigente_hasta';
+
 const deDb = (r: PropuestaDb): Propuesta => ({
-  id: r.id, material: r.material, concepto: r.concepto, condicion: r.condicion ?? '', lote: r.lote ?? '', costoAlEnviar: Number(r.costo_al_enviar),
+  id: r.id, material: r.material, concepto: r.concepto, condicion: r.condicion ?? '', lote: r.lote ?? '', costoAlEnviar: Number(r.costo_al_enviar ?? 0),
   baseAlEnviar: r.base_al_enviar == null ? null : Number(r.base_al_enviar),
   precioCalculado: Number(r.precio_calculado), precioPropuesto: Number(r.precio_propuesto), estado: r.estado, solicitadoPor: r.solicitado_por ?? '',
   solicitadoEn: r.solicitado_en, autorizadoPor: r.autorizado_por, autorizadoEn: r.autorizado_en, comentario: r.comentario,
@@ -156,7 +159,9 @@ export async function listarPropuestas(): Promise<Propuesta[]> {
     // El costo solo lo devuelve la función a quien tiene permiso de verlo (migración 0028); sin la migración se cae a la lectura directa de antes.
     const rpc = await supabase.rpc('degasa_precio_propuestas').limit(5000);
     if (!rpc.error) return ((rpc.data ?? []) as PropuestaDb[]).map(deDb);
-    const { data, error } = await supabase.from('degasa_precio_propuesta').select('*').order('solicitado_en', { ascending: false }).limit(5000);
+    void logWarn('precios-propuestas-rpc', `degasa_precio_propuestas falló (${rpc.error.message}); se leen las propuestas sin la columna de costo.`);
+    // Respaldo SIN costo_al_enviar: con la migración 0028 esa columna ya no se puede leer directo (un `select *` responde 403).
+    const { data, error } = await supabase.from('degasa_precio_propuesta').select(COLUMNAS_SIN_COSTO).order('solicitado_en', { ascending: false }).limit(5000);
     if (error) throw error;
     return ((data ?? []) as PropuestaDb[]).map(deDb);
   } catch {
