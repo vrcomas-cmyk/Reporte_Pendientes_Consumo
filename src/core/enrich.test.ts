@@ -216,3 +216,26 @@ describe('preciosPorCondicion · solo autorizados (sin revolver con el precio vi
     expect(preciosPorCondicion('100', rows, [], aut).find((r) => r.condicion === 'PNC')!.precio).toBe(90);
   });
 });
+
+describe('correosDeZona', () => {
+  it('junta los correos de las filas repetidas de una zona sin duplicar y descarta los inválidos', () => {
+    const ej = (o: object) => ({ zona: '002', codOfVtas: 'A1', ejecutivo: 'Heber', correoElectronico: '', ...o });
+    const e = buildEnrich({
+      ejecutivos: [ej({ correoElectronico: 'Heber@x.com' }), ej({ correoElectronico: 'heber@x.com; otro@x.com' }), ej({ correoElectronico: 'no es correo' }), ej({ zona: '5', codOfVtas: 'B2', ejecutivo: 'Ana' })],
+      materiales: [], invConsolidado: [], invDetalle: [], gerenciaMarca: [],
+    } as unknown as CatalogSnapshot);
+    expect(e.correosDeZona('2')).toEqual(['Heber@x.com', 'otro@x.com']);
+    expect(e.correosDeZona('A1')).toEqual(['Heber@x.com', 'otro@x.com']); // por código de oficina de ventas también
+    expect(e.correosDeZona('5')).toEqual([]);
+  });
+});
+
+describe('ejecutivoAtributos', () => {
+  it('da gerencia, gerente, canal y oficina de ventas de la zona a la que pertenece un Gpo. Vdor. (por zona o por código de oficina)', () => {
+    const catalog = { ejecutivos: [{ zona: '101', codOfVtas: 'A01', ejecutivo: 'Ana', gerenciaVentas: 'Norte', gerenteVentas: 'Luis', canalVentas: 'Privado', oficinaVentas: 'Monterrey', correoElectronico: '' }], materiales: [], invConsolidado: [], invDetalle: [], gerenciaMarca: [] } as never;
+    const e = buildEnrich(catalog);
+    expect(e.ejecutivoAtributos('101')).toEqual({ gerenciaVentas: 'Norte', gerenteVentas: 'Luis', canalVentas: 'Privado', oficinaVentas: 'Monterrey' });
+    expect(e.ejecutivoAtributos('A01').gerenteVentas).toBe('Luis');
+    expect(e.ejecutivoAtributos('999')).toEqual({ gerenciaVentas: '', gerenteVentas: '', canalVentas: '', oficinaVentas: '' });
+  });
+});

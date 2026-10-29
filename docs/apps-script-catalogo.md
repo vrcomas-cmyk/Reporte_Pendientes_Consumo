@@ -8,7 +8,6 @@ despliegue se configura en Admin → Conectores (`appscript_catalog_url`) o en
 `VITE_APPSCRIPT_URL` como respaldo.
 
 Distinto de:
-- el script del reporte diario → `docs/apps-script-report-sheets.md`
 - el `doPost` de DRP → `docs/apps-script-drp.md`
 - el de incremento de costos → `docs/apps-script-incremento.md`
 
@@ -75,7 +74,18 @@ const CACHE_SEG = 300;   // segundos que se sirve desde caché (5 min)
 // Pestañas permitidas (todo el portal se alimenta de estas 5)
 const TABS_OK = ['Ejecutivos', 'Materiales', 'InvConsolidado', 'InvDetalle', 'GERENCIA DE MARCA'];
 
+// Token compartido con la Edge Function `datos` de Supabase (docs/acceso-por-roles.md). Va en Propiedades del script
+// (Configuración del proyecto > Propiedades del script > API_TOKEN), NUNCA en el código. Con la propiedad definida, toda llamada
+// sin el token correcto se rechaza: así la URL del /exec deja de servirle a quien no pase por la función. Sin la propiedad no se
+// exige (solo para la migración: defínela en cuanto la función esté desplegada).
+function tokenValido(e) {
+  const esperado = PropertiesService.getScriptProperties().getProperty('API_TOKEN');
+  if (!esperado) return true;
+  return String(((e && e.parameter) || {}).token || '') === esperado;
+}
+
 function doGet(e) {
+  if (!tokenValido(e)) return salida({ error: 'No autorizado' });
   const p = (e && e.parameter) || {};
   const nocache = p.nocache === '1';
 

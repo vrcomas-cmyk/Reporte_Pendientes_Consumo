@@ -13,8 +13,7 @@ alimentada por tres libros de Google Sheets leídos **crudos** (sin transformar)
 Son las mismas pestañas que lee el sugeridor de Python (`FUENTES_DISPONIBLES` + `HOJAS_ADICIONALES`);
 `Codigos` no se sirve. Una hoja de la lista que no exista (p. ej. `Caduco`) simplemente se omite.
 
-**Distinto** Apps Script del catálogo (`VITE_APPSCRIPT_URL`), del reporte diario (`VITE_REPORT_SHEETS_URL`,
-Sheet `1OULG…`) y del incremento (`VITE_INCREMENTO_URL`). Este módulo **no usa** el Sheet del reporte.
+**Distinto** Apps Script del catálogo (`VITE_APPSCRIPT_URL`), y del incremento (`VITE_INCREMENTO_URL`). El reporte diario ya no se usa en la app.
 
 ## 1. Crear el script
 
@@ -112,8 +111,7 @@ material/centro/almacén; sus paneles de detalle leen esos mismos datos (`rssFue
 
 El mismo Apps Script también lee los libros trimestrales de la carpeta de Drive (`CARPETA_ID`: "1Q 2024",
 "2Q 2024"… "4Q 2026") y la app los usa **en lugar de** las pestañas `Resumen_Fac` y `Fac_Mensual_CAM` del Sheet
-del reporte (`1OULG…`). Solo aplica si hay URL del Apps Script configurada (`VITE_PEDIDOS_URL` / conector); sin
-ella el sync del reporte sigue leyendo esas pestañas como siempre.
+del reporte diario (ya retirado). Solo aplica si hay URL del Apps Script configurada (`VITE_PEDIDOS_URL` / conector).
 
 - Acciones: `?action=fac_manifest` (libros con su `ultimaModificacion`) y
   `?action=fac_chunk&fileId=<id>&offset=0&limit=20000&v=<ms de ultimaModificacion>` (filas agregadas por clave dentro del bloque; `v` evita consultas a Drive en cada bloque).
@@ -140,3 +138,10 @@ ella el sync del reporte sigue leyendo esas pestañas como siempre.
   de Seg. de pedidos.
 - La tabla `sheetsCache` (esta es otra: `pedidosCache`; la facturación usa `facturacionLibros`).
 - El módulo `/sugerencias` ("Pedidos").
+
+## 7. Comodato (YBFD/ZBRE)
+
+El libro `comodato` (export SAP de pedidos YBFD y ZBRE) se lee de su **primera pestaña**, sin depender de un gid ni de un nombre: así no se rompe si alguien
+recrea la pestaña. Si en `LIBROS_RELACION.comodato` se agrega un `gid` y esa pestaña ya no existe, el script usa la primera en vez de devolver el libro
+sin hojas. Si aun así el manifiesto lista el libro con `hojas: []`, la app lo avisa en Carga («no encontró ninguna pestaña para este libro») en lugar de
+dejarlo en «Pendiente» sin explicación.

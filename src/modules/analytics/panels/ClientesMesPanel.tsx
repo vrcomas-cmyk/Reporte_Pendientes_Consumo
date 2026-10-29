@@ -11,6 +11,8 @@ import { DonaChart, type Rebanada } from '@/modules/comodato/tablero/graficas';
 import { CATEGORICAL } from '@/lib/chartColors';
 import { percentilPonderado } from '@/core/politicaPrecios';
 import type { Analytics } from '../AnalyticsContext';
+import { MesNavControl } from './MesNavControl';
+import { usePanelStore } from '@/store/panelStore';
 
 const COLORES = CATEGORICAL;
 const precioDe = (imp: number, cant: number) => (cant > 0 ? imp / cant : 0);
@@ -67,14 +69,20 @@ export function ClientesMesPanel({ panel, a, push }: { panel: Extract<Panel, { t
 
 /** Panel — Clientes que facturaron un mes respetando los filtros activos (drill desde chart de facturación). */
 export function MesClientesFiltroPanel({ panel, a, push }: { panel: Extract<Panel, { type: 'mesClientesFiltro' }>; a: Analytics; push: (p: Panel) => void }) {
+  const replaceTop = usePanelStore((s) => s.replaceTop);
+  const { meses, rowsDe } = panel;
   return (
-    <ClientesMesInner
-      a={a}
-      title={`Facturación · ${mesLabel(panel.mes)}`}
-      subtitle="Clientes que facturaron ese mes, respetando los filtros activos"
-      list={panel.rows.map((r) => ({ dest: r.dest, razon: r.razon, solic: r.solic, material: r.material, cant: r.cant, imp: r.imp }))}
-      push={push}
-    />
+    <>
+      {meses && rowsDe && <MesNavControl meses={meses} mes={panel.mes} irA={(mes) => replaceTop({ ...panel, mes, rows: rowsDe(mes) })} />}
+      <ClientesMesInner
+        key={panel.mes}
+        a={a}
+        title={`Facturación · ${mesLabel(panel.mes)}`}
+        subtitle="Clientes que facturaron ese mes, respetando los filtros activos"
+        list={panel.rows.map((r) => ({ dest: r.dest, razon: r.razon, solic: r.solic, material: r.material, cant: r.cant, imp: r.imp }))}
+        push={push}
+      />
+    </>
   );
 }
 

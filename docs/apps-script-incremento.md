@@ -6,7 +6,7 @@ propio, vía un `doGet` de Apps Script de solo lectura (ver
 catálogo (`VITE_APPSCRIPT_URL`) — **distinto** Sheet y **distinto**
 deployment: cada respuesta es un array de objetos `{header: valor}`, no
 arrays planos con encabezado separado (eso es solo el contrato del reporte
-diario, ver `docs/apps-script-report-sheets.md`).
+diario, ya retirado).
 
 ## 1. Columnas esperadas en la pestaña `IncrementoCostos`
 
@@ -28,8 +28,19 @@ tolerante a variantes con/sin acento (`Descripcion`/`Descripción`).
 const SHEET_ID = '1JVaAtyAJj-08GeTC14_dgtDJzvQ3WmTpJSPILjaL0rg';
 const TAB_NAME = 'IncrementoCostos';
 
+// Token compartido con la Edge Function `datos` de Supabase (docs/acceso-por-roles.md). Va en Propiedades del script
+// (Configuración del proyecto > Propiedades del script > API_TOKEN), NUNCA en el código. Con la propiedad definida, toda llamada
+// sin el token correcto se rechaza: así la URL del /exec deja de servirle a quien no pase por la función. Sin la propiedad no se
+// exige (solo para la migración: defínela en cuanto la función esté desplegada).
+function tokenValido(e) {
+  const esperado = PropertiesService.getScriptProperties().getProperty('API_TOKEN');
+  if (!esperado) return true;
+  return String(((e && e.parameter) || {}).token || '') === esperado;
+}
+
 function doGet(e) {
   try {
+    if (!tokenValido(e)) return respond({ error: 'No autorizado' });
     const tab = e.parameter.tab || TAB_NAME;
     return respond(getTabAsObjects(tab));
   } catch (err) {
@@ -40,7 +51,7 @@ function doGet(e) {
 /** Devuelve una pestaña como array de objetos `{header: valor}` — un objeto
  * por fila, encabezados tomados de la primera fila de la hoja. La pestaña es
  * chica (decenas/cientos de SKUs), así que no hace falta la optimización de
- * arrays-planos + paginación que usa el reporte diario. */
+ * arrays-planos + paginación que usaba el reporte diario (ya retirado). */
 function getTabAsObjects(tabName) {
   const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(tabName);
   if (!sheet) return { error: `No existe la pestaña "${tabName}"` };

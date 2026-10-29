@@ -302,7 +302,7 @@ export function AnalisisDirectivoPage() {
               <FacturacionMensualCard
                 anios={anios}
                 serieFiltro={serieFiltro}
-                onMonth={(mes) => a.rf && openPanel({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(a.rf, a.enrich, filters, mes) })}
+                onMonth={(mes) => a.rf && openPanel({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(a.rf, a.enrich, filters, mes), meses: serieFiltro.map((p) => p.mes), rowsDe: (m) => clientesDeMes(a.rf!, a.enrich, filters, m) })}
               />
               {anioActual && (
                 <p className="mt-1.5 text-[11px] text-text-faint">

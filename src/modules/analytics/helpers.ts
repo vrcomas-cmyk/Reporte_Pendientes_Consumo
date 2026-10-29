@@ -49,6 +49,7 @@ export function consumoEnrich(enrich: EnrichIndex) {
   const gpoCte = (r: ConsumoRow) => r.grpCliente || pickField(r.raw, ['Grp. Cliente', 'Gpo. Cte.', 'Gpo Cte']);
   return {
     ejec: (r: ConsumoRow) => enrich.ejecutivoNombre(gpoVdor(r)),
+    ventas: (r: ConsumoRow) => enrich.ejecutivoAtributos(gpoVdor(r)),
     grupoCli: (r: ConsumoRow) => enrich.grupoCliente(gpoCte(r)) || gpoCte(r),
     sector: (r: ConsumoRow) => enrich.matSector(r.material),
     grupoArt: (r: ConsumoRow) => enrich.matGrupo(r.material),
@@ -143,3 +144,7 @@ export function transitoFor(rss: RSSIndex | null, centro: string, alm: string, m
 
 /** Renglones pendientes LIBERADOS (sin bloqueo de crédito ni de entrega): los que cuentan en el pendiente de los módulos de libros. */
 export const renglonesLiberados = (bo: BOItem[]): BOItem[] => bo.filter((it) => !it.bo.bloqueado);
+
+/** Renglones pendientes según el modo de bloqueo elegido en Inventario (el mismo que usa `filasResumenDisponibilidad` para el número de la tabla). */
+export const renglonesPorModo = (bo: BOItem[], modo: 'liberados' | 'todos' | 'bloqueados'): BOItem[] =>
+  modo === 'todos' ? bo : bo.filter((it) => (modo === 'bloqueados') === !!it.bo.bloqueado);

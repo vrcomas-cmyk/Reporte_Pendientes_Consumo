@@ -32,11 +32,11 @@ const LIBROS_RELACION = {
     id: "14Urzz33cW-4Brva6dbKBfRNFYUfx7Z0pzrUVMsQf7nI",
     hojas: ["Corta caducidad", "Lento mov", "Cosmopark", "Sustituto", "PNC", "Caduco", "Revision", "Revision2"]
   },
-  // Pedidos YBFD (entrega de comodato) y ZBRE (devolucion), export SAP. Se lee SOLO la pestana con ese gid.
+  // Pedidos YBFD (entrega de comodato) y ZBRE (devolucion), export SAP. Se lee la PRIMERA pestana del libro (sin depender de su gid ni de su nombre,
+  // que cambian cuando alguien recrea la pestana). Para fijar una concreta, agregar `gid: <numero>`: si ya no existe, se usa la primera.
   comodato: {
     id: "1PmPyTJGIlujBIfK2dbzReV62A3VKm6-yw9wt8L_kMNQ",
-    hojas: null,
-    gid: 1198812480
+    hojas: null
   }
 };
 
@@ -57,9 +57,22 @@ const ALIAS_COLUMNAS = {
   Cantidad:    { alias: ["cantidad", "cant", "cant."], respaldo: 9 }
 };
 
+// Token compartido con la Edge Function `datos` de Supabase (docs/acceso-por-roles.md). Se guarda en Propiedades del script
+// (Configuracion del proyecto > Propiedades del script > API_TOKEN), NUNCA en el codigo. Con la propiedad definida, toda llamada
+// sin el token correcto se rechaza: asi la URL del /exec deja de servir a quien no pase por la funcion. Sin la propiedad, no se exige
+// (solo para el periodo de migracion: defínela en cuanto la funcion este desplegada).
+function _tokenValido(params) {
+  var esperado = PropertiesService.getScriptProperties().getProperty("API_TOKEN");
+  if (!esperado) return true;
+  return String(params.token || "") === esperado;
+}
+
 function doGet(e) {
   try {
     var params = (e && e.parameter) || {};
+    if (!_tokenValido(params)) {
+      return _json({ ok: false, error: "No autorizado" });
+    }
     var action = params.action || "manifest";
     var result;
 
@@ -177,11 +190,13 @@ function obtenerManifiestoRelacion() {
 function _hojasPermitidas(ss, def) {
   var todas = ss.getSheets();
 
-  // Libro con una pestana concreta: se identifica por su gid (el nombre puede cambiar).
+  // Libro con una pestana concreta: se identifica por su gid (el nombre puede cambiar). Si esa pestana ya no existe (se borro o se recreo), se usa la
+  // primera: devolver cero hojas dejaba el libro "sincronizado" pero vacio, sin avisar.
   if (def.gid !== undefined && def.gid !== null) {
-    return todas.filter(function(hoja) {
+    var concreta = todas.filter(function(hoja) {
       return hoja.getSheetId() === def.gid;
     });
+    return concreta.length ? concreta : todas.slice(0, 1);
   }
   if (!def.hojas) {
     return todas.slice(0, 1);

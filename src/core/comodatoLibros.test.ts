@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clientesDelLibro, hojaAFilas, resumenFacAFilasFacturacion } from './comodatoLibros';
+import { clientesDelLibro, encabezadosUnicos, hojaAFilas, resumenFacAFilasFacturacion } from './comodatoLibros';
 import type { ResumenFacRow } from './types';
 
 const fila = (over: Partial<ResumenFacRow>): ResumenFacRow => ({
@@ -14,6 +14,14 @@ describe('hojaAFilas', () => {
       { Solicitante: '100', 'Clase doc.ventas': 'YBFD', 'Creado el3': null },
       { Solicitante: '200', 'Clase doc.ventas': 'ZBRE', 'Creado el3': '15/09/2026' },
     ]);
+  });
+  it('las columnas repetidas del export de SAP se numeran como en la carga de Excel (Nombre, Nombre1…, Creado el3)', () => {
+    expect(encabezadosUnicos(['Nombre', 'Creado el', 'Nombre', 'Creado el', 'Creado el', 'Creado el'])).toEqual(['Nombre', 'Creado el', 'Nombre1', 'Creado el1', 'Creado el2', 'Creado el3']);
+    const hoja = { columnas: ['Solicitante', 'Nombre', 'Nombre'], rows: [['100', 'Almacén', 'Cliente SA']] };
+    expect(hojaAFilas(hoja)).toEqual([{ Solicitante: '100', Nombre: 'Almacén', Nombre1: 'Cliente SA' }]);
+  });
+  it('un encabezado numerado que ya existe no se pisa', () => {
+    expect(encabezadosUnicos(['Nombre', 'Nombre1', 'Nombre'])).toEqual(['Nombre', 'Nombre1', 'Nombre2']);
   });
   it('clientesDelLibro limpia espacios y el ".0" final', () => {
     const hoja = { columnas: ['Material', 'Solicitante'], rows: [['1331100', ' 100.0 '], ['1331100', '200'], ['1331100', '']] };

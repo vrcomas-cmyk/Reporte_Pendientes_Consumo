@@ -1,4 +1,7 @@
-import { Moon, Sun, Palette,CheckCircle2, AlertCircle, Search, RefreshCcw, Menu } from 'lucide-react';
+import { useState } from 'react';
+import { Moon, Sun, Palette,CheckCircle2, AlertCircle, Search, RefreshCcw, Menu, UserRound, LogOut } from 'lucide-react';
+import { usePermissionsStore } from '@/store/permissionsStore';
+import { cerrarSesion } from '@/services/sesionService';
 import { SOLO_LIBROS } from '@/lib/modoLibros';
 import { useUiStore } from '@/store/uiStore';
 import { useDataStore } from '@/store/dataStore';
@@ -131,8 +134,33 @@ export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNa
         <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Cambiar tema">
           {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </Button>
+        <MenuUsuario />
       </div>
     </header>
+  );
+}
+
+/** Quién está dentro y cómo cambiar de usuario (útil para probar roles): cierra la sesión, limpia los datos del navegador y vuelve a pedir la cuenta de Google. */
+function MenuUsuario() {
+  const email = usePermissionsStore((s) => s.perms.datos.email);
+  const rol = usePermissionsStore((s) => s.perms.roleName);
+  const isAdmin = usePermissionsStore((s) => s.perms.isAdmin);
+  const [saliendo, setSaliendo] = useState(false);
+  if (!email) return null;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label={`Usuario ${email}`} title={email}><UserRound className="size-4" /></Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-3">
+        <p className="truncate text-sm font-medium" title={email}>{email}</p>
+        <p className="mb-3 text-xs text-text-muted">{rol ? `Rol: ${rol}` : 'Sin rol asignado'}{isAdmin ? ' · administrador' : ''}</p>
+        <Button variant="outline" size="sm" className="w-full" disabled={saliendo} onClick={() => { setSaliendo(true); void cerrarSesion(); }}>
+          <LogOut className="size-4" /> {saliendo ? 'Cerrando…' : 'Cerrar sesión / cambiar de usuario'}
+        </Button>
+        <p className="mt-2 text-[11px] text-text-faint">También borra los datos guardados en este navegador, para que el siguiente usuario cargue los suyos.</p>
+      </PopoverContent>
+    </Popover>
   );
 }
 

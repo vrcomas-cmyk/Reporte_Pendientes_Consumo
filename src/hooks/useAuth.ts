@@ -71,7 +71,7 @@ export function useAuth(): { status: AuthStatus; session: Session | null; signIn
     // redirectTo explícito: este proyecto de Supabase es compartido con otras
     // apps (app-seg-pendientes, etc.) y su "Site URL" apunta a una de ellas —
     // sin esto, Supabase cae de vuelta a esa app en vez de regresar aquí.
-    signInWithGoogle: () => { supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }); },
+    signInWithGoogle: () => { supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin, queryParams: { prompt: 'select_account' } } }); },
     signOut: () => { supabase.auth.signOut(); },
   };
 }

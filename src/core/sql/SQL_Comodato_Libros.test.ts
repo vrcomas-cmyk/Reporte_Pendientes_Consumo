@@ -47,7 +47,7 @@ beforeAll(async () => {
     conn.insertJSONFromPath(f, { name: tabla });
   };
   const ybfd = (cli: string, mat: string, clase: string, cant: string, fecha: Date | null, campoFecha: 'Creado el3' | 'Creado el' = 'Creado el3') => ({
-    Solicitante: cli, Nombre11: `Cliente ${cli}`, Material: mat, 'Denominación': 'EQUIPO', 'Clase doc.ventas': clase, Cantidad: clase === 'YBFD' ? cant : '0', 'Cantidad de pedido': cant,
+    Solicitante: cli, Nombre1: `Cliente ${cli}`, Material: mat, 'Denominación': 'EQUIPO', 'Clase doc.ventas': clase, Cantidad: clase === 'YBFD' ? cant : '0', 'Cantidad de pedido': cant,
     'Creado el3': campoFecha === 'Creado el3' && fecha ? dmy(fecha) : null, 'Creado el': campoFecha === 'Creado el' && fecha ? dmy(fecha) : null, 'Motivo de rechazo': null,
   });
   cargar('mm_ybfd_zbre', [

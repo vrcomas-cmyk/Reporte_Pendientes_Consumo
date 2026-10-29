@@ -13,12 +13,31 @@ export const claveCliente = (v: unknown): string => String(v ?? '').trim().repla
 
 export interface HojaTabular { columnas: readonly string[]; rows: readonly (readonly string[])[] }
 
-/** Filas del libro como objetos con los encabezados tal cual (el SQL espera los nombres del export de SAP) y `''` → `null`
+/** Encabezados únicos, con la numeración que daba la carga original de Excel: el export de SAP repite nombres («Nombre», «Creado el»…) y cada repetición lleva
+ * su número de orden pegado: «Creado el», «Creado el1», «Creado el2», «Creado el3»… (por eso el SQL pide «Nombre11» y «Creado el3»). Sin esto, las columnas
+ * repetidas se pisaban entre sí al armar el objeto de cada fila y el SQL no encontraba «Nombre11». */
+export function encabezadosUnicos(columnas: readonly string[]): string[] {
+  const usados = new Set<string>(columnas);
+  const repeticiones = new Map<string, number>();
+  const vistos = new Set<string>();
+  return columnas.map((c) => {
+    if (!vistos.has(c)) { vistos.add(c); return c; }
+    let n = repeticiones.get(c) ?? 0;
+    let nombre: string;
+    do { n += 1; nombre = `${c}${n}`; } while (usados.has(nombre));
+    repeticiones.set(c, n);
+    usados.add(nombre);
+    return nombre;
+  });
+}
+
+/** Filas del libro como objetos con los encabezados del export de SAP (las columnas repetidas, numeradas: ver `encabezadosUnicos`) y `''` → `null`
  * (el SQL filtra con `IS NOT NULL`). */
 export function hojaAFilas(hoja: HojaTabular): Record<string, unknown>[] {
+  const columnas = encabezadosUnicos(hoja.columnas);
   return hoja.rows.map((r) => {
     const o: Record<string, unknown> = {};
-    hoja.columnas.forEach((c, i) => { const v = r[i]; o[c] = v === undefined || v === '' ? null : v; });
+    columnas.forEach((c, i) => { const v = r[i]; o[c] = v === undefined || v === '' ? null : v; });
     return o;
   });
 }

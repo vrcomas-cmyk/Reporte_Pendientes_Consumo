@@ -1,4 +1,5 @@
 import { StatePill } from '@/modules/analytics/ui';
+import { AccesoDatosTab } from './AccesoDatosTab';
 import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -40,6 +41,7 @@ export function AdminPage() {
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
           <TabsTrigger value="roles">Roles y permisos</TabsTrigger>
           <TabsTrigger value="overrides">Overrides por usuario</TabsTrigger>
+          <TabsTrigger value="datos">Acceso a datos</TabsTrigger>
           <TabsTrigger value="conectores">Conectores</TabsTrigger>
           <TabsTrigger value="compatibilidad">Compatibilidad</TabsTrigger>
           <TabsTrigger value="nombres">Nombres</TabsTrigger>
@@ -48,6 +50,7 @@ export function AdminPage() {
         <TabsContent value="usuarios"><UsuariosTab /></TabsContent>
         <TabsContent value="roles"><PermissionsTab subjectType="role" /></TabsContent>
         <TabsContent value="overrides"><PermissionsTab subjectType="user" /></TabsContent>
+        <TabsContent value="datos"><AccesoDatosTab /></TabsContent>
         <TabsContent value="conectores"><ConectoresTab /></TabsContent>
         <TabsContent value="compatibilidad"><PesosTab /></TabsContent>
         <TabsContent value="nombres"><NombresTab /></TabsContent>

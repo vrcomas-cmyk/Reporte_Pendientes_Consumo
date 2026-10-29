@@ -13,7 +13,7 @@ import { useCostoMetrica } from './CostoMaterial';
 import { usePanelStore } from '@/store/panelStore';
 import { formatNumber, formatCurrency, formatFechaCaducidad } from '@/lib/utils';
 import { almacenesDeCondicion } from '@/core/inventoryRules';
-import { pendPorCondicion, transitoPorCondicion, impPendPorCondicion, coberturaEstado, COBERTURA_LABEL, COBERTURA_CLS, type RSSAlmacen } from '@/core/resumenSin';
+import { pendSegunAmbito, transitoPorCondicion, impPendPorCondicion, coberturaEstado, COBERTURA_LABEL, COBERTURA_CLS, type RSSAlmacen } from '@/core/resumenSin';
 import { detalle12Cerrados } from '../promedio12';
 import { PromedioPeriodoSection, periodoCompleto, usePeriodoProm } from './PromedioPeriodoSection';
 import { serieMaterial, serieMatCentro, rfTieneCentro } from '@/core/resumenFac';
@@ -63,11 +63,13 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
 
   const mo = a.rss?.mats.get(norm(panel.material));
   const co = mo?.centros.get(norm(panel.centro));
-  const pend = pendPorCondicion(co, condicionMat);
+  // Mismo alcance que eligió la tabla de Inv con Condición (por condición / todo el centro): así el detalle cuadra con el «Pend» de la celda.
+  const ambitoPend = useRssFuenteStore((s) => s.ambitoPend);
+  const pend = pendSegunAmbito(co, condicionMat, ambitoPend);
   const transito = transitoPorCondicion(co, condicionMat);
   const impPend = impPendPorCondicion(co, condicionMat);
-  // Pedidos pendientes liberados del centro, solo de los almacenes que aplican a la condición (los mismos que suma el "Pendiente" de la tabla).
-  const sug = sugFor(a.bo, panel.material, panel.centro).filter((it) => almacenesAplicables.has(norm(it.bo.almacen)));
+  // Pedidos pendientes (Seg pedidos, según el modo de bloqueo de Inventario) del centro: solo los almacenes que aplican a la condición, o todos si la tabla está en «Pend. todo el centro».
+  const sug = sugFor(a.bo, panel.material, panel.centro).filter((it) => ambitoPend === 'centro' || almacenesAplicables.has(norm(it.bo.almacen)));
   const cons = consFor(a.result?.consumo ?? [], panel.material, panel.centro);
   // Un almacén aplicable se muestra en cuanto tenga CUALQUIER dato — no solo
   // cuando Resumen Sin Sugerencias trae una fila propia para él (p.ej. 1060
@@ -75,7 +77,7 @@ export function InvCondCeldaPanel({ panel, a, push }: { panel: Extract<Panel, { 
   // inventario, leído de `co.invAlm`, el mismo total por almacén que ya usa
   // `invPorCondicion`) — antes se ocultaba silenciosamente en ese caso.
   const almsAplicables: RSSAlmacen[] = co
-    ? almacenesDeCondicion(condicionMat)
+    ? [...new Set([...almacenesDeCondicion(condicionMat), ...(ambitoPend === 'centro' ? [...co.alm.values()].filter((al) => al.pend > 0).map((al) => al.alm) : [])])]
         .map((alm): RSSAlmacen => co.alm.get(alm) ?? {
           alm, inv: co.invAlm[alm] || 0, pend: 0, transito: 0, impPend: 0, prom: 0,
           ultMes: '', cantUlt: 0, penMes: '', cantPen: 0, meses: 0, status: '', fuente: '',

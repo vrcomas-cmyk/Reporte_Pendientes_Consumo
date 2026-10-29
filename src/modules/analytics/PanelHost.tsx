@@ -8,7 +8,8 @@ import { useRssFuenteStore } from '@/store/rssFuenteStore';
 import { useFacFuenteStore } from '@/store/facFuenteStore';
 import { conFacturacion } from './facturacionAnalytics';
 import { rfTieneCentro } from '@/core/resumenFac';
-import { renglonesLiberados } from './helpers';
+import { renglonesPorModo } from './helpers';
+import { usePendienteBloqueoStore } from '@/store/pendienteBloqueoStore';
 
 import { SugDetallePanel } from './panels/SugDetallePanel';
 import { PedidoPanel } from './panels/PedidoPanel';
@@ -94,15 +95,16 @@ export function PanelHost() {
   const aBase = useAnalytics();
   // Si hay un módulo Inventario con datos de Disponibilidad abierto, sus paneles leen ESE inventario (`rss`).
   const fuenteRss = useRssFuenteStore((s) => s.fuente);
+  const modoBloqueo = usePendienteBloqueoStore((s) => s.modo);
   const facActivo = useFacFuenteStore((s) => s.activo);
   const aRss = useMemo(() => {
     // Pedidos pendientes de estos módulos: los renglones LIBERADOS de Seg pedidos (la misma fuente del número de la tabla), no los del reporte anterior.
-    const boLibros = renglonesLiberados(aBase.boSeg);
+    const boLibros = renglonesPorModo(aBase.boSeg, modoBloqueo);
     if (fuenteRss === 'disp' && aBase.rssDisp) return { ...aBase, rss: aBase.rssDisp, bo: boLibros };
     // Inv con Condición: inventario por condición, lotes y pendiente/tránsito/lento de los libros.
     if (fuenteRss === 'libros') return { ...aBase, rss: aBase.rssDisp ?? aBase.rss, invCondicion: aBase.invCondicionLibros, lotes: aBase.lotesLibros, bo: boLibros };
     return aBase;
-  }, [aBase, fuenteRss]);
+  }, [aBase, fuenteRss, modoBloqueo]);
   // Módulo Facturación abierto: consumo y facturación de los libros de Drive (lo mismo que su tabla).
   // Con el módulo Facturación abierto, o cuando el Resumen_Fac del reporte no está cargado / no trae la columna Centro (p. ej. Inv. Disponibilidad
   // alimentado solo por libros), los detalles leen la facturación de los libros de Drive: historial, tendencias por centro, consumo y ABC.

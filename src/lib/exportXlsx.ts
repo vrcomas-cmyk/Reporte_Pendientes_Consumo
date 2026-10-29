@@ -27,17 +27,21 @@ export async function exportXlsx(filename: string, rows: Record<string, unknown>
  * Exporta varias hojas en un solo libro. Útil para vistas con múltiples
  * tablas (p.ej. Análisis) donde no existe una única tabla filtrable.
  */
-export async function exportXlsxMultiSheet(filename: string, sheets: { name: string; rows: Record<string, unknown>[] }[]): Promise<boolean> {
-  const withData = sheets.filter((s) => s.rows && s.rows.length);
-  if (!withData.length) {
-    toast.warning('No hay filas para exportar');
-    return false;
-  }
+export function libroDeHojas(sheets: { name: string; rows: Record<string, unknown>[] }[]): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
-  withData.forEach((s) => {
+  sheets.filter((s) => s.rows && s.rows.length).forEach((s) => {
     const ws = XLSX.utils.json_to_sheet(s.rows);
     XLSX.utils.book_append_sheet(wb, ws, s.name.slice(0, 31));
   });
+  return wb;
+}
+
+export async function exportXlsxMultiSheet(filename: string, sheets: { name: string; rows: Record<string, unknown>[] }[]): Promise<boolean> {
+  const wb = libroDeHojas(sheets);
+  if (!wb.SheetNames.length) {
+    toast.warning('No hay filas para exportar');
+    return false;
+  }
   try {
     XLSX.writeFile(wb, filename);
   } catch (e) {

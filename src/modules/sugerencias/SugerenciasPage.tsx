@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useZonaAcceso } from '@/hooks/useZonaAcceso';
 import { Download, ClipboardList, Copy, Layers, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -136,7 +137,10 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
   const seg = modo === 'seg';
   // Prefijo de las llaves persistidas (filtros, columnas, vistas): cada modo guarda las suyas.
   const ns = seg ? 'segPedidos' : 'sugerencias';
-  const boFuente = seg ? a.boSeg : a.bo;
+  // Rol que ve solo su zona: en Seg pedidos únicamente los pedidos de su zona (los de otras zonas llegan recortados y solo sirven al pendiente de Inventario).
+  const zonaAcceso = useZonaAcceso();
+  const boSegVisible = useMemo(() => (zonaAcceso.restringido ? a.boSeg.filter((it) => zonaAcceso.permite(it.bo.gpoVdor)) : a.boSeg), [a.boSeg, zonaAcceso]);
+  const boFuente = seg ? boSegVisible : a.bo;
   const open = usePanelStore((s) => s.open);
   const solicitar = useSolicitarDialog();
   const solicitudesList = useSolicitudStore((s) => s.list);
@@ -244,6 +248,10 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
     { key: 'destinatario', label: 'Destinatario', get: (it) => it.bo.destinatario },
     { key: 'grupocli', label: 'Grupo cliente', get: (it) => grupoCli(it.bo) },
     { key: 'ejecutivo', label: 'Ejecutivo', get: (it) => ejec(it.bo) },
+    { key: 'gerenciaVentas', label: 'Gerencia de Ventas', get: (it) => e.ejecutivoAtributos(it.bo.gpoVdor).gerenciaVentas || 'Sin dato' },
+    { key: 'gerenteVentas', label: 'Gerente de Ventas', get: (it) => e.ejecutivoAtributos(it.bo.gpoVdor).gerenteVentas || 'Sin dato' },
+    { key: 'canalVentas', label: 'Canal Ventas', get: (it) => e.ejecutivoAtributos(it.bo.gpoVdor).canalVentas || 'Sin dato' },
+    { key: 'oficinaVentas', label: 'Oficina Ventas', get: (it) => e.ejecutivoAtributos(it.bo.gpoVdor).oficinaVentas || 'Sin dato' },
     { key: 'centro', label: 'Centro', get: (it) => it.bo.centroPedido },
     { key: 'almacen', label: 'Almacén', get: (it) => it.bo.almacen },
     { key: 'material', label: 'Material', get: (it) => it.bo.materialBase },

@@ -20,6 +20,7 @@ import {
   vistaDisponibilidad,
   type HojaCruda,
   type LibroClave,
+  libroSinHojas,
 } from './pedidos';
 
 // "Hoy" fijo para que las vigencias no dependan del reloj: 8/oct/2026.
@@ -319,5 +320,14 @@ describe('Seg pedidos: renglones repetidos no se pierden', () => {
     const items = buildBOPorFila(sugerenciasDesdeSegPedidos(ped, null), null);
     expect(items).toHaveLength(2);
     expect(new Set(items.map((i) => i.k)).size).toBe(2);
+  });
+});
+
+describe('libroSinHojas', () => {
+  it('un libro listado sin ninguna pestaña (el Apps Script no encontró la hoja) cuenta como sin hojas', () => {
+    expect(libroSinHojas({ hojas: [] })).toBe(true);
+    expect(libroSinHojas({})).toBe(true);
+    expect(libroSinHojas({ hojas: null })).toBe(true);
+    expect(libroSinHojas({ hojas: [{ nombre: 'Sheet1' }] })).toBe(false);
   });
 });

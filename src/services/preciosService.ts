@@ -47,7 +47,7 @@ export interface NuevaPropuesta {
 }
 
 interface PropuestaDb {
-  id: string; material: string; concepto: ConceptoPrecio; condicion: string; lote: string; costo_al_enviar: number; base_al_enviar: number | null;
+  id: string; material: string; concepto: ConceptoPrecio; condicion: string; lote: string; costo_al_enviar: number | null; base_al_enviar: number | null;
   precio_calculado: number; precio_propuesto: number; estado: EstadoPropuesta; solicitado_por: string | null; solicitado_en: string;
   autorizado_por: string | null; autorizado_en: string | null; comentario: string | null; precio_enviado: number | null; archivo_autorizacion: string | null; lotes_enviados: string[] | null; vigente_desde?: string | null; vigente_hasta?: string | null;
 }
@@ -153,6 +153,9 @@ const AYUDA_MIGRACION = "Ejecuta la migración en el SQL editor de Supabase y, s
 /** Todas las propuestas (más recientes primero). Sin tablas → []. */
 export async function listarPropuestas(): Promise<Propuesta[]> {
   try {
+    // El costo solo lo devuelve la función a quien tiene permiso de verlo (migración 0028); sin la migración se cae a la lectura directa de antes.
+    const rpc = await supabase.rpc('degasa_precio_propuestas').limit(5000);
+    if (!rpc.error) return ((rpc.data ?? []) as PropuestaDb[]).map(deDb);
     const { data, error } = await supabase.from('degasa_precio_propuesta').select('*').order('solicitado_en', { ascending: false }).limit(5000);
     if (error) throw error;
     return ((data ?? []) as PropuestaDb[]).map(deDb);

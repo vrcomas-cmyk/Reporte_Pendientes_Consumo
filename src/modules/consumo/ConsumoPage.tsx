@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useZonaAcceso } from '@/hooks/useZonaAcceso';
 import { useFaseFacturacion } from '@/modules/analytics/faseFacturacion';
 import { useFacFuenteStore } from '@/store/facFuenteStore';
 import { conFacturacion } from '@/modules/analytics/facturacionAnalytics';
@@ -22,7 +23,7 @@ import { COLS_CONSUMO } from './columns';
 import { usePromedioModo, promedioDeFila } from './usePromedioModo';
 import { PROMEDIO_MODOS } from '@/core/consumoDesdeRF';
 import { ESTADOS, auditoriaFacturacion, mesKey, mesLabel, clasificarEstado, tendenciaTexto, mesRefQAnterior, mesAnterior, hoyMes, type Serie, type Estado, type Tendencia } from '@/core/resumenFac';
-import { norm, num, searchNorm, consumoEnrich, consumoSerie, serieFacturada, matchesQueryNormalized } from '@/modules/analytics/helpers';
+import { pickField, norm, num, searchNorm, consumoEnrich, consumoSerie, serieFacturada, matchesQueryNormalized } from '@/modules/analytics/helpers';
 import type { ConsumoRow } from '@/core/types';
 import { buildFromConsumo } from '@/services/solicitudService';
 import { useSolicitarDialog } from '@/modules/solicitudes/useSolicitarDialog';
@@ -69,7 +70,10 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
   }, [fac, setFacActivo]);
   const a = useMemo(() => (fac ? conFacturacion(a0) : a0), [a0, fac]);
   const open = usePanelStore((s) => s.open);
-  const rows = a.result?.consumo ?? [];
+  // Rol que ve solo su zona: únicamente los clientes de su zona (la facturación de otras zonas llega sin cliente ni importe).
+  const zonaAcceso = useZonaAcceso();
+  const rowsTodos = a.result?.consumo ?? [];
+  const rows = useMemo(() => (zonaAcceso.restringido ? rowsTodos.filter((r) => zonaAcceso.permite(r.gpoVdor || pickField(r.raw, ['Gpo. Vdor.', 'Gpo.Vdor.', 'Grupo de vendedor']))) : rowsTodos), [rowsTodos, zonaAcceso]);
   // Perf: memoize on catalog identity. `ce` is a dep of filterCols/sortAcc/
   // rankSector/grupos — a fresh object each render defeated those useMemos and
   // forced the ~80k-row sector/grupo aggregations to recompute on every render
@@ -203,6 +207,10 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
     { key: 'material', label: 'Material', get: (r) => r.material },
     { key: 'grupocli', label: 'Grupo cliente', get: (r) => ce.grupoCli(r) },
     { key: 'ejecutivo', label: 'Ejecutivo', get: (r) => ce.ejec(r) },
+    { key: 'gerenciaVentas', label: 'Gerencia de Ventas', get: (r) => ce.ventas(r).gerenciaVentas || 'Sin dato' },
+    { key: 'gerenteVentas', label: 'Gerente de Ventas', get: (r) => ce.ventas(r).gerenteVentas || 'Sin dato' },
+    { key: 'canalVentas', label: 'Canal Ventas', get: (r) => ce.ventas(r).canalVentas || 'Sin dato' },
+    { key: 'oficinaVentas', label: 'Oficina Ventas', get: (r) => ce.ventas(r).oficinaVentas || 'Sin dato' },
     { key: 'centro', label: 'Centro', get: (r) => r.centro },
     { key: 'sector', label: 'Sector', get: (r) => ce.sector(r) },
     // #3: Sector and Grupo artículo share one visual cell — each field still
@@ -700,7 +708,7 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
       </FilterBar>
 
       <CollapsibleCard title="Facturación mensual (filtro)" storageKey={`${ns}.grafica.abierta`} defaultOpen>
-        <EvolChart serie={aggSerie} height={160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes) })} />
+        <EvolChart serie={aggSerie} height={160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes), meses: aggSerie.map((p) => p.mes), rowsDe: clientesDeMes })} />
       </CollapsibleCard>
 
       <FacPorNivel renglones={renglonesFac} nMeses={ventana.nMeses} ventana={ventana.etiqueta} storageKey={ns} onNodo={alAbrirNivel} />

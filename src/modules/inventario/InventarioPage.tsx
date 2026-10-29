@@ -171,6 +171,11 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   const [cond, setCond] = usePersistedState(`${ns}.cond`, '');
   // Alcance del pendiente por celda: solo los almacenes que aplican a la condición (RN-INV-002) o todo el del centro.
   const [ambitoPend, setAmbitoPend] = usePersistedState<AmbitoPend>(`${ns}.ambitoPend`, 'condicion');
+  const setAmbitoRss = useRssFuenteStore((s) => s.setAmbitoPend);
+  useEffect(() => {
+    setAmbitoRss(ambitoPend);
+    return () => setAmbitoRss('condicion');
+  }, [ambitoPend, setAmbitoRss]);
   // Filtros por las sumas de la fila: «Pend. suma» (todos los centros, según el alcance elegido) e «Inv Suma».
   const [pendFiltro, setPendFiltro] = usePersistedState<'' | 'con' | 'sin'>(`${ns}.pendFiltro`, '');
   const [invFiltro, setInvFiltro] = usePersistedState<'' | 'con' | 'sin'>(`${ns}.invFiltro`, '');
