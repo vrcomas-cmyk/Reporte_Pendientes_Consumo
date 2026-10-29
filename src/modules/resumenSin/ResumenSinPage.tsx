@@ -265,7 +265,7 @@ export function ResumenSinPage({ modo = 'sin' }: ResumenSinPageProps = {}) {
   return (
     <ReportPage>
       <PageHeader
-        title={disp ? 'Inventario · Disponibilidad' : 'Inventario'}
+        title={disp ? 'Inventario disponible' : 'Inventario general'}
         subtitle={`${formatNumber(sorted.length)} de ${formatNumber(rss.mats.size)} materiales · pivote material × centro · inventario general (1030+1031+1060)`}
         actions={(
           <>
@@ -380,7 +380,7 @@ export function ResumenSinPage({ modo = 'sin' }: ResumenSinPageProps = {}) {
                         onQuitarFiltrosEIr={(m) => { clearFilters(); setIrA(m); }}
                         onDetalle={(m) => open({ type: 'material', material: m })}
                       />
-                    )}<div className="text-[11px] text-text-faint max-w-64 truncate">{mo.desc}</div>{a.enrich.matPrecioOferta(mo.material) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(a.enrich.matPrecioOferta(mo.material))}</div>}</TableCell>
+                    )}<div className="text-[11px] text-text-faint max-w-64 truncate">{mo.desc}</div>{a.enrich.matPrecioOferta(mo.material) > 0 && <div className="text-[11px] text-text">Of. {formatCurrency(a.enrich.matPrecioOferta(mo.material))}</div>}</TableCell>
                     <TableCell>{a.enrich.matUm(mo.material) || '—'}</TableCell>
                     <TableCell>{a.enrich.matSector(mo.material) || '—'}<div className="text-[11px] text-text-faint">{a.enrich.matGrupo(mo.material)}</div></TableCell>
                     <TableCell>{disp && !rfTendencia
@@ -434,7 +434,7 @@ export function ResumenSinPage({ modo = 'sin' }: ResumenSinPageProps = {}) {
                               </TooltipHint>
                             </div>
                           )}
-                          {esCentroDistribucion(c) && <div className="text-[10px] text-text-faint">Distribución</div>}
+                          {esCentroDistribucion(c) && <div className="text-[11px] text-text-faint">Distribución</div>}
                         </TableCell>
                         </SolicitarContextMenu>
                       );

@@ -32,7 +32,7 @@ CREATE OR REPLACE MACRO hoy() AS CAST('__HOY__' AS DATE);
 CREATE OR REPLACE VIEW stg_comodatos AS
 SELECT
     TRIM(REGEXP_REPLACE(CAST("Solicitante" AS VARCHAR), '\.0$', ''))  AS cliente,
-    "Nombre11"                                                         AS razon_social,
+    "Nombre1"                                                          AS razon_social,   -- 2.º «Nombre» del export (el 1.º es el del destinatario)
     TRIM(REGEXP_REPLACE(CAST("Material"    AS VARCHAR), '\.0$', ''))  AS codigo_detalle,
     "Denominación"                                                     AS texto_material,
     TRIM(CAST("Clase doc.ventas" AS VARCHAR))                          AS tipo_movimiento,   -- YBFD / ZBRE

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildRSS, coberturaEstado, coberturaDeAlmacen, peorCobertura, summarizeCobertura,
   quiebreMitigadoPorTransito, summarizeCoberturaConTransito, esCentroDistribucion, esLento,
-  invGen, invPorCondicion, pendPorCondicion, transitoPorCondicion, esLentoPorCondicion,
+  invGen, invPorCondicion, pendPorCondicion, pendSegunAmbito, transitoPorCondicion, esLentoPorCondicion,
   type RSSAlmacen, type RSSCentro,
 } from './resumenSin';
 import type { ResumenSinSugerenciaRow } from './types';
@@ -247,6 +247,20 @@ describe('pendPorCondicion / transitoPorCondicion / esLentoPorCondicion (RN-INV-
     expect(esLentoPorCondicion(co, 'Normal', 24294)).toBe(false);
     // Para "Corta caducidad" (solo 1032): pendiente aplicable es 2 -> tampoco lento.
     expect(esLentoPorCondicion(co, 'Corta caducidad', 24294)).toBe(false);
+  });
+  it('pendSegunAmbito: «condicion» = pendPorCondicion; «centro» suma todos los almacenes', () => {
+    expect(pendSegunAmbito(co, 'Normal', 'condicion')).toBe(7);
+    expect(pendSegunAmbito(co, 'Corta caducidad', 'condicion')).toBe(2);
+    expect(pendSegunAmbito(co, 'Normal', 'centro')).toBe(9);
+    expect(pendSegunAmbito(co, 'Corta caducidad', 'centro')).toBe(9);
+    expect(pendSegunAmbito(undefined, 'Normal', 'centro')).toBe(0);
+  });
+  it('esLentoPorCondicion con «centro»: un pendiente en un almacén no aplicable ya cuenta', () => {
+    // Solo hay pendiente en 1032; para «Normal» (1030+1031+1060) no aplica, pero el centro sí lo tiene.
+    const r = buildRSS([rowFor('1030', 0, 0, '01/2023'), rowFor('1032', 2, 0, '01/2023')]);
+    const c = r.mats.get('M1')!.centros.get('1001')!;
+    expect(esLentoPorCondicion(c, 'Normal', 24294)).toBe(true);
+    expect(esLentoPorCondicion(c, 'Normal', 24294, 'centro')).toBe(false);
   });
   it('esLentoPorCondicion: centro sin inventario aplicable no es lento', () => {
     const soloNormal = buildRSS([rowFor('1030', 0, 0, '2024-01')]);

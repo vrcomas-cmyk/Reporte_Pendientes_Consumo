@@ -32,7 +32,7 @@ export function ComparaCostoSustituto({ a, original, sustituto }: { a: Analytics
       {costoVisible && (
         <>
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-[10px] uppercase tracking-wide text-text-faint"><th className="pb-1 pr-3 font-semibold" /><th className="pb-1 pr-3 font-semibold">Material</th><th className="pb-1 text-right font-semibold">Costo</th></tr></thead>
+            <thead><tr className="text-left text-[11px] uppercase tracking-wide text-text-faint"><th className="pb-1 pr-3 font-semibold" /><th className="pb-1 pr-3 font-semibold">Material</th><th className="pb-1 text-right font-semibold">Costo</th></tr></thead>
             <tbody>
               {fila('En el pedido', original, costoO)}
               {fila('Sustituto', sustituto, costoS)}

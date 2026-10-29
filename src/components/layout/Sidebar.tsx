@@ -29,6 +29,7 @@ import {
   ArrowLeftRight,
   ListChecks,
   Tag,
+  PackageCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/store/uiStore';
@@ -53,26 +54,37 @@ const NAV_GROUPS_TODOS = [
       { to: '/carga', moduleKey: 'carga', label: 'Carga', icon: UploadCloud },
       { to: '/resultados', moduleKey: 'resultados', label: 'Resultados', icon: Table2 },
       { to: '/sugerencias', moduleKey: 'sugerencias', label: 'Pedidos', icon: ClipboardList },
-      { to: '/seg-pedidos', moduleKey: 'seg-pedidos', label: 'Seg. de pedidos', icon: ListChecks },
+      { to: '/seg-pedidos', moduleKey: 'seg-pedidos', label: 'Seguimiento de pedidos', icon: ListChecks },
     ],
   },
   {
-    label: 'Análisis y oportunidades',
+    label: 'Inventario',
+    items: [
+      { to: '/resumen-sin', moduleKey: 'resumen-sin', label: 'Inventario general', icon: Grid3x3 },
+      { to: '/inv-disponibilidad', moduleKey: 'inv-disponibilidad', label: 'Inventario disponible', icon: Warehouse },
+      { to: '/inventario', moduleKey: 'inventario', label: 'Inventario por condición', icon: Boxes },
+      { to: '/inv-con-condicion', moduleKey: 'inv-con-condicion', label: 'Inventario con condición', icon: Boxes },
+    ],
+  },
+  {
+    label: 'Ventas y análisis',
     items: [
       { to: '/consumo', moduleKey: 'consumo', label: 'Consumo', icon: Activity },
       { to: '/facturacion', moduleKey: 'facturacion', label: 'Facturación', icon: Receipt },
-      { to: '/resumen-sin', moduleKey: 'resumen-sin', label: 'Inventario', icon: Grid3x3 },
-      { to: '/inv-disponibilidad', moduleKey: 'inv-disponibilidad', label: 'Inventario · Disponibilidad', icon: Warehouse },
-      { to: '/inventario', moduleKey: 'inventario', label: 'Inv Condición', icon: Boxes },
-      { to: '/inv-con-condicion', moduleKey: 'inv-con-condicion', label: 'Inv con Condición', icon: Boxes },
       { to: '/analisis', moduleKey: 'analisis', label: 'Análisis', icon: LineChart },
+      { to: '/comparativo', moduleKey: 'comparativo', label: 'Comparativo de periodos', icon: ArrowLeftRight },
+      { to: '/analisis-directivo', moduleKey: 'analisis-directivo', label: 'Análisis directivo', icon: Presentation },
+      { to: '/oportunidades', moduleKey: 'oportunidades', label: 'Oportunidades', icon: Target },
       { to: '/incremento', moduleKey: 'incremento', label: 'Incremento de costos', icon: TrendingUp },
       { to: '/precios', moduleKey: 'precios', label: 'Precios', icon: Tag },
-      { to: '/comparativo', moduleKey: 'comparativo', label: 'Comparativo de periodos', icon: ArrowLeftRight },
-      { to: '/analisis-directivo', moduleKey: 'analisis-directivo', label: 'Análisis Directivo', icon: Presentation },
-      { to: '/oportunidades', moduleKey: 'oportunidades', label: 'Oportunidades', icon: Target },
+    ],
+  },
+  {
+    label: 'Comercial',
+    items: [
+      { to: '/ofertas-traslados', moduleKey: 'ofertas-traslados', label: 'Ofertas y traslados', icon: PackageCheck },
       { to: '/comodato-libros', moduleKey: 'comodato-libros', label: 'Comodato (libros)', icon: HandCoins },
-      { to: '/comodato', moduleKey: 'comodato', label: 'Comodato vs. Fac.', icon: HandCoins },
+      { to: '/comodato', moduleKey: 'comodato', label: 'Comodato vs. facturación', icon: HandCoins },
     ],
   },
   {
@@ -156,7 +168,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
             <Warehouse className="size-4" />
           </div>
           {expanded && (
-            <span className="font-display text-sm font-semibold tracking-tight text-text">DEGASAS</span>
+            <span className="font-display text-sm font-semibold tracking-tight text-text">DEGASA</span>
           )}
           {mobileOpen && (
             <button
@@ -174,7 +186,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
           {visibleGroups.map((group) => (
             <div key={group.label} className="flex flex-col gap-0.5">
               {expanded && (
-                <span className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-faint">
+                <span className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-text-faint">
                   {group.label}
                 </span>
               )}
@@ -230,7 +242,9 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
         </nav>
 
         <button
+          type="button"
           onClick={toggleSidebar}
+          aria-label={collapsed ? 'Expandir menú lateral' : 'Contraer menú lateral'}
           className="m-2 hidden items-center justify-center gap-2 rounded-md border border-border py-1.5 text-xs text-text-faint transition-colors hover:bg-bg-inset hover:text-text md:flex"
         >
           {collapsed ? <ChevronsRight className="size-3.5" /> : <ChevronsLeft className="size-3.5" />}

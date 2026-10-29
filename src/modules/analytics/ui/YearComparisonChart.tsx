@@ -41,8 +41,8 @@ function TooltipAnual({ active, payload, anios, colores }: {
               <span className="flex items-center gap-1.5">
                 <span className="inline-block size-2.5 rounded-full" style={{ background: colores[i % colores.length] }} />
                 <span className="font-medium tabular-nums">{v.anio}</span>
-                {v.esProy && <span className="text-[10px] text-text-faint">proyectado</span>}
-                {v.acum != null && <span className="text-[10px] text-text-faint">· a la fecha {formatCurrency(v.acum)}</span>}
+                {v.esProy && <span className="text-[11px] text-text-faint">proyectado</span>}
+                {v.acum != null && <span className="text-[11px] text-text-faint">· a la fecha {formatCurrency(v.acum)}</span>}
               </span>
               <span className="flex items-center gap-2">
                 <span className="tabular-nums">{v.valor == null ? '—' : formatCurrency(v.valor)}</span>
@@ -57,7 +57,7 @@ function TooltipAnual({ active, payload, anios, colores }: {
           );
         })}
       </div>
-      {valores.length > 1 && <p className="mt-1.5 border-t border-border/60 pt-1 text-[10px] text-text-faint">Δ% contra el año anterior, mismo mes</p>}
+      {valores.length > 1 && <p className="mt-1.5 border-t border-border/60 pt-1 text-[11px] text-text-faint">Δ% contra el año anterior, mismo mes</p>}
     </div>
   );
 }

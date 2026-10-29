@@ -28,8 +28,8 @@ export function InvGrid({ items, cols = 4, onSelect, activeIndex, ocultables = f
           <>
             <p className="text-[11px] text-text-faint">{k}</p>
             <p className="font-mono text-sm">{formatNumber(v)}</p>
-            {!!transito && transito > 0 && <p className="text-[10px] text-success">↻+{formatNumber(transito)}</p>}
-            {sub && <p className="text-[10px] text-text-muted">{sub}</p>}
+            {!!transito && transito > 0 && <p className="text-[11px] text-success">↻+{formatNumber(transito)}</p>}
+            {sub && <p className="text-[11px] text-text-muted">{sub}</p>}
           </>
         );
         if (!onSelect) return <div key={k} title={ayuda} className="rounded-md border border-border px-2.5 py-1.5">{contenido}</div>;

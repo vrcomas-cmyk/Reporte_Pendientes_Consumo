@@ -1,5 +1,7 @@
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { ReportPage, PageHeader, FilterSelect } from '@/components/layout/report';
 import { useMemo, useState } from 'react';
-import { Inbox, Download, RefreshCw, Trash2, CheckCheck, Undo2 } from 'lucide-react';
+import { Download, RefreshCw, Trash2, CheckCheck, Undo2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
@@ -67,12 +69,7 @@ export function SolicitudesPage() {
 
   if (!list.length) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <Inbox className="size-8 text-text-faint" />
-        <p className="text-sm text-text-muted">
-          Aún no has solicitado ningún lote. Marca una fila en Sugerencias, Inventario, Resumen Sin Sug. o Consumo para empezar.
-        </p>
-      </div>
+      <ReportPage><PageHeader title="Solicitudes DRP" /><EmptyState title="Aún no has solicitado ningún lote" description="Marca una fila en Pedidos, Inventario, Resumen sin sugerencia o Consumo para empezar." /></ReportPage>
     );
   }
 
@@ -110,22 +107,13 @@ export function SolicitudesPage() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-auto p-5">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h2 className="font-display text-2xl font-semibold">Solicitudes DRP</h2>
-          <p className="text-sm text-text-muted">Lotes marcados para surtir · {formatNumber(filtered.length)} renglones</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
-      </div>
+    <ReportPage>
+      <PageHeader title="Solicitudes DRP" subtitle={<>Lotes marcados para surtir · {formatNumber(filtered.length)} renglones</>} actions={
+    <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
+  } />
 
       <div className="flex flex-wrap items-center gap-2">
-        <select value={sync} onChange={(e) => setSync(e.target.value as SolicitudSync | '')} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm" autoComplete="off">
-          <option value="">Estado (todos)</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="enviada">Enviada</option>
-          <option value="error">Error</option>
-        </select>
+        <FilterSelect value={sync} onChange={setSync} todos="Estado (todos)" options={[{ value: 'pendiente', label: 'Pendiente' }, { value: 'enviada', label: 'Enviada' }, { value: 'error', label: 'Error' }]} />
         <DateRangeFilter desde={rango.desde} hasta={rango.hasta} onChange={setRango} />
         <ClearFiltersButton onClear={clearFilters} />
         {selected.size > 0 && (
@@ -199,6 +187,6 @@ export function SolicitudesPage() {
           </Table>
         </div>
       </Card>
-    </div>
+    </ReportPage>
   );
 }

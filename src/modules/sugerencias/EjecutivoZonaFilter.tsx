@@ -1,3 +1,4 @@
+import { Input } from '@/components/ui/input';
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, UserRound } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -61,12 +62,12 @@ export function EjecutivoZonaFilter({ opciones, seleccion, onChange, modo, onMod
             />
             {seleccion.length > 0 && <button type="button" onClick={() => onChange([])} className="text-xs text-accent hover:underline">Limpiar</button>}
           </div>
-          <input
+          <Input
             value={q}
             onChange={(ev) => setQ(ev.target.value)}
             placeholder="Buscar ejecutivo o zona…"
-            autoComplete="off"
-            className="mb-1.5 h-8 w-full rounded-md border border-border bg-bg-elevated px-2 text-xs"
+            aria-label="Buscar ejecutivo o zona"
+            className="mb-1.5 h-8 text-xs"
           />
           <div className="max-h-72 overflow-auto border-t border-border pt-1" role={modo === 'uno' ? 'radiogroup' : 'group'} aria-label="Ejecutivos / zonas">
             {visibles.length === 0 && <div className="px-1.5 py-2 text-xs text-text-faint">Sin coincidencias</div>}

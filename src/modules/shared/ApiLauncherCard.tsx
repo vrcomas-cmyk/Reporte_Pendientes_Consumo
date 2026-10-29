@@ -50,7 +50,7 @@ export function ApiLauncherCard() {
     return (
       <div className="flex items-center gap-2 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-xs text-success">
         <span className="size-2 rounded-full bg-success" /> API de generación de reportes conectada.
-        <button onClick={check} className="ml-auto text-text-faint hover:text-text"><RefreshCcw className="size-3.5" /></button>
+        <button type="button" aria-label="Volver a comprobar la conexión" title="Volver a comprobar la conexión" onClick={check} className="ml-auto text-text-faint hover:text-text"><RefreshCcw className="size-3.5" /></button>
       </div>
     );
   }

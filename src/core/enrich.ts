@@ -8,44 +8,42 @@
 // ---------------------------------------------------------------------------
 import type { CatalogSnapshot, InvConsolidadoRow } from './types';
 import { norm } from '@/lib/text';
-
-/** Precio de oferta AUTORIZADO (módulo Precios) para un material y una condición (etiqueta visible, p. ej. "Corta caducidad"). */
-export interface PrecioAutorizado { condicion: string; precio: number }
+import { SIN_PRECIOS_AUTORIZADOS, type PreciosAutorizados } from './precioAutorizado';
 
 /** Etiqueta visible de una combinación del módulo Precios ('CC + Lento mov + PNC' → 'Corta caducidad + Lento mov + PNC'). */
 export const etiquetaCombinacion = (comb: string): string => comb.split(' + ').map((b) => (b === 'CC' ? 'Corta caducidad' : b)).join(' + ');
 
 /** Recolecta cada par distinto (condicion, precio oferta) para `material` desde InvConsolidado/Inventario por condicion.
- * Si el módulo Precios tiene un precio AUTORIZADO para esa condición, sustituye al de la hoja (o se agrega si la hoja no trae esa condición). */
+ * Si el módulo Precios tiene un precio AUTORIZADO para esa condición (con las MISMAS condiciones de Precios: ver `core/precioAutorizado.ts`) sustituye
+ * al de la hoja; los autorizados cuya combinación no trae ninguna fila de la hoja se agregan al final (sin inventario). */
 export function preciosPorCondicion(
   material: string,
   invConsolidadoCatalog: InvConsolidadoRow[],
   invCondicion: InvConsolidadoRow[],
-  autorizados?: ReadonlyMap<string, readonly PrecioAutorizado[]>,
+  autorizados: PreciosAutorizados = SIN_PRECIOS_AUTORIZADOS,
+  /** Con `true` el precio de cada fila es SOLO el autorizado en Precios para esa condición exacta (0 si no hay): el precio viejo de la hoja es de nivel
+   * material y revolvería las condiciones. */
+  soloAutorizados = false,
 ): { condicion: string; precio: number; inv: number }[] {
   const precioSource = invConsolidadoCatalog.some((r) => norm(r.material) === norm(material))
     ? invConsolidadoCatalog
     : invCondicion;
   const precioMap = new Map<string, { condicion: string; precio: number; inv: number }>();
+  const combosUsadas = new Set<string>();
   for (const r of precioSource) {
     if (norm(r.material) !== norm(material)) continue;
-    const key = `${r.condicion}|${r.precioOferta}`;
-    const cur = precioMap.get(key) || { condicion: r.condicion || '(sin condicion)', precio: r.precioOferta, inv: 0 };
+    const aut = autorizados.precio(material, r.condicion);
+    const comb = autorizados.combinacion(material, r.condicion);
+    if (aut != null && comb) combosUsadas.add(comb);
+    const precio = soloAutorizados ? aut ?? 0 : aut ?? r.precioOferta;
+    const key = `${r.condicion}|${precio}`;
+    const cur = precioMap.get(key) || { condicion: r.condicion || '(sin condicion)', precio, inv: 0 };
     cur.inv += r.invSuma;
     precioMap.set(key, cur);
   }
-  let out = [...precioMap.values()];
-  const aut = autorizados?.get(norm(material));
-  if (aut?.length) {
-    const porCond = new Map(aut.map((a) => [norm(a.condicion), a.precio]));
-    const usadas = new Set<string>();
-    out = out.map((r) => {
-      const p = porCond.get(norm(r.condicion));
-      if (p == null) return r;
-      usadas.add(norm(r.condicion));
-      return { ...r, precio: p };
-    });
-    for (const a of aut) if (!usadas.has(norm(a.condicion))) out.push({ condicion: a.condicion, precio: a.precio, inv: 0 });
+  const out = [...precioMap.values()];
+  for (const a of autorizados.deMaterial(material)) {
+    if (!combosUsadas.has(a.combinacion)) out.push({ condicion: etiquetaCombinacion(a.combinacion), precio: a.precio, inv: 0 });
   }
   return out.sort((x, y) => y.precio - x.precio);
 }
@@ -91,6 +89,10 @@ export interface EnrichIndex {
   ejecutivosZona: EjecutivoZona[];
   /** Zona (código normalizado) a la que pertenece el "Gpo. Vdor." de un renglón (acepta zona o código de oficina de ventas); '' si no se conoce. */
   zonaDeEjecutivo: (gpoVdor: unknown) => string;
+  /** Gerencia / Gerente / Canal / Oficina de ventas (pestaña Ejecutivos) de la zona a la que pertenece un "Gpo. Vdor."; campos vacíos si no se conoce. */
+  ejecutivoAtributos: (gpoVdor: unknown) => AtributosEjecutivo;
+  /** Correos del ejecutivo de una zona (columna «Correo Electrónico» del catálogo), SIN repetir aunque la zona tenga varias filas; [] si no hay. */
+  correosDeZona: (zona: unknown) => string[];
   /** Gerentes de marca conocidos (pestaña "GERENCIA DE MARCA"), ordenados. */
   gerentes: string[];
   /** Sectores a cargo de un gerente (nombres tal como vienen en la pestaña). */
@@ -99,6 +101,10 @@ export interface EnrichIndex {
    * Compara sin acentos/mayúsculas. */
   sectorDeGerente: (sector: unknown, gerente: string) => boolean;
 }
+
+/** Columnas de la pestaña Ejecutivos que sirven para filtrar en los módulos. */
+export interface AtributosEjecutivo { gerenciaVentas: string; gerenteVentas: string; canalVentas: string; oficinaVentas: string }
+const SIN_ATRIBUTOS: AtributosEjecutivo = { gerenciaVentas: '', gerenteVentas: '', canalVentas: '', oficinaVentas: '' };
 
 /** Una zona del catálogo de ejecutivos, lista para un filtro. */
 export interface EjecutivoZona {
@@ -110,6 +116,11 @@ export interface EjecutivoZona {
   /** Zona a 3 dígitos ("0" → "000", "2" → "002", "101" → "101"). */
   zona3: string;
   vacante: boolean;
+  /** Columnas de la pestaña Ejecutivos del catálogo (de la primera fila de la zona). */
+  gerenciaVentas: string;
+  canalVentas: string;
+  oficinaVentas: string;
+  gerenteVentas: string;
 }
 
 /** Zona a 3 dígitos cuando es numérica ("0" → "000", "2" → "002", "101" → "101"); si no, tal cual. */
@@ -140,6 +151,8 @@ const EMPTY: EnrichIndex = {
   matCondiciones: () => [],
   ejecutivosZona: [],
   zonaDeEjecutivo: () => '',
+  ejecutivoAtributos: () => SIN_ATRIBUTOS,
+  correosDeZona: () => [],
   gerentes: [],
   sectoresDeGerente: () => [],
   sectorDeGerente: (_s, g) => !g,
@@ -200,15 +213,32 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
   // Una entrada por zona, en el orden del catálogo (el filtro NO la reordena); cualquier clave de un ejecutivo (zona u oficina de ventas) lleva a su zona.
   const ejecutivosZona: EjecutivoZona[] = [];
   const zonaDeClave = new Map<string, string>();
+  const atributosZona = new Map<string, AtributosEjecutivo>();
   for (const e of catalog.ejecutivos) {
     const zk = normCode(e.zona) || normCode(e.codOfVtas);
     if (!zk) continue;
     if (!zonaDeClave.has(zk)) {
       zonaDeClave.set(zk, zk);
-      ejecutivosZona.push({ zona: zk, nombre: e.ejecutivo ?? '', ...etiquetaEjecutivoZona(e.ejecutivo ?? '', e.zona || e.codOfVtas) });
+      atributosZona.set(zk, { gerenciaVentas: e.gerenciaVentas ?? '', gerenteVentas: e.gerenteVentas ?? '', canalVentas: e.canalVentas ?? '', oficinaVentas: e.oficinaVentas ?? '' });
+      ejecutivosZona.push({
+        zona: zk, nombre: e.ejecutivo ?? '', ...etiquetaEjecutivoZona(e.ejecutivo ?? '', e.zona || e.codOfVtas),
+        gerenciaVentas: e.gerenciaVentas ?? '', canalVentas: e.canalVentas ?? '', oficinaVentas: e.oficinaVentas ?? '', gerenteVentas: e.gerenteVentas ?? '',
+      });
     }
     const ck = normCode(e.codOfVtas);
     if (ck && !zonaDeClave.has(ck)) zonaDeClave.set(ck, zk);
+  }
+
+  // Correos por zona: el catálogo repite filas por zona, así que se juntan sin duplicar (sin distinguir mayúsculas) y se descartan los que no parecen correo.
+  const correosZona = new Map<string, string[]>();
+  for (const e of catalog.ejecutivos) {
+    const zk = zonaDeClave.get(normCode(e.zona) || normCode(e.codOfVtas));
+    if (!zk) continue;
+    const lista = correosZona.get(zk) ?? [];
+    for (const c of (e.correoElectronico ?? '').split(/[;,\s]+/)) {
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c) && !lista.some((x) => x.toLowerCase() === c.toLowerCase())) lista.push(c);
+    }
+    correosZona.set(zk, lista);
   }
 
   const gerSectores = new Map<string, Map<string, string>>();
@@ -232,6 +262,8 @@ export function buildEnrich(catalog: CatalogSnapshot | null): EnrichIndex {
     matCondiciones: (mat) => mapCondiciones.get(normCode(mat)) ?? [],
     ejecutivosZona,
     zonaDeEjecutivo: (v) => zonaDeClave.get(normCode(v)) ?? '',
+    ejecutivoAtributos: (v) => atributosZona.get(zonaDeClave.get(normCode(v)) ?? '') ?? SIN_ATRIBUTOS,
+    correosDeZona: (z) => correosZona.get(zonaDeClave.get(normCode(z)) ?? '') ?? [],
     gerentes: [...gerSectores.keys()].sort((a, b) => a.localeCompare(b, 'es')),
     sectoresDeGerente: (g) => [...(gerSectores.get(g)?.values() ?? [])].sort((a, b) => a.localeCompare(b, 'es')),
     sectorDeGerente: (sector, g) => !g || (gerSectores.get(g)?.has(normSector(sector)) ?? false),

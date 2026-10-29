@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/select';
 import { useMemo, useState } from 'react';
 import { KpiBand } from '@/components/layout/report';
 import { StatTile } from '../ui';
@@ -82,9 +83,9 @@ export function ClienteResumen360({ dest, a, push, sinDatos = false }: { dest: s
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <SubFilter value={q} onChange={setQ} placeholder="Filtrar materiales (código, texto; separa varios con coma)…" />
         {sectorOptions.length > 1 && (
-          <select value={sector} onChange={(e) => setSector(e.target.value)} className="mb-2 h-8 rounded-md border border-border bg-bg-elevated px-2 text-xs">
+          <Select value={sector} onChange={(e) => setSector(e.target.value)} className="mb-2 h-8 w-auto text-xs">
             <option value="">Sector (todos)</option>{sectorOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          </Select>
         )}
         {filtrando && <button type="button" onClick={() => { setQ(''); setSector(''); }} className="mb-2 text-xs text-accent hover:underline">Limpiar</button>}
       </div>

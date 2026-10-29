@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useZonaAcceso } from '@/hooks/useZonaAcceso';
 import { useFaseFacturacion } from '@/modules/analytics/faseFacturacion';
 import { useFacFuenteStore } from '@/store/facFuenteStore';
 import { conFacturacion } from '@/modules/analytics/facturacionAnalytics';
@@ -17,12 +18,12 @@ import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
 import { StatePill, TrendBadge, AbcBadge, ClienteOportunidadBadge, Chip, EvolChart, ZoomControl, useZoom, ColumnFilterBar, passesFilters, DebouncedSearch, useColumnVisibility, ColumnVisibilityControl, useSavedViews, SavedViewsControl, MonthRangeFilter, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
-import { dateSortValue } from '@/lib/fechas';
+import { dateSortValue, isoToMesKey } from '@/lib/fechas';
 import { COLS_CONSUMO } from './columns';
 import { usePromedioModo, promedioDeFila } from './usePromedioModo';
 import { PROMEDIO_MODOS } from '@/core/consumoDesdeRF';
 import { ESTADOS, auditoriaFacturacion, mesKey, mesLabel, clasificarEstado, tendenciaTexto, mesRefQAnterior, mesAnterior, hoyMes, type Serie, type Estado, type Tendencia } from '@/core/resumenFac';
-import { norm, num, searchNorm, consumoEnrich, consumoSerie, serieFacturada, matchesQueryNormalized } from '@/modules/analytics/helpers';
+import { pickField, norm, num, searchNorm, consumoEnrich, consumoSerie, serieFacturada, matchesQueryNormalized } from '@/modules/analytics/helpers';
 import type { ConsumoRow } from '@/core/types';
 import { buildFromConsumo } from '@/services/solicitudService';
 import { useSolicitarDialog } from '@/modules/solicitudes/useSolicitarDialog';
@@ -69,7 +70,10 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
   }, [fac, setFacActivo]);
   const a = useMemo(() => (fac ? conFacturacion(a0) : a0), [a0, fac]);
   const open = usePanelStore((s) => s.open);
-  const rows = a.result?.consumo ?? [];
+  // Rol que ve solo su zona: únicamente los clientes de su zona (la facturación de otras zonas llega sin cliente ni importe).
+  const zonaAcceso = useZonaAcceso();
+  const rowsTodos = a.result?.consumo ?? [];
+  const rows = useMemo(() => (zonaAcceso.restringido ? rowsTodos.filter((r) => zonaAcceso.permite(r.gpoVdor || pickField(r.raw, ['Gpo. Vdor.', 'Gpo.Vdor.', 'Grupo de vendedor']))) : rowsTodos), [rowsTodos, zonaAcceso]);
   // Perf: memoize on catalog identity. `ce` is a dep of filterCols/sortAcc/
   // rankSector/grupos — a fresh object each render defeated those useMemos and
   // forced the ~80k-row sector/grupo aggregations to recompute on every render
@@ -137,6 +141,9 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
   const [periodo, setPeriodo] = usePersistedState<'corriente' | 'anterior'>(`${ns}.periodo`, 'corriente');
   const [promedioModo, setPromedioModo] = usePromedioModo();
   const [cuadreOpen, setCuadreOpen] = useState(false);
+  // Filtro por el mes/año de la última compra: operador (≤, ≥, <, >, =) + mes.
+  const [ultOp, setUltOp] = useState<'<=' | '>=' | '<' | '>' | '='>('<=');
+  const [ultMes, setUltMes] = useState('');
   const [clearTick, setClearTick] = useState(0);
   // "Pegar materiales" estilo SAP — aditivo, no toca los filtros de arriba.
   const [pasteCodes, setPasteCodes] = usePersistedState<string[]>(`${ns}.pasteCodes`, []);
@@ -200,6 +207,10 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
     { key: 'material', label: 'Material', get: (r) => r.material },
     { key: 'grupocli', label: 'Grupo cliente', get: (r) => ce.grupoCli(r) },
     { key: 'ejecutivo', label: 'Ejecutivo', get: (r) => ce.ejec(r) },
+    { key: 'gerenciaVentas', label: 'Gerencia de Ventas', get: (r) => ce.ventas(r).gerenciaVentas || 'Sin dato' },
+    { key: 'gerenteVentas', label: 'Gerente de Ventas', get: (r) => ce.ventas(r).gerenteVentas || 'Sin dato' },
+    { key: 'canalVentas', label: 'Canal Ventas', get: (r) => ce.ventas(r).canalVentas || 'Sin dato' },
+    { key: 'oficinaVentas', label: 'Oficina Ventas', get: (r) => ce.ventas(r).oficinaVentas || 'Sin dato' },
     { key: 'centro', label: 'Centro', get: (r) => r.centro },
     { key: 'sector', label: 'Sector', get: (r) => ce.sector(r) },
     // #3: Sector and Grupo artículo share one visual cell — each field still
@@ -248,12 +259,20 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
       if (!matchesQueryNormalized(q, hay)) return false;
     }
     if (!matchesCodes(pasteCodes, r.material)) return false;
+    if (ultKey != null) {
+      const t = dateSortValue(r.ultimoMesFacturacion);
+      if (t === -Infinity) return false;
+      const d = new Date(t);
+      const k = d.getFullYear() * 12 + d.getMonth() + 1;
+      if (ultOp === '<=' ? k > ultKey : ultOp === '>=' ? k < ultKey : ultOp === '<' ? k >= ultKey : ultOp === '>' ? k <= ultKey : k !== ultKey) return false;
+    }
     return true;
   };
+  const ultKey = useMemo(() => isoToMesKey(ultMes ? `${ultMes}-01` : ''), [ultMes]);
   const filtered = useMemo(() => {
     return rows.filter(pasaFiltros);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, q, estado, clase, gerente, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, searchIndex, filterCols, a.abc, pasteCodes, vistaAbc, abcPares, mesesSel]);
+  }, [rows, q, estado, clase, gerente, quick, rangoActivo, rangoLoK, rangoHiK, statusIndex, searchIndex, filterCols, a.abc, pasteCodes, vistaAbc, abcPares, mesesSel, ultKey, ultOp]);
   // Universo de los AGREGADOS = las filas filtradas (Consumo ya sale de Resumen_Fac,
   // así que no hay pares de facturación fuera de la tabla).
   const filteredAgg = filtered;
@@ -583,7 +602,7 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
   return (
     <ReportPage>
       <PageHeader
-        title={fac ? 'Facturación' : 'Histórico de Facturación'}
+        title={fac ? 'Facturación' : 'Consumo'}
         subtitle={`${formatNumber(filtered.length)} de ${formatNumber(rows.length)} registros`}
         actions={(
           <>
@@ -642,6 +661,18 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
         columnFilters={<ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />}
       >
         <GerenteSelect enrich={a.enrich} value={gerente} onChange={setGerente} />
+        <div className="flex items-center gap-1" role="group" aria-label="Filtrar por mes de la última compra">
+          <span className="text-xs text-text-muted">Última:</span>
+          <Select value={ultOp} onChange={(ev) => setUltOp(ev.target.value as typeof ultOp)} className="w-auto" title="Comparar el mes/año de la última compra">
+            <option value="<=">menor o igual a</option>
+            <option value=">=">mayor o igual a</option>
+            <option value="<">menor que</option>
+            <option value=">">mayor que</option>
+            <option value="=">igual a</option>
+          </Select>
+          <input type="month" value={ultMes} onChange={(ev) => setUltMes(ev.target.value)} aria-label="Mes y año de la última compra" className="h-8 rounded-md border border-border bg-bg-elevated px-2 text-sm" />
+          {ultMes && <button type="button" className="text-xs text-text-muted hover:text-text" onClick={() => setUltMes('')} title="Quitar el filtro">✕</button>}
+        </div>
         <FilterSelect value={estado} onChange={setEstado} todos="Estado (todos)" options={ESTADOS.map(([k, l]) => ({ value: k, label: l }))} />
         {fac && (
           <Select value={abcVistaGuardada} onChange={(ev) => setAbcVista(ev.target.value as 'material' | 'par' | 'ambas')} className="w-auto" title="Qué ABC ver: el del material, el de la combinación cliente-material o los dos">
@@ -677,7 +708,7 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
       </FilterBar>
 
       <CollapsibleCard title="Facturación mensual (filtro)" storageKey={`${ns}.grafica.abierta`} defaultOpen>
-        <EvolChart serie={aggSerie} height={160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes) })} />
+        <EvolChart serie={aggSerie} height={160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes), meses: aggSerie.map((p) => p.mes), rowsDe: clientesDeMes })} />
       </CollapsibleCard>
 
       <FacPorNivel renglones={renglonesFac} nMeses={ventana.nMeses} ventana={ventana.etiqueta} storageKey={ns} onNodo={alAbrirNivel} />
@@ -732,8 +763,8 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
               onSort={toggleSort}
               onContextMenu={(ev) => { ev.preventDefault(); toggleSort('ultimaFecha'); }}
               className="text-right"
-              title="Clic: ordenar por cantidad · Clic derecho: ordenar por fecha"
-            >Última</SortableTableHead>}
+              title="Clic: ordenar por cantidad · Clic derecho o botón «mes»: ordenar por mes/año"
+            >Última <button type="button" className={`ml-1 rounded border px-1 text-[11px] ${sortKey === 'ultimaFecha' ? 'border-accent text-accent' : 'border-border text-text-faint'}`} onClick={(ev) => { ev.stopPropagation(); toggleSort('ultimaFecha'); }} title="Ordenar por mes/año de la última compra">mes{sortKey === 'ultimaFecha' ? (dir === 'asc' ? ' ▲' : ' ▼') : ''}</button></SortableTableHead>}
             {vis('penultima') && <SortableTableHead
               sortKey="penultima"
               activeKey={sortKey === 'penultimaFecha' ? 'penultima' : sortKey}
@@ -774,12 +805,12 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
                   <div className="text-[11px] text-text-faint"><Chip onClick={() => addQuick('grupocli', ce.grupoCli(r))}>{ce.grupoCli(r) || '—'}</Chip></div>
                 </TableCell>}
                 {vis('centro') && <TableCell><Chip onClick={() => addQuick('centro', r.centro)}>{r.centro || '—'}</Chip></TableCell>}
-                {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div>{ce.precioOferta(r) > 0 && <div className="text-[10px] text-text">Of. {formatCurrency(ce.precioOferta(r))}</div>}</TableCell>}
+                {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: r.material })}>{r.material}</Chip><div className="text-[11px] text-text-faint max-w-64 truncate">{r.textoMaterial}</div>{ce.precioOferta(r) > 0 && <div className="text-[11px] text-text">Of. {formatCurrency(ce.precioOferta(r))}</div>}</TableCell>}
                 {vis('abc') && (
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      {vistaAbc !== 'par' && <>{vistaAbc === 'ambas' && <span className="text-[10px] text-text-faint" title="ABC del material">M</span>}<AbcBadge clase={claseDe(r) || undefined} /></>}
-                      {vistaAbc !== 'material' && <>{vistaAbc === 'ambas' && <span className="text-[10px] text-text-faint" title="ABC de la combinación cliente-material">C-M</span>}<AbcBadge clase={clasePar(r) || undefined} /></>}
+                      {vistaAbc !== 'par' && <>{vistaAbc === 'ambas' && <span className="text-[11px] text-text-faint" title="ABC del material">M</span>}<AbcBadge clase={claseDe(r) || undefined} /></>}
+                      {vistaAbc !== 'material' && <>{vistaAbc === 'ambas' && <span className="text-[11px] text-text-faint" title="ABC de la combinación cliente-material">C-M</span>}<AbcBadge clase={clasePar(r) || undefined} /></>}
                     </div>
                   </TableCell>
                 )}

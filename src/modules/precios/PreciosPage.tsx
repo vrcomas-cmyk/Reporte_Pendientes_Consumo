@@ -1,3 +1,6 @@
+import { Select } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Send, Check, X, Save, Plus, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -5,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { EmptyState } from '@/components/feedback/EmptyState';
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { formatCurrency, formatNumber, formatFraccion } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { toast } from '@/store/toastStore';
 import { supabase } from '@/lib/supabaseClient';
@@ -27,11 +30,12 @@ import {
 import { etiquetaCombinacion } from '@/core/enrich';
 import { AutorizacionExcel } from './AutorizacionExcel';
 import { useFiltroPropuestas } from './useFiltroPropuestas';
+import { HistorialPrecios, VigenciaCelda } from './VigenciaPrecios';
+import { StatePill } from '@/modules/analytics/ui';
+import { CapturaPrecios } from './CapturaPrecios';
 import { estatusDeFila, resumenAvisos, type Aviso, type Estatus, type EstatusFila } from '@/core/estatusPrecios';
 import { cargarPolitica, guardarPolitica, enviarPropuestas, resolverPropuestas, vigentes, type NuevaPropuesta } from '@/services/preciosService';
 
-/** 0.1 → "10%", 0.125 → "12.5%". */
-const pct = (n: number) => `${Math.round(n * 1000) / 10}%`;
 const MESES_HISTORIAL = 12;
 const ORIGEN_TXT: Record<OrigenBase, string> = {
   'mercado-p50': 'Mediana del material',
@@ -49,10 +53,10 @@ const origenTitulo = (f: FilaOferta) => {
 };
 const ESTATUS_TXT: Record<Estatus, { txt: string; cls: string; ayuda: string }> = {
   'sin-enviar': { txt: 'Sin enviar', cls: 'border-accent/40 bg-accent-soft text-accent', ayuda: 'Nunca se ha mandado a autorizar' },
-  pendiente: { txt: 'Pendiente', cls: 'border-warning/40 bg-warning/10 text-warning', ayuda: 'Ya se mandó: espera al director' },
-  autorizado: { txt: 'Autorizado', cls: 'border-success/40 bg-success/10 text-success', ayuda: 'Autorizado: este precio ya se usa en los demás reportes' },
-  rechazado: { txt: 'Rechazado', cls: 'border-danger/40 bg-danger/10 text-danger', ayuda: 'El director no lo autorizó' },
-  reenviar: { txt: 'Reenviar', cls: 'border-danger/40 bg-danger/10 text-danger', ayuda: 'El precio autorizado ya no supera el costo: hay que volver a mandarlo' },
+  pendiente: { txt: 'Pendiente', cls: 'amb', ayuda: 'Ya se mandó: espera al director' },
+  autorizado: { txt: 'Autorizado', cls: 'verde', ayuda: 'Autorizado: este precio ya se usa en los demás reportes' },
+  rechazado: { txt: 'Rechazado', cls: 'rojo', ayuda: 'El director no lo autorizó' },
+  reenviar: { txt: 'Reenviar', cls: 'rojo', ayuda: 'El precio autorizado ya no supera el costo: hay que volver a mandarlo' },
 };
 const AVISO_TXT: Record<Aviso, string> = { nuevo: 'Nuevo', 'lote-nuevo': 'Lote nuevo', 'calculo-distinto': 'Cálculo cambió', invalido: 'Autorizado inválido' };
 
@@ -301,19 +305,18 @@ export function PreciosPage() {
   };
 
   return (
-    <div className="space-y-4 p-4">
-      <div>
-        <h1 className="text-xl font-semibold">Precios</h1>
-        <p className="text-sm text-text-faint">Punto medio del mercado (mediana facturada) y precio de oferta por condición cediendo un % del margen. Nada se publica a otros reportes hasta que se autoriza, y siempre queda por encima del costo.</p>
-      </div>
-      {a.facturacionCalculando && <p className="text-sm text-text-faint">Calculando facturación… {Math.round(a.facturacionProgreso * 100)}% — Mín / Prom / Máx aparecen al terminar.</p>}
+    <ReportPage>
+      <PageHeader title="Precios" subtitle="Punto medio del mercado (mediana facturada) y precio de oferta por condición cediendo un % del margen. Nada se publica a otros reportes hasta que se autoriza, y siempre queda por encima del costo." />
+      {a.facturacionCalculando && <p className="text-sm text-text-muted" role="status">Calculando facturación… {Math.round(a.facturacionProgreso * 100)}% — Mín / Prom / Máx aparecen al terminar.</p>}
       {a.facturacionError && <p className="text-sm text-danger">No se pudo armar la facturación: {a.facturacionError}</p>}
       {!a.facturacionCalculando && !a.facturacion.rf && <p className="text-sm text-text-faint">Sin facturación cargada: la base se calcula solo con el margen objetivo. Sincroniza la facturación en Carga.</p>}
       <Tabs defaultValue="calc">
         <TabsList>
           <TabsTrigger value="calc" title="Combinaciones nuevas sin enviar y otros avisos">Calculadora{resumen.nuevos > 0 ? ` · ${resumen.nuevos} nuevas` : ''}{resumen.conAviso - resumen.nuevos > 0 ? ` · ${resumen.conAviso - resumen.nuevos} avisos` : ''}</TabsTrigger>
+          <TabsTrigger value="cap" title="Buscar o pegar materiales con su precio y vigencia (sin autorización)">Captura manual</TabsTrigger>
           <TabsTrigger value="aut">Por autorizar ({porAutorizar.length})</TabsTrigger>
           <TabsTrigger value="vig">Autorizados ({autorizados.length})</TabsTrigger>
+          <TabsTrigger value="his" title="Todos los precios autorizados, también los que ya no rigen">Histórico</TabsTrigger>
           <TabsTrigger value="par">Parámetros</TabsTrigger>
         </TabsList>
 
@@ -334,8 +337,8 @@ export function PreciosPage() {
               </div>
             )}
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <input className="h-9 w-64 rounded-md border border-border bg-bg-elevated px-2 text-sm" placeholder="Buscar material / sector / grupo…" value={filtro} onChange={(e) => setFiltro(e.target.value)} />
-              <select aria-label="Filtrar por estatus" className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm" value={filtroEstatus} onChange={(e) => setFiltroEstatus(e.target.value as typeof filtroEstatus)}>
+              <Input className="w-64" placeholder="Buscar material / sector / grupo…" value={filtro} onChange={(e) => setFiltro(e.target.value)} />
+              <Select aria-label="Filtrar por estatus" value={filtroEstatus} onChange={(e) => setFiltroEstatus(e.target.value as typeof filtroEstatus)}>
                 <option value="todos">Estatus: todos</option>
                 <option value="sin-enviar">Sin enviar ({resumen.sinEnviar})</option>
                 <option value="pendiente">Pendiente ({resumen.pendientes})</option>
@@ -343,7 +346,7 @@ export function PreciosPage() {
                 <option value="rechazado">Rechazado ({resumen.rechazados})</option>
                 <option value="reenviar">Reenviar ({resumen.reenviar})</option>
                 <option value="aviso">Con aviso ({resumen.conAviso})</option>
-              </select>
+              </Select>
               <Button size="sm" variant="outline" disabled={!resumen.sinEnviar} onClick={seleccionarNuevos} title="Marca todas las combinaciones que nunca se han mandado a autorizar">Seleccionar nuevos ({resumen.sinEnviar})</Button>
               <Button size="sm" disabled={ocupado || !sel.size} onClick={enviar}><Send className="size-4" /> Enviar a autorizar ({sel.size})</Button>
               <Button size="sm" variant="outline" onClick={() => exportXlsx(`precios-${stamp()}.xlsx`, visibles.map((f) => {
@@ -394,7 +397,7 @@ export function PreciosPage() {
                               onChange={(v) => setMargenManual((s) => ({ ...s, [k]: v }))}
                               className="h-8 w-14 rounded border border-border bg-bg-elevated px-1 text-right tabular-nums placeholder:text-text-faint" />
                           ) : '—'}
-                          {oferta && <div className="text-[10px] text-text-faint">{ORIGEN_MARGEN_TXT[oferta.origenMargenMin]}</div>}
+                          {oferta && <div className="text-[11px] text-text-faint">{ORIGEN_MARGEN_TXT[oferta.origenMargenMin]}</div>}
                         </TableCell>
                         <TableCell className="text-right">
                           {oferta ? (
@@ -404,18 +407,18 @@ export function PreciosPage() {
                           ) : <span className="text-text-faint">{f.base.flags.includes('sin-costo') ? 'sin costo' : '—'}</span>}
                         </TableCell>
                         <TableCell className="text-xs">
-                          {est && <span title={ESTATUS_TXT[est.estatus].ayuda} className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium ${ESTATUS_TXT[est.estatus].cls}`}>{ESTATUS_TXT[est.estatus].txt}</span>}
+                          {est && <span title={ESTATUS_TXT[est.estatus].ayuda}><StatePill label={ESTATUS_TXT[est.estatus].txt} cls={ESTATUS_TXT[est.estatus].cls} /></span>}
                           {est?.avisos.filter((x) => x !== 'nuevo').map((x) => (
-                            <div key={x} className="mt-0.5 text-[10px] font-medium text-warning"
+                            <div key={x} className="mt-0.5 text-[11px] font-medium text-warning"
                               title={x === 'lote-nuevo' ? `Lotes que no estaban cuando se mandó: ${est.lotesNuevos.join(', ')}` : x === 'calculo-distinto' ? 'El precio calculado hoy no es el que se calculó al mandarlo (cambió el costo, la caducidad, la base o los parámetros)' : 'El precio autorizado ya no supera el costo'}>
                               {AVISO_TXT[x]}{x === 'lote-nuevo' ? ` (${est.lotesNuevos.length})` : ''}
                             </div>
                           ))}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{est?.autorizado != null ? formatCurrency(est.autorizado) : <span className="text-text-faint" title="Sin precio autorizado">-</span>}</TableCell>
-                        <TableCell className="text-right tabular-nums">{an && !mal ? pct(an.descuento) : '—'}</TableCell>
-                        <TableCell className="text-right tabular-nums">{an && !mal ? pct(an.cede) : '—'}</TableCell>
-                        <TableCell className="text-right tabular-nums">{an && !mal ? pct(an.margen) : '—'}</TableCell>
+                        <TableCell className="text-right tabular-nums">{an && !mal ? formatFraccion(an.descuento) : '—'}</TableCell>
+                        <TableCell className="text-right tabular-nums">{an && !mal ? formatFraccion(an.cede) : '—'}</TableCell>
+                        <TableCell className="text-right tabular-nums">{an && !mal ? formatFraccion(an.margen) : '—'}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -464,9 +467,9 @@ export function PreciosPage() {
                                 onChange={(e) => setAjuste((s) => ({ ...s, [p.id]: e.target.value }))} />
                             ) : <span className="tabular-nums">{formatCurrency(p.precioPropuesto)}</span>}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums">{an && !mal ? pct(an.descuento) : '—'}</TableCell>
-                          <TableCell className="text-right tabular-nums">{an && !mal ? pct(an.cede) : '—'}</TableCell>
-                          <TableCell className="text-right tabular-nums">{!mal ? pct((precio - p.costoAlEnviar) / precio) : '—'}</TableCell>
+                          <TableCell className="text-right tabular-nums">{an && !mal ? formatFraccion(an.descuento) : '—'}</TableCell>
+                          <TableCell className="text-right tabular-nums">{an && !mal ? formatFraccion(an.cede) : '—'}</TableCell>
+                          <TableCell className="text-right tabular-nums">{!mal ? formatFraccion((precio - p.costoAlEnviar) / precio) : '—'}</TableCell>
                           <TableCell className="text-xs">{p.solicitadoPor}</TableCell>
                           <TableCell className="text-right">
                             {isAdmin ? (
@@ -498,7 +501,7 @@ export function PreciosPage() {
                   <TableRow>
                     {fVig.th('material', 'Material')}{fVig.th('sector', 'Sector / Grupo')}{fVig.th('condicion', 'Condición')}
                     {costoVisible && fVig.th('costo', 'Costo', true)}{fVig.th('base', 'Base', true)}{fVig.th('precio', 'Precio', true)}
-                    {fVig.th('descuento', 'Descuento', true)}{fVig.th('cede', 'Cede del margen', true)}{fVig.th('margen', 'Margen', true)}{fVig.th('autorizo', 'Autorizó')}
+                    {fVig.th('descuento', 'Descuento', true)}{fVig.th('cede', 'Cede del margen', true)}{fVig.th('margen', 'Margen', true)}{fVig.th('autorizo', 'Autorizó')}<TableHead title="Un precio temporal deja de regir al pasar su fecha final y vuelve el autorizado anterior">Vigencia</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -514,12 +517,13 @@ export function PreciosPage() {
                         <TableCell className="text-right tabular-nums">
                           {modificado(p) ? <span title="El autorizador cambió el precio que se le mandó"><span className="text-text-faint line-through">{formatCurrency(p.precioEnviado ?? 0)}</span> → </span> : null}
                           {formatCurrency(p.precioPropuesto)}
-                          {modificado(p) && <div className="text-[10px] text-warning">modificado</div>}
+                          {modificado(p) && <div className="text-[11px] text-warning">modificado</div>}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{an ? pct(an.descuento) : '—'}</TableCell>
-                        <TableCell className="text-right tabular-nums">{an ? pct(an.cede) : '—'}</TableCell>
-                        <TableCell className="text-right tabular-nums">{pct((p.precioPropuesto - p.costoAlEnviar) / p.precioPropuesto)}</TableCell>
-                        <TableCell className="text-xs">{p.autorizadoPor}{p.archivoAutorizacion && <div className="max-w-40 truncate text-[10px] text-text-faint" title={p.archivoAutorizacion}>{p.archivoAutorizacion}</div>}</TableCell>
+                        <TableCell className="text-right tabular-nums">{an ? formatFraccion(an.descuento) : '—'}</TableCell>
+                        <TableCell className="text-right tabular-nums">{an ? formatFraccion(an.cede) : '—'}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatFraccion((p.precioPropuesto - p.costoAlEnviar) / p.precioPropuesto)}</TableCell>
+                        <TableCell className="text-xs">{p.autorizadoPor}{p.archivoAutorizacion && <div className="max-w-40 truncate text-[11px] text-text-faint" title={p.archivoAutorizacion}>{p.archivoAutorizacion}</div>}</TableCell>
+                        <TableCell><VigenciaCelda p={p} editable={isAdmin} onGuardado={() => void recargar()} /></TableCell>
                       </TableRow>
                     );
                   })}
@@ -529,6 +533,17 @@ export function PreciosPage() {
               </>
             )}
           </Card>
+        </TabsContent>
+
+        <TabsContent value="cap">
+          <CapturaPrecios materiales={materiales} estados={estadosRev.map(([st]) => st)} email={email} costoVisible={costoVisible} onEnviado={recargar} />
+        </TabsContent>
+
+        <TabsContent value="his">
+          <div className="space-y-3">
+            <Input type="search" aria-label="Buscar en el histórico" placeholder="Buscar material o condición…" value={filtro} onChange={(e) => setFiltro(e.target.value)} className="max-w-sm" />
+            <HistorialPrecios propuestas={propuestas} matTexto={(m) => a.enrich.matTexto(m)} filtro={filtro} />
+          </div>
         </TabsContent>
 
         <TabsContent value="par">
@@ -554,9 +569,9 @@ export function PreciosPage() {
               {isAdmin && (
                 <div className="mb-2 flex flex-wrap items-end gap-2">
                   <label className="text-xs">Ámbito
-                    <select className="mt-1 block h-8 rounded border border-border bg-bg-elevated px-1 text-sm" value={nuevaRegla.ambito} onChange={(e) => setNuevaRegla({ ...nuevaRegla, ambito: e.target.value as AmbitoMargen, clave: '' })}>
+                    <Select className="mt-1" value={nuevaRegla.ambito} onChange={(e) => setNuevaRegla({ ...nuevaRegla, ambito: e.target.value as AmbitoMargen, clave: '' })}>
                       {(Object.keys(AMBITO_TXT) as AmbitoMargen[]).map((k) => <option key={k} value={k}>{AMBITO_TXT[k]}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <label className="text-xs">{AMBITO_TXT[nuevaRegla.ambito]}
                     <input list="precios-claves" className="mt-1 block h-8 w-64 rounded border border-border bg-bg-elevated px-2 text-sm" value={nuevaRegla.clave} placeholder={nuevaRegla.ambito === 'material' ? 'Código de material' : 'Escribe o elige'}
@@ -564,10 +579,10 @@ export function PreciosPage() {
                     <datalist id="precios-claves">{(nuevaRegla.ambito === 'sector' ? sectores : nuevaRegla.ambito === 'grupo' ? grupos : []).map((c) => <option key={c} value={c} />)}</datalist>
                   </label>
                   <label className="text-xs">Condición
-                    <select className="mt-1 block h-8 rounded border border-border bg-bg-elevated px-1 text-sm" value={nuevaRegla.condicion} onChange={(e) => setNuevaRegla({ ...nuevaRegla, condicion: e.target.value })}>
+                    <Select className="mt-1" value={nuevaRegla.condicion} onChange={(e) => setNuevaRegla({ ...nuevaRegla, condicion: e.target.value })}>
                       <option value="">Cualquiera</option>
                       {condicionesOpc.map((c) => <option key={c} value={c}>{etiquetaCombinacion(c)}</option>)}
-                    </select>
+                    </Select>
                   </label>
                   <label className="text-xs">Margen mínimo
                     <div className="mt-1"><PctInput ariaLabel="Margen mínimo nueva regla" valor={nuevaRegla.margenMin} vacio onChange={(v) => setNuevaRegla({ ...nuevaRegla, margenMin: v })} /></div>
@@ -627,7 +642,7 @@ export function PreciosPage() {
                         <TableCell>{etiquetaCombinacion(c.combinacion)}</TableCell>
                         <TableCell className="text-right tabular-nums">{c.materiales}</TableCell>
                         <TableCell className="text-right tabular-nums">{formatNumber(c.inventario)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{c.dtoMin === c.dtoMax ? pct(c.dtoMin) : `${pct(c.dtoMin)} – ${pct(c.dtoMax)}`}</TableCell>
+                        <TableCell className="text-right tabular-nums">{c.dtoMin === c.dtoMax ? formatFraccion(c.dtoMin) : `${formatFraccion(c.dtoMin)} – ${formatFraccion(c.dtoMax)}`}</TableCell>
                         <TableCell className="text-xs">{c.entra ? 'Sí' : 'No (Status sin incluir)'}</TableCell>
                       </TableRow>
                     ))}
@@ -662,6 +677,6 @@ export function PreciosPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </ReportPage>
   );
 }

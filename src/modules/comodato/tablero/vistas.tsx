@@ -156,7 +156,7 @@ export function VistaGerencial() {
     };
   }, [rows]);
   const paleta = [COLOR.good, COLOR.warn, COLOR.danger, COLOR.neutral, COLOR.info];
-  const filaCliente = (d: Fila) => <><b>{t(d, F.razon)}</b><div className="text-[10px] text-text-faint">{t(d, F.cliente)}</div></>;
+  const filaCliente = (d: Fila) => <><b>{t(d, F.razon)}</b><div className="text-[11px] text-text-faint">{t(d, F.cliente)}</div></>;
 
   return (
     <div className="flex flex-col gap-4">
@@ -260,7 +260,7 @@ export function VistaComercial() {
           <div className="mt-3 flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
               {[['Cliente', filtros.cliente], ['Solicitante', t(recs[0]!, F.cliente)], ['Equipos', recs.length], ['Piezas totales', tot(F.cant)], ['Inversión comodato', fmt(tot(F.inv))], ['Facturación total', fmt(tot(F.fact))], ['Margen total', fmt(tot(F.margen))], ['Bolsas facturadas', fmtN(tot(F.bolsas))]].map(([l, v]) => (
-                <div key={String(l)}><div className="text-[10px] uppercase tracking-wide text-text-faint">{l}</div><div className="font-medium tabular-nums">{v}</div></div>
+                <div key={String(l)}><div className="text-[11px] uppercase tracking-wide text-text-faint">{l}</div><div className="font-medium tabular-nums">{v}</div></div>
               ))}
             </div>
             <Tabla
@@ -286,7 +286,7 @@ export function VistaComercial() {
         cols={cols}
         filas={s.slice(0, 1000).map((d, i) => (
           <TableRow key={i} className="cursor-pointer" onClick={() => abrir({ tipo: 'cliente', razon: t(d, F.razon) })}>
-            <TableCell className="whitespace-nowrap"><b>{t(d, F.razon)}</b><div className="text-[10px] text-text-faint">{t(d, F.cliente)}</div></TableCell>
+            <TableCell className="whitespace-nowrap"><b>{t(d, F.razon)}</b><div className="text-[11px] text-text-faint">{t(d, F.cliente)}</div></TableCell>
             <TableCell>{fmtZona(d[F.zona]) || '—'}</TableCell><TableCell>{t(d, F.grupo) || '—'}</TableCell><TableCell className="whitespace-nowrap">{t(d, F.desc)}</TableCell><TableCell><TipoTag tipo={tipoEq(d)} /></TableCell>
             <TableCell className="text-right tabular-nums">{num(d[F.cant])}</TableCell><TableCell className="text-right tabular-nums">{fmt(d[F.fact])}</TableCell><TableCell className="text-right tabular-nums">{fmt(d[F.margen])}</TableCell>
             <TableCell className="text-right"><RoiCell v={d[F.roi]} /></TableCell><TableCell className="text-right tabular-nums">{d[F.dias] != null ? String(d[F.dias]) : ''}</TableCell>

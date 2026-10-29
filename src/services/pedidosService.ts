@@ -11,7 +11,7 @@
 // dato viejo se conserva hasta que un libro llega COMPLETO y con la forma esperada; una respuesta rara
 // lanza error — nunca se trata como "0 filas" (así un despliegue viejo del script no pisa datos buenos).
 // ---------------------------------------------------------------------------
-import { FUENTES_PEDIDOS, LIBROS_BASE_PEDIDOS, indexarHoja, validarHojaCruda, type HojaCruda, type LibroClave } from '@/core/pedidos';
+import { FUENTES_PEDIDOS, LIBROS_BASE_PEDIDOS, indexarHoja, libroSinHojas, validarHojaCruda, type HojaCruda, type LibroClave } from '@/core/pedidos';
 import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import { logInfo, logWarn } from '@/lib/logError';
 import type { FuentePedidosRow } from '@/repositories/db';
@@ -246,7 +246,12 @@ async function runSync(forzar: boolean, libros: readonly LibroClave[]): Promise<
 
     // Sin `forzar`, un libro se omite solo si no cambió y ya tenemos TODAS sus hojas.
     const hojasActuales = Object.values(usePedidosStore.getState().hojas);
+    // Un libro sin ninguna pestaña legible no se da por sincronizado: se avisa (antes quedaba «completo» con 0 filas, en silencio).
+    for (const libro of manifiesto) {
+      if (libroSinHojas(libro)) fallidos.push(`${etiquetaDe(libro.clave)}: el Apps Script no encontró ninguna pestaña para este libro («${libro.nombre}»). Revisa la pestaña en Drive o actualiza el Apps Script.`);
+    }
     const pendientes = manifiesto.filter((libro) => {
+      if (libroSinHojas(libro)) return false;
       const previa = guardadas.find((g) => g.clave === libro.clave);
       const completo = (libro.hojas ?? []).every((h) => hojasActuales.some((x) => x.libro === libro.clave && x.hoja === h.nombre));
       const igual = previa?.modificado === libro.ultimaModificacion && completo;

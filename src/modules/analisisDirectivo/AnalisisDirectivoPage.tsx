@@ -1,3 +1,4 @@
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useMemo } from 'react';
 import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
 import { Download, TrendingUp, TrendingDown, Minus, DollarSign, PiggyBank, Users, UserPlus, UserCheck, UserMinus, ShieldCheck, Trophy, AlertTriangle, Sparkles, CalendarDays } from 'lucide-react';
@@ -198,16 +199,12 @@ export function AnalisisDirectivoPage() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-5 overflow-auto bg-bg p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-semibold">Análisis por Gerencia</h2>
-          <p className="text-sm text-text-muted">Venta, rendimiento aproximado y clientes por Gerencia</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={exportar} disabled={!resultado}>
-          <Download className="mr-1 size-3.5" />Exportar
-        </Button>
-      </div>
+    <ReportPage>
+      <PageHeader title="Análisis directivo" subtitle="Venta, rendimiento aproximado y clientes por Gerencia" actions={
+    <Button variant="outline" size="sm" onClick={exportar} disabled={!resultado}>
+      <Download className="mr-1 size-3.5" />Exportar
+    </Button>
+  } />
 
       <Card className="flex flex-wrap items-center gap-3 p-3">
         <div title="Acota todo el análisis a los sectores que ese gerente tiene a su cargo (pestaña GERENCIA DE MARCA).">
@@ -305,7 +302,7 @@ export function AnalisisDirectivoPage() {
               <FacturacionMensualCard
                 anios={anios}
                 serieFiltro={serieFiltro}
-                onMonth={(mes) => a.rf && openPanel({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(a.rf, a.enrich, filters, mes) })}
+                onMonth={(mes) => a.rf && openPanel({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(a.rf, a.enrich, filters, mes), meses: serieFiltro.map((p) => p.mes), rowsDe: (m) => clientesDeMes(a.rf!, a.enrich, filters, m) })}
               />
               {anioActual && (
                 <p className="mt-1.5 text-[11px] text-text-faint">
@@ -356,10 +353,10 @@ export function AnalisisDirectivoPage() {
                 >
                   <AlertTriangle className="size-3.5" />En riesgo de deterioro ({resultado.deterioro.length})
                 </p>
-                <p className="mb-2 text-[10px] text-text-faint">Ordenado por lo que facturaba (12m previos a su última compra)</p>
+                <p className="mb-2 text-[11px] text-text-faint">Ordenado por lo que facturaba (12m previos a su última compra)</p>
                 {resultado.deterioro.length ? (
                   <div className="max-h-96 overflow-y-auto pr-1 text-xs">
-                    <div className="sticky top-0 z-10 grid grid-cols-[1fr_auto_auto_auto] gap-x-3 border-b border-border bg-bg-elevated pb-1 text-[10px] font-medium text-text-faint">
+                    <div className="sticky top-0 z-10 grid grid-cols-[1fr_auto_auto_auto] gap-x-3 border-b border-border bg-bg-elevated pb-1 text-[11px] font-medium text-text-faint">
                       <span>Cliente</span>
                       <span className="text-right" title="Meses desde su última compra">Sin comprar</span>
                       <span className="text-right" title="Facturado en los 12 meses previos a su última compra">Total 12m</span>
@@ -383,7 +380,7 @@ export function AnalisisDirectivoPage() {
           } />
         </>
       )}
-    </div>
+    </ReportPage>
   );
 }
 
@@ -560,13 +557,13 @@ function ListaMovimiento({ titulo, icono: Icono, tono, filas, campo, total, tota
       </p>
       {filas.length === 0 ? <p className="text-xs text-text-muted">{vacio}</p> : (
         <div className="max-h-80 overflow-y-auto pr-1 text-xs">
-          <div className="sticky top-0 z-10 flex justify-between border-b border-border bg-bg-elevated pb-1 text-[10px] font-medium text-text-faint">
+          <div className="sticky top-0 z-10 flex justify-between border-b border-border bg-bg-elevated pb-1 text-[11px] font-medium text-text-faint">
             <span>Cliente</span><span>{campo === 'impA' ? 'Facturaba (A)' : 'Compró (B)'}</span>
           </div>
           {filas.map((f) => (
             <div key={f.code} className="relative flex items-baseline justify-between gap-2 border-b border-border/60 py-1" title={`${f.razon || f.code}${f.ejec ? ` · ${f.ejec}` : ''}${f.grupo ? ` · ${f.grupo}` : ''}`}>
               <span className={cn('absolute inset-y-0 left-0 rounded-sm', t.barra)} style={{ width: `${(f[campo] / max) * 100}%` }} />
-              <span className="relative min-w-0 truncate pl-1">{f.razon || f.code}{f.ejec && <span className="ml-1.5 text-[10px] text-text-faint">{f.ejec}</span>}</span>
+              <span className="relative min-w-0 truncate pl-1">{f.razon || f.code}{f.ejec && <span className="ml-1.5 text-[11px] text-text-faint">{f.ejec}</span>}</span>
               <span className="relative shrink-0 pr-1 font-medium tabular-nums">{formatCurrency(f[campo])}</span>
             </div>
           ))}
@@ -636,20 +633,20 @@ function TopClientes({ rows }: { rows: Resultado['topClientes'] }) {
         const d = r.impB - r.impA;
         return (
           <div key={r.code} className="grid grid-cols-[1.25rem_1fr_auto] items-center gap-x-2 border-b border-border/60 py-1.5" title={`${r.razon || r.code}${r.ejec ? ` · ${r.ejec}` : ''}${r.grupo ? ` · ${r.grupo}` : ''}\nA: ${formatCurrency(r.impA)} → B: ${formatCurrency(r.impB)}`}>
-            <span className="text-[10px] tabular-nums text-text-faint">{i + 1}</span>
+            <span className="text-[11px] tabular-nums text-text-faint">{i + 1}</span>
             <div className="min-w-0">
               <p className="flex items-center gap-1.5">
                 <span className="truncate font-medium">{r.razon || r.code}</span>
-                <span className={cn('shrink-0 rounded-full px-1.5 py-px text-[9px] font-medium', ESTADO_TXT[r.estado].cls)}>{ESTADO_TXT[r.estado].txt}</span>
+                <span className={cn('shrink-0 rounded-full px-1.5 py-px text-[11px] font-medium', ESTADO_TXT[r.estado].cls)}>{ESTADO_TXT[r.estado].txt}</span>
               </p>
               <div className="mt-1 flex items-center gap-2">
                 <div className="h-1.5 flex-1 rounded-full bg-bg-inset"><div className="h-full rounded-full bg-accent" style={{ width: `${(r.share / max) * 100}%` }} /></div>
-                <span className="w-9 text-right text-[10px] tabular-nums text-text-muted">{r.share.toFixed(1)}%</span>
+                <span className="w-9 text-right text-[11px] tabular-nums text-text-muted">{r.share.toFixed(1)}%</span>
               </div>
             </div>
             <div className="text-right">
               <p className="font-semibold tabular-nums">{formatCurrency(r.impB)}</p>
-              <p className={cn('flex items-center justify-end gap-0.5 text-[10px] tabular-nums', d > 0 ? 'text-success' : d < 0 ? 'text-danger' : 'text-text-faint')}>
+              <p className={cn('flex items-center justify-end gap-0.5 text-[11px] tabular-nums', d > 0 ? 'text-success' : d < 0 ? 'text-danger' : 'text-text-faint')}>
                 {d > 0 ? <TrendingUp className="size-3" /> : d < 0 ? <TrendingDown className="size-3" /> : <Minus className="size-3" />}
                 {d > 0 ? '+' : ''}{formatCurrency(d)}
               </p>

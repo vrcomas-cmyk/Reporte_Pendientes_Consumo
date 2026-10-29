@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { logWarn } from '@/lib/logError';
 import { prepararEnvio } from '@/core/estatusPrecios';
 import { POLITICA_DEFECTO, SECTOR_GLOBAL, precioValido, type AmbitoMargen, type Politica, type ReglaMarkdown, type TramoCc } from '@/core/politicaPrecios';
 
@@ -29,6 +30,9 @@ export interface Propuesta {
   archivoAutorizacion: string | null;
   /** Lotes (centro|almacén|lote) del renglón cuando se mandó; null = no se guardaron (propuestas anteriores). */
   lotesEnviados: string[] | null;
+  /** Vigencia (aaaa-mm-dd). null = sin límite. Pasada `vigenteHasta` vuelve a regir el autorizado anterior de la misma combinación. */
+  vigenteDesde: string | null;
+  vigenteHasta: string | null;
 }
 
 export interface NuevaPropuesta {
@@ -44,18 +48,21 @@ export interface NuevaPropuesta {
 }
 
 interface PropuestaDb {
-  id: string; material: string; concepto: ConceptoPrecio; condicion: string; lote: string; costo_al_enviar: number; base_al_enviar: number | null;
+  id: string; material: string; concepto: ConceptoPrecio; condicion: string; lote: string; costo_al_enviar: number | null; base_al_enviar: number | null;
   precio_calculado: number; precio_propuesto: number; estado: EstadoPropuesta; solicitado_por: string | null; solicitado_en: string;
-  autorizado_por: string | null; autorizado_en: string | null; comentario: string | null; precio_enviado: number | null; archivo_autorizacion: string | null; lotes_enviados: string[] | null;
+  autorizado_por: string | null; autorizado_en: string | null; comentario: string | null; precio_enviado: number | null; archivo_autorizacion: string | null; lotes_enviados: string[] | null; vigente_desde?: string | null; vigente_hasta?: string | null;
 }
 
+const COLUMNAS_SIN_COSTO = 'id, material, concepto, condicion, lote, precio_calculado, precio_propuesto, estado, solicitado_por, solicitado_en, autorizado_por, autorizado_en, comentario, base_al_enviar, precio_enviado, archivo_autorizacion, lotes_enviados, vigente_desde, vigente_hasta';
+
 const deDb = (r: PropuestaDb): Propuesta => ({
-  id: r.id, material: r.material, concepto: r.concepto, condicion: r.condicion ?? '', lote: r.lote ?? '', costoAlEnviar: Number(r.costo_al_enviar),
+  id: r.id, material: r.material, concepto: r.concepto, condicion: r.condicion ?? '', lote: r.lote ?? '', costoAlEnviar: Number(r.costo_al_enviar ?? 0),
   baseAlEnviar: r.base_al_enviar == null ? null : Number(r.base_al_enviar),
   precioCalculado: Number(r.precio_calculado), precioPropuesto: Number(r.precio_propuesto), estado: r.estado, solicitadoPor: r.solicitado_por ?? '',
   solicitadoEn: r.solicitado_en, autorizadoPor: r.autorizado_por, autorizadoEn: r.autorizado_en, comentario: r.comentario,
   precioEnviado: r.precio_enviado == null ? null : Number(r.precio_enviado), archivoAutorizacion: r.archivo_autorizacion ?? null,
   lotesEnviados: Array.isArray(r.lotes_enviados) ? r.lotes_enviados : null,
+  vigenteDesde: r.vigente_desde ?? null, vigenteHasta: r.vigente_hasta ?? null,
 });
 
 /** Política guardada (global + por sector + matriz + condiciones + márgenes mínimos). Sin tablas / sin filas → `POLITICA_DEFECTO`; nunca lanza. */
@@ -149,7 +156,12 @@ const AYUDA_MIGRACION = "Ejecuta la migración en el SQL editor de Supabase y, s
 /** Todas las propuestas (más recientes primero). Sin tablas → []. */
 export async function listarPropuestas(): Promise<Propuesta[]> {
   try {
-    const { data, error } = await supabase.from('degasa_precio_propuesta').select('*').order('solicitado_en', { ascending: false }).limit(5000);
+    // El costo solo lo devuelve la función a quien tiene permiso de verlo (migración 0028); sin la migración se cae a la lectura directa de antes.
+    const rpc = await supabase.rpc('degasa_precio_propuestas').limit(5000);
+    if (!rpc.error) return ((rpc.data ?? []) as PropuestaDb[]).map(deDb);
+    void logWarn('precios-propuestas-rpc', `degasa_precio_propuestas falló (${rpc.error.message}); se leen las propuestas sin la columna de costo.`);
+    // Respaldo SIN costo_al_enviar: con la migración 0028 esa columna ya no se puede leer directo (un `select *` responde 403).
+    const { data, error } = await supabase.from('degasa_precio_propuesta').select(COLUMNAS_SIN_COSTO).order('solicitado_en', { ascending: false }).limit(5000);
     if (error) throw error;
     return ((data ?? []) as PropuestaDb[]).map(deDb);
   } catch {
@@ -264,14 +276,74 @@ export async function aplicarAutorizacion(decisiones: readonly DecisionArchivo[]
   return { aplicadas, fallidas };
 }
 
-/** Última propuesta autorizada por (material, concepto, condición); descarta las que ya no superan el costo vigente. */
-export function vigentes(propuestas: Propuesta[], costoDe: (material: string) => number): Propuesta[] {
+/** aaaa-mm-dd de una fecha en hora local. */
+export const diaIso = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+export type EstadoVigencia = 'vigente' | 'programado' | 'vencido';
+
+/** ¿Está dentro de su ventana de fechas? (`vigenteHasta` incluye ese día). */
+export function estadoVigencia(p: Pick<Propuesta, 'vigenteDesde' | 'vigenteHasta'>, hoy: string = diaIso(new Date())): EstadoVigencia {
+  if (p.vigenteDesde && p.vigenteDesde > hoy) return 'programado';
+  if (p.vigenteHasta && p.vigenteHasta < hoy) return 'vencido';
+  return 'vigente';
+}
+
+/** Fija (o quita, con null) la vigencia de propuestas ya autorizadas (solo admin por RLS). */
+export async function fijarVigencia(ids: readonly string[], desde: string | null, hasta: string | null): Promise<void> {
+  if (desde && hasta && hasta < desde) throw new Error('La fecha final no puede ser anterior a la inicial.');
+  const { error } = await supabase.from('degasa_precio_propuesta').update({ vigente_desde: desde, vigente_hasta: hasta }).in('id', [...ids]).eq('estado', 'autorizado');
+  if (esColumnaFaltante(error)) throw new Error(`Falta aplicar la migración 0025_precios_vigencia.sql (${error?.message}). ${AYUDA_MIGRACION}`);
+  if (error) throw error;
+}
+
+/**
+ * Última propuesta autorizada por (material, concepto, condición) DENTRO DE SU VIGENCIA; descarta las que ya no superan el costo vigente.
+ * Una oferta temporal vencida (o aún no iniciada) no cuenta: rige la autorizada anterior, que sigue guardada como histórico.
+ */
+export function vigentes(propuestas: Propuesta[], costoDe: (material: string) => number, hoy: string = diaIso(new Date())): Propuesta[] {
   const por = new Map<string, Propuesta>();
   for (const p of propuestas) {
-    if (p.estado !== 'autorizado') continue;
+    if (p.estado !== 'autorizado' || estadoVigencia(p, hoy) !== 'vigente') continue;
     const k = `${p.material}|${p.concepto}|${p.condicion}|${p.lote}`;
     const cur = por.get(k);
     if (!cur || (p.autorizadoEn ?? '') > (cur.autorizadoEn ?? '')) por.set(k, p);
   }
   return [...por.values()].filter((p) => precioValido(p.precioPropuesto, costoDe(p.material)));
+}
+
+/** Histórico de precios autorizados de cada material + condición (más reciente primero), para compararlos. */
+export function historicoAutorizados(propuestas: readonly Propuesta[]): Map<string, Propuesta[]> {
+  const out = new Map<string, Propuesta[]>();
+  for (const p of propuestas) {
+    if (p.estado !== 'autorizado' || p.concepto !== 'oferta' || !p.condicion.trim()) continue;
+    const k = `${p.material}|${p.condicion}`;
+    out.set(k, [...(out.get(k) ?? []), p]);
+  }
+  for (const l of out.values()) l.sort((x, y) => (y.autorizadoEn ?? '').localeCompare(x.autorizadoEn ?? ''));
+  return out;
+}
+
+/**
+ * Registra precios YA autorizados con vigencia (captura manual de concursos / promociones): no pasan por «Por autorizar». Solo admin (RLS).
+ * Al vencer `hasta` vuelve a regir el autorizado anterior de la misma combinación. Rechaza precios ≤ costo antes de tocar la red.
+ */
+export async function registrarVigentes(items: NuevaPropuesta[], email: string, desde: string, hasta: string): Promise<number> {
+  if (!hasta) throw new Error('Indica hasta cuándo es válida la vigencia.');
+  if (desde && hasta < desde) throw new Error('La fecha final no puede ser anterior a la inicial.');
+  const malas = items.filter((i) => !precioValido(i.precioPropuesto, i.costo));
+  if (malas.length) throw new Error(`${malas.length} precio(s) no superan el costo (p. ej. ${malas[0].material}).`);
+  if (!items.length) return 0;
+  const ahora = new Date().toISOString();
+  const { error } = await supabase.from('degasa_precio_propuesta').insert(
+    items.map((i) => ({
+      material: i.material, concepto: 'oferta', condicion: i.condicion, lote: '', costo_al_enviar: i.costo, base_al_enviar: null,
+      precio_calculado: i.precioCalculado, precio_propuesto: i.precioPropuesto, precio_enviado: i.precioPropuesto, estado: 'autorizado',
+      solicitado_por: email, autorizado_por: email, autorizado_en: ahora, comentario: 'Captura manual con vigencia',
+      vigente_desde: desde || null, vigente_hasta: hasta,
+    })),
+  );
+  if (esColumnaFaltante(error)) throw new Error(`Falta aplicar la migración 0025_precios_vigencia.sql (${error?.message}). ${AYUDA_MIGRACION}`);
+  if (error?.code === '42501') throw new Error(`Supabase rechazó el registro por permisos (${error.message}). La sesión (${email}) no es administradora en degasa_allowed_users / degasa_roles (is_admin).`);
+  if (error) throw error;
+  return items.length;
 }

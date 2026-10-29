@@ -48,7 +48,7 @@ export function FacturacionEstadoCard({ onActualizado }: { onActualizado?: () =>
           <CardTitle>Facturación acumulada</CardTitle>
           <CardDescription>Sube solo la ventana reciente (mes corriente + ~7 días) — se fusiona con el historial en R2, no lo reemplaza.</CardDescription>
         </div>
-        <button onClick={cargar} className="text-text-faint hover:text-text"><RefreshCcw className="size-3.5" /></button>
+        <button type="button" aria-label="Actualizar estado de facturación" title="Actualizar estado de facturación" onClick={cargar} className="text-text-faint hover:text-text"><RefreshCcw className="size-3.5" /></button>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {error && (

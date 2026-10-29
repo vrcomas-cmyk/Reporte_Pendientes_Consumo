@@ -1,3 +1,4 @@
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useEffect, useMemo, useState } from 'react';
 import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
 import { useSearchParams } from 'react-router-dom';
@@ -309,11 +310,8 @@ export function OportunidadesPage() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4 sm:p-6">
-      <div>
-        <h1 className="font-display text-xl font-semibold">Oportunidades comerciales</h1>
-        <p className="mt-0.5 text-sm text-text-muted">Dos lados del mismo trabajo: qué hay para colocar antes de que se pierda (Bandeja) y a qué clientes ofrecérselo (Clientes) — fichas, qué aceptan, ofertas y seguimiento.</p>
-      </div>
+    <ReportPage>
+      <PageHeader title="Oportunidades" subtitle="Dos lados del mismo trabajo: qué hay para colocar antes de que se pierda (Bandeja) y a qué clientes ofrecérselo (Clientes) — fichas, qué aceptan, ofertas y seguimiento." />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
         <TabsList>
@@ -499,6 +497,6 @@ export function OportunidadesPage() {
           <ClientesTab />
         </TabsContent>
       </Tabs>
-    </div>
+    </ReportPage>
   );
 }

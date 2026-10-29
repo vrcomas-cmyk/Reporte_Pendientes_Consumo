@@ -1,3 +1,4 @@
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useEffect, useState } from 'react';
 import { Save, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -79,11 +80,8 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-2xl flex-col gap-6 p-8">
-      <div>
-        <h2 className="font-display text-2xl font-semibold">Ajustes</h2>
-        <p className="text-sm text-text-muted">Umbrales de análisis y columnas visibles en los reportes.</p>
-      </div>
+    <ReportPage className="mx-auto max-w-2xl">
+      <PageHeader title="Ajustes" subtitle="Umbrales de análisis y columnas visibles en los reportes." />
       <Card>
         <CardHeader>
           <CardTitle>Umbrales de análisis</CardTitle>
@@ -119,6 +117,6 @@ export function SettingsPage() {
         </CardContent>
       </Card>
       <ColumnasVisiblesSection />
-    </div>
+    </ReportPage>
   );
 }

@@ -593,6 +593,104 @@ export interface Oferta {
   motivoRechazo?: MotivoRechazo;
   comentario: string;
   creadoPor: string;
+  // ---- Ofertas por ejecutivo (módulo «Ofertas y traslados»): la oferta ligada a un pedido y su estatus comercial. Todo opcional: las ofertas
+  // del módulo Oportunidades no lo traen. `resultado` se mantiene sincronizado (ver `resultadoDeEstatus`) para no romper el scoring.
+  estatus?: EstatusOferta;
+  pedido?: string;
+  solicitante?: string;
+  centroPedido?: string;
+  almacenPedido?: string;
+  materialSolicitado?: string;
+  centroOrigen?: string;
+  almacenOrigen?: string;
+  /** Condición tal como sale de los libros («Corta caducidad», «PNC», «Sustituto»…); `condicion` es la categoría fija. */
+  condicionTexto?: string;
+  ejecutivo?: string;
+  zona?: string;
+  /** Lote que el cliente aceptó (puede diferir del ofertado). */
+  loteAceptado?: string;
+  historial?: HistorialOferta[];
+  updatedAt?: string;
+}
+
+export type EstatusOferta = 'ofertado' | 'aceptado' | 'aceptado-parcial' | 'rechazado';
+
+export const ESTATUS_OFERTA: { key: EstatusOferta; label: string }[] = [
+  { key: 'ofertado', label: 'Ofertado' },
+  { key: 'aceptado', label: 'Aceptado' },
+  { key: 'aceptado-parcial', label: 'Aceptado parcial' },
+  { key: 'rechazado', label: 'Rechazado' },
+];
+
+/** Cada cambio de estatus de una oferta (el historial va dentro de la propia oferta). */
+export interface HistorialOferta {
+  estatus: EstatusOferta;
+  at: string;
+  por: string;
+  cantidad?: number;
+  lote?: string;
+  comentario?: string;
+}
+
+/** Estatus de una oferta: el propio, o el derivado de `resultado` en ofertas anteriores al módulo. */
+export function estatusDeOferta(o: Pick<Oferta, 'estatus' | 'resultado'>): EstatusOferta {
+  if (o.estatus) return o.estatus;
+  return o.resultado === 'aceptada' ? 'aceptado' : o.resultado === 'parcial' ? 'aceptado-parcial' : o.resultado === 'rechazada' ? 'rechazado' : 'ofertado';
+}
+
+export function resultadoDeEstatus(e: EstatusOferta): ResultadoOferta {
+  return e === 'aceptado' ? 'aceptada' : e === 'aceptado-parcial' ? 'parcial' : e === 'rechazado' ? 'rechazada' : 'pendiente';
+}
+
+/** Estatus comercial/logístico de un traslado (NO es el `sync` técnico de la Solicitud DRP con el Sheet). */
+export type EstatusTraslado = 'preparado' | 'solicitado' | 'en-curso' | 'recibido' | 'revision' | 'cancelado';
+
+export const ESTATUS_TRASLADO: { key: EstatusTraslado; label: string }[] = [
+  { key: 'preparado', label: 'Preparado' },
+  { key: 'solicitado', label: 'Solicitado' },
+  { key: 'en-curso', label: 'En curso' },
+  { key: 'recibido', label: 'Recibido' },
+  { key: 'revision', label: 'Pendiente de revisión' },
+  { key: 'cancelado', label: 'Cancelado' },
+];
+
+/** Solicitud de traslado que el usuario envía por correo a mano. Se sigue con Inventario · Disponibilidad (sin lote). */
+export interface Traslado {
+  id?: number;
+  ofertaId?: number;
+  pedido: string;
+  destinatario: string;
+  razonSocial: string;
+  ejecutivo: string;
+  zona: string;
+  material: string;
+  descripcion: string;
+  cantidad: number;
+  um: string;
+  centroOrigen: string;
+  almacenOrigen: string;
+  centroDestino: string;
+  almacenDestino: string;
+  condicion: string;
+  lote: string;
+  comentarios: string;
+  /** Destinatarios del correo al momento de preparar (editables). */
+  destinatariosCorreo: string[];
+  estatus: EstatusTraslado;
+  creadoEn: string;
+  creadoPor: string;
+  solicitadoEn?: string;
+  solicitadoPor?: string;
+  // Línea base de Disponibilidad al marcar Solicitado (contra ella se detecta tránsito / recepción en destino).
+  baseLibre?: number;
+  baseTransito?: number;
+  baseLeidoEn?: string;
+  enCursoCant?: number;
+  enCursoLeidoEn?: string;
+  recibidoCant?: number;
+  recibidoLeidoEn?: string;
+  notaRevision?: string;
+  updatedAt?: string;
 }
 
 export type EstadoMaterialAceptado = 'buen-estado' | 'danado' | 'indistinto';

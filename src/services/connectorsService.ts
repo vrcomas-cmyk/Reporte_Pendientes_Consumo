@@ -1,4 +1,5 @@
 import { listConnectors } from '@/services/permissionsService';
+import { DATOS_PROXY_BASE, datosProxyActivo, urlProxy } from '@/services/datosProxy';
 
 /** Connector keys the admin /admin · Conectores tab can edit — must match
  * `degasa_connectors.key` rows from the 0002 migration. Extending this to
@@ -8,7 +9,6 @@ import { listConnectors } from '@/services/permissionsService';
  * read in that service for `getConnector(key, fallbackEnv)`. */
 export const CONNECTOR_KEYS = {
   appscriptCatalogUrl: 'appscript_catalog_url',
-  reportSheetsUrl: 'report_sheets_url',
   incrementoCostosUrl: 'incremento_costos_url',
   pedidosSheetsUrl: 'pedidos_sheets_url',
 } as const;
@@ -30,16 +30,24 @@ async function loadAll(): Promise<Map<string, string>> {
  * offline, etc.) — so this can roll out without breaking anyone still
  * relying on the .env value. */
 export async function getConnector(key: string, fallbackEnv: string | undefined): Promise<string | undefined> {
+  // Con el proxy de datos activo la app nunca conoce la URL real del Apps Script: recibe la del proxy (y ya no cae a la variable VITE_*).
+  if (datosProxyActivo() && (Object.values(CONNECTOR_KEYS) as string[]).includes(key)) return urlProxy(key);
   try {
     if (!cache) {
       inFlight ??= loadAll();
       cache = await inFlight;
       inFlight = null;
     }
-    return cache.get(key) || fallbackEnv;
+    return cache.get(key) || fallbackEnv || viaProxy(key);
   } catch {
-    return fallbackEnv;
+    return fallbackEnv || viaProxy(key);
   }
+}
+
+/** Un usuario que no es admin no puede leer las URLs de los conectores (migración 0027): si no hay URL a la mano, se pide a la función `datos`, que las
+ * lee en el servidor. Así el rol sin acceso a Conectores puede cargar datos sin conocer jamás la URL del Apps Script. */
+function viaProxy(key: string): string | undefined {
+  return DATOS_PROXY_BASE && (Object.values(CONNECTOR_KEYS) as string[]).includes(key) ? urlProxy(key) : undefined;
 }
 
 /** Call after an admin saves a connector value from /admin so the next read

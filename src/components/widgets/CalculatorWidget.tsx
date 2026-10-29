@@ -207,7 +207,7 @@ export function CalculatorWidget() {
           </div>
 
           <div className="p-3">
-            <div className="mb-2 flex items-center justify-between text-[10px] text-text-faint">
+            <div className="mb-2 flex items-center justify-between text-[11px] text-text-faint">
               <span>{calc.memory !== 0 ? 'M' : ''}</span>
               <span>{calc.operator ?? ''}</span>
             </div>

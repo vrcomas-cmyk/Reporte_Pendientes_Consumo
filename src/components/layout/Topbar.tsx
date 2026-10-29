@@ -1,4 +1,7 @@
-import { Moon, Sun, Palette,CheckCircle2, AlertCircle, Search, RefreshCcw, Menu } from 'lucide-react';
+import { useState } from 'react';
+import { Moon, Sun, Palette,CheckCircle2, AlertCircle, Search, RefreshCcw, Menu, UserRound, LogOut } from 'lucide-react';
+import { usePermissionsStore } from '@/store/permissionsStore';
+import { cerrarSesion } from '@/services/sesionService';
 import { SOLO_LIBROS } from '@/lib/modoLibros';
 import { useUiStore } from '@/store/uiStore';
 import { useDataStore } from '@/store/dataStore';
@@ -9,7 +12,7 @@ import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { Button } from '@/components/ui/button';
 import { cn, formatDateTime } from '@/lib/utils';
 import { isMac } from '@/hooks/useKeybindings';
-import { NAV, ADMIN_NAV_ITEM } from '@/components/layout/Sidebar';
+import { NAV, NAV_GROUPS, ADMIN_NAV_ITEM } from '@/components/layout/Sidebar';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import type { AnalysisResult, CatalogSnapshot, ProcessingProgress } from '@/core/types';
 
@@ -19,13 +22,8 @@ import type { AnalysisResult, CatalogSnapshot, ProcessingProgress } from '@/core
 // fallback gap is exactly how Sugerencias/Consumo/Inventario/Análisis/
 // Comodato/Solicitudes/Admin used to all show the bare "DEGASA" wordmark.
 const TITLE_OVERRIDES: Record<string, string> = {
-  '/': 'Panel general',
-  '/carga': 'Carga de archivos',
-  '/resultados': 'Resultados del análisis',
-  '/historial': 'Historial de análisis',
-  '/registros': 'Registros del sistema',
   '/oportunidades/clientes': 'Oportunidades — clientes',
-  '/oportunidades/ofertas-cliente': 'Oportunidades — clientes',
+  '/oportunidades/ofertas-cliente': 'Oportunidades — ofertas por cliente',
 };
 
 // Prefijo — /oportunidades/material/:material no está en NAV (es un
@@ -41,6 +39,12 @@ function titleFor(path: string): string {
   const prefixMatch = TITLE_PREFIX_OVERRIDES.find(([prefix]) => path.startsWith(prefix));
   if (prefixMatch) return prefixMatch[1];
   return NAV.find((n) => n.to === path)?.label ?? 'DEGASA';
+}
+
+/** Grupo del menú al que pertenece la ruta (para la miga de pan); '' si no está en el menú. */
+function groupFor(path: string): string {
+  const base = '/' + (path.split('/')[1] ?? '');
+  return NAV_GROUPS.find((g) => g.items.some((i) => i.to === path || i.to === base))?.label ?? '';
 }
 
 export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNav: () => void }) {
@@ -75,7 +79,10 @@ export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNa
         >
           <Menu className="size-5" />
         </button>
-        <h1 className="truncate font-display text-[15px] font-semibold text-text">{titleFor(path)}</h1>
+        <p className="truncate text-sm text-text-muted" aria-label="Ubicación">
+          {groupFor(path) && <>{groupFor(path)} <span aria-hidden="true">›</span> </>}
+          <span className="font-display font-semibold text-text">{titleFor(path)}</span>
+        </p>
       </div>
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <button
@@ -87,7 +94,7 @@ export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNa
         >
           <Search className="size-3.5" aria-hidden />
           <span>Buscar…</span>
-          <kbd className="rounded border border-border bg-bg-inset px-1 py-0.5 text-[10px] text-text-faint">
+          <kbd className="rounded border border-border bg-bg-inset px-1 py-0.5 text-[11px] text-text-faint">
             {isMac ? '⌘' : 'Ctrl'}K
           </kbd>
         </button>
@@ -127,8 +134,33 @@ export function Topbar({ path, onOpenMobileNav }: { path: string; onOpenMobileNa
         <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Cambiar tema">
           {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </Button>
+        <MenuUsuario />
       </div>
     </header>
+  );
+}
+
+/** Quién está dentro y cómo cambiar de usuario (útil para probar roles): cierra la sesión, limpia los datos del navegador y vuelve a pedir la cuenta de Google. */
+function MenuUsuario() {
+  const email = usePermissionsStore((s) => s.perms.datos.email);
+  const rol = usePermissionsStore((s) => s.perms.roleName);
+  const isAdmin = usePermissionsStore((s) => s.perms.isAdmin);
+  const [saliendo, setSaliendo] = useState(false);
+  if (!email) return null;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label={`Usuario ${email}`} title={email}><UserRound className="size-4" /></Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-3">
+        <p className="truncate text-sm font-medium" title={email}>{email}</p>
+        <p className="mb-3 text-xs text-text-muted">{rol ? `Rol: ${rol}` : 'Sin rol asignado'}{isAdmin ? ' · administrador' : ''}</p>
+        <Button variant="outline" size="sm" className="w-full" disabled={saliendo} onClick={() => { setSaliendo(true); void cerrarSesion(); }}>
+          <LogOut className="size-4" /> {saliendo ? 'Cerrando…' : 'Cerrar sesión / cambiar de usuario'}
+        </Button>
+        <p className="mt-2 text-[11px] text-text-faint">También borra los datos guardados en este navegador, para que el siguiente usuario cargue los suyos.</p>
+      </PopoverContent>
+    </Popover>
   );
 }
 

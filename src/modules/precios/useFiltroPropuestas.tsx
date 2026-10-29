@@ -1,14 +1,14 @@
+import { Input } from '@/components/ui/input';
 import { useMemo, useState, type ReactNode } from 'react';
 import { ColumnFilterBar, ColumnFilterMenuMulti, passesFilters, type ActiveFilter, type FilterColumn } from '@/modules/analytics/ui';
 import { TableHead } from '@/components/ui/table';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatFraccion } from '@/lib/utils';
 import { norm } from '@/lib/text';
 import { etiquetaCombinacion } from '@/core/enrich';
 import { analisisPrecio } from '@/core/politicaPrecios';
 import type { Propuesta } from '@/services/preciosService';
 import type { Analytics } from '@/modules/analytics/AnalyticsContext';
 
-const pct = (n: number) => `${Math.round(n * 1000) / 10}%`;
 const dia = (iso: string | null) => (iso ? iso.slice(0, 10) : '');
 
 /** Qué columnas de filtro cuelgan del embudo de cada encabezado (un encabezado puede filtrar varias: «Material» → código y descripción). */
@@ -40,9 +40,9 @@ export function useFiltroPropuestas(lista: readonly Propuesta[], a: Analytics, c
       { key: 'precio', label: 'Precio', get: (p) => formatCurrency(p.precioPropuesto) },
       { key: 'enviado', label: 'Precio que se mandó', get: (p) => (p.precioEnviado != null ? formatCurrency(p.precioEnviado) : 'Sin dato') },
       { key: 'modificado', label: '¿Modificado por el director?', get: (p) => (p.precioEnviado != null && Math.abs(p.precioEnviado - p.precioPropuesto) >= 0.005 ? 'Modificado' : 'Sin cambio') },
-      { key: 'descuento', label: 'Descuento', get: (p) => { const x = an(p); return x ? pct(x.descuento) : 'Sin dato'; } },
-      { key: 'cede', label: 'Cede del margen', get: (p) => { const x = an(p); return x ? pct(x.cede) : 'Sin dato'; } },
-      { key: 'margen', label: 'Margen', get: (p) => pct((p.precioPropuesto - p.costoAlEnviar) / p.precioPropuesto) },
+      { key: 'descuento', label: 'Descuento', get: (p) => { const x = an(p); return x ? formatFraccion(x.descuento) : 'Sin dato'; } },
+      { key: 'cede', label: 'Cede del margen', get: (p) => { const x = an(p); return x ? formatFraccion(x.cede) : 'Sin dato'; } },
+      { key: 'margen', label: 'Margen', get: (p) => formatFraccion((p.precioPropuesto - p.costoAlEnviar) / p.precioPropuesto) },
       { key: 'solicito', label: 'Solicitó', get: (p) => p.solicitadoPor || 'Sin dato' },
       { key: 'fecha', label: 'Fecha de solicitud', get: (p) => dia(p.solicitadoEn) },
       { key: 'autorizo', label: 'Autorizó', get: (p) => p.autorizadoPor || 'Sin dato' },
@@ -77,7 +77,7 @@ export function useFiltroPropuestas(lista: readonly Propuesta[], a: Analytics, c
 
   const barra = (
     <div className="mb-3 flex flex-wrap items-center gap-2">
-      <input aria-label="Buscar" className="h-9 w-64 rounded-md border border-border bg-bg-elevated px-2 text-sm" placeholder="Buscar material, descripción, sector, grupo…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <Input aria-label="Buscar" className="w-64" placeholder="Buscar material, descripción, sector, grupo…" value={q} onChange={(e) => setQ(e.target.value)} />
       <ColumnFilterBar columns={cols} rows={[...lista]} active={quick} onChange={setQuick} />
       {visibles.length !== lista.length && <span className="text-xs text-text-faint">Mostrando {visibles.length} de {lista.length}</span>}
     </div>

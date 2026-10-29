@@ -32,11 +32,11 @@ const LIBROS_RELACION = {
     id: "14Urzz33cW-4Brva6dbKBfRNFYUfx7Z0pzrUVMsQf7nI",
     hojas: ["Corta caducidad", "Lento mov", "Cosmopark", "Sustituto", "PNC", "Caduco", "Revision", "Revision2"]
   },
-  // Pedidos YBFD (entrega de comodato) y ZBRE (devolucion), export SAP. Se lee SOLO la pestana con ese gid.
+  // Pedidos YBFD (entrega de comodato) y ZBRE (devolucion), export SAP. Se lee la PRIMERA pestana del libro (sin depender de su gid ni de su nombre,
+  // que cambian cuando alguien recrea la pestana). Para fijar una concreta, agregar `gid: <numero>`: si ya no existe, se usa la primera.
   comodato: {
     id: "1PmPyTJGIlujBIfK2dbzReV62A3VKm6-yw9wt8L_kMNQ",
-    hojas: null,
-    gid: 1198812480
+    hojas: null
   }
 };
 
@@ -57,9 +57,22 @@ const ALIAS_COLUMNAS = {
   Cantidad:    { alias: ["cantidad", "cant", "cant."], respaldo: 9 }
 };
 
+// Token compartido con la Edge Function `datos` de Supabase (docs/acceso-por-roles.md). Se guarda en Propiedades del script
+// (Configuracion del proyecto > Propiedades del script > API_TOKEN), NUNCA en el codigo. Con la propiedad definida, toda llamada
+// sin el token correcto se rechaza: asi la URL del /exec deja de servir a quien no pase por la funcion. Sin la propiedad, no se exige
+// (solo para el periodo de migracion: defínela en cuanto la funcion este desplegada).
+function _tokenValido(params) {
+  var esperado = PropertiesService.getScriptProperties().getProperty("API_TOKEN");
+  if (!esperado) return true;
+  return String(params.token || "") === esperado;
+}
+
 function doGet(e) {
   try {
     var params = (e && e.parameter) || {};
+    if (!_tokenValido(params)) {
+      return _json({ ok: false, error: "No autorizado" });
+    }
     var action = params.action || "manifest";
     var result;
 
@@ -177,11 +190,13 @@ function obtenerManifiestoRelacion() {
 function _hojasPermitidas(ss, def) {
   var todas = ss.getSheets();
 
-  // Libro con una pestana concreta: se identifica por su gid (el nombre puede cambiar).
+  // Libro con una pestana concreta: se identifica por su gid (el nombre puede cambiar). Si esa pestana ya no existe (se borro o se recreo), se usa la
+  // primera: devolver cero hojas dejaba el libro "sincronizado" pero vacio, sin avisar.
   if (def.gid !== undefined && def.gid !== null) {
-    return todas.filter(function(hoja) {
+    var concreta = todas.filter(function(hoja) {
       return hoja.getSheetId() === def.gid;
     });
+    return concreta.length ? concreta : todas.slice(0, 1);
   }
   if (!def.hojas) {
     return todas.slice(0, 1);
@@ -368,13 +383,42 @@ function _obtenerMapeo(hoja, fileId, version) {
   return mapeo;
 }
 
-function _perteneceACarpeta(archivo, idCarpeta) {
-  var padres = archivo.getParents();
+// Todos los Google Sheets bajo la carpeta, incluidas las subcarpetas a cualquier profundidad.
+function _listarSheetsRecursivo(idCarpeta) {
+  var salida = [];
+  var pendientes = [idCarpeta];
+  var vistas = {};
 
-  while (padres.hasNext()) {
-    if (padres.next().getId() === idCarpeta) {
-      return true;
+  while (pendientes.length) {
+    var id = pendientes.pop();
+    if (vistas[id]) continue;
+    vistas[id] = true;
+
+    var carpeta = DriveApp.getFolderById(id);
+    var archivos = carpeta.getFilesByType(MimeType.GOOGLE_SHEETS);
+    while (archivos.hasNext()) salida.push(archivos.next());
+
+    var subs = carpeta.getFolders();
+    while (subs.hasNext()) pendientes.push(subs.next().getId());
+  }
+  return salida;
+}
+
+// El archivo esta en la carpeta o en cualquiera de sus subcarpetas (se sube por los padres).
+function _perteneceACarpeta(archivo, idCarpeta) {
+  var nivel = [archivo];
+
+  for (var profundidad = 0; profundidad < 10 && nivel.length; profundidad++) {
+    var siguiente = [];
+    for (var i = 0; i < nivel.length; i++) {
+      var padres = nivel[i].getParents();
+      while (padres.hasNext()) {
+        var padre = padres.next();
+        if (padre.getId() === idCarpeta) return true;
+        siguiente.push(padre);
+      }
     }
+    nivel = siguiente;
   }
   return false;
 }
@@ -522,24 +566,25 @@ const FAC_ALIAS = {
 
 function obtenerManifiestoFacturacion() {
   var cache = CacheService.getScriptCache();
-  var guardado = cache.get("fac_manifest_" + CARPETA_ID + "_v4");
+  var guardado = cache.get("fac_manifest_" + CARPETA_ID + "_v5");
   if (guardado) return JSON.parse(guardado);
 
-  var archivos = DriveApp.getFolderById(CARPETA_ID).getFilesByType(MimeType.GOOGLE_SHEETS);
+  // Todos los Sheets de la carpeta Y de sus subcarpetas (Q1, Q2...). Un libro sin "1Q 2024" en el nombre
+  // (informacion anexada de meses/anios anteriores) tambien cuenta: orden 0 = va antes de los trimestrales.
+  var archivos = _listarSheetsRecursivo(CARPETA_ID);
   var libros = [];
 
-  while (archivos.hasNext()) {
-    var archivo = archivos.next();
+  for (var k = 0; k < archivos.length; k++) {
+    var archivo = archivos[k];
     var periodo = _parsearPeriodo(archivo.getName());
-    if (!periodo) continue;
 
     var actualizado = archivo.getLastUpdated();
     var info = _infoLibroFacturacion(archivo.getId(), actualizado.getTime(), null);
     libros.push({
       id: archivo.getId(),
       nombre: archivo.getName(),
-      periodo: periodo.trimestre + "Q " + periodo.anio,
-      orden: periodo.anio * 10 + periodo.trimestre,
+      periodo: periodo ? periodo.trimestre + "Q " + periodo.anio : archivo.getName(),
+      orden: periodo ? periodo.anio * 10 + periodo.trimestre : 0,
       ultimaModificacion: actualizado.toISOString(),
       totalRows: info.totalRows,
       chunkSize: FAC_CHUNK_SIZE,
@@ -551,7 +596,7 @@ function obtenerManifiestoFacturacion() {
 
   var resultado = { ok: true, libros: libros };
   try {
-    cache.put("fac_manifest_" + CARPETA_ID + "_v4", JSON.stringify(resultado), FAC_CACHE_MANIFIESTO_SEG);
+    cache.put("fac_manifest_" + CARPETA_ID + "_v5", JSON.stringify(resultado), FAC_CACHE_MANIFIESTO_SEG);
   } catch (error) {
     // Cache lleno: solo se pierde la optimizacion.
   }

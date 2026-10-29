@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-import { computeEffectivePermissions, type EffectivePermissions, type PermissionRow, type RoleRow } from '@/core/permissions';
+import { computeEffectivePermissions, DATOS_ABIERTOS, type DatosUsuario, type EffectivePermissions, type PermissionRow, type RoleRow } from '@/core/permissions';
 
 export interface ModuleRow { key: string; label: string; sortOrder: number }
 export interface AllowedUserRow { email: string; displayName: string | null; roleId: string | null; roleName: string | null }
@@ -24,8 +24,9 @@ export async function loadEffectivePermissions(email: string): Promise<Effective
     const role: RoleRow | null = roleData ? { id: roleData.id, name: roleData.name, isAdmin: roleData.is_admin } : null;
 
     if (!role || role.isAdmin) {
-      return computeEffectivePermissions(role, []);
+      return computeEffectivePermissions(role, [], { ...DATOS_ABIERTOS, email });
     }
+    const datos = await loadDatosUsuario(email, role.id);
 
     const { data: permRows, error: permErr } = await supabase
       .from('degasa_permissions')
@@ -44,7 +45,7 @@ export async function loadEffectivePermissions(email: string): Promise<Effective
     // Role rows first, user-override rows last, so overrides win.
     rows.sort((a, b) => (a.subjectType === b.subjectType ? 0 : a.subjectType === 'user' ? 1 : -1));
 
-    return computeEffectivePermissions(role, rows);
+    return computeEffectivePermissions(role, rows, datos);
   } catch {
     return computeEffectivePermissions(null, []);
   }
@@ -180,4 +181,90 @@ export async function registrarModulos(modulos: readonly ModuleRow[]): Promise<v
   const { error } = await supabase.from('degasa_modules')
     .upsert(modulos.map((m) => ({ key: m.key, label: m.label, sort_order: m.sortOrder })), { onConflict: 'key', ignoreDuplicates: true });
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Acceso a datos (migración 0026): campos del rol + zonas / excepciones del usuario. Tolerante: si la migración aún no se aplicó, no restringe nada
+// (el servidor es quien manda; esto solo acomoda la interfaz).
+// ---------------------------------------------------------------------------
+type DatosRolBD = {
+  restringir_zona: boolean | null; ver_costo: boolean | null; ver_precio_otras_zonas: boolean | null;
+  condiciones_permitidas: string[] | null; caducidad_max_meses: Record<string, number> | null; ver_regla_cc_1032: boolean | null;
+};
+const COLUMNAS_DATOS_ROL = 'restringir_zona, ver_costo, ver_precio_otras_zonas, condiciones_permitidas, caducidad_max_meses, ver_regla_cc_1032';
+
+const datosDeRol = (email: string, r: DatosRolBD | null, zonasManual: string[], o: Partial<DatosUsuario> | null): DatosUsuario => ({
+  email,
+  restringirZona: o?.restringirZona ?? r?.restringir_zona ?? false,
+  zonasManual,
+  verCosto: o?.verCosto ?? r?.ver_costo ?? true,
+  verPrecioOtrasZonas: o?.verPrecioOtrasZonas ?? r?.ver_precio_otras_zonas ?? true,
+  condicionesPermitidas: o?.condicionesPermitidas !== undefined ? o.condicionesPermitidas : (r?.condiciones_permitidas ?? null),
+  caducidadMaxMeses: o?.caducidadMaxMeses !== undefined ? o.caducidadMaxMeses : (r?.caducidad_max_meses ?? null),
+  verReglaCC1032: o?.verReglaCC1032 ?? r?.ver_regla_cc_1032 ?? true,
+});
+
+export async function loadDatosUsuario(email: string, roleId: string): Promise<DatosUsuario> {
+  try {
+    const [rol, usuario] = await Promise.all([
+      supabase.from('degasa_roles').select(COLUMNAS_DATOS_ROL).eq('id', roleId).maybeSingle(),
+      supabase.from('degasa_allowed_users').select('zonas_manual, datos_override').eq('email', email).maybeSingle(),
+    ]);
+    if (rol.error || usuario.error) return { ...DATOS_ABIERTOS, email };
+    return datosDeRol(email, rol.data as DatosRolBD | null, (usuario.data?.zonas_manual as string[] | null) ?? [], (usuario.data?.datos_override as Partial<DatosUsuario> | null) ?? null);
+  } catch {
+    return { ...DATOS_ABIERTOS, email };
+  }
+}
+
+/** Campos de acceso a datos de un rol, para editarlos en Administración. */
+export async function getRoleDatos(roleId: string): Promise<DatosUsuario> {
+  const { data, error } = await supabase.from('degasa_roles').select(COLUMNAS_DATOS_ROL).eq('id', roleId).maybeSingle();
+  if (error) throw error;
+  return datosDeRol('', data as DatosRolBD | null, [], null);
+}
+
+export async function saveRoleDatos(roleId: string, d: DatosUsuario): Promise<void> {
+  const { error } = await supabase.from('degasa_roles').update({
+    restringir_zona: d.restringirZona, ver_costo: d.verCosto, ver_precio_otras_zonas: d.verPrecioOtrasZonas,
+    condiciones_permitidas: d.condicionesPermitidas, caducidad_max_meses: d.caducidadMaxMeses && Object.keys(d.caducidadMaxMeses).length ? d.caducidadMaxMeses : null,
+    ver_regla_cc_1032: d.verReglaCC1032,
+  }).eq('id', roleId);
+  if (error) throw error;
+}
+
+export async function getUserZonas(email: string): Promise<string[]> {
+  const { data, error } = await supabase.from('degasa_allowed_users').select('zonas_manual').eq('email', email).maybeSingle();
+  if (error) throw error;
+  return (data?.zonas_manual as string[] | null) ?? [];
+}
+
+export async function setUserZonas(email: string, zonas: string[]): Promise<void> {
+  const { error } = await supabase.from('degasa_allowed_users').update({ zonas_manual: zonas.length ? zonas : null }).eq('email', email);
+  if (error) throw error;
+}
+
+/** Zonas asignadas a mano de todos los usuarios, en una sola consulta (email en minúsculas → zonas). */
+export async function listZonasManuales(): Promise<Map<string, string[]>> {
+  const { data, error } = await supabase.from('degasa_allowed_users').select('email, zonas_manual');
+  if (error) throw error;
+  return new Map((data ?? []).map((r) => [String(r.email).toLowerCase(), (r.zonas_manual as string[] | null) ?? []]));
+}
+
+/** ¿Este usuario está limitado a su zona por una excepción propia (independiente de su rol)? `null` = sin excepción, manda el rol. */
+export async function getUserRestringirZona(email: string): Promise<boolean | null> {
+  const { data, error } = await supabase.from('degasa_allowed_users').select('datos_override').eq('email', email).maybeSingle();
+  if (error) throw error;
+  const v = (data?.datos_override as { restringirZona?: unknown } | null)?.restringirZona;
+  return typeof v === 'boolean' ? v : null;
+}
+
+/** Fija (o quita, con `null`) la excepción «limitar a su zona» de un usuario sin tocar el resto de su `datos_override`. */
+export async function setUserRestringirZona(email: string, valor: boolean | null): Promise<void> {
+  const { data, error } = await supabase.from('degasa_allowed_users').select('datos_override').eq('email', email).maybeSingle();
+  if (error) throw error;
+  const { restringirZona: _antes, ...resto } = ((data?.datos_override as Record<string, unknown> | null) ?? {});
+  const nuevo = valor === null ? resto : { ...resto, restringirZona: valor };
+  const { error: e2 } = await supabase.from('degasa_allowed_users').update({ datos_override: Object.keys(nuevo).length ? nuevo : null }).eq('email', email);
+  if (e2) throw e2;
 }

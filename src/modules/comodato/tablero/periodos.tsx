@@ -104,9 +104,9 @@ function useComparador(auto: { a: string[]; b: string[]; etA: string; etB: strin
             options={[{ value: 'mes', label: 'Mes' }, { value: 'trimestre', label: 'Trimestre' }, { value: 'anio', label: 'Año' }]}
           />
           <div className="flex items-center gap-2">
-            <button type="button" className="rounded border border-border p-1 hover:bg-bg-inset" title="Periodo anterior" onClick={() => setOffset((o) => o + 1)}><ChevronLeft className="size-4" /></button>
+            <button type="button" className="rounded border border-border p-1 hover:bg-bg-inset" aria-label="Periodo anterior" title="Periodo anterior" onClick={() => setOffset((o) => o + 1)}><ChevronLeft className="size-4" /></button>
             <b className="min-w-24 text-center text-sm">{periodoAtajo(kind, offset, modoB).label}</b>
-            <button type="button" className="rounded border border-border p-1 hover:bg-bg-inset disabled:opacity-40" title="Periodo siguiente" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - 1))}><ChevronRight className="size-4" /></button>
+            <button type="button" className="rounded border border-border p-1 hover:bg-bg-inset disabled:opacity-40" aria-label="Periodo siguiente" title="Periodo siguiente" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - 1))}><ChevronRight className="size-4" /></button>
           </div>
           {kind === 'anio' && offset === 0 && <span className="text-text-faint">El año en curso se compara solo con los mismos meses del anterior.</span>}
         </div>
@@ -195,12 +195,12 @@ export function ComparativoCard() {
         <div className="flex flex-wrap items-center gap-3">
           <SegmentedControl<'mes' | 'trimestre'> ariaLabel="Periodo" value={kind} onChange={(k) => { setKind(k); setOffset(0); }} options={[{ value: 'mes', label: 'Mensual' }, { value: 'trimestre', label: 'Trimestral' }]} />
           <div className="flex items-center gap-2">
-            <button type="button" className="rounded border border-border p-1 hover:bg-bg-inset" title="Periodo anterior" onClick={() => setOffset((o) => o + 1)}><ChevronLeft className="size-4" /></button>
+            <button type="button" className="rounded border border-border p-1 hover:bg-bg-inset" aria-label="Periodo anterior" title="Periodo anterior" onClick={() => setOffset((o) => o + 1)}><ChevronLeft className="size-4" /></button>
             <div className="text-center leading-tight">
               <div className="text-sm font-semibold">{info.label} vs {info.yoyLabel}</div>
               <div className="text-[11px] text-text-faint">{info.sub || (offset === 0 ? 'periodo actual' : `periodo anterior ×${offset}`)}</div>
             </div>
-            <button type="button" className="rounded border border-border p-1 hover:bg-bg-inset disabled:opacity-40" title="Periodo siguiente" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - 1))}><ChevronRight className="size-4" /></button>
+            <button type="button" className="rounded border border-border p-1 hover:bg-bg-inset disabled:opacity-40" aria-label="Periodo siguiente" title="Periodo siguiente" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - 1))}><ChevronRight className="size-4" /></button>
           </div>
         </div>
       ) : undefined}

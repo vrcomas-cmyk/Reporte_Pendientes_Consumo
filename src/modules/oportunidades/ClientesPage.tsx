@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
 import { Users } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
-import { DebouncedSearch } from '@/modules/analytics/ui';
+import { DebouncedSearch, StatePill } from '@/modules/analytics/ui';
 import { matchesQuery, norm } from '@/modules/analytics/helpers';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { EmptyState } from '@/components/feedback/EmptyState';
@@ -125,9 +125,9 @@ export function ClientesTab() {
                 <p className="font-mono text-xs text-text-faint">{r.dest}</p>
               </div>
               {r.aceptaAlgo ? (
-                <span className="shrink-0 rounded-full bg-success/15 px-2 py-0.5 text-[10px] text-success">Configurado</span>
+                <StatePill label="Configurado" cls="verde" />
               ) : (
-                <span className="shrink-0 rounded-full bg-bg-inset px-2 py-0.5 text-[10px] text-text-faint" title="Sin criterio de aceptación marcado: no aparece como candidato en ningún matching todavía.">Sin configurar</span>
+                <span title="Sin criterio de aceptación marcado: no aparece como candidato en ningún matching todavía."><StatePill label="Sin configurar" cls="gris" /></span>
               )}
             </div>
 

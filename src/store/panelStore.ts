@@ -35,7 +35,8 @@ export type Panel =
   // #18: month click on the aggregated "Facturación mensual (filtro)" chart — carries a
   // pre-computed snapshot of the rows matching the mes under the currently active Consumo filters
   // (generalizes legacy openClientesMes beyond a single material).
-  | { type: 'mesClientesFiltro'; mes: string; rows: { razon: string; solic: string; dest: string; material: string; cant: number; imp: number }[] }
+  // `meses`/`rowsDe` (opcionales): permiten recorrer los meses de la gráfica con ←/→ y saltar a uno desde el panel.
+  | { type: 'mesClientesFiltro'; mes: string; rows: { razon: string; solic: string; dest: string; material: string; cant: number; imp: number }[]; meses?: string[]; rowsDe?: (mes: string) => { razon: string; solic: string; dest: string; material: string; cant: number; imp: number }[] }
   | { type: 'sector'; sector: string; filtro?: FiltroConsumo }
   | { type: 'grupo'; grupo: string }
   // `origen: 'resumenSin'` (desde el módulo Inventario): el inventario de otros

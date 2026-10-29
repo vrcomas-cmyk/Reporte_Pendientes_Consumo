@@ -29,7 +29,7 @@ export function MetaField({ icon: Icon, label, children, className }: {
   return (
     <div className={cn('flex min-w-0 items-center gap-1.5', className)}>
       {Icon && <Icon className="size-3 shrink-0 text-text-faint" />}
-      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-text-faint">{label}</span>
+      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-text-faint">{label}</span>
       <div className="flex min-w-0 items-center gap-1.5">{children}</div>
     </div>
   );

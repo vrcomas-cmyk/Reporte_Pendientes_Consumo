@@ -1,29 +1,29 @@
 import { create } from 'zustand';
-import { listarPropuestas, vigentes, type Propuesta } from '@/services/preciosService';
-import { etiquetaCombinacion, type PrecioAutorizado } from '@/core/enrich';
-import { norm } from '@/lib/text';
+import { cargarPolitica, listarPropuestas, vigentes, type Propuesta } from '@/services/preciosService';
+import { POLITICA_DEFECTO, type Politica } from '@/core/politicaPrecios';
+import type { PrecioAutorizadoEntrada } from '@/core/precioAutorizado';
 
 interface PreciosState {
   propuestas: Propuesta[];
+  /** Política vigente: de ella salen los Status de Revision INCLUIDOS (cada Status incluido es una condición de Precios). */
+  politica: Politica;
   cargado: boolean;
   load: () => Promise<void>;
 }
 
 export const usePreciosStore = create<PreciosState>((set) => ({
   propuestas: [],
+  politica: POLITICA_DEFECTO,
   cargado: false,
-  load: async () => set({ propuestas: await listarPropuestas(), cargado: true }),
+  load: async () => {
+    const [propuestas, politica] = await Promise.all([listarPropuestas(), cargarPolitica()]);
+    set({ propuestas, politica, cargado: true });
+  },
 }));
 
-/** Precios de oferta autorizados y aún válidos (> costo vigente), por material normalizado — lo que consume `preciosPorCondicion`. */
-export function autorizadosPorMaterial(propuestas: Propuesta[], costoDe: (material: string) => number): Map<string, PrecioAutorizado[]> {
-  const out = new Map<string, PrecioAutorizado[]>();
-  for (const p of vigentes(propuestas, costoDe)) {
-    if (p.concepto !== 'oferta') continue;
-    const k = norm(p.material);
-    const arr = out.get(k) ?? [];
-    arr.push({ condicion: etiquetaCombinacion(p.condicion), precio: p.precioPropuesto });
-    out.set(k, arr);
-  }
-  return out;
+/** Ofertas autorizadas, vigentes y aún válidas (> costo hoy), una por material + combinación de condiciones. */
+export function autorizadosVigentes(propuestas: Propuesta[], costoDe: (material: string) => number): PrecioAutorizadoEntrada[] {
+  return vigentes(propuestas, costoDe)
+    .filter((p) => p.concepto === 'oferta' && p.condicion.trim() !== '')
+    .map((p) => ({ material: p.material, combinacion: p.condicion, precio: p.precioPropuesto }));
 }

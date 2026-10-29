@@ -17,6 +17,7 @@ import { useConocimientoStore } from '@/store/conocimientoStore';
 import { useScoringWeightsStore } from '@/store/scoringWeightsStore';
 import { useNombresStore } from '@/store/nombresStore';
 import { useGruposExcluidosStore } from '@/store/gruposExcluidosStore';
+import { useTrasladosStore, iniciarSeguimientoTraslados } from '@/store/trasladosStore';
 
 // Only the shell (AppShell/Topbar/Sidebar) stays eager for instant first
 // paint. Every route, INCLUDING Dashboard, is code-split so its JS — and
@@ -55,6 +56,7 @@ const AdminPage = lazy(() => import('@/modules/admin/AdminPage').then((m) => ({ 
 const OportunidadesPage = lazy(() => import('@/modules/oportunidades/OportunidadesPage').then((m) => ({ default: m.OportunidadesPage })));
 const Material360Page = lazy(() => import('@/modules/oportunidades/Material360Page').then((m) => ({ default: m.Material360Page })));
 const ClientesPage = lazy(() => import('@/modules/oportunidades/ClientesPage').then((m) => ({ default: m.ClientesPage })));
+const OfertasTrasladosPage = lazy(() => import('@/modules/ofertasTraslados/OfertasTrasladosPage').then((m) => ({ default: m.OfertasTrasladosPage })));
 const OfertasClientePage = lazy(() => import('@/modules/oportunidades/OfertasClientePage').then((m) => ({ default: m.OfertasClientePage })));
 
 const queryClient = new QueryClient({
@@ -75,13 +77,15 @@ function App() {
   const hydrateScoringWeights = useScoringWeightsStore((s) => s.hydrate);
   const hydrateNombres = useNombresStore((s) => s.hydrate);
   const hydrateGruposExcluidos = useGruposExcluidosStore((s) => s.hydrate);
+  const hydrateTraslados = useTrasladosStore((s) => s.hydrate);
   useEffect(() => {
     void hydrateSolicitudes();
     void hydrateConocimiento();
     void hydrateScoringWeights();
     void hydrateNombres();
     void hydrateGruposExcluidos();
-  }, [hydrateSolicitudes, hydrateConocimiento, hydrateScoringWeights, hydrateNombres, hydrateGruposExcluidos]);
+    void hydrateTraslados().then(iniciarSeguimientoTraslados);
+  }, [hydrateSolicitudes, hydrateConocimiento, hydrateScoringWeights, hydrateNombres, hydrateGruposExcluidos, hydrateTraslados]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -111,6 +115,7 @@ function App() {
                   <Route path="/analisis-directivo" element={<ModuleGuard moduleKey="analisis-directivo"><Suspense fallback={<RouteFallback />}><AnalisisDirectivoPage /></Suspense></ModuleGuard>} />
                   <Route path="/comparativo" element={<ModuleGuard moduleKey="comparativo"><Suspense fallback={<RouteFallback />}><ComparativoPage /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><OportunidadesPage /></Suspense></ModuleGuard>} />
+                  <Route path="/ofertas-traslados" element={<ModuleGuard moduleKey="ofertas-traslados"><Suspense fallback={<RouteFallback />}><OfertasTrasladosPage /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades/material/:material" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><Material360Page /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades/clientes" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><ClientesPage /></Suspense></ModuleGuard>} />
                   <Route path="/oportunidades/ofertas-cliente" element={<ModuleGuard moduleKey="oportunidades"><Suspense fallback={<RouteFallback />}><OfertasClientePage /></Suspense></ModuleGuard>} />

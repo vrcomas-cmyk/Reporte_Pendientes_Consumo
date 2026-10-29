@@ -56,6 +56,14 @@ export const pendPorCondicion = (co: RSSCentro | undefined, condicion: string): 
   if (!co) return 0;
   return almacenesDeCondicion(condicion).reduce((s, alm) => s + (co.alm.get(alm)?.pend || 0), 0);
 };
+/** Qué pendiente se muestra en Inv Condición: el de los almacenes que aplican a la condición (RN-INV-002) o TODO el del centro. */
+export type AmbitoPend = 'condicion' | 'centro';
+
+/** Pendiente de un centro según el alcance elegido: `condicion` = `pendPorCondicion`; `centro` = suma de todos los almacenes. */
+export const pendSegunAmbito = (co: RSSCentro | undefined, condicion: string, ambito: AmbitoPend): number => {
+  if (!co) return 0;
+  return ambito === 'centro' ? co.pend : pendPorCondicion(co, condicion);
+};
 export const transitoPorCondicion = (co: RSSCentro | undefined, condicion: string): number => {
   if (!co) return 0;
   return almacenesDeCondicion(condicion).reduce((s, alm) => s + (co.alm.get(alm)?.transito || 0), 0);
@@ -87,10 +95,10 @@ export function esLento(co: RSSCentro | undefined, curMes: number): boolean {
  * almacenes aplicables según la condición (RN-INV-002) — para el módulo
  * "Inv Condición", donde "lento" debe evaluarse contra 1032 solamente en
  * corta caducidad, no contra el inventario general del centro. */
-export function esLentoPorCondicion(co: RSSCentro | undefined, condicion: string, curMes: number): boolean {
+export function esLentoPorCondicion(co: RSSCentro | undefined, condicion: string, curMes: number, ambito: AmbitoPend = 'condicion'): boolean {
   if (!co) return false;
   if (esCentroDistribucion(co.centro)) return false;
-  if (invPorCondicion(co, condicion) <= 0 || pendPorCondicion(co, condicion) > 0) return false;
+  if (invPorCondicion(co, condicion) <= 0 || pendSegunAmbito(co, condicion, ambito) > 0) return false;
   if (!co.ultMesK) return true;
   return curMes - co.ultMesK >= MESES_LENTO;
 }

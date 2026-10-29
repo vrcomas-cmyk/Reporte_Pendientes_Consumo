@@ -1,5 +1,5 @@
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useCallback, useState } from 'react';
-import { SOLO_LIBROS } from '@/lib/modoLibros';
 import { RefreshCcw, Cloud, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,10 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useDataStore } from '@/store/dataStore';
 import { checkForCatalogUpdate } from '@/services/catalogService';
-import { syncReportSheets, REPORT_SHEET_ROLES, SNAPSHOT_ROLES } from '@/services/reportSheetsService';
-import { useReportSheetsSyncStore } from '@/store/reportSheetsSyncStore';
-import { ROLE_LABEL } from '@/core/roleDetection';
-import type { SheetRole } from '@/core/types';
 import { formatDateTime, formatNumber } from '@/lib/utils';
 import { FUENTES_PEDIDOS } from '@/core/pedidos';
 import { pedidosConfigurado, syncPedidos } from '@/services/pedidosService';
@@ -19,26 +15,13 @@ import { useFacturacionStore } from '@/store/facturacionStore';
 import { syncFacturacion } from '@/services/facturacionLibrosService';
 import { toast } from '@/store/toastStore';
 
-/** Carga: sincroniza el catálogo maestro y el reporte diario, ambos en vivo
- * desde Google Sheets — no hay flujo manual de xlsx (el pipeline Python +
- * "Generar reporte" + "Procesamiento" que existían para eso se retiraron: la
- * sincronización automática de AppShell ya cubre ese caso, ver reportSheetsService.ts). */
+/** Carga: sincroniza el catálogo maestro, los libros de Seg. de pedidos y la facturación, todos en vivo desde Google Sheets / Drive — no hay flujo manual de xlsx. */
 export function UploadPage() {
   const catalog = useDataStore((s) => s.catalog);
   const catalogLoading = useDataStore((s) => s.catalogLoading);
   const setCatalog = useDataStore((s) => s.setCatalog);
   const setCatalogLoading = useDataStore((s) => s.setCatalogLoading);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  const activeAnalysis = useDataStore((s) => s.activeAnalysis);
-  const setActiveAnalysis = useDataStore((s) => s.setActiveAnalysis);
-  const settings = useDataStore((s) => s.settings);
-  const [sheetsRoles, setSheetsRoles] = useState<Set<SheetRole>>(new Set(REPORT_SHEET_ROLES));
-  // Global (not local) state: survives navigating away from Carga and back
-  // while a sync is still running, so it can't be forgotten and re-triggered
-  // by accident — see reportSheetsSyncStore.ts.
-  const sheetsSyncing = useReportSheetsSyncStore((s) => s.syncing);
-  const sheetsProgress = useReportSheetsSyncStore((s) => s.progress);
-  const sheetsError = useReportSheetsSyncStore((s) => s.error);
 
   // Libros de Google Sheets (Seg pedidos, Disponibilidad, Inv_Condicion): estado global, igual que el del reporte.
   const librosFuentes = usePedidosStore((s) => s.fuentes);
@@ -103,52 +86,20 @@ export function UploadPage() {
     }
   }, [setCatalog, setCatalogLoading]);
 
-  const toggleSheetsRole = useCallback((role: SheetRole) => {
-    setSheetsRoles((prev) => {
-      const next = new Set(prev);
-      if (next.has(role)) next.delete(role); else next.add(role);
-      return next;
-    });
-  }, []);
-
-  const handleSyncReportSheets = useCallback(async (forceFull = false, liveOverride?: SheetRole[]) => {
-    try {
-      const result = await syncReportSheets({
-        catalog,
-        settings,
-        previous: activeAnalysis,
-        selectedRoles: [...sheetsRoles],
-        forceFull,
-        liveOverride,
-        // Apply each tab's data the moment it lands (e.g. "Todas las
-        // Sugerencias" shows up immediately) instead of leaving the page
-        // blank until every selected tab has synced.
-        onPartialResult: setActiveAnalysis,
-      });
-      setActiveAnalysis(result);
-    } catch {
-      // useReportSheetsSyncStore already carries the error message for the
-      // banner below — nothing else to do here.
-    }
-  }, [catalog, settings, activeAnalysis, sheetsRoles, setActiveAnalysis]);
-
   return (
-    <div className="mx-auto flex h-full max-w-5xl flex-col gap-6 p-8">
-      <div>
-        <h2 className="font-display text-2xl font-semibold">Carga de archivos</h2>
-        <p className="text-sm text-text-muted">Sincroniza el catálogo maestro y el reporte diario — ambos en vivo desde Google Sheets.</p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          onClick={() => void handleSyncTodoLibros()}
-          disabled={librosSyncing || facSyncing}
-          title="Sincroniza a la vez los libros (Seg pedidos, Disponibilidad, Inv_Condicion) y la facturación de la carpeta de Drive. La primera vez trae todo; después solo lo modificado."
-        >
-          <RefreshCcw className={`size-4 ${librosSyncing || facSyncing ? 'animate-spin' : ''}`} />
-          {librosSyncing || facSyncing ? 'Sincronizando…' : 'Sincronizar libros y facturación'}
-        </Button>
-      </div>
+    <ReportPage className="mx-auto max-w-5xl">
+      <PageHeader title="Carga" subtitle="Sincroniza el catálogo maestro, los libros de pedidos e inventario y la facturación — en vivo desde Google Sheets y Drive." actions={
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => void handleSyncTodoLibros()}
+      disabled={librosSyncing || facSyncing}
+      title="Sincroniza a la vez los libros (Seg pedidos, Disponibilidad, Inv_Condicion) y la facturación de la carpeta de Drive. La primera vez trae todo; después solo lo modificado."
+    >
+      <RefreshCcw className={`mr-1 size-3.5 ${librosSyncing || facSyncing ? 'animate-spin' : ''}`} />
+      {librosSyncing || facSyncing ? 'Sincronizando…' : 'Sincronizar libros y facturación'}
+    </Button>
+  } />
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <Card>
@@ -187,102 +138,6 @@ export function UploadPage() {
             </Button>
           </CardContent>
         </Card>
-
-        {/* Etapa "solo libros": el reporte diario no se carga (ver lib/modoLibros.ts). */}
-        {!SOLO_LIBROS && (
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <div>
-              <CardTitle>Reporte diario · Google Sheets</CardTitle>
-              <CardDescription>Todas las Sugerencias y Resumen Sin Sug. en vivo · Reporte de Consumo y Resumen_Fac desde el snapshot nocturno</CardDescription>
-            </div>
-            {activeAnalysis ? <Badge variant="success">Sincronizado</Badge> : <Badge variant="warning">Pendiente</Badge>}
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {activeAnalysis ? (
-              <div className="rounded-md border border-border bg-bg-inset p-3 text-xs text-text-muted">
-                <div className="flex items-center gap-2 font-medium text-text">
-                  <Cloud className="size-3.5" /> Último análisis
-                </div>
-                <div className="mt-1">Última actualización: {formatDateTime(activeAnalysis.processedAt)}</div>
-                <div className="mt-1">
-                  {activeAnalysis.sugerencias.length.toLocaleString('es-MX')} sugerencias · {activeAnalysis.consumo.length.toLocaleString('es-MX')} filas de consumo
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-text-faint">
-                Aún no se ha sincronizado el reporte diario desde Google Sheets. Se lee en vivo del AppScript configurado.
-              </p>
-            )}
-
-            {sheetsError && (
-              <div className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
-                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> {sheetsError}
-              </div>
-            )}
-
-            <div className="rounded-md border border-border p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-text">Pestañas a sincronizar</span>
-                <span className="text-[11px] text-text-faint">{sheetsRoles.size} de {REPORT_SHEET_ROLES.length}</span>
-              </div>
-              <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:gap-x-4">
-                {REPORT_SHEET_ROLES.map((role) => {
-                  const checked = sheetsRoles.has(role);
-                  return (
-                    <label key={role} className="flex cursor-pointer items-center gap-2 text-sm">
-                      <input type="checkbox" checked={checked} onChange={() => toggleSheetsRole(role)} className="size-4 accent-[var(--color-accent)]" />
-                      <span className={checked ? 'text-text' : 'text-text-faint line-through'}>{ROLE_LABEL[role]}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {sheetsProgress && (
-              <div>
-                <div className="mb-1.5 flex items-center justify-between text-xs text-text-muted">
-                  <span>{sheetsProgress.message}</span>
-                  <span className="font-mono">{sheetsProgress.percent}%</span>
-                </div>
-                <Progress value={sheetsProgress.percent} />
-              </div>
-            )}
-
-            <Button
-              variant={activeAnalysis ? 'outline' : 'default'}
-              onClick={() => handleSyncReportSheets()}
-              disabled={sheetsSyncing || sheetsRoles.size === 0}
-              className="self-start"
-            >
-              <RefreshCcw className={`size-4 ${sheetsSyncing ? 'animate-spin' : ''}`} />
-              {sheetsSyncing ? 'Sincronizando…' : 'Sincronizar ahora'}
-            </Button>
-            <div className="flex flex-wrap gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleSyncReportSheets(true)}
-                disabled={sheetsSyncing || sheetsRoles.size === 0}
-                className="self-start text-[11px]"
-                title="Vuelve a pedir las pestañas enteras en vez de solo las filas nuevas — útil si se editó una celda existente. Borra la cache local de filas."
-              >
-                Sincronización completa
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleSyncReportSheets(false, SNAPSHOT_ROLES)}
-                disabled={sheetsSyncing || sheetsRoles.size === 0}
-                className="self-start text-[11px]"
-                title="Reporte de Consumo y Resumen_Fac normalmente se sirven del snapshot nocturno (generado cada madrugada). Este botón ignora el snapshot y las trae en vivo desde Google Sheets, para ver un cambio de hoy mismo sin esperar a la noche."
-              >
-                Actualizar Consumo/Resumen_Fac en vivo
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-        )}
 
         <Card className="md:col-span-2">
           <CardHeader className="flex-row items-center justify-between">
@@ -434,6 +289,6 @@ export function UploadPage() {
           <RefreshCcw className="size-3.5" /> Carga el catálogo maestro primero para poder cruzarlo contra el reporte diario.
         </div>
       )}
-    </div>
+    </ReportPage>
   );
 }

@@ -29,7 +29,7 @@ export function ClienteOportunidadBadge({ dest }: { dest: string }) {
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); open({ type: 'clienteConocimiento', dest: cliente.dest, razonSocial: cliente.razonSocial }); }}
-        className="inline-flex items-center gap-0.5 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/20"
+        className="inline-flex items-center gap-0.5 rounded-full bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent hover:bg-accent/20"
       >
         <Target className="size-2.5" /> Oportunidades
       </button>

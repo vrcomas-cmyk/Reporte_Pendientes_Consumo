@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
-import { KpiBand } from '@/components/layout/report';
+import { KpiBand, ReportPage, PageHeader } from '@/components/layout/report';
 import {
   Download, RefreshCw, TrendingDown, AlertTriangle, Boxes, Users, Percent, ShoppingCart,
 } from 'lucide-react';
@@ -390,28 +390,22 @@ export function IncrementoPage() {
   const heroCritico = !!impacto && impacto.resumen.margenNuePct < 0;
 
   return (
-    <div className="flex h-full flex-col gap-5 overflow-auto p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-semibold">Incremento de costos</h2>
-          <p className="text-sm text-text-muted">Impacto comercial y financiero del incremento de proveedor</p>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="sm" onClick={doSync} disabled={syncing}>
-            <RefreshCw className={`mr-1 size-3.5 ${syncing ? 'animate-spin' : ''}`} />Actualizar
-          </Button>
-          <div className="flex items-center gap-1 border-l border-border pl-1.5">
-            <SavedViewsControl
-              views={savedViews.views}
-              onApply={applyView}
-              onSave={(name) => savedViews.save(name, { periodo: periodoEfectivo, filters, grupoClientes })}
-              onRemove={savedViews.remove}
-            />
-            <ColumnVisibilityControl columns={COLS_INCREMENTO} hidden={columnVis.hidden} toggle={columnVis.toggle} reset={columnVis.reset} />
-          </div>
-          <Button size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
-        </div>
-      </div>
+    <ReportPage>
+      <PageHeader title="Incremento de costos" subtitle="Impacto comercial y financiero del incremento de proveedor" actions={<>
+    <Button variant="outline" size="sm" onClick={doSync} disabled={syncing}>
+      <RefreshCw className={`mr-1 size-3.5 ${syncing ? 'animate-spin' : ''}`} />Actualizar
+    </Button>
+    <div className="flex items-center gap-1 border-l border-border pl-1.5">
+      <SavedViewsControl
+        views={savedViews.views}
+        onApply={applyView}
+        onSave={(name) => savedViews.save(name, { periodo: periodoEfectivo, filters, grupoClientes })}
+        onRemove={savedViews.remove}
+      />
+      <ColumnVisibilityControl columns={COLS_INCREMENTO} hidden={columnVis.hidden} toggle={columnVis.toggle} reset={columnVis.reset} />
+    </div>
+    <Button size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
+  </>} />
 
       {/* Periodo + filtros en una sola superficie — antes eran 2 filas sueltas
           con el mismo texto de periodo repetido 3 veces. */}
@@ -641,7 +635,7 @@ export function IncrementoPage() {
                             {columnVis.isVisible('pedidos') && <TableCell className="text-right font-mono text-xs">{s.pedidoPendientePiezas > 0 ? formatCurrency(s.riesgoPedidosPendientes) : '—'}</TableCell>}
                             {columnVis.isVisible('flags') && (
                               <TableCell className="max-w-56">
-                                {s.flags.map((f) => <div key={f} className="text-[10px] text-warning">{FLAG_LABEL[f]}</div>)}
+                                {s.flags.map((f) => <div key={f} className="text-[11px] text-warning">{FLAG_LABEL[f]}</div>)}
                               </TableCell>
                             )}
                           </TableRow>
@@ -830,6 +824,6 @@ export function IncrementoPage() {
           </Tabs>
         </>
       )}
-    </div>
+    </ReportPage>
   );
 }

@@ -1,3 +1,4 @@
+import { Input } from '@/components/ui/input';
 import { useMemo, useState } from 'react';
 import { KpiBand } from '@/components/layout/report';
 import type { ReactNode } from 'react';
@@ -33,6 +34,7 @@ import { useAnalytics } from '../AnalyticsContext';
 import { MaterialInventarioSection } from './MaterialInventario';
 import { CondicionesMaterialSection } from './CondicionesMaterial';
 import { ComparaCostoSustituto } from './ComparaCostoSustituto';
+import { FacturacionPreciosMaterial } from './FacturacionPreciosMaterial';
 
 /** Normaliza una fecha de caducidad y la convierte en un texto legible con clase de color (rojo/ámbar/verde) según los días restantes. */
 export function vigenciaTxt(fecha: string): { txt: string; cls: string } | null {
@@ -54,12 +56,12 @@ export function vigenciaTxt(fecha: string): { txt: string; cls: string } | null 
 /** Input de filtrado acotado para subtablas de los paneles de detalle. */
 export function SubFilter({ value, onChange, placeholder = 'Filtrar…' }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
-    <input
+    <Input
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      autoComplete="off"
-      className="mb-2 h-8 w-full max-w-xs rounded-md border border-border bg-bg-elevated px-2 text-xs outline-none focus:border-accent"
+      aria-label={placeholder}
+      className="mb-2 h-8 max-w-xs text-xs"
     />
   );
 }
@@ -250,7 +252,7 @@ export function SugTable({ list, a, push, selection }: { list: BOItem[]; a: Anal
                   {(['1030', '1031', '1032', '1060'] as const).map((alm) => vis(`inv${alm}`) && (
                     <TableCell key={alm} className="text-right">
                       {formatNumber(num(b.invByCenter[alm] || 0))}
-                      {transitoFor(a.rss, b.centroPedido, alm, b.materialBase) > 0 && <div className="text-[10px] text-success">↻+{formatNumber(transitoFor(a.rss, b.centroPedido, alm, b.materialBase))}</div>}
+                      {transitoFor(a.rss, b.centroPedido, alm, b.materialBase) > 0 && <div className="text-[11px] text-success">↻+{formatNumber(transitoFor(a.rss, b.centroPedido, alm, b.materialBase))}</div>}
                     </TableCell>
                   ))}
                   {vis('bloq') && <TableCell>{b.bloqueado ? <StatePill label={b.bloqueado} cls="amb" /> : '—'}</TableCell>}
@@ -510,7 +512,7 @@ export interface FuentesSelection {
 /** Subtabla de fuentes/materiales ofertables para un BO, con caducidad y drill hacia material.
  * Filtros independientes con autosugerencias por Centro, Lote y Material —
  * combinables con AND — en vez de un único texto libre. */
-export function FuentesTable({ fuentes, push, selection, precioDe }: { fuentes: BOItem['fuentes']; push: (p: Panel) => void; selection?: FuentesSelection; /** Con esta función se agrega la columna Precio. */ precioDe?: (f: BOItem['fuentes'][number]) => number }) {
+export function FuentesTable({ fuentes, push, selection, precioDe, centroPedido }: { fuentes: BOItem['fuentes']; push: (p: Panel) => void; /** Centro del pedido que se revisa: la ventana de un material ofertable muestra SU inventario como «principales». */ centroPedido?: string; selection?: FuentesSelection; /** Con esta función se agrega la columna Precio. */ precioDe?: (f: BOItem['fuentes'][number]) => number }) {
   const [fCentro, setFCentro] = useState('');
   const [fLote, setFLote] = useState('');
   const [fMaterial, setFMaterial] = useState('');
@@ -520,6 +522,7 @@ export function FuentesTable({ fuentes, push, selection, precioDe }: { fuentes: 
   const [vistaRapida, setVistaRapida] = useState<string | null>(null);
   // Código que viene en el pedido de la fila abierta: si es otro (un sustituto) la ventana permite comparar costo.
   const [vistaOriginal, setVistaOriginal] = useState('');
+  const [vistaCentro, setVistaCentro] = useState('');
   const centros = useMemo(() => [...new Set(fuentes.map((x) => x.centroSugerido).filter(Boolean))].sort(), [fuentes]);
   const lotes = useMemo(() => [...new Set(fuentes.map((x) => x.lote).filter(Boolean))].sort(), [fuentes]);
   const materiales = useMemo(() => [...new Set(fuentes.map((x) => x.materialSugerido).filter(Boolean))].sort(), [fuentes]);
@@ -557,10 +560,10 @@ export function FuentesTable({ fuentes, push, selection, precioDe }: { fuentes: 
                     </TableCell>
                   )}
                   <TableCell><StatePill label={f2.fuente} cls={/corta/i.test(f2.fuente) ? 'rojo' : 'azul'} /></TableCell>
-                  <TableCell><Chip title="Ver inventario de este material sin salir del detalle" onClick={() => { setVistaOriginal(f2.materialBase || f2.materialSolicitado); setVistaRapida(f2.materialSugerido); }}>{f2.materialSugerido}</Chip><div className="text-[11px] text-text-faint">{f2.descripcionSugerida}</div></TableCell>
+                  <TableCell><Chip title="Ver inventario de este material sin salir del detalle" onClick={() => { setVistaOriginal(f2.materialBase || f2.materialSolicitado); setVistaCentro(f2.centroPedido || centroPedido || ''); setVistaRapida(f2.materialSugerido); }}>{f2.materialSugerido}</Chip><div className="text-[11px] text-text-faint">{f2.descripcionSugerida}</div></TableCell>
                   <TableCell>{f2.centroSugerido}{f2.almacenSugerido ? ` / ${f2.almacenSugerido}` : ''}</TableCell>
                   <TableCell className="text-right">{formatNumber(f2.disponible)}</TableCell>
-                  {precioDe && <TableCell className="text-right font-mono">{precioDe(f2) ? formatCurrency(precioDe(f2)) : '—'}</TableCell>}
+                  {precioDe && <TableCell className="text-right font-mono">{precioDe(f2) ? formatCurrency(precioDe(f2)) : <span className="text-text-faint" title="Sin precio autorizado para esta condición">-</span>}</TableCell>}
                   <TableCell>{f2.lote ? <Chip title="Ver el detalle del lote" onClick={() => push({ type: 'lote', material: f2.materialSugerido, lote: f2.lote })}>{f2.lote}</Chip> : '—'}</TableCell>
                   <TableCell>{formatFechaCaducidad(f2.fechaCaducidad)}{vg && <div className="text-[11px]"><StatePill label={vg.txt} cls={vg.cls} /></div>}</TableCell>
                 </TableRow>
@@ -570,13 +573,14 @@ export function FuentesTable({ fuentes, push, selection, precioDe }: { fuentes: 
         </Table>
       </div>
       <Dialog open={!!vistaRapida} onOpenChange={(o) => !o && setVistaRapida(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>{vistaRapida}</DialogTitle>
             <DialogDescription>{vistaRapida ? analytics.enrich.matTexto(vistaRapida) : ''}</DialogDescription>
           </DialogHeader>
           {vistaRapida && <ComparaCostoSustituto a={analytics} original={vistaOriginal} sustituto={vistaRapida} />}
-          {vistaRapida && <MaterialInventarioSection a={analytics} material={vistaRapida} />}
+          {vistaRapida && <MaterialInventarioSection a={analytics} material={vistaRapida} centro={vistaCentro} />}
+          {vistaRapida && <FacturacionPreciosMaterial a={analytics} material={vistaRapida} />}
           {vistaRapida && <CondicionesMaterialSection a={analytics} material={vistaRapida} push={push} />}
           {vistaRapida && (
             <button type="button" className="mt-3 text-xs text-accent hover:underline" onClick={() => { const m = vistaRapida; setVistaRapida(null); push({ type: 'material', material: m }); }}>
@@ -612,7 +616,7 @@ export function LotesTable({ lotes, a, material, push }: { lotes: Analytics['lot
                   <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
                   <TableCell className="text-right align-top">
                     {lotePrecio > 0 && (
-                      <div className="mb-1 font-mono text-text">{formatCurrency(lotePrecio)}<div className="text-[10px] text-text-faint">del lote</div></div>
+                      <div className="mb-1 font-mono text-text">{formatCurrency(lotePrecio)}<div className="text-[11px] text-text-faint">del lote</div></div>
                     )}
                     {precios.length > 0 ? (
                       <div className="inline-flex flex-col gap-0.5">
@@ -705,7 +709,7 @@ export function Section({ title, children, collapsible = false, storageKey, tono
 
 /** Recolecta cada par distinto (condición, precio oferta) para `material` desde InvConsolidado/Inventario por condición. */
 export function precioPorCondicion(a: Analytics, material: string) {
-  return preciosPorCondicion(material, a.invConsolidadoCatalog, a.invCondicion, a.preciosAutorizados);
+  return preciosPorCondicion(material, a.invConsolidadoCatalog, a.invCondicion, a.preciosAutorizados, true);
 }
 
 /** Renderiza un recuadro por condición para `material` (Material / Descripción / Condición / Precio Oferta). */

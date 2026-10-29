@@ -1,3 +1,6 @@
+import { Select } from '@/components/ui/select';
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useMemo, useRef, useState } from 'react';
 import {
   useReactTable,
@@ -9,9 +12,8 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Search, Download, ChevronUp, ChevronDown, ChevronsUpDown, Inbox } from 'lucide-react';
+import { Search, Download, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -123,13 +125,7 @@ export function ResultsPage() {
 
   if (!activeAnalysis) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <Inbox className="size-8 text-text-faint" />
-        <p className="text-sm text-text-muted">No hay resultados todavía.</p>
-        <Button asChild>
-          <Link to="/carga">Ir a Carga</Link>
-        </Button>
-      </div>
+      <ReportPage><PageHeader title="Resultados" /><EmptyState title="No hay resultados todavía" description="Procesa el reporte diario desde Carga." action={{ to: '/carga', label: 'Ir a Carga' }} /></ReportPage>
     );
   }
 
@@ -138,42 +134,38 @@ export function ResultsPage() {
   const paddingBottom = items.length ? virtualizer.getTotalSize() - items[items.length - 1].end : 0;
 
   return (
-    <div className="flex h-full flex-col gap-3 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-semibold">Resultados</h2>
-          <p className="text-sm text-text-muted">Todas las Sugerencias · {formatNumber(filtered.length)} de {formatNumber(rows.length)} filas</p>
-        </div>
-        <Button onClick={exportToExcel} variant="outline">
-          <Download className="size-4" /> Exportar a Excel
-        </Button>
-      </div>
+    <ReportPage>
+      <PageHeader title="Resultados" subtitle={<>Todas las Sugerencias · {formatNumber(filtered.length)} de {formatNumber(rows.length)} filas</>} actions={
+    <Button onClick={exportToExcel} variant="outline" size="sm">
+      <Download className="mr-1 size-3.5" /> Exportar a Excel
+    </Button>
+  } />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-64">
           <Search className="absolute left-2.5 top-2.5 size-3.5 text-text-faint" />
           <Input placeholder="Buscar material, pedido, cliente…" value={globalFilter} onChange={(e) => setGlobalFilter(e.target.value)} className="pl-8" />
         </div>
-        <select
+        <Select
           value={fuenteFilter}
           onChange={(e) => setFuenteFilter(e.target.value)}
-          className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm"
+          className="w-auto"
         >
           {fuentes.map((f) => (
             <option key={f} value={f}>
               {f === 'todas' ? 'Todas las fuentes' : f}
             </option>
           ))}
-        </select>
-        <select
+        </Select>
+        <Select
           value={bloqueadoFilter}
           onChange={(e) => setBloqueadoFilter(e.target.value)}
-          className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm"
+          className="w-auto"
         >
           <option value="todos">Bloqueado: todos</option>
           <option value="si">Solo bloqueados</option>
           <option value="no">Solo no bloqueados</option>
-        </select>
+        </Select>
         <div className="ml-auto"><ZoomControl level={zoom.level} setLevel={zoom.setLevel} /></div>
       </div>
 
@@ -280,6 +272,6 @@ export function ResultsPage() {
           )}
         </SheetContent>
       </Sheet>
-    </div>
+    </ReportPage>
   );
 }

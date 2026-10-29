@@ -67,7 +67,7 @@ export function ClienteDetallePanel({ panel, a, push }: { panel: Extract<Panel, 
     <header className="shrink-0 overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-border/60 bg-bg-inset/40 px-4 py-2.5">
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint">Facturación · detalle del cliente</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-text-faint">Facturación · detalle del cliente</p>
           <h2 className="truncate font-display text-lg font-semibold" title={razon || panel.dest}>{razon || panel.dest}</h2>
         </div>
         <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 text-xs @lg:grid-cols-2 @4xl:grid-cols-4">
@@ -156,7 +156,7 @@ export function ClienteDetallePanel({ panel, a, push }: { panel: Extract<Panel, 
         {vistaEfectiva === 'material' && matFoco ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-accent/30 bg-accent-soft px-3 py-2">
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-accent">Viendo el material</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">Viendo el material</p>
               <p className="truncate font-display text-base font-bold text-text" title={textoFoco}>
                 {matFoco}<span className="ml-2 text-sm font-medium text-text-muted">{textoFoco}</span>
               </p>
@@ -166,7 +166,7 @@ export function ClienteDetallePanel({ panel, a, push }: { panel: Extract<Panel, 
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-bg-inset/60 px-3 py-2">
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint">Viendo todo el cliente</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-text-faint">Viendo todo el cliente</p>
               <p className="truncate text-sm font-semibold text-text">{razon || panel.dest} · todos los materiales</p>
             </div>
             {matFoco && <button type="button" className="text-xs text-accent hover:underline" onClick={() => setVista('material')}>Volver al material {matFoco} →</button>}

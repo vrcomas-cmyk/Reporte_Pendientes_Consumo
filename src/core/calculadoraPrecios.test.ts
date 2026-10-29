@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { combinacionesEncontradas, filasCalculadora, historialDeFacturacion, recalcularOferta, segmentosDeMaterial, lotesPncDeDetalle, type EntradaSegmentos } from './calculadoraPrecios';
+import { combinacionesEncontradas, estadisticasDeHistorial, filasCalculadora, historialDeFacturacion, recalcularOferta, segmentosDeMaterial, lotesPncDeDetalle, type EntradaSegmentos } from './calculadoraPrecios';
 import { POLITICA_DEFECTO, combinacionDe } from './politicaPrecios';
 
 const HOY = new Date(2026, 9, 16);
@@ -160,5 +160,29 @@ describe('lotes del segmento (para avisar de lotes nuevos)', () => {
       { material: '1608700', centro: '1018', celdas: ['1018', '1038', '1608700', '2A05', '10', '17/5/2030'] },
     ] });
     expect(m.get('1608700')![0]).toMatchObject({ cantidad: 10, id: '1018|1038|2A05' });
+  });
+});
+
+describe('estadisticasDeHistorial / historial de un solo material', () => {
+  const fila = (material: string, mesAno: string, cant: number, imp: number, extra = {}) => ({
+    solicitante: '', razonSocial: '', destinatario: '', material, textoMaterial: '', mesAno, cantidadFacturada: cant, importeFacturado: imp, gpoCte: '', gpoVdor: '', centro: '', ...extra,
+  });
+  const meses = new Set(['03/2026', '04/2026', '05/2026']);
+  it('solo recorre el material pedido', () => {
+    const m = historialDeFacturacion([fila('A', '03/2026', 10, 700), fila('B', '03/2026', 10, 900)], meses, 'A');
+    expect([...m.keys()]).toEqual(['A']);
+  });
+  it('mín/máx de las líneas, promedio ponderado por volumen y mediana', () => {
+    const h = historialDeFacturacion([fila('A', '03/2026', 10, 700, { precioMin: 65, precioMax: 75 }), fila('A', '04/2026', 30, 2700), fila('A', '05/2026', 10, 800)], meses, 'A').get('A');
+    const e = estadisticasDeHistorial(h)!;
+    expect(e.min).toBe(65);
+    expect(e.max).toBe(90);
+    expect(e.promedio).toBeCloseTo((70 * 10 + 90 * 30 + 80 * 10) / 50, 6);
+    expect(e.p50).toBe(90); // el 60 % del volumen se facturó a 90 o menos
+    expect(e.n).toBe(3);
+  });
+  it('sin ventas no hay estadísticas', () => {
+    expect(estadisticasDeHistorial(undefined)).toBeNull();
+    expect(estadisticasDeHistorial({ puntos: [], min: Infinity, max: 0 })).toBeNull();
   });
 });

@@ -589,6 +589,10 @@ export const FUENTES_PEDIDOS: { clave: LibroClave; etiqueta: string }[] = [
 /** Los libros que alimentan Seg. de pedidos e inventarios. El de comodato se baja aparte (Carga o el módulo Comodato (libros)): es una hoja grande que ellos no usan. */
 export const LIBROS_BASE_PEDIDOS: LibroClave[] = ['pedidos', 'disponibilidad', 'condicion'];
 
+/** ¿El manifiesto lista el libro pero sin ninguna pestaña legible? (el Apps Script no encontró la hoja que busca: se borró o se recreó). Un libro así no se debe dar por
+ * sincronizado: quedaría vacío sin avisar. */
+export const libroSinHojas = (libro: { hojas?: readonly unknown[] | null }): boolean => !libro.hojas || libro.hojas.length === 0;
+
 /** Columnas mínimas (alias normalizados) sin las que una hoja de datos no sirve. */
 const COLUMNAS_REQUERIDAS: Partial<Record<LibroClave, string[][]>> = {
   pedidos: [['pedido'], ['material'], ['centro']],

@@ -1,3 +1,4 @@
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Loader2, PlayCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -74,10 +75,8 @@ export function ComodatoLibrosPage() {
   }, [listo, data, running, handleAnalizar]);
 
   return (
-    <div className="flex h-full flex-col gap-5 overflow-auto px-6 pb-6 pt-4">
-      <div>
-        <h2 className="font-display text-2xl font-semibold">Comodatos</h2>
-      </div>
+    <ReportPage>
+      <PageHeader title="Comodato (libros)" subtitle="Pedidos de entrega y devolución de equipos en comodato" />
 
       {!catalog && (
         <div className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-xs text-warning">
@@ -118,6 +117,6 @@ export function ComodatoLibrosPage() {
       </div>
 
       {data && <TableroComodato resultado={data} />}
-    </div>
+    </ReportPage>
   );
 }

@@ -15,6 +15,27 @@ export interface PermissionRow {
   allowed: boolean;
 }
 
+/** Qué DATOS recibe el usuario (los recorta el servidor en la función `datos`; aquí solo se lee para acomodar la interfaz). Por omisión no restringe nada. */
+export interface DatosUsuario {
+  email: string;
+  /** Solo ve su(s) zona(s); lo de otras zonas llega recortado (sin precio ni cliente según el caso). */
+  restringirZona: boolean;
+  /** Zonas asignadas a mano; se suman a las del catálogo de ejecutivos por correo. */
+  zonasManual: string[];
+  verCosto: boolean;
+  verPrecioOtrasZonas: boolean;
+  /** null = todas las condiciones. */
+  condicionesPermitidas: string[] | null;
+  /** null = sin tope; { 'Corta caducidad': 12 } = solo lotes que vencen en menos de 12 meses. */
+  caducidadMaxMeses: Record<string, number> | null;
+  verReglaCC1032: boolean;
+}
+
+export const DATOS_ABIERTOS: DatosUsuario = {
+  email: '', restringirZona: false, zonasManual: [], verCosto: true, verPrecioOtrasZonas: true,
+  condicionesPermitidas: null, caducidadMaxMeses: null, verReglaCC1032: true,
+};
+
 export interface EffectivePermissions {
   /** True when the signed-in user's role has `isAdmin` — bypasses every
    * check below entirely (also the default when auth is disabled/no role
@@ -29,6 +50,8 @@ export interface EffectivePermissions {
   hiddenColumns: Map<string, Set<string>>;
   /** moduleKey -> set of detail item_keys explicitly hidden. */
   hiddenDetails: Map<string, Set<string>>;
+  /** Acceso a datos (zona, costo, condiciones, caducidad). */
+  datos: DatosUsuario;
 }
 
 export const UNRESTRICTED_PERMISSIONS: EffectivePermissions = {
@@ -38,6 +61,7 @@ export const UNRESTRICTED_PERMISSIONS: EffectivePermissions = {
   allowedModules: null,
   hiddenColumns: new Map(),
   hiddenDetails: new Map(),
+  datos: DATOS_ABIERTOS,
 };
 
 export function canViewModule(perms: EffectivePermissions, moduleKey: string): boolean {
@@ -63,9 +87,10 @@ export function isDetailHidden(perms: EffectivePermissions, moduleKey: string, d
 export function computeEffectivePermissions(
   role: RoleRow | null,
   rows: PermissionRow[],
+  datos: DatosUsuario = DATOS_ABIERTOS,
 ): EffectivePermissions {
   if (!role || role.isAdmin) {
-    return { ...UNRESTRICTED_PERMISSIONS, roleId: role?.id ?? null, roleName: role?.name ?? null, isAdmin: !role || role.isAdmin };
+    return { ...UNRESTRICTED_PERMISSIONS, roleId: role?.id ?? null, roleName: role?.name ?? null, isAdmin: !role || role.isAdmin, datos: { ...DATOS_ABIERTOS, email: datos.email } };
   }
 
   const moduleGrants = new Map<string, boolean>();
@@ -100,5 +125,12 @@ export function computeEffectivePermissions(
     if (hidden.size) hiddenDetails.set(moduleKey, hidden);
   });
 
-  return { isAdmin: false, roleId: role.id, roleName: role.name, allowedModules, hiddenColumns, hiddenDetails };
+  // Sin permiso de ver costos, el detalle «costo» de Inventario se oculta también en pantalla (el servidor ya no manda los costos).
+  if (!datos.verCosto) {
+    const d = new Set(hiddenDetails.get('inventario') ?? []);
+    d.add('costo');
+    hiddenDetails.set('inventario', d);
+  }
+
+  return { isAdmin: false, roleId: role.id, roleName: role.name, allowedModules, hiddenColumns, hiddenDetails, datos };
 }

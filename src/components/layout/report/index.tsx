@@ -26,7 +26,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   return (
     <div className="flex shrink-0 items-start justify-between gap-2">
       <div className="min-w-0">
-        <h2 className="font-display text-2xl font-semibold">{title}</h2>
+        <h1 className="font-display text-2xl font-semibold">{title}</h1>
         {subtitle != null && <p className="text-sm text-text-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{actions}</div>}
@@ -284,7 +284,7 @@ export interface SegmentoKpi {
 function KpiMetric({ m, grande, derecha }: { m: MetricaKpi; grande?: boolean; derecha?: boolean }) {
   return (
     <div title={m.title} className={cn(derecha && 'text-right')}>
-      <div className={cn('flex items-center gap-1 text-[10px] uppercase tracking-wide text-text-faint', derecha && 'justify-end')}>{m.icono}{m.etiqueta}</div>
+      <div className={cn('flex items-center gap-1 text-[11px] uppercase tracking-wide text-text-faint', derecha && 'justify-end')}>{m.icono}{m.etiqueta}</div>
       <span className={cn('font-display font-semibold tabular-nums', grande ? 'text-3xl tracking-tight' : 'text-2xl', m.tono && TONO_CLS[m.tono])}>{m.valor}</span>
       {m.sub != null && <div className="text-[11px] text-text-faint">{m.sub}</div>}
     </div>
@@ -331,7 +331,7 @@ export function KpiBand({ titulo, estado = 'neutral', icono, principal, metricas
             <div className="text-xs font-medium uppercase tracking-wide text-text-muted">{titulo}</div>
             {principal && (
               <div className="mt-1" title={principal.title}>
-                <div className="text-[10px] uppercase tracking-wide text-text-faint">{principal.etiqueta}</div>
+                <div className="text-[11px] uppercase tracking-wide text-text-faint">{principal.etiqueta}</div>
                 <span className={cn('font-display font-bold tabular-nums tracking-tight', grande ? 'text-4xl' : 'text-3xl', PRINCIPAL_TONO[estado])}>{principal.valor}</span>
                 {principal.sub != null && <div className="mt-0.5 text-sm text-text-muted">{principal.sub}</div>}
               </div>
@@ -347,7 +347,7 @@ export function KpiBand({ titulo, estado = 'neutral', icono, principal, metricas
 
       {distribucion && total > 0 && (
         <div className="mt-4">
-          {distribucion.titulo && <div className="mb-1.5 text-[10px] uppercase tracking-wide text-text-faint">{distribucion.titulo}</div>}
+          {distribucion.titulo && <div className="mb-1.5 text-[11px] uppercase tracking-wide text-text-faint">{distribucion.titulo}</div>}
           <div className="flex h-3 w-full overflow-hidden rounded-full bg-border/40" role="group" aria-label={distribucion.titulo ?? 'Distribución'}>
             {visibles.map((s) => (
               <button

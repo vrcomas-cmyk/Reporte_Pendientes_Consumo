@@ -1,3 +1,4 @@
+import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useMemo } from 'react';
 import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
 import { Download } from 'lucide-react';
@@ -267,15 +268,11 @@ export function AnalisisPage() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-auto p-6">
-      <div className="flex items-start justify-between gap-2">
-        <div><h2 className="font-display text-2xl font-semibold">Análisis</h2>
-          <p className="text-sm text-text-muted">Inteligencia comercial sobre las series de Resumen_Fac</p></div>
-        <div className="flex items-center gap-2">
-          <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
-          <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
-        </div>
-      </div>
+    <ReportPage>
+      <PageHeader title="Análisis" subtitle="Inteligencia comercial sobre las series de Resumen_Fac" actions={<>
+    <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
+    <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
+  </>} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={ejecutivo} onChange={(ev) => setEjecutivo(ev.target.value)} className="w-auto">
@@ -440,6 +437,6 @@ export function AnalisisPage() {
         {matTable(A.matCaen, 'Materiales a la baja', true)}
         {matTable(A.matSuben, 'Materiales en crecimiento')}
       </div>
-    </div>
+    </ReportPage>
   );
 }

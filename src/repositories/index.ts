@@ -8,6 +8,9 @@ import { LocalClienteConocimientoRepository } from './LocalClienteConocimientoRe
 import { SupabaseClienteConocimientoRepository } from './SupabaseClienteConocimientoRepository';
 import { LocalOfertaRepository } from './LocalOfertaRepository';
 import { SupabaseOfertaRepository } from './SupabaseOfertaRepository';
+import { LocalTrasladoRepository } from './LocalTrasladoRepository';
+import { SupabaseTrasladoRepository } from './SupabaseTrasladoRepository';
+import type { TrasladoRepository } from './TrasladoRepository';
 import { LocalReglaAceptacionRepository } from './LocalReglaAceptacionRepository';
 import { SupabaseReglaAceptacionRepository } from './SupabaseReglaAceptacionRepository';
 import { LocalIncrementoRepository } from './LocalIncrementoRepository';
@@ -95,6 +98,17 @@ export function createOfertaRepository(backend: RepositoryBackend = 'supabase'):
   }
 }
 
+/** Traslados (módulo «Ofertas y traslados»): conocimiento del equipo, mismo criterio que las ofertas. */
+export function createTrasladoRepository(backend: RepositoryBackend = 'supabase'): TrasladoRepository {
+  switch (backend) {
+    case 'supabase':
+      return new SupabaseTrasladoRepository();
+    case 'local':
+    default:
+      return new LocalTrasladoRepository();
+  }
+}
+
 /** Reglas de aceptación (módulo "Ofertas por Cliente"): mismo criterio — conocimiento del equipo. */
 export function createReglaAceptacionRepository(backend: RepositoryBackend = 'supabase'): ReglaAceptacionRepository {
   switch (backend) {
@@ -112,6 +126,7 @@ export const solicitudRepository = createSolicitudRepository();
 export const oportunidadRepository = createOportunidadRepository();
 export const clienteConocimientoRepository = createClienteConocimientoRepository();
 export const ofertaRepository = createOfertaRepository();
+export const trasladoRepository = createTrasladoRepository();
 export const reglaAceptacionRepository = createReglaAceptacionRepository();
 
 /** El Sheet de incremento de costos es local/por-dispositivo (como el

@@ -28,7 +28,7 @@ export function Heatmap({ cells }: { cells: HeatmapCell[] }) {
           <tr>
             <th className="w-28"></th>
             {cols.map((c) => (
-              <th key={c} className="px-1 pb-1 font-mono text-[10px] font-normal text-text-faint">
+              <th key={c} className="px-1 pb-1 font-mono text-[11px] font-normal text-text-faint">
                 {c}
               </th>
             ))}
@@ -47,7 +47,7 @@ export function Heatmap({ cells }: { cells: HeatmapCell[] }) {
                     <div
                       onMouseEnter={() => setHover({ rowKey: r, colKey: c, value: v })}
                       onMouseLeave={() => setHover(null)}
-                      className="flex size-8 items-center justify-center rounded-sm text-[9px] font-mono text-black/70"
+                      className="flex size-8 items-center justify-center rounded-sm text-[11px] font-mono text-black/70"
                       style={{ background: sequentialStep(v, min, max) }}
                       title={`${r} · Centro ${c}: ${formatNumber(v)}`}
                     />

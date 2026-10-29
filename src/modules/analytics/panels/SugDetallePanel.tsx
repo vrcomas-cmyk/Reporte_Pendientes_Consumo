@@ -208,11 +208,11 @@ export function InventarioPrincipalSection({
                       {p.titulo}
                     </span>
                     {solicitado ? (
-                      <span className="rounded bg-accent/20 px-1 py-0.5 text-[9px] font-semibold text-accent">
+                      <span className="rounded bg-accent/20 px-1 py-0.5 text-[11px] font-semibold text-accent">
                         Solicitado
                       </span>
                     ) : esCortaCaducidad ? (
-                      <span className="rounded bg-warning/20 px-1 py-0.5 text-[9px] font-medium text-warning">
+                      <span className="rounded bg-warning/20 px-1 py-0.5 text-[11px] font-medium text-warning">
                         Corta caducidad
                       </span>
                     ) : null}
@@ -266,7 +266,7 @@ export function FuentesOfertaSection({
       })`}
     >
       {fuentes.length ? (
-        <FuentesTable fuentes={fuentes} push={push} selection={selection} />
+        <FuentesTable fuentes={fuentes} push={push} selection={selection} centroPedido={it.bo.centroPedido} />
       ) : (
         <p className="text-sm text-text-muted">
           {it.fuentes.length

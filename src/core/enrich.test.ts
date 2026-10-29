@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { preciosPorCondicion, normCode, buildEnrich, etiquetaEjecutivoZona, zonaTresDigitos } from './enrich';
+import { crearPreciosAutorizados } from './precioAutorizado';
 import type { CatalogSnapshot, InvConsolidadoRow } from './types';
 
 const mkRow = (over: Partial<InvConsolidadoRow>): InvConsolidadoRow => ({
@@ -177,18 +178,64 @@ describe('ejecutivos por zona (filtro)', () => {
 
 describe('preciosPorCondicion · precios autorizados (módulo Precios)', () => {
   const rows = [mkRow({ material: '100', condicion: 'Corta caducidad', precioOferta: 90, invSuma: 5 })];
+  const auth = (entradas: { combinacion: string; precio: number }[], incluidos: string[] = []) =>
+    crearPreciosAutorizados(entradas.map((e) => ({ material: '100', ...e })), () => incluidos);
   it('sin autorizados conserva el precio de la hoja', () => {
     expect(preciosPorCondicion('100', rows, [])[0].precio).toBe(90);
   });
   it('el autorizado sustituye al de la hoja para esa condición', () => {
-    const aut = new Map([['100', [{ condicion: 'Corta caducidad', precio: 72.5 }]]]);
-    const out = preciosPorCondicion('100', rows, [], aut);
+    const out = preciosPorCondicion('100', rows, [], auth([{ combinacion: 'CC', precio: 72.5 }]));
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ condicion: 'Corta caducidad', precio: 72.5, inv: 5 });
   });
+  it('usa las condiciones de Precios: un material con Status incluido cobra «CC + Lento mov» en su corta caducidad', () => {
+    const a = auth([{ combinacion: 'CC + Lento mov', precio: 60 }], ['Lento mov']);
+    const out = preciosPorCondicion('100', rows, [], a);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ condicion: 'Corta caducidad', precio: 60, inv: 5 });
+  });
   it('una condición autorizada que la hoja no trae se agrega sin inventario', () => {
-    const aut = new Map([['100', [{ condicion: 'Corta caducidad + Lento movimiento', precio: 65 }]]]);
-    const out = preciosPorCondicion('100', rows, [], aut);
-    expect(out.map((r) => r.condicion).sort()).toEqual(['Corta caducidad', 'Corta caducidad + Lento movimiento']);
+    const out = preciosPorCondicion('100', rows, [], auth([{ combinacion: 'CC', precio: 72.5 }, { combinacion: 'PNC', precio: 30 }]));
+    expect(out.map((r) => r.condicion).sort()).toEqual(['Corta caducidad', 'PNC']);
+    expect(out.find((r) => r.condicion === 'PNC')).toMatchObject({ precio: 30, inv: 0 });
+  });
+});
+
+describe('preciosPorCondicion · solo autorizados (sin revolver con el precio viejo de la hoja)', () => {
+  const rows = [
+    mkRow({ material: '100', condicion: 'Corta caducidad', precioOferta: 90, invSuma: 5 }),
+    mkRow({ material: '100', condicion: 'PNC', precioOferta: 90, invSuma: 2 }),
+  ];
+  const aut = crearPreciosAutorizados([{ material: '100', combinacion: 'CC', precio: 10 }], () => []);
+  it('cada condición toma SU precio autorizado; la que no está autorizada queda en 0 aunque la hoja traiga precio', () => {
+    const out = preciosPorCondicion('100', rows, [], aut, true);
+    expect(out.find((r) => r.condicion === 'Corta caducidad')).toMatchObject({ precio: 10, inv: 5 });
+    expect(out.find((r) => r.condicion === 'PNC')).toMatchObject({ precio: 0, inv: 2 });
+  });
+  it('sin la opción conserva el comportamiento anterior (precio de la hoja)', () => {
+    expect(preciosPorCondicion('100', rows, [], aut).find((r) => r.condicion === 'PNC')!.precio).toBe(90);
+  });
+});
+
+describe('correosDeZona', () => {
+  it('junta los correos de las filas repetidas de una zona sin duplicar y descarta los inválidos', () => {
+    const ej = (o: object) => ({ zona: '002', codOfVtas: 'A1', ejecutivo: 'Heber', correoElectronico: '', ...o });
+    const e = buildEnrich({
+      ejecutivos: [ej({ correoElectronico: 'Heber@x.com' }), ej({ correoElectronico: 'heber@x.com; otro@x.com' }), ej({ correoElectronico: 'no es correo' }), ej({ zona: '5', codOfVtas: 'B2', ejecutivo: 'Ana' })],
+      materiales: [], invConsolidado: [], invDetalle: [], gerenciaMarca: [],
+    } as unknown as CatalogSnapshot);
+    expect(e.correosDeZona('2')).toEqual(['Heber@x.com', 'otro@x.com']);
+    expect(e.correosDeZona('A1')).toEqual(['Heber@x.com', 'otro@x.com']); // por código de oficina de ventas también
+    expect(e.correosDeZona('5')).toEqual([]);
+  });
+});
+
+describe('ejecutivoAtributos', () => {
+  it('da gerencia, gerente, canal y oficina de ventas de la zona a la que pertenece un Gpo. Vdor. (por zona o por código de oficina)', () => {
+    const catalog = { ejecutivos: [{ zona: '101', codOfVtas: 'A01', ejecutivo: 'Ana', gerenciaVentas: 'Norte', gerenteVentas: 'Luis', canalVentas: 'Privado', oficinaVentas: 'Monterrey', correoElectronico: '' }], materiales: [], invConsolidado: [], invDetalle: [], gerenciaMarca: [] } as never;
+    const e = buildEnrich(catalog);
+    expect(e.ejecutivoAtributos('101')).toEqual({ gerenciaVentas: 'Norte', gerenteVentas: 'Luis', canalVentas: 'Privado', oficinaVentas: 'Monterrey' });
+    expect(e.ejecutivoAtributos('A01').gerenteVentas).toBe('Luis');
+    expect(e.ejecutivoAtributos('999')).toEqual({ gerenciaVentas: '', gerenteVentas: '', canalVentas: '', oficinaVentas: '' });
   });
 });

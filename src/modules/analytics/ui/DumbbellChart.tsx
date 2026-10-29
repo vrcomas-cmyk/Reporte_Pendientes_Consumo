@@ -79,7 +79,7 @@ export const DumbbellChart = memo(function DumbbellChart({ rows, labelA, labelB 
                 <p className={cn('flex items-center justify-end gap-0.5 text-sm font-semibold tabular-nums', TONO_TXT[tono])}>
                   <Icono className="size-4" />{pct == null ? (tono === 'flat' ? '0%' : 'Nuevo') : `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`}
                 </p>
-                <p className="text-[10px] tabular-nums text-text-faint">{formatCurrency(r.a)} → {formatCurrency(r.b)}</p>
+                <p className="text-[11px] tabular-nums text-text-faint">{formatCurrency(r.a)} → {formatCurrency(r.b)}</p>
               </div>
             </div>
           );

@@ -13,7 +13,6 @@ import { usePreciosStore } from '@/store/preciosStore';
 import { getCachedIncremento } from '@/services/incrementoService';
 import { restaurarPedidos } from '@/services/pedidosService';
 import { restaurarFacturacion } from '@/services/facturacionLibrosService';
-import { checkForReportSheetsUpdate } from '@/services/reportSheetsService';
 import { getLatestAnalysis } from '@/services/reportService';
 import { reportRepository } from '@/repositories';
 import { logWarn, logError } from '@/lib/logError';
@@ -88,7 +87,6 @@ export function AppShell() {
       void usePreciosStore.getState().load();
 
       startCatalogWatch();
-      if (!SOLO_LIBROS) startReportSheetsWatch();
     }
 
     // Catálogo maestro: se revisa al abrir, al volver a la pestaña y cada 10 min
@@ -138,69 +136,11 @@ export function AppShell() {
       };
     }
 
-    // "Revisar al abrir/enfocar": on mount (after the restore above) and
-    // whenever the tab regains focus, cheap-check the report-sheets
-    // spreadsheet for changes (throttled inside checkForReportSheetsUpdate)
-    // and silently re-sync + toast if it changed. Reads fresh state via
-    // getState() (not the effect's closured values) since this can fire long
-    // after mount, from the visibilitychange listener. `silent: true` because
-    // this is a background check the user didn't ask for — it should update
-    // local storage but not add Supabase history/log rows.
-    function startReportSheetsWatch() {
-      const check = () => {
-        const { catalog: cat, settings: cfg, activeAnalysis: prev, setActiveAnalysis: applyResult } = useDataStore.getState();
-        // `onPartialResult` aplica cada pestaña (Pedidos/Consumo/Resumen_Sin/
-        // Resumen_Fac) apenas termina de llegar, en vez de esperar a las 4 —
-        // mismo mecanismo que ya usa la sync manual de Carga (UploadPage.tsx),
-        // solo que aquí faltaba conectarlo: sin esto, el chequeo automático al
-        // abrir/enfocar el portal (el que corre en la práctica todos los días)
-        // dejaba la pantalla sin datos hasta que la pestaña más lenta terminaba.
-        checkForReportSheetsUpdate({ catalog: cat, settings: cfg, previous: prev, silent: true, onPartialResult: applyResult })
-          .then(({ changed, result }) => {
-            if (changed && result) {
-              applyResult(result);
-              toast.info('Reporte actualizado', 'Se sincronizó automáticamente desde Google Sheets.');
-            }
-          })
-          .catch((e) => logWarn('report-sheets-check-failed', e instanceof Error ? e.message : String(e)));
-      };
-
-      // Defer the first mount-triggered check to the browser's next idle slot
-      // (with a setTimeout fallback for Safari < 17 / older browsers that lack
-      // `requestIdleCallback`). We don't want the cheap `?meta=1` fetch racing
-      // the first paint's React commit / Tailwind hydration — it's tiny, but
-      // "as soon as the page is interactive" beats "right after bootstrap"
-      // when bootstrap itself already restored catalog+analysis+settings.
-      // Defer the first mount-triggered check past the first paint — we
-      // don't want the cheap `?meta=1` fetch competing with the React commit /
-      // Tailwind hydration that just played out right after bootstrap. A
-      // setTimeout(0) is enough: `check()` itself only fires the meta fetch,
-      // the heavy work (if any) still goes to the worker later. The throttle
-      // inside checkForReportSheetsUpdate caps subsequent re-checks anyway.
-      const idleHandle = window.setTimeout(check, 0);
-
-      const onVisibility = () => {
-        if (document.visibilityState === 'visible') {
-          // On focus regain the user is already active — fire promptly, no
-          // delay (the throttle inside checkForReportSheetsUpdate still caps
-          // how often these actually hit the network).
-          check();
-        }
-      };
-      document.addEventListener('visibilitychange', onVisibility);
-      cleanupVisibility = () => {
-        document.removeEventListener('visibilitychange', onVisibility);
-        window.clearTimeout(idleHandle);
-      };
-    }
-
-    let cleanupVisibility: (() => void) | undefined;
     let cleanupCatalog: (() => void) | undefined;
     void bootstrap();
 
     return () => {
       cancelled = true;
-      cleanupVisibility?.();
       cleanupCatalog?.();
     };
   }, [setCatalog, setSettings, setActiveAnalysis, setIncremento, setBootstrapped]);
