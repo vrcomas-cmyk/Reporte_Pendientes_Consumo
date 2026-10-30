@@ -1,7 +1,7 @@
 # Graph Report - Reporte_Pendientes_Consumo  (2026-10-29)
 
 ## Corpus Check
-- 815 files · ~1,166,418 words
+- 815 files · ~1,166,483 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `172f9d7f`
+- Built from commit: `d5c1879f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -2039,7 +2039,7 @@ Cohesion: 0.38
 Nodes (5): Every script invocation in the shipped skill markdown resolves from the skill di, Return (target, None) for a skill-relative path, or (None, reason)., resolve(), shipped_invocations(), SkillScriptPathsTest
 
 ## Knowledge Gaps
-- **2260 isolated node(s):** `Cómo funciona`, `Qué se puede decidir (Administración › Acceso a datos)`, `Despliegue (en este orden — no saltar pasos)`, `Cómo comprobar que no se filtra nada`, `Límites conocidos (pendientes)` (+2255 more)
+- **2260 isolated node(s):** `ConceptoPrecio`, `EstadoPropuesta`, `NuevaPropuesta`, `PropuestaDb`, `ResultadoEnvio` (+2255 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **53 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -2047,11 +2047,11 @@ Nodes (5): Every script invocation in the shipped skill markdown resolves from t
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `f()` connect `.opencode/skills/impeccable/scripts/live/session-store.mjs` to `.claude/skills/impeccable/scripts/detector/rules/checks.mjs`, `.opencode/skills/impeccable/scripts/detector/rules/checks.mjs`, `Local Storage`, `types.ts`, `ClienteDetallePanel.tsx`, `@radix-ui/react-alert-dialog`, `collectVisualContrastCandidates`, `.claude/skills/impeccable/scripts/detector/detect-antipatterns-browser.js`, `Common Cognitive Load Violations`, `filterFindings`, `.opencode/skills/impeccable/scripts/detector/detect-antipatterns-browser.js`, `.claude/skills/impeccable/scripts/hook-lib.mjs`, `CommandPalette.tsx`, `collectBrowserFindings`, `.claude/skills/impeccable/scripts/hook.mjs`, `.opencode/skills/impeccable/scripts/doctor.mjs`, `loadContext`, `.claude/skills/impeccable/scripts/modern-screenshot.umd.js`, `.opencode/skills/impeccable/scripts/modern-screenshot.umd.js`, `AnalyticsContext.tsx`, `analyzeVisualContrastCandidate`, `.claude/skills/impeccable/scripts/detector/detect-antipatterns.mjs`, `.opencode/skills/impeccable/scripts/detector/detect-antipatterns.mjs`, `dialog.tsx`, `resolveVarRefs`, `filterFindings`, `catalogService.ts`, `f`, `.opencode/skills/impeccable/scripts/critique-storage.mjs`, `facturacionLibrosService.ts`, `mensajeEjecutivo.ts`?**
-  _High betweenness centrality (0.259) - this node is a cross-community bridge._
+  _High betweenness centrality (0.253) - this node is a cross-community bridge._
 - **Why does `react` connect `react` to `pedidosService.ts`, `.opencode/skills/impeccable/scripts/live/event-validation.mjs`, `analisisDirectivo.ts`, `ui/index.ts`, `useQuickFilters.ts`, `InventarioPage.tsx`, `EvolChart.tsx`, `ClienteDetallePanel.tsx`, `DetalleMaterialDialog.tsx`, `@radix-ui/react-scroll-area`, `TechnicalDebt.md — Deuda técnica priorizada`, `Common Cognitive Load Violations`, `Operate mode depth (and Read notes)`, `AnalisisDirectivoPage.tsx`, `GlobalCopyMenu.tsx`, `checkElementMotion`, `.opencode/skills/impeccable/scripts/doctor.mjs`, `onAnnotDown`, `mesesSeleccion.ts`, `table.tsx`, `checkElementGptBorderShadowDOM`, `loadContext`, `mappers.ts`, `Grader Agent`, `.claude/skills/impeccable/scripts/live/event-validation.mjs`, `rules`, `.opencode/skills/impeccable/scripts/live/session-store.mjs`, `resolveLiveInjectionAnchor`, `IncrementoPage.tsx`, `OportunidadesPage.tsx`, `dialog.tsx`, `CeldaPanel.tsx`, `.claude/skills/impeccable/scripts/lib/surface-briefs.mjs`, `.opencode/skills/impeccable/scripts/context-signals.mjs`, `filterFindings`, `CalculatorWidget.tsx`, `reportSheetsService.ts`, `package.json`, `App.tsx`, `.claude/skills/impeccable/SKILL.md`, `MaterialHubPanel.tsx`, `.claude/skills/impeccable/scripts/live-poll.mjs`, `initGlobalBar`, `handleGo`, `inventoryRules.ts`, `AppShell.tsx`, `index.tsx`?**
-  _High betweenness centrality (0.087) - this node is a cross-community bridge._
+  _High betweenness centrality (0.086) - this node is a cross-community bridge._
 - **Why does `msg()` connect `loadContext` to `readConfig`, `connectSSE`, `.opencode/skills/impeccable/scripts/live-server.mjs`, `.claude/skills/impeccable/scripts/live-server.mjs`, `setLiveState`?**
-  _High betweenness centrality (0.071) - this node is a cross-community bridge._
+  _High betweenness centrality (0.072) - this node is a cross-community bridge._
 - **Are the 5 inferred relationships involving `mesKey()` (e.g. with `analisisDirectivo()` and `normalizarMeses()`) actually correct?**
   _`mesKey()` has 5 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 43 inferred relationships involving `el()` (e.g. with `browserFindingsFromMap()` and `collectVisualContrastCandidates()`) actually correct?**

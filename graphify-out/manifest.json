@@ -3555,8 +3555,8 @@
     "semantic_hash": ""
   },
   "src/services/preciosService.ts": {
-    "mtime": 1793205735.1298256,
-    "ast_hash": "1bf195d98d6f7268f13eccd72e600c35",
+    "mtime": 1793309522.592548,
+    "ast_hash": "050d85dceb80b75a5cf651a6f8d2a3b4",
     "semantic_hash": ""
   },
   "src/store/preciosStore.ts": {
