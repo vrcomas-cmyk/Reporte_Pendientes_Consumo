@@ -72,6 +72,23 @@ export function normalizarEncabezado(valor: unknown): string {
     .toLowerCase();
 }
 
+/** Quita filas duplicadas por las columnas indicadas (se conserva la primera). Si falta alguna columna, o la fila
+ * trae todas las llaves vacías, no se toca (no se pueden comparar). */
+export function quitarDuplicadosPorColumnas(columnas: string[], rows: string[][], llaves: string[]): string[][] {
+  const nombres = columnas.map(normalizarEncabezado);
+  const idx = llaves.map((l) => nombres.indexOf(normalizarEncabezado(l)));
+  if (idx.some((i) => i === -1)) return rows;
+  const vistas = new Set<string>();
+  return rows.filter((fila) => {
+    const partes = idx.map((i) => String(fila[i] ?? '').trim());
+    if (partes.every((p) => p === '')) return true;
+    const clave = partes.join('¦');
+    if (vistas.has(clave)) return false;
+    vistas.add(clave);
+    return true;
+  });
+}
+
 /** Llave de material comparable entre libros: sin espacios ni sufijo ".0" (normalizar_ids). */
 export function claveMaterial(valor: unknown): string {
   return String(valor ?? '').trim().replace(/\.0+$/, '');

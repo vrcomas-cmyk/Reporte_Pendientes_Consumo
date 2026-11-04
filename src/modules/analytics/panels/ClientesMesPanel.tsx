@@ -79,7 +79,7 @@ export function MesClientesFiltroPanel({ panel, a, push }: { panel: Extract<Pane
         a={a}
         title={`Facturación · ${mesLabel(panel.mes)}`}
         subtitle="Clientes que facturaron ese mes, respetando los filtros activos"
-        list={panel.rows.map((r) => ({ dest: r.dest, razon: r.razon, solic: r.solic, material: r.material, cant: r.cant, imp: r.imp }))}
+        list={panel.rows.map((r) => ({ dest: r.dest, razon: r.razon, solic: r.solic, material: r.material, cant: r.cant, imp: r.imp, ...(r.gpoVdor ? { gpoVdor: r.gpoVdor } : {}) }))}
         push={push}
       />
     </>

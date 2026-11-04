@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useZonaAcceso } from '@/hooks/useZonaAcceso';
 import { useFaseFacturacion } from '@/modules/analytics/faseFacturacion';
 import { useFacFuenteStore } from '@/store/facFuenteStore';
@@ -277,6 +277,38 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
   // así que no hay pares de facturación fuera de la tabla).
   const filteredAgg = filtered;
 
+  // Con un filtro de ejecutivo (o de su gerencia / gerente / canal / oficina de ventas) la facturación de cada cliente × material se limita a las zonas filtradas:
+  // la serie de Resumen_Fac suma TODOS los vendedores del cliente × material, y sin esto la gráfica y el detalle de un mes traían ventas de otros ejecutivos.
+  const zonasFiltradas = useMemo(() => {
+    const act = quick.filter((f) => f.values.length > 0 && ['ejecutivo', 'gerenciaVentas', 'gerenteVentas', 'canalVentas', 'oficinaVentas'].includes(f.col));
+    if (!act.length) return null;
+    const ok = new Set<string>();
+    for (const z of a.enrich.ejecutivosZona) {
+      const at = a.enrich.ejecutivoAtributos(z.zona);
+      const valor: Record<string, string> = {
+        ejecutivo: a.enrich.ejecutivoNombre(z.zona), gerenciaVentas: at.gerenciaVentas || 'Sin dato', gerenteVentas: at.gerenteVentas || 'Sin dato',
+        canalVentas: at.canalVentas || 'Sin dato', oficinaVentas: at.oficinaVentas || 'Sin dato',
+      };
+      if (act.every((f) => f.values.includes(valor[f.col] ?? ''))) ok.add(z.zona);
+    }
+    return ok;
+  }, [quick, a.enrich]);
+  const rfZonas = useMemo(() => {
+    if (!a.rf || !zonasFiltradas) return null;
+    const m = new Map<string, Map<string, { mes: string; cant: number; imp: number }>>();
+    for (const r of a.rf.rows) {
+      if (!mesKey(r.mesAno) || !zonasFiltradas.has(a.enrich.zonaDeEjecutivo(r.gpoVdor))) continue;
+      const k = norm(r.destinatario) + '||' + norm(r.material);
+      let porMes = m.get(k);
+      if (!porMes) { porMes = new Map(); m.set(k, porMes); }
+      const c = porMes.get(r.mesAno) ?? { mes: r.mesAno, cant: 0, imp: 0 };
+      c.cant += r.cantidadFacturada; c.imp += r.importeFacturado;
+      porMes.set(r.mesAno, c);
+    }
+    return new Map([...m].map(([k, v]): [string, Serie] => [k, [...v.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes))]));
+  }, [a.rf, a.enrich, zonasFiltradas]);
+  const serieDe = useCallback((r: ConsumoRow): Serie => (rfZonas ? rfZonas.get(norm(r.destinatario) + '||' + norm(r.material)) ?? [] : serieFacturada(a.rf, r)), [rfZonas, a.rf]);
+
   const kpis = useMemo(() => {
     const cnt = (k: string) => filtered.filter((r) => statusOf(r).status.key === k).length;
     return { corriente: cnt('corriente'), riesgo: cnt('riesgo'), reactiva: cnt('reactiva'), nueva: cnt('nueva') };
@@ -310,7 +342,7 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
       const k = norm(r.destinatario) + '||' + norm(r.material);
       if (seen.has(k)) continue;
       seen.add(k);
-      for (const p of serieFacturada(a.rf, r)) {
+      for (const p of serieDe(r)) {
         const pk = mesKey(p.mes);
         if (!pk) continue;
         if (mesesSel) {
@@ -324,7 +356,7 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
       }
     }
     return [...bucket.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
-  }, [filteredAgg, a.rf, sinFiltros, rangoActivo, rangoLoK, rangoHiK, mesesSel]);
+  }, [filteredAgg, a.rf, sinFiltros, rangoActivo, rangoLoK, rangoHiK, mesesSel, serieDe]);
 
   // Total facturado del periodo visible: suma exacta de los mismos buckets que
   // pinta EvolChart, así el card nunca puede discrepar de la gráfica.
@@ -403,14 +435,14 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
   // currently active filters (generalizes legacy openClientesMes beyond a single material).
   const clientesDeMes = (mes: string) => {
     const seen = new Set<string>();
-    const out: { razon: string; solic: string; dest: string; material: string; cant: number; imp: number }[] = [];
+    const out: { razon: string; solic: string; dest: string; material: string; cant: number; imp: number; gpoVdor?: string }[] = [];
     for (const r of filteredAgg) {
       const k = norm(r.destinatario) + '||' + norm(r.material);
       if (seen.has(k)) continue;
       seen.add(k);
-      for (const p of serieFacturada(a.rf, r)) {
+      for (const p of serieDe(r)) {
         if (p.mes === mes && (p.cant || p.imp)) {
-          out.push({ razon: r.razonSocial, solic: r.solicitante, dest: r.destinatario, material: r.material, cant: p.cant, imp: p.imp });
+          out.push({ razon: r.razonSocial, solic: r.solicitante, dest: r.destinatario, material: r.material, cant: p.cant, imp: p.imp, gpoVdor: r.gpoVdor || pickField(r.raw, ['Gpo. Vdor.', 'Gpo.Vdor.', 'Grupo de vendedor']) });
         }
       }
     }
@@ -432,7 +464,7 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
       if (seen.has(k)) continue;
       seen.add(k);
       let sumImp = 0, sumCant = 0;
-      for (const p of serieFacturada(a.rf, r)) { const mk = mesKey(p.mes); if (mk >= lo && mk <= hi) { sumImp += p.imp; sumCant += p.cant; } }
+      for (const p of serieDe(r)) { const mk = mesKey(p.mes); if (mk >= lo && mk <= hi) { sumImp += p.imp; sumCant += p.cant; } }
       if (sumImp) {
         const m = norm(r.material);
         const o = acc.get(m) || { imp: 0, cant: 0 };
@@ -456,7 +488,7 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
         dispersion: e ? { spread: e.spread, precioMin: e.precioMin, precioMax: e.precioMax, clienteMin: e.clienteMin.razonSocial || e.clienteMin.destinatario, clienteMax: e.clienteMax.razonSocial || e.clienteMax.destinatario, nClientes: e.nClientes } : null,
       };
     });
-  }, [filteredAgg, a.rf, a.enrich, ventana, dispersionBase]);
+  }, [filteredAgg, a.rf, a.enrich, ventana, dispersionBase, serieDe]);
 
   // #6: nueva/reactiva counts for both the current AND the previous quarter, always
   // relative to today's date (mesRefQAnterior derives the previous-quarter reference

@@ -11,7 +11,7 @@
 // dato viejo se conserva hasta que un libro llega COMPLETO y con la forma esperada; una respuesta rara
 // lanza error — nunca se trata como "0 filas" (así un despliegue viejo del script no pisa datos buenos).
 // ---------------------------------------------------------------------------
-import { FUENTES_PEDIDOS, LIBROS_BASE_PEDIDOS, indexarHoja, libroSinHojas, validarHojaCruda, type HojaCruda, type LibroClave } from '@/core/pedidos';
+import { FUENTES_PEDIDOS, LIBROS_BASE_PEDIDOS, indexarHoja, libroSinHojas, quitarDuplicadosPorColumnas, validarHojaCruda, type HojaCruda, type LibroClave } from '@/core/pedidos';
 import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import { logInfo, logWarn } from '@/lib/logError';
 import type { FuentePedidosRow } from '@/repositories/db';
@@ -225,7 +225,8 @@ async function descargarLibro(libro: LibroManifiesto, avance: (recibidas: number
       nombreLibro: libro.nombre,
       ultimaModificacion: libro.ultimaModificacion,
       columnas,
-      rows: paginas.flat(),
+      // Seg. de pedidos: una misma posición de un pedido puede venir repetida en la pestaña; se queda una sola.
+      rows: libro.clave === 'pedidos' ? quitarDuplicadosPorColumnas(columnas, paginas.flat(), ['Pedido', 'Pos.']) : paginas.flat(),
       sincronizadoEn: new Date().toISOString(),
     };
   }));

@@ -1,12 +1,13 @@
 // ---------------------------------------------------------------------------
 // datosProxy.ts · El navegador no llama a los Apps Script: pide la Edge Function `datos` de Supabase (con su sesión), que valida al usuario, llama
 // al Apps Script con un token secreto y recorta la respuesta según su rol (supabase/functions/datos, docs/acceso-por-roles.md).
-// Se activa con VITE_DATOS_PROXY=on una vez desplegada la función y configurado el token en los Apps Script; hasta entonces todo sigue como antes.
+// Activo por omisión: los Apps Script exigen un token que solo conoce la función, así que una llamada directa desde el navegador ya no funciona
+// (ni para admins). `VITE_DATOS_PROXY=off` lo apaga, solo para trabajar contra un Apps Script que aún no exija token.
 // ---------------------------------------------------------------------------
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/+$/, '');
 
 /** ¿Los datos pasan por el proxy? */
-export const datosProxyActivo = (): boolean => import.meta.env.VITE_DATOS_PROXY === 'on' && !!SUPABASE_URL;
+export const datosProxyActivo = (): boolean => import.meta.env.VITE_DATOS_PROXY !== 'off' && !!SUPABASE_URL;
 
 export const DATOS_PROXY_BASE = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/datos` : '';
 
