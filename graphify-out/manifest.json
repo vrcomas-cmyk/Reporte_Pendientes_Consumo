@@ -1730,8 +1730,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/ClientesMesPanel.tsx": {
-    "mtime": 1793203960.502641,
-    "ast_hash": "b5e3910543bc7ae2639c50c198fcb254",
+    "mtime": 1793335046.599417,
+    "ast_hash": "241cee515a7d675f6a2e8571edfc1285",
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/CodigoEvolPanel.tsx": {
@@ -2050,8 +2050,8 @@
     "semantic_hash": ""
   },
   "src/modules/consumo/ConsumoPage.tsx": {
-    "mtime": 1793248207.2615159,
-    "ast_hash": "b5edda24780a3c8308a176511aa589dd",
+    "mtime": 1793335046.5845666,
+    "ast_hash": "3d4c15e442b8baeecfb23370ed26b68c",
     "semantic_hash": ""
   },
   "src/modules/consumo/columns.ts": {
@@ -2645,8 +2645,8 @@
     "semantic_hash": ""
   },
   "src/store/panelStore.ts": {
-    "mtime": 1793203960.4931805,
-    "ast_hash": "3ad514735e5a9376f489990256ba92a4",
+    "mtime": 1793335046.5911722,
+    "ast_hash": "c8b7703316b2462952b41e61e46db112",
     "semantic_hash": ""
   },
   "src/store/pedidosStore.test.ts": {
@@ -4075,8 +4075,8 @@
     "semantic_hash": ""
   },
   "src/services/datosProxy.ts": {
-    "mtime": 1793205051.0430558,
-    "ast_hash": "49c280bd40360cfa0422ccdefef40333",
+    "mtime": 1793331822.710864,
+    "ast_hash": "1609a8dc5f9cab0189a072f6228ed797",
     "semantic_hash": ""
   },
   "supabase/functions/datos/index.ts": {
@@ -4095,8 +4095,8 @@
     "semantic_hash": ""
   },
   "docs/acceso-por-roles.md": {
-    "mtime": 1793228964.6084664,
-    "ast_hash": "a8b7c52f699c65460b707486e011165f",
+    "mtime": 1793331875.416612,
+    "ast_hash": "618c17eeb200e8ca6c42c89702506439",
     "semantic_hash": ""
   },
   "supabase/migrations/0028_precios_costo_protegido.sql": {
