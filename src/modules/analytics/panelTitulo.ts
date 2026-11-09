@@ -6,6 +6,7 @@ import { mesLabel } from '@/core/resumenFac';
 export function panelTitulo(p: Panel, a: Analytics): string {
   switch (p.type) {
     case 'sugDetalle': return `Renglón BO ${a.boByKey.get(p.boKey)?.bo.materialBase ?? ''}`.trim();
+    case 'loteCandidatos': return `Candidatos ${p.material} · ${p.lote || 'lote'}`;
     case 'pedido': return `Pedido ${p.pedido}`;
     case 'evol': return `${p.kind === 'solic' ? 'Solicitante' : 'Destinatario'} ${p.key}`;
     case 'ejecutivoPedidos': return 'Pedidos del ejecutivo';

@@ -12,8 +12,13 @@ import type { Estado } from '@/core/resumenFac';
  * los filtros, `lo`/`hi` = ventana (mesKey) y `nMeses` el divisor del promedio. */
 export interface FiltroConsumo { pares: string[]; lo: number; hi: number; nMeses: number; etiqueta: string }
 
+/** Un lote concreto del inventario (material + lote + ubicación): elemento de la lista que recorre `loteCandidatos`. */
+export interface LoteRef { material: string; lote: string; centro: string; almacen: string }
+
 export type Panel =
   | { type: 'sugDetalle'; boKey: string }
+  // Candidatos a quienes ofrecer un lote (Inv con Condición → Por lote). `lista`: lotes en el orden de la tabla, para recorrerlos con ←/→.
+  | { type: 'loteCandidatos'; material: string; lote: string; centro: string; almacen: string; lista?: LoteRef[] }
   // `lista` (opcional): pedidos distintos en el orden/filtro de la tabla al
   // abrir el detalle — habilita ◀/▶ para recorrerlos sin perder ese orden
   // (ver PedidoPanel). Ausente cuando se abre desde un lugar que no tiene
