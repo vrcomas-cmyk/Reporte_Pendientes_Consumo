@@ -49,6 +49,8 @@ export interface LoteCondicion {
   /** `aaaa-mm-dd`, o `null` si la celda no es una fecha. */
   fechaCaducidad: string | null;
   fecha: Date | null;
+  /** Columna «Meses» de la hoja (meses a la caducidad que ella misma calcula; 0 si el lote no tiene fecha); `null`/ausente si la hoja no la trae. */
+  meses?: number | null;
   /** Libre utilización del lote. */
   libre: number;
   transito: number;
@@ -62,10 +64,11 @@ const isoDe = (f: Date | null): string | null => (f ? `${f.getFullYear()}-${pad(
 
 /** Regla de corta caducidad por LOTE: Libre utilización ≥ 1 y (almacén 1032 y/o vigencia ≤ 12 meses calendario,
  * igual que `_filtrar_corta_caducidad` del sugeridor). Un lote en 1030 con <12 m lo es; uno en 1032 con 30 m también. */
-export function clasificarLote(l: { libre: number; almacen: string; fecha: Date | null }, hoy: Date = new Date()): MotivoLote | null {
+export function clasificarLote(l: { libre: number; almacen: string; fecha: Date | null; meses?: number | null }, hoy: Date = new Date()): MotivoLote | null {
   if (l.libre < 1) return null;
   const limite = sumarMeses(inicioDeDia(hoy), MESES_MAX_CORTA_CADUCIDAD);
-  const porVigencia = l.fecha !== null && l.fecha.getTime() <= limite.getTime();
+  // Si la hoja trae su columna «Meses», ella manda (cuenta meses completos y pone 0 a los lotes sin fecha): así el conteo cuadra con la hoja.
+  const porVigencia = l.meses != null ? l.meses <= MESES_MAX_CORTA_CADUCIDAD : l.fecha !== null && l.fecha.getTime() <= limite.getTime();
   const porAlmacen = l.almacen === ALMACEN_CORTA_CADUCIDAD;
   if (porVigencia && porAlmacen) return 'AMBOS';
   if (porVigencia) return 'VIGENCIA';
@@ -75,6 +78,7 @@ export function clasificarLote(l: { libre: number; almacen: string; fecha: Date 
 /** Todos los lotes de la hoja "Corta caducidad", cada uno con su clasificación. Nada se descarta. */
 export function parsearLotes(h: HojaIndexada, hoy: Date = new Date()): LoteCondicion[] {
   const n = h.nombres;
+  const iMeses = n.indexOf('meses'); // solo coincidencia exacta: una columna que apenas contenga «meses» no es esta
   const [iCentro, iAlm, iLote, iFecha, iLibre, iTransito, iBloq, iTexto] = [
     indiceColumna(n, ['centro']), indiceColumna(n, ['almacen']), indiceColumna(n, ['lote']),
     indiceColumna(n, ['fecaduc/feprefercons', 'fecha caducidad', 'caducidad']), indiceColumna(n, ['libre utilizacion']),
@@ -93,6 +97,7 @@ export function parsearLotes(h: HojaIndexada, hoy: Date = new Date()): LoteCondi
       lote: String(f[iLote] ?? '').trim(),
       fechaCaducidad: isoDe(fecha),
       fecha,
+      meses: iMeses === -1 || String(f[iMeses] ?? '').trim() === '' ? null : numero(f[iMeses]),
       libre: numero(f[iLibre]),
       transito: numero(f[iTransito]),
       bloqueado: numero(f[iBloq]),
@@ -112,6 +117,14 @@ export function lotesDeCondicion(lotes: LoteCondicion[]): InvDetalleRow[] {
   return lotes
     .filter((l) => l.motivo !== null)
     .map((l) => ({ material: l.material, textoBreve: l.textoBreve, centro: l.centro, almacen: l.almacen, lote: l.lote, fechaCaducidad: l.fechaCaducidad, cantidadDisp: l.libre }));
+}
+
+/** Lotes que SÍ cumplen la regla de corta caducidad por almacén 1032 y/o vigencia ≤ 12 meses pero NO tienen Libre utilización ≥ 1 (en cero o bloqueados):
+ * `clasificarLote` los descarta, así que no cuentan en el inventario; se conservan (cantidad 0) para poder verlos y cuadrar el conteo contra la hoja. */
+export function lotesSinLibre(lotes: LoteCondicion[], hoy: Date = new Date()): InvDetalleRow[] {
+  return lotes
+    .filter((l) => l.motivo === null && l.libre < 1 && clasificarLote({ libre: 1, almacen: l.almacen, fecha: l.fecha, meses: l.meses }, hoy) !== null)
+    .map((l) => ({ material: l.material, textoBreve: l.textoBreve, centro: l.centro, almacen: l.almacen, lote: l.lote, fechaCaducidad: l.fechaCaducidad, cantidadDisp: 0 }));
 }
 
 // ---------------------------------------------------------------------------

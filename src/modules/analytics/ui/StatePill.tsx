@@ -13,6 +13,13 @@ const CLS: Record<string, string> = {
   azul: 'bg-bg-inset text-text',
   vio: 'bg-info/15 text-info',
   gris: 'bg-bg-inset text-text-muted',
+  // Rangos de caducidad (ver caducidadBucket.ts): colores sólidos y distintos entre sí.
+  cadVencido: 'bg-red-700 font-bold text-white',
+  cad90: 'bg-orange-500 text-white',
+  cad150: 'bg-yellow-400 text-yellow-950',
+  cad210: 'bg-lime-400 text-lime-950',
+  cad365: 'bg-sky-500 text-white',
+  cad365p: 'bg-violet-600 text-white',
 };
 
 /** Pill de estado con color semántico (verde/rojo/ámbar/azul/vio/gris). */

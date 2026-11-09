@@ -11,7 +11,7 @@ import { usePendienteBloqueoStore } from '@/store/pendienteBloqueoStore';
 import { applyCatalogPriceFallback } from '@/core/analysis';
 import { inventarioDesdeDisponibilidad, sugerenciasDesdeSegPedidos } from '@/core/pedidos';
 import { filasResumenDisponibilidad } from '@/core/resumenDisponibilidad';
-import { filasInvCondicion, indiceRevision, lotesDeCondicion, type DetalleLotesCondicion, type EstadosRevision, type Sustitucion, type InvAlmacenCentro } from '@/core/invCondicionLibros';
+import { filasInvCondicion, indiceRevision, lotesDeCondicion, lotesSinLibre, type DetalleLotesCondicion, type EstadosRevision, type Sustitucion, type InvAlmacenCentro } from '@/core/invCondicionLibros';
 import { hojasDeLibro, usePedidosStore } from '@/store/pedidosStore';
 import { buildAbc, buildAbcPares, type AbcClass, type AbcResult } from '@/core/abc';
 import { estadosConsumoAsync, type IndiceEstados } from '@/core/consumoEstados';
@@ -45,6 +45,9 @@ export interface Analytics {
   revisionLibros: Map<string, string>;
   /** Lotes clasificados como corta caducidad (hoja "Corta caducidad" del libro Inv_Condicion). */
   lotesLibros: InvDetalleRow[];
+  /** Lotes de la hoja Corta caducidad que cumplen almacén 1032 y/o ≤ 12 meses pero sin libre (en cero o bloqueados); `lotesHojaLibros` = todos los de la hoja. */
+  lotesSinLibreLibros: InvDetalleRow[];
+  lotesHojaLibros: number;
   /** Lotes de las condiciones que no son Corta caducidad (hoy PNC), con las columnas de su hoja, por nombre de condición. */
   detalleLotesLibros: Record<string, DetalleLotesCondicion>;
   /** Relación material → sustituto (hoja Sustituto) para ofrecer en cambio; vacía sin sincronizar. */
@@ -236,16 +239,18 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const facMensual = useMemo(() => (facMensualCam?.length ? buildFacMensual(facMensualCam) : null), [facMensualCam]);
   const condLibros = useMemo(() => {
     const hojas = Object.values(hojasSeg).filter((h) => h.libro === 'condicion' || h.libro === 'disponibilidad');
-    if (!hojas.some((h) => h.libro === 'condicion')) return { filas: [] as InvConsolidadoRow[], lotes: [] as InvDetalleRow[], detalle: {} as Record<string, DetalleLotesCondicion>, sustituciones: [] as Sustitucion[], invRevision: {} as Record<string, InvAlmacenCentro[]>, estadosRevision: new Map<string, EstadosRevision>() };
+    if (!hojas.some((h) => h.libro === 'condicion')) return { filas: [] as InvConsolidadoRow[], lotes: [] as InvDetalleRow[], sinLibre: [] as InvDetalleRow[], totalHoja: 0, detalle: {} as Record<string, DetalleLotesCondicion>, sustituciones: [] as Sustitucion[], invRevision: {} as Record<string, InvAlmacenCentro[]>, estadosRevision: new Map<string, EstadosRevision>() };
     const { filas, lotes, detalle, sustituciones, invRevision, estadosRevision } = filasInvCondicion(hojas, {
       sectorDe: (m) => enrich.matSector(m),
       grupoDe: (m) => enrich.matGrupo(m),
       precioDe: (m) => enrich.matPrecioOferta(m),
     });
-    return { filas, lotes: lotesDeCondicion(lotes), detalle, sustituciones, invRevision, estadosRevision };
+    return { filas, lotes: lotesDeCondicion(lotes), sinLibre: lotesSinLibre(lotes), totalHoja: lotes.length, detalle, sustituciones, invRevision, estadosRevision };
   }, [hojasSeg, enrich]);
   const revisionLibros = useMemo(() => indiceRevision(condLibros.filas), [condLibros.filas]);
   const lotesLibros = condLibros.lotes;
+  const lotesSinLibreLibros = condLibros.sinLibre;
+  const lotesHojaLibros = condLibros.totalHoja;
   const detalleLotesLibros = condLibros.detalle;
   const sustitucionesLibros = condLibros.sustituciones;
   const invRevisionLibros = condLibros.invRevision;
@@ -306,7 +311,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
         bo: hayLibros ? boSeg : [],
         boSeg, boPedidos: boSeg, boByKey,
         rss: hayLibros ? rssDisp : null,
-        rssDisp, invCondicionLibros, revisionLibros, lotesLibros, detalleLotesLibros, sustitucionesLibros, invRevisionLibros, estadosRevisionLibros, facturacion, facturacionCalculando, facturacionProgreso: facProgreso, facturacionError: facError, facMensual, facMensualCam, enrich,
+        rssDisp, invCondicionLibros, revisionLibros, lotesLibros, lotesSinLibreLibros, lotesHojaLibros, detalleLotesLibros, sustitucionesLibros, invRevisionLibros, estadosRevisionLibros, facturacion, facturacionCalculando, facturacionProgreso: facProgreso, facturacionError: facError, facMensual, facMensualCam, enrich,
         invCondicion: hayLibros ? invCondicionLibros : [], invConsolidadoCatalog, preciosAutorizados, lotes: hayLibros ? lotesLibros : [],
         curmes: hayLibros ? facturacion.rf?.curmes ?? '' : '',
         abc: hayLibros ? facturacion.abc : buildAbc(null),
@@ -315,10 +320,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       };
     }
     return {
-      result, rf, bo, boSeg, boPedidos, boByKey, rss, rssDisp, invCondicionLibros, revisionLibros, lotesLibros, detalleLotesLibros, sustitucionesLibros, invRevisionLibros, estadosRevisionLibros, facturacion, facturacionCalculando, facturacionProgreso: facProgreso, facturacionError: facError, facMensual, facMensualCam, enrich, invCondicion, invConsolidadoCatalog, preciosAutorizados, lotes, curmes: rf?.curmes ?? '', abc, precioDispersion,
+      result, rf, bo, boSeg, boPedidos, boByKey, rss, rssDisp, invCondicionLibros, revisionLibros, lotesLibros, lotesSinLibreLibros, lotesHojaLibros, detalleLotesLibros, sustitucionesLibros, invRevisionLibros, estadosRevisionLibros, facturacion, facturacionCalculando, facturacionProgreso: facProgreso, facturacionError: facError, facMensual, facMensualCam, enrich, invCondicion, invConsolidadoCatalog, preciosAutorizados, lotes, curmes: rf?.curmes ?? '', abc, precioDispersion,
       incrementoRows, mesesDisponibles: mesesDisp,
     };
-  }, [result, rf, bo, boSeg, boPedidos, boByKey, rss, rssDisp, invCondicionLibros, revisionLibros, lotesLibros, detalleLotesLibros, sustitucionesLibros, invRevisionLibros, estadosRevisionLibros, facturacion, facturacionCalculando, facProgreso, facError, facMensual, facMensualCam, enrich, invCondicion, invConsolidadoCatalog, preciosAutorizados, lotes, abc, precioDispersion, incrementoRows, mesesDisp, resultLibros, precioDispersionLibros]);
+  }, [result, rf, bo, boSeg, boPedidos, boByKey, rss, rssDisp, invCondicionLibros, revisionLibros, lotesLibros, lotesSinLibreLibros, lotesHojaLibros, detalleLotesLibros, sustitucionesLibros, invRevisionLibros, estadosRevisionLibros, facturacion, facturacionCalculando, facProgreso, facError, facMensual, facMensualCam, enrich, invCondicion, invConsolidadoCatalog, preciosAutorizados, lotes, abc, precioDispersion, incrementoRows, mesesDisp, resultLibros, precioDispersionLibros]);
 
   return <AnalyticsCtx.Provider value={value}>{children}</AnalyticsCtx.Provider>;
 }

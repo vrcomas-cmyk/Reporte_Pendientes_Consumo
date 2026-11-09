@@ -35,7 +35,17 @@ import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
 import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { useQuickFilters } from '@/hooks/useQuickFilters';
+import { useOfertaLotesStore } from '@/store/ofertaLotesStore';
+import { useCentrosOfertaStore } from '@/store/centrosOfertaStore';
+import { modoDeCentro } from '@/core/candidatosLote';
+import { indiceSustitutos, type RelSustituto } from '@/core/invCondicionLibros';
+import { mesKey, mesLabel } from '@/core/resumenFac';
+import { valoresConSustitutos, type CampoNum, type ConsumoMaterial, type ValoresMaterial, type ValoresSustituto } from './valoresLote';
+import { ResumenOfertaLotes } from '@/modules/analytics/panels/ResumenOfertaLotes';
 
+import { bucketCaducidad, BUCKETS_CADUCIDAD } from '@/modules/analytics/caducidadBucket';
+
+const DIAS_MES = 30.44;
 const ADMIN_KEY = 'inv_admin';
 const HIDDEN_KEY = 'inv_hidden';
 
@@ -55,6 +65,23 @@ function rowKey(material: string, condicion: string) {
   return `${norm(material)}||${norm(condicion)}`;
 }
 
+interface LoteFila extends InvDetalleRow {
+  condicion: string;
+  dias: number | null;
+  pendGeneral: number;
+  pendCentro: number;
+  /** Consumo general del material (todos los centros) y el de ESTE centro. */
+  consumo: number;
+  consumoCentro: number;
+  /** Promedio mensual y última facturación del material propio (general y del centro del lote). */
+  propio: ValoresMaterial;
+  /** Materiales sustitutos (hoja Sustituto) con su inventario. */
+  sustitutos: RelSustituto[];
+  /** Lo que aportan los sustitutos (suma y detalle por código); aparte del valor propio de las columnas. */
+  sust: ValoresMaterial & { detalle: ValoresSustituto[] };
+  candidato: boolean;
+}
+
 interface LotePorVencer extends InvDetalleRow {
   dias: number;
   demanda: number;
@@ -64,11 +91,12 @@ interface LotePorVencer extends InvDetalleRow {
 /** Filtro de periodo de "Lotes por vencer": mayor/menor que N días, o todos
  * (sin acotar) — mismo control se repite en la tarjeta inline y en el modal
  * de mayor visibilidad, ambos leyendo/escribiendo el mismo estado del padre. */
-function LotesPeriodoFiltro({ op, dias, onOpChange, onDiasChange }: {
+function LotesPeriodoFiltro({ op, dias, onOpChange, onDiasChange, unidad = 'días' }: {
   op: '' | 'gt' | 'lt';
   dias: number;
   onOpChange: (v: '' | 'gt' | 'lt') => void;
   onDiasChange: (v: number) => void;
+  unidad?: 'días' | 'meses';
 }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -89,9 +117,75 @@ function LotesPeriodoFiltro({ op, dias, onOpChange, onDiasChange }: {
             onChange={(e) => onDiasChange(Number(e.target.value) || 0)}
             className="h-7 w-16 rounded-md border border-border bg-bg-elevated px-1.5 text-xs"
           />
-          <span className="text-[11px] text-text-faint">días</span>
+          <span className="text-[11px] text-text-faint">{unidad}</span>
         </>
       )}
+    </div>
+  );
+}
+
+/** "+N" en ámbar junto al valor propio: lo que aportan los sustitutos del material (con el desglose por código al pasar el cursor). */
+function MasSustituto({ n, sust, campo }: { n: number; sust: ValoresSustituto[]; campo: CampoNum }) {
+  if (!(n > 0)) return null;
+  const lineas = sust.filter((d) => d[campo] > 0).map((d) => `${d.material} ${d.texto}: ${formatNumber(d[campo])}`).join('\n');
+  return <span className="ml-1 text-xs font-medium text-warning" title={`De sustitutos:\n${lineas}`}>+{formatNumber(n)}</span>;
+}
+
+/** Debajo del consumo: promedio mensual y última facturación del material propio y, en ámbar, de cada sustituto. `ambito` = general (todos los centros) o del centro del lote. */
+function HistorialConsumo({ propio, sust, ambito }: { propio: ValoresMaterial; sust: ValoresSustituto[]; ambito: 'general' | 'centro' }) {
+  const prom = (v: ValoresMaterial) => (ambito === 'general' ? v.promGeneral : v.promCentro);
+  const ult = (v: ValoresMaterial) => (ambito === 'general' ? v.ultGeneral : v.ultCentro);
+  const texto = (v: ValoresMaterial) => `prom ${formatNumber(prom(v))} · ${ult(v) ? mesLabel(ult(v)) : 'sin fact.'}`;
+  const conDatos = sust.filter((d) => prom(d) > 0 || ult(d));
+  return (
+    <div className="mt-0.5 space-y-px text-[11px] font-normal leading-tight">
+      <div className="text-text-faint" title="Material del lote: consumo promedio mensual (historia) y último mes con facturación.">{texto(propio)}</div>
+      {conDatos.slice(0, 3).map((d) => (
+        <div key={d.material} className="text-warning" title={`Sustituto ${d.material} ${d.texto}: consumo promedio mensual y último mes con facturación.`}>{d.material}: {texto(d)}</div>
+      ))}
+      {conDatos.length > 3 && <div className="text-warning">+{conDatos.length - 3} sustitutos más</div>}
+    </div>
+  );
+}
+
+/** Filtro por meses restantes a la caducidad: todos, mayor que, menor que o un periodo (entre X y Y), con atajos de periodos comunes. */
+function MesesRestantesFiltro({ op, desde, hasta, onOp, onDesde, onHasta }: {
+  op: '' | 'gt' | 'lt' | 'between';
+  desde: number;
+  hasta: number;
+  onOp: (v: '' | 'gt' | 'lt' | 'between') => void;
+  onDesde: (v: number) => void;
+  onHasta: (v: number) => void;
+}) {
+  const campo = (v: number, set: (n: number) => void, etiqueta: string) => (
+    <input type="number" min={0} step={1} value={v} onChange={(e) => set(Number(e.target.value) || 0)} aria-label={etiqueta} className="h-7 w-14 rounded-md border border-border bg-bg-elevated px-1.5 text-xs" />
+  );
+  const atajos: { label: string; op: 'gt' | 'between'; d: number; h: number }[] = [
+    { label: '0–3', op: 'between', d: 0, h: 3 }, { label: '3–6', op: 'between', d: 3, h: 6 },
+    { label: '6–9', op: 'between', d: 6, h: 9 }, { label: '9–12', op: 'between', d: 9, h: 12 }, { label: '> 12', op: 'gt', d: 12, h: 12 },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Select value={op} onChange={(e) => onOp(e.target.value as '' | 'gt' | 'lt' | 'between')} className="h-8 w-auto text-xs" aria-label="Tipo de filtro de meses restantes">
+        <option value="">Todos</option>
+        <option value="lt">Menor que</option>
+        <option value="gt">Mayor que</option>
+        <option value="between">Entre</option>
+      </Select>
+      {op === 'between' ? <>{campo(desde, onDesde, 'Desde (meses)')}<span className="text-[11px] text-text-faint">y</span>{campo(hasta, onHasta, 'Hasta (meses)')}</> : op ? campo(desde, onDesde, 'Meses') : null}
+      {op && <span className="text-[11px] text-text-faint">meses</span>}
+      <span className="ml-1 flex items-center gap-1" role="group" aria-label="Periodos rápidos">
+        {atajos.map((x) => {
+          const activo = op === x.op && desde === x.d && (x.op !== 'between' || hasta === x.h);
+          return (
+            <button
+              key={x.label} type="button" aria-pressed={activo}
+              onClick={() => { if (activo) { onOp(''); return; } onOp(x.op); onDesde(x.d); onHasta(x.h); }}
+              className={cn('rounded-full border px-2 py-0.5 text-[11px] font-medium tabular-nums', activo ? 'border-accent bg-accent-soft text-accent' : 'border-border text-text-muted hover:border-accent/50')}
+            >{x.label} m</button>
+          );
+        })}
+      </span>
     </div>
   );
 }
@@ -227,17 +321,28 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   // cruzar contra los lotes por vencer y priorizar los que sí tienen demanda
   // en vez de ofrecerlos al azar.
   const consumoPorMaterial = useMemo(() => {
-    const m = new Map<string, { total: number; clientes: Map<string, { razon: string; destinatario: string; consumo: number }> }>();
+    type Agg = ConsumoMaterial & { clientes: Map<string, { razon: string; destinatario: string; consumo: number }> };
+    const m = new Map<string, Agg>();
+    const mas = (x: string, y: string) => (mesKey(y) > mesKey(x) ? y : x);
     (a.result?.consumo ?? []).forEach((r) => {
-      if (!(r.consumoActual > 0)) return;
       const key = norm(r.material);
+      const c = norm(r.centro);
       let o = m.get(key);
-      if (!o) { o = { total: 0, clientes: new Map() }; m.set(key, o); }
+      if (!o) { o = { total: 0, porCentro: new Map(), prom: 0, promPorCentro: new Map(), ultMes: '', ultPorCentro: new Map(), clientes: new Map() }; m.set(key, o); }
+      // Promedio mensual y última facturación cuentan TODAS las filas (también las sin consumo en el mes en curso).
+      o.prom += r.consumoPromedioMensual || 0;
+      o.promPorCentro.set(c, (o.promPorCentro.get(c) ?? 0) + (r.consumoPromedioMensual || 0));
+      if (r.ultimoMesFacturacion) {
+        o.ultMes = mas(o.ultMes, r.ultimoMesFacturacion);
+        o.ultPorCentro.set(c, mas(o.ultPorCentro.get(c) ?? '', r.ultimoMesFacturacion));
+      }
+      if (!(r.consumoActual > 0)) return;
       o.total += r.consumoActual;
+      o.porCentro.set(c, (o.porCentro.get(c) ?? 0) + r.consumoActual);
       const ck = norm(r.destinatario);
-      const c = o.clientes.get(ck) || { razon: r.razonSocial, destinatario: r.destinatario, consumo: 0 };
-      c.consumo += r.consumoActual;
-      o.clientes.set(ck, c);
+      const cl = o.clientes.get(ck) || { razon: r.razonSocial, destinatario: r.destinatario, consumo: 0 };
+      cl.consumo += r.consumoActual;
+      o.clientes.set(ck, cl);
     });
     return m;
   }, [a.result]);
@@ -248,6 +353,13 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   const [lotesDias, setLotesDias] = usePersistedState(`${ns}.lotesDias`, 90);
   const [lotesColapsado, setLotesColapsado] = usePersistedState(`${ns}.lotesColapsado`, false);
   const [lotesModalOpen, setLotesModalOpen] = useState(false);
+  const [vista, setVista] = usePersistedState<'material' | 'lote'>(`${ns}.vista`, 'material');
+  const [soloCand, setSoloCand] = usePersistedState(`${ns}.soloCand`, false);
+  // Filtros propios de la vista Por lote (independientes de «Lotes por vencer»): por omisión, TODOS los lotes, también los sin disponible.
+  const [loteOp, setLoteOp] = usePersistedState<'' | 'gt' | 'lt' | 'between'>(`${ns}.loteOp`, '');
+  const [loteMeses, setLoteMeses] = usePersistedState(`${ns}.loteMeses`, 3);
+  const [loteMesesHasta, setLoteMesesHasta] = usePersistedState(`${ns}.loteMesesHasta`, 12);
+  const [ocultarSinDisp, setOcultarSinDisp] = usePersistedState(`${ns}.loteOcultarSinDisp`, false);
 
   const lotesPorVencer = useMemo(() => {
     const now = new Date(); now.setHours(0, 0, 0, 0);
@@ -388,6 +500,81 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
     + visibleCenters.length
     + (colVis.isVisible('invsuma') ? 1 : 0) + (colVis.isVisible('pendsuma') ? 1 : 0) + (colVis.isVisible('importe') ? 1 : 0);
 
+  // Vista "Por lote": un renglón por lote (con caducidad) de los materiales que pasan los filtros, con el pendiente general
+  // y el consumo del material al lado para detectar candidatos a ofertar.
+  const idxSust = useMemo(() => (libros ? indiceSustitutos(a.sustitucionesLibros) : new Map<string, RelSustituto[]>()), [libros, a.sustitucionesLibros]);
+  const { filas: filasLote, sinRenglon: lotesSinRenglon } = useMemo(() => {
+    const condPorMat = new Map<string, Set<string>>();
+    for (const r of filtered) {
+      const k = norm(r.material);
+      if (!condPorMat.has(k)) condPorMat.set(k, new Set());
+      if (r.condicion) condPorMat.get(k)!.add(r.condicion);
+    }
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const out: LoteFila[] = [];
+    let sinRenglon = 0;
+    // Con los filtros de renglón apagados, un lote cuyo material no tiene renglón (todos sus lotes están en cero/bloqueados) también se muestra.
+    const sinFiltrosDeRenglon = !cond && !sector && !gerente && !quick.length && !pendFiltro && !invFiltro;
+    const base = libros && !ocultarSinDisp ? [...lotes, ...a.lotesSinLibreLibros] : lotes;
+    for (const l of base) {
+      const k = norm(l.material);
+      if (!condPorMat.has(k)) {
+        const pasa = sinFiltrosDeRenglon && l.cantidadDisp <= 0 && matchesCodes(pasteCodes, l.material) && (!qd || matchesQuery(qd, `${l.material} ${l.textoBreve}`));
+        if (!pasa) { sinRenglon++; continue; }
+      }
+      if (ocultarSinDisp && !(l.cantidadDisp > 0)) continue;
+      if (centro && norm(l.centro) !== centro) continue;
+      let dias: number | null = null;
+      if (l.fechaCaducidad) {
+        const d = new Date(l.fechaCaducidad);
+        if (!Number.isNaN(d.getTime())) { d.setHours(0, 0, 0, 0); dias = Math.round((d.getTime() - hoy.getTime()) / 86400000); }
+      }
+      if (loteOp && dias !== null) {
+        const m = dias / DIAS_MES;
+        if (loteOp === 'gt' && !(m > loteMeses)) continue;
+        if (loteOp === 'lt' && !(m < loteMeses)) continue;
+        if (loteOp === 'between' && !(m >= Math.min(loteMeses, loteMesesHasta) && m <= Math.max(loteMeses, loteMesesHasta))) continue;
+      } else if (loteOp && dias === null) continue;
+      const v = valoresConSustitutos(l.material, norm(l.centro), idxSust.get(l.material) ?? [], {
+        pendDe: (mk, c) => {
+          const mo = rss?.mats.get(mk);
+          if (!mo) return 0;
+          return c ? pendSegunAmbito(mo.centros.get(c), '', 'centro') : CENTERS.reduce((sum, cc) => sum + pendSegunAmbito(mo.centros.get(cc), '', 'centro'), 0);
+        },
+        consumoDe: (mk) => consumoPorMaterial.get(mk),
+      });
+      const { pendGeneral, pendCentro, consumo, consumoCentro } = v.propio;
+      // «Candidato» también cuando el consumo o el pendiente está en el sustituto.
+      const candidato = pendGeneral > 0 || consumo > 0 || v.sust.pendGeneral > 0 || v.sust.consumo > 0;
+      if (soloCand && !candidato) continue;
+      out.push({ ...l, condicion: [...(condPorMat.get(k) ?? [])].join(', ') || (l.cantidadDisp > 0 ? '' : 'Corta caducidad (sin libre)'), dias, pendGeneral, pendCentro, consumo, consumoCentro, sustitutos: idxSust.get(l.material) ?? [], propio: v.propio, sust: v.sust, candidato });
+    }
+    return { filas: out, sinRenglon };
+  }, [filtered, lotes, a.lotesSinLibreLibros, libros, centro, rss, consumoPorMaterial, idxSust, loteOp, loteMeses, loteMesesHasta, soloCand, ocultarSinDisp, cond, sector, gerente, quick, pendFiltro, invFiltro, pasteCodes, qd]);
+  const accLote = useMemo(() => ({
+    material: (l: LoteFila) => l.material,
+    condicion: (l: LoteFila) => l.condicion,
+    centro: (l: LoteFila) => l.centro,
+    lote: (l: LoteFila) => l.lote,
+    disp: (l: LoteFila) => l.cantidadDisp,
+    dias: (l: LoteFila) => l.dias ?? 99999,
+    pendGeneral: (l: LoteFila) => l.pendGeneral,
+    pendCentro: (l: LoteFila) => l.pendCentro,
+    consumo: (l: LoteFila) => l.consumo,
+    consumoCentro: (l: LoteFila) => l.consumoCentro,
+    sustitutos: (l: LoteFila) => l.sustitutos.length,
+  }), []);
+  const lotesSort = useSort(filasLote, accLote);
+  const lotesVirt = useRowVirtualizer(lotesSort.sorted.length);
+  // Abre el panel de candidatos del lote; `lista` = los lotes en el orden de la tabla, para recorrerlos con ←/→.
+  const abrirCandidatos = (l: LoteFila) => open({
+    type: 'loteCandidatos', material: l.material, lote: l.lote, centro: l.centro, almacen: l.almacen,
+    lista: lotesSort.sorted.map((x) => ({ material: x.material, lote: x.lote, centro: x.centro, almacen: x.almacen })),
+  });
+  const modosCentro = useCentrosOfertaStore((s) => s.modos);
+  const nOfertas = Object.keys(useOfertaLotesStore((s) => s.items)).length;
+  const [resumenOfertaAbierto, setResumenOfertaAbierto] = useState(false);
+
   // Fixed pixel widths for the sticky (frozen) columns — the previous
   // hardcoded `left-[Npx]` offsets assumed specific column widths, but those
   // columns auto-sized to content (and the shared <Table> colgroup only ever
@@ -428,9 +615,18 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
     // solo se exportan los de 1001).
     const mats = new Set(filtered.map((r) => norm(r.material)));
     const lotesX = buildLotesSheet(lotes, (l) => mats.has(norm(l.material)) && (!centro || norm(l.centro) === centro));
+    const lotesCand = lotesSort.sorted.map((l) => ({
+      Material: l.material, Descripción: l.textoBreve, Condición: l.condicion, Centro: l.centro, Almacén: l.almacen, Lote: l.lote,
+      Disponible: l.cantidadDisp, Caducidad: formatFechaCaducidad(l.fechaCaducidad), 'Meses a caducidad': l.dias === null ? '' : Math.round((l.dias / DIAS_MES) * 10) / 10,
+      'Pend. general': l.pendGeneral, 'Pend. centro': l.pendCentro, 'Consumo general': l.consumo, 'Consumo centro': l.consumoCentro, Sustitutos: l.sustitutos.map((x) => x.material).join(', '),
+      'Prom. mensual general': l.propio.promGeneral, 'Últ. facturación general': l.propio.ultGeneral, 'Prom. mensual centro': l.propio.promCentro, 'Últ. facturación centro': l.propio.ultCentro,
+      'Prom. mensual general sustituto': l.sust.promGeneral, 'Últ. facturación general sustituto': l.sust.ultGeneral, 'Prom. mensual centro sustituto': l.sust.promCentro, 'Últ. facturación centro sustituto': l.sust.ultCentro,
+      'Pend. general sustituto': l.sust.pendGeneral, 'Pend. centro sustituto': l.sust.pendCentro, 'Consumo general sustituto': l.sust.consumo, 'Consumo centro sustituto': l.sust.consumoCentro,
+    }));
     void exportXlsxMultiSheet(`${libros ? 'inv_con_condicion' : 'inventario'}_${stamp()}.xlsx`, [
       { name: 'Inventario', rows: rowsX },
       { name: 'Detalle Lotes', rows: lotesX },
+      ...(vista === 'lote' ? [{ name: 'Lotes y candidatos', rows: lotesCand }] : []),
     ]);
   };
 
@@ -441,6 +637,15 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
         subtitle={`${formatNumber(filtered.length)} renglones · clic en material = detalle del material · clic en cantidad de un centro = detalle de ese centro`}
         actions={(
           <>
+            <SegmentedControl
+              ariaLabel="Vista de la tabla"
+              value={vista}
+              onChange={setVista}
+              options={[
+                { value: 'material', label: 'Por material', title: 'Un renglón por material × condición, con el inventario por centro.' },
+                { value: 'lote', label: 'Por lote', title: 'Un renglón por lote con su caducidad, el pendiente general y el consumo del material (candidatos a ofertar).' },
+              ]}
+            />
             <SegmentedControl
               ariaLabel="Alcance del pendiente"
               value={ambitoPend}
@@ -465,7 +670,7 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
         metricas={[
           { etiqueta: 'Materiales', valor: formatNumber(kpis.mats) },
           { etiqueta: 'Stock', valor: formatNumber(kpis.stock) },
-          ...(hayLotesConCaducidad ? [{ etiqueta: 'Lotes por vencer', valor: formatNumber(lotesPorVencer.length), tono: lotesPorVencer.length > 0 ? ('warning' as const) : undefined, title: `Lotes por vencer (${lotesLabel}) con demanda activa` }] : []),
+          ...(hayLotesConCaducidad && vista !== 'lote' ? [{ etiqueta: 'Lotes por vencer', valor: formatNumber(lotesPorVencer.length), tono: lotesPorVencer.length > 0 ? ('warning' as const) : undefined, title: `Lotes por vencer (${lotesLabel}) con demanda activa` }] : []),
         ]}
         distribucion={{
           titulo: kpis.imp > 0 ? 'Importe por condición (clic = filtrar)' : 'Stock por condición (clic = filtrar)',
@@ -479,7 +684,7 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
       <Ranking title="Top 10 por Importe $" items={kpis.rk} money wide onRow={(m) => open({ type: 'material', material: m })} className="w-full" />
       </ResumenColapsable>
 
-      {hayLotesConCaducidad && (
+      {vista !== 'lote' && hayLotesConCaducidad && (
         <Card className="shrink-0 p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <button
@@ -551,7 +756,84 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
         </Button>
       </FilterBar>
 
-      <Card className={`${ALTURA_TABLA} shrink-0 overflow-hidden`}>
+      {vista === 'lote' && (
+        <Card className={`${ALTURA_TABLA} shrink-0 overflow-hidden`}>
+          <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2">
+            <span className="text-xs text-text-muted">Meses restantes:</span>
+            <MesesRestantesFiltro op={loteOp} desde={loteMeses} hasta={loteMesesHasta} onOp={setLoteOp} onDesde={setLoteMeses} onHasta={setLoteMesesHasta} />
+            <Button variant={ocultarSinDisp ? 'default' : 'outline'} size="sm" onClick={() => setOcultarSinDisp((v) => !v)} title="Oculta los lotes sin disponible (bloqueados o en cero)">Solo con disponible</Button>
+            <Button variant={soloCand ? 'default' : 'outline'} size="sm" onClick={() => setSoloCand((v) => !v)} title="Solo lotes cuyo material tiene pendiente o consumo">Solo candidatos</Button>
+            <Button variant={nOfertas ? 'default' : 'outline'} size="sm" onClick={() => setResumenOfertaAbierto(true)} title="Lotes seleccionados para ofertar a clientes">Resumen de ofertas ({nOfertas})</Button>
+            <span className="flex items-center gap-1" aria-label="Leyenda de caducidad">{BUCKETS_CADUCIDAD.map((b) => <StatePill key={b.key} label={b.rango} cls={b.cls} />)}</span>
+            <span className="text-xs text-text-faint">{formatNumber(lotesSort.sorted.length)} lotes{libros ? ` · hoja: ${formatNumber(a.lotesHojaLibros)} lotes (${formatNumber(lotes.length)} con libre · ${formatNumber(a.lotesSinLibreLibros.length)} sin libre)` : ''}{lotesSinRenglon > 0 ? ` · ${formatNumber(lotesSinRenglon)} fuera por los filtros de arriba` : ''} · clic en un lote = candidatos a ofertar · clic derecho = Solicitar / Copiar</span>
+          </div>
+          <div ref={lotesVirt.scrollRef} className="h-[calc(100%-45px)] overflow-auto">
+            <Table className={zoom.className} wrapperClassName="overflow-visible">
+              <TableHeader>
+                <TableRow>
+                  <SortableTableHead sortKey="material" activeKey={lotesSort.sortKey} dir={lotesSort.dir} onSort={lotesSort.toggleSort}>Material</SortableTableHead>
+                  <SortableTableHead sortKey="condicion" activeKey={lotesSort.sortKey} dir={lotesSort.dir} onSort={lotesSort.toggleSort}>Condición</SortableTableHead>
+                  <SortableTableHead sortKey="sustitutos" activeKey={lotesSort.sortKey} dir={lotesSort.dir} onSort={lotesSort.toggleSort} title="Materiales sustitutos de este código (hoja Sustituto). Sus clientes también son candidatos: los verás en el detalle del lote.">Sustituto</SortableTableHead>
+                  <SortableTableHead sortKey="centro" activeKey={lotesSort.sortKey} dir={lotesSort.dir} onSort={lotesSort.toggleSort}>Centro / Alm.</SortableTableHead>
+                  <TableHead title="A quién se puede ofrecer según el centro del lote: Local = solo clientes de ese centro; Compartido = varios centros. Se edita en el panel de candidatos.">Se ofrece a</TableHead>
+                  <SortableTableHead sortKey="lote" activeKey={lotesSort.sortKey} dir={lotesSort.dir} onSort={lotesSort.toggleSort}>Lote</SortableTableHead>
+                  <SortableTableHead sortKey="disp" activeKey={lotesSort.sortKey} dir={lotesSort.dir} onSort={lotesSort.toggleSort} className="text-right">Disp.</SortableTableHead>
+                  <SortableTableHead sortKey="dias" activeKey={lotesSort.sortKey} dir={lotesSort.dir} onSort={lotesSort.toggleSort}>Vence</SortableTableHead>
+                  <SortableTableHead sortKey="pendGeneral" activeKey={lotesSort.sortKey} dir={lotesSort.dir} onSort={lotesSort.toggleSort} className="text-right" title="Pendiente del material sumado en todos los centros y almacenes. El «+N» en ámbar es lo que suman sus sustitutos (aparte).">Pend. general</SortableTableHead>
+                  <SortableTableHead sortKey="pendCentro" activeKey={lotesSort.sortKey} dir={lotesSort.dir} onSort={lotesSort.toggleSort} className="text-right" title="Pendiente del material en el centro del lote (todos los almacenes). El «+N» en ámbar es lo de sus sustitutos en ese centro.">Pend. centro</SortableTableHead>
+                  <SortableTableHead sortKey="consumo" activeKey={lotesSort.sortKey} dir={lotesSort.dir} onSort={lotesSort.toggleSort} className="text-right" title={`Piezas facturadas del material en el mes en curso (${mesLabel(a.curmes)}), sumando todos los centros. El «+N» en ámbar es lo que suman sus sustitutos (aparte).`}>Consumo general</SortableTableHead>
+                  <SortableTableHead sortKey="consumoCentro" activeKey={lotesSort.sortKey} dir={lotesSort.dir} onSort={lotesSort.toggleSort} className="text-right" title={`Piezas facturadas del material en el mes en curso (${mesLabel(a.curmes)}) en el centro de este lote. El «+N» en ámbar es lo de sus sustitutos en ese centro.`}>Consumo centro</SortableTableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lotesVirt.paddingTop > 0 && <tr><td style={{ height: lotesVirt.paddingTop }} colSpan={12} /></tr>}
+                {lotesVirt.items.map((vi) => {
+                  const l = lotesSort.sorted[vi.index];
+                  return (
+                    <SolicitarContextMenu
+                      key={vi.index}
+                      onSolicitar={() => solicitar.abrir(buildFromInvDetalle(l, a.enrich))}
+                      solicitado={invSolicitadas.has(norm(l.material))}
+                      label={`${l.material} · Lote ${l.lote || '—'}`}
+                      onVerDetalle={() => open({ type: 'material', material: l.material })}
+                      copyItems={[{ label: 'Material', value: l.material }, { label: 'Lote', value: l.lote }, { label: 'Centro', value: l.centro }, { label: 'Almacén', value: l.almacen }]}
+                    >
+                      <TableRow tabIndex={0} className={cn('cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent', !(l.cantidadDisp > 0) && 'opacity-50')} onClick={() => abrirCandidatos(l)} onKeyDown={(e) => { if (e.key === 'Enter') abrirCandidatos(l); }} title={!(l.cantidadDisp > 0) ? 'Sin disponible (bloqueado o en cero)' : undefined}>
+                        <TableCell><Chip onClick={() => open({ type: 'material', material: l.material })}>{l.material}</Chip><div className="max-w-56 truncate text-[11px] text-text-faint">{l.textoBreve}</div></TableCell>
+                        <TableCell className="text-xs">{l.condicion || '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs">
+                          {l.sustitutos.length === 0 ? <span className="text-text-faint">—</span> : (
+                            <span className="flex items-center gap-1" title={l.sustitutos.map((x) => `${x.material} ${x.texto} · inv. ${formatNumber(x.invTotal)}`).join('\n')}>
+                              <Chip onClick={() => open({ type: 'material', material: l.sustitutos[0].material })}>{l.sustitutos[0].material}</Chip>
+                              {l.sustitutos.length > 1 && <span className="text-text-faint">+{l.sustitutos.length - 1}</span>}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs">{l.centro} · {l.almacen || '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs">{modoDeCentro(l.centro, modosCentro) === 'local' ? <StatePill label={`Solo centro ${l.centro}`} cls="amb" /> : <StatePill label="Varios centros" cls="vio" />}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs">{l.lote || '—'}</TableCell>
+                        <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs">
+                          {l.dias === null ? <span className="text-text-faint">—</span> : <StatePill label={l.dias < 0 ? 'vencido' : `${(l.dias / DIAS_MES).toFixed(1)} meses`} cls={bucketCaducidad(l.dias).cls} />}
+                          <div className="text-[11px] text-text-faint">{formatFechaCaducidad(l.fechaCaducidad)}</div>
+                        </TableCell>
+                        <TableCell className={`text-right font-medium ${l.pendGeneral > 0 ? 'text-danger' : 'text-text-faint'}`}>{formatNumber(l.pendGeneral)}<MasSustituto n={l.sust.pendGeneral} sust={l.sust.detalle} campo="pendGeneral" /></TableCell>
+                        <TableCell className={`text-right ${l.pendCentro > 0 ? 'text-danger' : 'text-text-faint'}`}>{formatNumber(l.pendCentro)}<MasSustituto n={l.sust.pendCentro} sust={l.sust.detalle} campo="pendCentro" /></TableCell>
+                        <TableCell className={`text-right ${l.consumo > 0 ? '' : 'text-text-faint'}`}>{formatNumber(l.consumo)}<MasSustituto n={l.sust.consumo} sust={l.sust.detalle} campo="consumo" /><HistorialConsumo propio={l.propio} sust={l.sust.detalle} ambito="general" /></TableCell>
+                        <TableCell className={`text-right ${l.consumoCentro > 0 ? 'font-medium' : 'text-text-faint'}`}>{formatNumber(l.consumoCentro)}<MasSustituto n={l.sust.consumoCentro} sust={l.sust.detalle} campo="consumoCentro" /><HistorialConsumo propio={l.propio} sust={l.sust.detalle} ambito="centro" /></TableCell>
+                      </TableRow>
+                    </SolicitarContextMenu>
+                  );
+                })}
+                {lotesVirt.paddingBottom > 0 && <tr><td style={{ height: lotesVirt.paddingBottom }} colSpan={12} /></tr>}
+              </TableBody>
+            </Table>
+            {lotesSort.sorted.length === 0 && <p className="p-4 text-sm text-text-muted">Sin lotes con los filtros actuales.</p>}
+          </div>
+        </Card>
+      )}
+
+      <Card className={`${ALTURA_TABLA} shrink-0 overflow-hidden ${vista === 'lote' ? 'hidden' : ''}`}>
         <div ref={scrollRef} className="h-full overflow-auto">
           <Table className={zoom.className} wrapperClassName="overflow-visible">
             <TableHeader>
@@ -673,6 +955,7 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
       </Card>
 
       <SolicitarDialog draft={solicitar.dialogDraft} loteOptions={solicitar.dialogLoteOptions} onClose={solicitar.cerrar} />
+      <ResumenOfertaLotes open={resumenOfertaAbierto} onOpenChange={setResumenOfertaAbierto} />
     </ReportPage>
   );
 }

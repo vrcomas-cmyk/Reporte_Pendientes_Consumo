@@ -26,6 +26,7 @@ import { MaterialTotalesPanel } from './panels/MaterialTotalesPanel';
 import { ClienteDetallePanel } from './panels/ClienteDetallePanel';
 import { EjecutivoPedidosPanel } from './panels/EjecutivoPedidosPanel';
 import { LotePanel } from './panels/LotePanel';
+import { LoteCandidatosPanel } from './panels/LoteCandidatosPanel';
 import { panelTitulo } from './panelTitulo';
 
 // Los paneles de Oportunidades se cargan con lazy para no arrastrar el módulo
@@ -54,6 +55,7 @@ const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
   invCondCelda: InvCondCeldaPanel,
   materialTotales: MaterialTotalesPanel,
   lote: LotePanel,
+  loteCandidatos: LoteCandidatosPanel,
   clienteDetalle: ClienteDetallePanel,
   materialHub: MaterialHubPanel,
   oportunidad: OportunidadPanel,
@@ -73,7 +75,7 @@ const WIDE = new Set<Panel['type']>([
 // `pedido` es el único panel de 3 columnas (detalle + inventario + BO) — con
 // el ancho de WIDE (7xl) cada columna queda apretada, así que usa un ancho
 // mayor propio en vez de compartir el set de arriba.
-const EXTRA_WIDE = new Set<Panel['type']>(['pedido', 'celda', 'invCondCelda', 'material', 'clienteDetalle', 'clientesMes', 'mesClientesFiltro']);
+const EXTRA_WIDE = new Set<Panel['type']>(['loteCandidatos', 'pedido', 'celda', 'invCondCelda', 'material', 'clienteDetalle', 'clientesMes', 'mesClientesFiltro']);
 
 /** Dispatcher de paneles: dado el discrim `panel.type` delega al componente de la rama correspondiente en `./panels/`. */
 function PanelBody({ panel, a, push }: { panel: Panel; a: Analytics; push: (p: Panel) => void }) {
