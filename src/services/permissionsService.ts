@@ -31,7 +31,7 @@ export async function loadEffectivePermissions(email: string): Promise<Effective
     const { data: permRows, error: permErr } = await supabase
       .from('degasa_permissions')
       .select('subject_type, subject_id, module_key, scope, item_key, allowed')
-      .or(`and(subject_type.eq.role,subject_id.eq.${role.id}),and(subject_type.eq.user,subject_id.eq.${email})`);
+      .or(`and(subject_type.eq.role,subject_id.eq.${role.id}),and(subject_type.eq.user,subject_id.eq."${email.replace(/["\\]/g, '')}")`);
     if (permErr) throw permErr;
 
     const rows: PermissionRow[] = (permRows ?? []).map((r) => ({
@@ -47,7 +47,9 @@ export async function loadEffectivePermissions(email: string): Promise<Effective
 
     return computeEffectivePermissions(role, rows, datos);
   } catch {
-    return computeEffectivePermissions(null, []);
+    // Fail-closed: si no se pudieron leer los permisos (Supabase saturado), NO
+    // se concede admin. Rol sin permisos → ModuleGuard no muestra módulos.
+    return computeEffectivePermissions({ id: '__sin_acceso__', name: 'Sin acceso (error al cargar)', isAdmin: false }, []);
   }
 }
 
@@ -167,12 +169,22 @@ export async function listConnectors(): Promise<ConnectorRow[]> {
   return (data ?? []).map((c) => ({ key: c.key, label: c.label, value: c.value, updatedAt: c.updated_at }));
 }
 
-export async function setConnectorValue(key: string, value: string, updatedBy: string): Promise<void> {
-  const { error } = await supabase
+/** Guarda el valor de un conector / ajuste. Antes solo hacía `update`: si la fila no existía (migración sin aplicar) o la política de seguridad la ocultaba,
+ * el `update` tocaba 0 filas SIN dar error y la pantalla decía «Guardado» aunque no se hubiera guardado nada. Ahora comprueba cuántas filas tocó; si fueron 0, la
+ * crea (`label` es el nombre que verá el admin) y, si tampoco puede (p. ej. no es administrador), lanza el error para que se vea. */
+export async function setConnectorValue(key: string, value: string, updatedBy: string, label?: string): Promise<void> {
+  const ahora = new Date().toISOString();
+  const { data, error } = await supabase
     .from('degasa_connectors')
-    .update({ value, updated_at: new Date().toISOString(), updated_by: updatedBy })
-    .eq('key', key);
+    .update({ value, updated_at: ahora, updated_by: updatedBy })
+    .eq('key', key)
+    .select('key');
   if (error) throw error;
+  if (data && data.length > 0) return;
+  const { error: errInsert } = await supabase
+    .from('degasa_connectors')
+    .insert({ key, label: label ?? key, value, updated_at: ahora, updated_by: updatedBy });
+  if (errInsert) throw new Error(`No se pudo guardar «${key}»: ${errInsert.message}`);
 }
 
 /** Registra en la base los módulos del menú que aún no existen (solo admin por RLS). No pisa etiqueta ni orden de los que ya están. */

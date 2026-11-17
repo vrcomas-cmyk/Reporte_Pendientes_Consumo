@@ -153,7 +153,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
       <motion.aside
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        animate={{ width: expanded ? 232 : 68 }}
+        animate={{ width: expanded ? 264 : 68 }}
         transition={{ type: 'spring', stiffness: 300, damping: 32 }}
         className={cn(
           'h-full shrink-0 flex-col border-r border-border bg-bg-elevated',
@@ -185,10 +185,13 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
         <nav className="flex flex-1 flex-col gap-3 overflow-y-auto px-2 pt-2">
           {visibleGroups.map((group) => (
             <div key={group.label} className="flex flex-col gap-0.5">
-              {expanded && (
+              {expanded ? (
                 <span className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-text-faint">
                   {group.label}
                 </span>
+              ) : (
+                // Colapsado no hay etiqueta de grupo: un filete separa las secciones para que el riel no sea un muro de iconos.
+                <span className="mx-2 mb-1 border-t border-border" aria-hidden />
               )}
               {group.items.map((item) => (
                 <NavLink
@@ -196,10 +199,12 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                   to={item.to}
                   end={item.end}
                   onClick={() => onCloseMobile?.()}
+                  title={item.label}
                   className={({ isActive }) =>
                     cn(
-                      'group relative flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors',
-                      isActive ? 'text-text' : 'text-text-muted hover:text-text hover:bg-bg-inset',
+                      'group relative flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors duration-150',
+                      !expanded && 'justify-center',
+                      isActive ? 'bg-accent-soft font-medium text-text' : 'text-text-muted hover:text-text hover:bg-bg-inset',
                     )
                   }
                 >
@@ -223,11 +228,13 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
           {perms.isAdmin && (
             <NavLink
               to={ADMIN_NAV_ITEM.to}
+              title={expanded ? undefined : ADMIN_NAV_ITEM.label}
               onClick={() => onCloseMobile?.()}
               className={({ isActive }) =>
                 cn(
-                  'group relative mt-1 flex items-center gap-3 rounded-md border-t border-border px-2.5 pt-3 pb-2 text-sm transition-colors',
-                  isActive ? 'text-text' : 'text-text-muted hover:text-text hover:bg-bg-inset',
+                  'group relative mt-1 flex items-center gap-3 rounded-md border-t border-border px-2.5 pt-3 pb-2 text-sm transition-colors duration-150',
+                  !expanded && 'justify-center',
+                  isActive ? 'bg-accent-soft font-medium text-text' : 'text-text-muted hover:text-text hover:bg-bg-inset',
                 )
               }
             >

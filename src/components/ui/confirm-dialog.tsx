@@ -30,7 +30,7 @@ export function ConfirmDialog({
         <AlertDialogPrimitive.Content
           className={cn(
             'fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-sm max-h-[85vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-bg-elevated p-6 shadow-lg',
-            'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+            'ui-dialog',
           )}
         >
           <AlertDialogPrimitive.Title className="font-display text-lg font-semibold">{title}</AlertDialogPrimitive.Title>

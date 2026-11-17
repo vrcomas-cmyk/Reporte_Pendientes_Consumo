@@ -31,9 +31,9 @@ describe('clasificarLote', () => {
     expect(clasificarLote({ libre: 4, almacen: '1030', fecha: f(2029, 4, 8) }, HOY)).toBeNull();
   });
 
-  it('el límite son 12 meses CALENDARIO (el último día cuenta, el siguiente no)', () => {
-    expect(clasificarLote({ libre: 1, almacen: '1030', fecha: new Date(2027, 9, 8) }, HOY)).toBe('VIGENCIA');
-    expect(clasificarLote({ libre: 1, almacen: '1030', fecha: new Date(2027, 9, 9) }, HOY)).toBeNull();
+  it('el límite es MENOS de 365 días (364 cuenta, 365 ya no)', () => {
+    expect(clasificarLote({ libre: 1, almacen: '1030', fecha: new Date(2027, 9, 7) }, HOY)).toBe('VIGENCIA');
+    expect(clasificarLote({ libre: 1, almacen: '1030', fecha: new Date(2027, 9, 8) }, HOY)).toBeNull();
   });
 
   it('sin Libre ≥ 1 no es corta caducidad aunque esté en 1032 o venza pronto', () => {

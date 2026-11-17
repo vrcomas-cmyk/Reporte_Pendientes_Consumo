@@ -14,8 +14,8 @@ import type { FacMensualCamRow, ResumenFacRow } from './types';
 
 /** Fila agregada que entrega `fac_chunk`: [mes MM/AAAA, solicitante, razón social, destinatario, material,
  * texto, centro, almacén, gpoCte, gpoVdor, cantidad, importe]. */
-export type FilaFac = [string, string, string, string, string, string, string, string, string, string, number, number, number?, number?, string?];
-// Las tres últimas (opcionales): menor y mayor precio unitario de las LÍNEAS que se sumaron en la fila (0 = sin dato) y el día (aaaa-mm-dd) de la línea más
+export type FilaFac = [string, string, string, string, string, string, string, string, string, string, number, number, number?, number?, string?, string?, string?];
+// Las cinco últimas (opcionales): [14] día, [15] REGIÓN y [16] GERENCIA de ventas (solo el libro de ventas vs presupuesto): menor y mayor precio unitario de las LÍNEAS que se sumaron en la fila (0 = sin dato) y el día (aaaa-mm-dd) de la línea más
 // reciente ('' = sin dato). Solo las trae el Apps Script nuevo.
 
 export const COLUMNAS_FAC = ['Mes', 'Solicitante', 'Razon Social', 'Destinatario', 'Material', 'Texto Material', 'Centro', 'Almacen', 'Gpo. Cte.', 'Gpo. Vdor.', 'Cantidad', 'Importe'];
@@ -23,6 +23,23 @@ export const COLUMNAS_FAC = ['Mes', 'Solicitante', 'Razon Social', 'Destinatario
 export const COLUMNAS_FAC_PRECIOS = [...COLUMNAS_FAC, 'Precio Min', 'Precio Max'];
 /** Columnas del Apps Script más nuevo: las anteriores más el día de la línea más reciente. */
 export const COLUMNAS_FAC_FECHAS = [...COLUMNAS_FAC_PRECIOS, 'Fecha Max'];
+/** Columnas del Apps Script de ventas vs presupuesto: las anteriores más región y gerencia de ventas. */
+export const COLUMNAS_FAC_DIMS = [...COLUMNAS_FAC_FECHAS, 'Region', 'Gerencia'];
+
+/** Renglón de PRESUPUESTO (no es una venta): mes, región, gerencia, gpo. cliente, gpo. vendedor, sector, grupo de material y monto.
+ * El presupuesto se fija por ejecutivo × sector/grupo de material × grupo de cliente, no por cliente-material: por eso viaja aparte de las ventas. */
+export type PtoFila = [string, string, string, string, string, string, string, number];
+
+/** Ventas y presupuesto del mes por región / gerencia / gpo. cliente / gpo. vendedor (base de las gráficas de ventas vs presupuesto). */
+export interface VentasPtoRow {
+  mes: string;
+  region: string;
+  gerencia: string;
+  gpoCte: string;
+  gpoVdor: string;
+  ventas: number;
+  presupuesto: number;
+}
 
 /** Misma forma que `TabRows` del worker de análisis (encabezados + filas planas). */
 export interface TabFac {
@@ -42,6 +59,10 @@ export interface TabsFacturacion {
   resumenFac: TabFac;
   facMensualCam: TabFac;
   almacenesAsignados: AlmacenesAsignados;
+  /** Ventas y presupuesto por mes × región × gerencia × gpo. cliente × gpo. vendedor (vacío si los libros no traen presupuesto). */
+  ventasPto: VentasPtoRow[];
+  /** Presupuesto en DETALLE (con sector y grupo de material), unido entre libros: permite filtrarlo por ejecutivo, grupo de cliente, sector y grupo de artículo. */
+  presupuestoDet: PtoFila[];
 }
 
 /** Grupos de cliente ("Gpo. Cte." del catálogo) que fijan el almacén de una factura sin almacén. */
@@ -66,18 +87,43 @@ const redondear = (n: number): number => Math.round(n * 10_000) / 10_000;
 
 const esFilaFac = (f: unknown): f is FilaFac => Array.isArray(f) && f.length >= 12;
 
+/** Código de material sin el 0 inicial: el libro de ventas vs presupuesto trae `0511010` donde los demás reportes traen `511010`.
+ * Solo se quita UN cero y solo si el resto son dígitos (no se toca `0`, ni códigos con letras). */
+export const normalizarMaterial = (m: string): string => m.trim().replace(/^0(\d+)$/, '$1');
+
+/** Valida las filas de presupuesto de un bloque (8 campos: 7 de texto y el monto). */
+export function presupuestoDeBloque(rows: unknown): PtoFila[] {
+  if (!Array.isArray(rows)) return [];
+  return rows.filter((r): r is unknown[] => Array.isArray(r) && r.length >= 8).map((r) => [
+    String(r[0] ?? ''), String(r[1] ?? ''), String(r[2] ?? ''), String(r[3] ?? ''), String(r[4] ?? ''), String(r[5] ?? ''), String(r[6] ?? ''), Number(r[7]) || 0,
+  ] as PtoFila);
+}
+
+/** Une renglones de presupuesto con la misma clave (los 7 campos de texto) sumando el monto — para unir los bloques de un libro. */
+export function agregarPresupuesto(filas: PtoFila[]): PtoFila[] {
+  const mapa = new Map<string, PtoFila>();
+  for (const f of filas) {
+    const k = f.slice(0, 7).join('¦');
+    const p = mapa.get(k);
+    if (p) p[7] += f[7]; else mapa.set(k, [...f] as PtoFila);
+  }
+  return [...mapa.values()].map((f) => [...f.slice(0, 7), redondear(f[7])] as PtoFila);
+}
+
 /** Valida y normaliza las filas de un bloque del Apps Script (cantidades como número, textos recortados). */
 export function filasDeBloque(columnas: string[], rows: unknown[][]): FilaFac[] {
-  const conFechas = columnas.length === COLUMNAS_FAC_FECHAS.length && COLUMNAS_FAC_FECHAS.every((c, i) => c === columnas[i]);
+  const conDims = columnas.length === COLUMNAS_FAC_DIMS.length && COLUMNAS_FAC_DIMS.every((c, i) => c === columnas[i]);
+  const conFechas = conDims || (columnas.length === COLUMNAS_FAC_FECHAS.length && COLUMNAS_FAC_FECHAS.every((c, i) => c === columnas[i]));
   const conPrecios = conFechas || (columnas.length === COLUMNAS_FAC_PRECIOS.length && COLUMNAS_FAC_PRECIOS.every((c, i) => c === columnas[i]));
   if (!conPrecios && (columnas.length !== COLUMNAS_FAC.length || columnas.some((c, i) => c !== COLUMNAS_FAC[i]))) {
     throw new Error(`Columnas inesperadas en la facturación (${columnas.join(', ')}) — ¿el Apps Script tiene desplegada la última versión? (ver docs/apps-script-pedidos.md)`);
   }
   return rows.filter(esFilaFac).map((f) => [
-    String(f[0] ?? ''), String(f[1] ?? ''), String(f[2] ?? ''), String(f[3] ?? ''), String(f[4] ?? ''), String(f[5] ?? ''),
+    String(f[0] ?? ''), String(f[1] ?? ''), String(f[2] ?? ''), String(f[3] ?? ''), normalizarMaterial(String(f[4] ?? '')), String(f[5] ?? ''),
     String(f[6] ?? ''), String(f[7] ?? ''), String(f[8] ?? ''), String(f[9] ?? ''), Number(f[10]) || 0, Number(f[11]) || 0,
     ...(conPrecios ? [Number(f[12]) || 0, Number(f[13]) || 0] : []),
     ...(conFechas ? [String(f[14] ?? '')] : []),
+    ...(conDims ? [String(f[15] ?? ''), String(f[16] ?? '')] : []),
   ] as FilaFac);
 }
 
@@ -87,10 +133,12 @@ export function agregarFilas(filas: FilaFac[]): FilaFac[] {
   const mapa = new Map<string, FilaFac>();
   let conPrecios = false;
   let conFechas = false;
+  let conDims = false;
   for (const f of filas) {
     if (f.length > 12) conPrecios = true;
     if (f.length > 14) conFechas = true;
-    const clave = f.slice(0, 10).join('¦');
+    if (f.length > 15) conDims = true;
+    const clave = [...f.slice(0, 10), f[15] ?? '', f[16] ?? ''].join('¦');
     const previa = mapa.get(clave);
     if (previa) {
       previa[10] += f[10];
@@ -103,7 +151,7 @@ export function agregarFilas(filas: FilaFac[]): FilaFac[] {
     }
   }
   return [...mapa.values()].map((f) => (conPrecios
-    ? [...f.slice(0, 10), redondear(f[10]), redondear(f[11]), redondear(f[12] ?? 0), redondear(f[13] ?? 0), ...(conFechas ? [f[14] ?? ''] : [])]
+    ? [...f.slice(0, 10), redondear(f[10]), redondear(f[11]), redondear(f[12] ?? 0), redondear(f[13] ?? 0), ...(conFechas ? [f[14] ?? ''] : []), ...(conDims ? [f[15] ?? '', f[16] ?? ''] : [])]
     : [...f.slice(0, 10), redondear(f[10]), redondear(f[11])]) as unknown as FilaFac);
 }
 
@@ -118,17 +166,25 @@ const periodoDe = (mes: string): string => {
 /** Arma `Resumen_Fac` (por mes + solicitante + destinatario + material + centro + grupos) y `Fac_Mensual_CAM`
  * (por mes + centro + almacén + material) a partir de los libros ya agregados. Las combinaciones que quedan en
  * cero neto (cantidad e importe) se omiten, como hace el reporte. */
-export function* construirTabsFacturacionGen(libros: FilaFac[][]): Generator<number, TabsFacturacion> {
+export function* construirTabsFacturacionGen(libros: FilaFac[][], presupuestos: PtoFila[][] = []): Generator<number, TabsFacturacion> {
   let paso = 0;
   const total = libros.reduce((s, l) => s + l.length, 0) || 1;
-  const rf = new Map<string, { f: FilaFac; cant: number; imp: number; pmin: number; pmax: number; fmax: string }>();
+  const rf = new Map<string, { f: FilaFac; cant: number; imp: number; pmin: number; pmax: number; fmax: string}>();
   const cam = new Map<string, { f: FilaFac; cant: number; imp: number }>();
   const asignados: AlmacenesAsignados = { renglones: 0, importe: 0 };
+  const vp = new Map<string, VentasPtoRow>();
+  const filaVp = (mes: string, region: string, gerencia: string, gpoCte: string, gpoVdor: string): VentasPtoRow => {
+    const k = [mes, region, gerencia, gpoCte, gpoVdor].join('¦');
+    let r = vp.get(k);
+    if (!r) { r = { mes, region, gerencia, gpoCte, gpoVdor, ventas: 0, presupuesto: 0 }; vp.set(k, r); }
+    return r;
+  };
 
   for (const libro of libros) {
     for (const f of libro) {
       if ((++paso & 8191) === 0) yield paso / total;
       const [mes, solic, razon, dest, material, texto, centro, almacen, gpoCte, gpoVdor, cant, imp] = f;
+      filaVp(mes, f[15] ?? '', f[16] ?? '', gpoCte, gpoVdor).ventas += imp;
       const kRf = [mes, solic, dest, material, centro, gpoCte, gpoVdor].join('¦');
       const a = rf.get(kRf);
       const pmin = f[12] ?? 0;
@@ -151,6 +207,8 @@ export function* construirTabsFacturacionGen(libros: FilaFac[][]): Generator<num
     }
   }
 
+  for (const lote of presupuestos) for (const [mes, region, gerencia, gpoCte, gpoVdor, , , monto] of lote) filaVp(mes, region, gerencia, gpoCte, gpoVdor).presupuesto += monto;
+  const ventasPto = [...vp.values()].filter((r) => Math.round(r.ventas * 100) !== 0 || Math.round(r.presupuesto * 100) !== 0).map((r) => ({ ...r, ventas: redondear(r.ventas), presupuesto: redondear(r.presupuesto) }));
   const noCero = ({ cant, imp }: { cant: number; imp: number }) => Math.round(cant * 100) !== 0 || Math.round(imp * 100) !== 0;
   const resumenRows = [...rf.values()].filter(noCero).map(({ f, cant, imp, pmin, pmax, fmax }) => [f[6], f[1], f[2], f[3], f[4], f[5], f[0], redondear(cant), redondear(imp), f[8], f[9], redondear(pmin), redondear(pmax), fmax]);
   const camRows = [...cam.values()].filter(noCero).map(({ f, cant, imp }) => [f[6], f[7], f[4], f[5], periodoDe(f[0]), f[0], redondear(cant), redondear(imp)]);
@@ -159,12 +217,14 @@ export function* construirTabsFacturacionGen(libros: FilaFac[][]): Generator<num
     resumenFac: { headers: HEADERS_RESUMEN_FAC, rows: resumenRows, rowCount: resumenRows.length },
     facMensualCam: { headers: HEADERS_FAC_MENSUAL_CAM, rows: camRows, rowCount: camRows.length },
     almacenesAsignados: { renglones: asignados.renglones, importe: Math.round(asignados.importe) },
+    ventasPto,
+    presupuestoDet: agregarPresupuesto(presupuestos.flat()),
   };
 }
 
 /** Resumen_Fac y Fac_Mensual_CAM a partir de los libros, de golpe (mismo resultado que `construirTabsFacturacionGen` por tramos). */
-export function construirTabsFacturacion(libros: FilaFac[][]): TabsFacturacion {
-  return correrSincrono(construirTabsFacturacionGen(libros));
+export function construirTabsFacturacion(libros: FilaFac[][], presupuestos: PtoFila[][] = []): TabsFacturacion {
+  return correrSincrono(construirTabsFacturacionGen(libros, presupuestos));
 }
 
 /** Todo lo que el módulo Facturación guarda de los libros: Resumen_Fac, Fac_Mensual_CAM y cuántos almacenes en blanco se asignaron. */
@@ -173,6 +233,9 @@ export interface DatosFacturacion {
   /** Fac_Mensual_CAM armada con los libros (por mes + centro + almacén + material). */
   facMensualCam: FacMensualCamRow[];
   almacenesAsignados: AlmacenesAsignados;
+  /** Ventas vs presupuesto por región / gerencia / gpo. cliente / gpo. vendedor. */
+  ventasPto: VentasPtoRow[];
+  presupuestoDet: PtoFila[];
 }
 /** Convierte las pestañas de los libros en `ResumenFacRow` y `FacMensualCamRow`, POR TRAMOS: arma cada fila con un
  * objeto literal (mucho más rápido que `Object.fromEntries`) y cede el paso al navegador cada ~4,000 filas. */
@@ -191,11 +254,11 @@ export function* datosFacturacionGen(tabs: TabsFacturacion): Generator<number, D
     facMensualCam.push(mapFacMensualCam({ 'Centro': r[0], 'Almacén': r[1], 'Material': r[2], 'Texto de material': r[3], 'Periodo': r[4], 'Mes y año': r[5], 'Cantidad facturada': r[6], 'Importe facturado': r[7] }));
     if ((++n & 4095) === 0) yield n / total;
   }
-  return { resumenFac, facMensualCam, almacenesAsignados: tabs.almacenesAsignados };
+  return { resumenFac, facMensualCam, almacenesAsignados: tabs.almacenesAsignados, ventasPto: tabs.ventasPto, presupuestoDet: tabs.presupuestoDet };
 }
 
 /** Identifica el ESTADO de la facturación cargada (qué libros, de qué fecha de Drive y de cuántas filas) más la versión del formato de lo
  * guardado. Si coincide, lo calculado en otra sesión (índices, consumo) sigue siendo válido y no hay que recalcularlo. */
-export function firmaLibros(libros: readonly { nombre: string; modificado: string; filas: number; conPrecios?: boolean; conFechas?: boolean }[], esquema: number): string {
-  return `${esquema}|${libros.map((l) => `${l.nombre}:${l.modificado}:${l.filas}${l.conPrecios ? ':p' : ''}${l.conFechas ? ':f' : ''}`).sort().join('|')}`;
+export function firmaLibros(libros: readonly { nombre: string; modificado: string; filas: number; conPrecios?: boolean; conFechas?: boolean; conDims?: boolean }[], esquema: number): string {
+  return `${esquema}|${libros.map((l) => `${l.nombre}:${l.modificado}:${l.filas}${l.conPrecios ? ':p' : ''}${l.conFechas ? ':f' : ''}${l.conDims ? ':d' : ''}`).sort().join('|')}`;
 }

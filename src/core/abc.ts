@@ -102,10 +102,11 @@ export interface AbcPredicates {
  * de entrega) según el importe facturado en los últimos 12 meses completos.
  * Pura — no I/O — para poder correr en un `useMemo` o en un test.
  */
-export function buildAbc(rf: RFIndex | null, predicates?: AbcPredicates): AbcResult {
+export function buildAbc(rf: RFIndex | null, predicates?: AbcPredicates, corteK?: number): AbcResult {
   if (!rf) return EMPTY;
 
-  const refK = mesKey(mesAnterior(hoyMes()));
+  // `corteK` fija el último mes de los 12 considerados (periodo elegido en Análisis); sin él, el mes anterior a hoy.
+  const refK = corteK ?? mesKey(mesAnterior(hoyMes()));
 
   const matRaw: { key: string; label: string; imp: number; cant: number }[] = [];
   rf.mat.forEach((serie, material) => {

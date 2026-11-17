@@ -7,7 +7,7 @@ import { ChevronDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead } from '@/components/ui/table';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead, TableFooter, TableTotalCell } from '@/components/ui/table';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { useDataStore } from '@/store/dataStore';
@@ -37,7 +37,11 @@ import { usePersistedState } from '@/hooks/usePersistedState';
 import { buildAbcPares, clavePar, type AbcClass } from '@/core/abc';
 import { buildPrecioDispersion } from '@/core/precios';
 import type { NivelFac, RenglonFac } from '@/core/facPorNivel';
+import { useFacturacionStore } from '@/store/facturacionStore';
 import { FacPorNivel } from './FacPorNivel';
+import { CumplimientoPresupuesto } from './CumplimientoPresupuesto';
+import { filtrarPresupuestoDet, filtrarVentasPto, nombreCoincide, ptoPorMes, type DimCumplimiento, type ResolverPto } from '@/core/ventasPto';
+import { toast } from '@/store/toastStore';
 import { ReportPage, PageHeader, ExportButton, FilterBar, FilterSelect, SegmentedControl, ComparisonCard, KpiBand, ResumenColapsable, CollapsibleCard, CalculandoIndices, ALTURA_TABLA, SIN_DATOS } from '@/components/layout/report';
 import { etiquetaMes, resumirMeses } from '@/core/mesesSeleccion';
 import { MonthSetFilter } from '@/modules/analytics/ui/MonthSetFilter';
@@ -62,6 +66,9 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
   const faseFac = useFaseFacturacion(a0);
   const fac = modo === 'fac';
   const ns = fac ? 'facturacion' : 'consumo';
+  // Ventas vs presupuesto (solo Facturación; vacío si los libros no traen presupuesto).
+  const ventasPto = useFacturacionStore((s) => s.ventasPto);
+  const presupuestoDet = useFacturacionStore((s) => s.presupuestoDet);
   const setFacActivo = useFacFuenteStore((s) => s.setActivo);
   // Los paneles de detalle leen la fuente de ESTA tabla mientras está abierta (ver PanelHost).
   useEffect(() => {
@@ -276,6 +283,17 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
   // Universo de los AGREGADOS = las filas filtradas (Consumo ya sale de Resumen_Fac,
   // así que no hay pares de facturación fuera de la tabla).
   const filteredAgg = filtered;
+  // Totales de lo que pasa los filtros (para la banda fija al pie de la tabla).
+  const totalesTabla = useMemo(() => {
+    let consumo = 0, ultima = 0, penultima = 0, importe = 0;
+    for (const r of filtered) {
+      consumo += num(r.consumoActual);
+      ultima += num(r.cantidadUltima);
+      penultima += num(r.cantidadPenultima);
+      importe += num(r.importeUltima);
+    }
+    return { consumo, ultima, penultima, importe };
+  }, [filtered]);
 
   // Con un filtro de ejecutivo (o de su gerencia / gerente / canal / oficina de ventas) la facturación de cada cliente × material se limita a las zonas filtradas:
   // la serie de Resumen_Fac suma TODOS los vendedores del cliente × material, y sin esto la gráfica y el detalle de un mes traían ventas de otros ejecutivos.
@@ -357,6 +375,57 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
     }
     return [...bucket.values()].sort((x, y) => mesKey(x.mes) - mesKey(y.mes));
   }, [filteredAgg, a.rf, sinFiltros, rangoActivo, rangoLoK, rangoHiK, mesesSel, serieDe]);
+
+  // ---- Presupuesto: sigue los MISMOS filtros que las ventas (hasta donde su dimensión lo permite) y la MISMA ventana de meses que aggSerie. ----
+  const resolverPto = useMemo<ResolverPto>(() => ({
+    ejecutivo: (c) => a.enrich.ejecutivoNombre(c),
+    grupoCli: (c) => a.enrich.grupoCliente(c) || c,
+    ventas: (c) => a.enrich.ejecutivoAtributos(c),
+  }), [a.enrich]);
+  const ventanaPto = useMemo(() => {
+    const curK = mesKey(a.rf?.curmes || hoyMes());
+    return rangoActivo ? { lo: rangoLoK ?? -Infinity, hi: rangoHiK ?? Infinity } : { lo: curK - 36, hi: curK + 36 };
+  }, [a.rf, rangoActivo, rangoLoK, rangoHiK]);
+  const ptoFiltrado = useMemo(() => {
+    if (!fac || !presupuestoDet.length) return { filas: [], ignorados: [] as string[] };
+    const r = filtrarPresupuestoDet(presupuestoDet, quick, resolverPto, {
+      sectorPasa: gerente ? (sector) => a.enrich.sectorDeGerente(sector, gerente) : undefined,
+      etiqueta: (col) => filterCols.find((c) => c.key === col)?.label ?? col,
+    });
+    // Filtros que no son columnas de la barra pero también acotan las ventas.
+    const extra = [estado && 'Estado', clase && 'Clase ABC', q && 'Búsqueda', pasteCodes.length && 'Códigos de material', prefiltro && 'Material', ultKey != null && 'Último mes fact.'].filter(Boolean) as string[];
+    return { filas: r.filas, ignorados: [...r.ignorados, ...extra] };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fac, presupuestoDet, quick, resolverPto, gerente, a.enrich, estado, clase, q, pasteCodes, prefiltro, ultKey, filterCols]);
+  const ptoMapa = useMemo(() => ptoPorMes(ptoFiltrado.filas, ventanaPto.lo, ventanaPto.hi, mesesSel ?? null), [ptoFiltrado, ventanaPto, mesesSel]);
+  const ventasPtoFiltradas = useMemo(() => (fac ? filtrarVentasPto(ventasPto, quick, resolverPto) : []), [fac, ventasPto, quick, resolverPto]);
+  /** Clic en el desglose: aplica ese valor como filtro de la página (Ejecutivo / Grupo cliente; Región y Gerencia → los ejecutivos que pertenecen a ella). */
+  const filtrarDesdePto = (dim: DimCumplimiento, clave: string) => {
+    let col: string;
+    let values: string[];
+    if (dim === 'sector' || dim === 'grupo') {
+      // El presupuesto trae el sector / grupo recortado: se traduce al nombre del catálogo (que es el que usa el filtro) por su inicio.
+      col = dim === 'sector' ? 'sector' : 'grupoart';
+      const nombres = new Set<string>();
+      a.rf?.mat.forEach((_s, m) => { const n = dim === 'sector' ? a.enrich.matSector(m) : a.enrich.matGrupo(m); if (n) nombres.add(n); });
+      const catalogo = [...nombres].find((n) => n === clave) ?? [...nombres].find((n) => nombreCoincide(clave, n));
+      values = [catalogo ?? clave];
+    }
+    else if (dim === 'gpoVdor') { col = 'ejecutivo'; values = [a.enrich.ejecutivoNombre(clave)]; }
+    else if (dim === 'gpoCte') { col = 'grupocli'; values = [a.enrich.grupoCliente(clave) || clave]; }
+    else {
+      const codes = new Set<string>();
+      for (const v of ventasPto) if ((dim === 'region' ? v.region : v.gerencia).trim() === clave) codes.add(v.gpoVdor);
+      for (const f of presupuestoDet) if (f[dim === 'region' ? 1 : 2].trim() === clave) codes.add(f[4]);
+      col = 'ejecutivo';
+      values = [...codes].map((c) => a.enrich.ejecutivoNombre(c)).filter(Boolean);
+    }
+    values = [...new Set(values.filter(Boolean))];
+    if (!values.length) { toast.info('No se pudo filtrar', `«${clave}» no tiene ejecutivos ni grupos identificables en el catálogo.`); return; }
+    const actual = quick.find((f) => f.col === col);
+    const igual = actual && actual.values.length === values.length && values.every((v) => actual.values.includes(v));
+    setQuick(igual ? quick.filter((f) => f.col !== col) : [...quick.filter((f) => f.col !== col), { col, values }]);
+  };
 
   // Total facturado del periodo visible: suma exacta de los mismos buckets que
   // pinta EvolChart, así el card nunca puede discrepar de la gráfica.
@@ -739,8 +808,27 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
         <PasteCodesFilter value={pasteCodes} onChange={setPasteCodes} label="material" />
       </FilterBar>
 
-      <CollapsibleCard title="Facturación mensual (filtro)" storageKey={`${ns}.grafica.abierta`} defaultOpen>
-        <EvolChart serie={aggSerie} height={160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes), meses: aggSerie.map((p) => p.mes), rowsDe: clientesDeMes })} />
+      <CollapsibleCard title={fac && ventasPto.length > 0 ? 'Facturación mensual vs presupuesto (filtro)' : 'Facturación mensual (filtro)'} storageKey={`${ns}.grafica.abierta`} defaultOpen>
+        <EvolChart serie={aggSerie} presupuesto={fac && presupuestoDet.length ? ptoMapa : undefined} height={fac && ventasPto.length > 0 ? 200 : 160} onMonth={(mes) => open({ type: 'mesClientesFiltro', mes, rows: clientesDeMes(mes), meses: aggSerie.map((p) => p.mes), rowsDe: clientesDeMes })} />
+        {fac && ventasPto.length > 0 && (
+          <CumplimientoPresupuesto
+            ventasSerie={aggSerie}
+            ventas={ventasPtoFiltradas}
+            pto={ptoFiltrado.filas}
+            lo={ventanaPto.lo}
+            hi={ventanaPto.hi}
+            mesesSel={mesesSel ?? null}
+            ignorados={ptoFiltrado.ignorados}
+            hayDetalle={presupuestoDet.length > 0}
+            storageKey={ns}
+            onFiltrar={filtrarDesdePto}
+            nombreDe={(dim, clave) => (dim === 'gpoVdor' ? a.enrich.ejecutivoNombre(clave) : dim === 'gpoCte' ? a.enrich.grupoCliente(clave) : '')}
+            a={a}
+            filtros={quick}
+            sectorPasa={gerente ? (sector) => a.enrich.sectorDeGerente(sector, gerente) : undefined}
+            onAbrirColaborador={(gpoVdor, rango) => open({ type: 'colaboradorPto', gpoVdor, lo: rango.lo, hi: rango.hi, meses: rango.meses, filtros: quick.map((f) => ({ col: f.col, values: [...f.values] })) })}
+          />
+        )}
       </CollapsibleCard>
 
       <FacPorNivel renglones={renglonesFac} nMeses={ventana.nMeses} ventana={ventana.etiqueta} storageKey={ns} onNodo={alAbrirNivel} />
@@ -859,6 +947,21 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
             })}
             {paddingBottom > 0 && (<tr><td style={{ height: paddingBottom }} colSpan={COLS_CONSUMO.filter((c) => vis(c.key)).length} /></tr>)}
           </TableBody>
+          {/* Totales del filtro activo, siempre visibles al pie aunque haya más filas. */}
+          <TableFooter>
+            <tr>
+              {(() => {
+                const textoVisibles = (['cliente', 'ejecutivo', 'centro', 'material', 'abc', 'sector'] as const).filter((k) => vis(k)).length;
+                return textoVisibles > 0 ? <TableTotalCell colSpan={textoVisibles} className="sticky left-0 z-20">Total · {formatNumber(filtered.length)} renglones</TableTotalCell> : null;
+              })()}
+              {vis('consumo') && <TableTotalCell numero>{formatNumber(totalesTabla.consumo)}</TableTotalCell>}
+              {vis('ultima') && <TableTotalCell numero>{formatNumber(totalesTabla.ultima)}</TableTotalCell>}
+              {vis('penultima') && <TableTotalCell numero>{formatNumber(totalesTabla.penultima)}</TableTotalCell>}
+              {vis('impultima') && <TableTotalCell numero>{formatCurrency(totalesTabla.importe)}</TableTotalCell>}
+              {vis('estado') && <TableTotalCell />}
+              {vis('tendencia') && <TableTotalCell />}
+            </tr>
+          </TableFooter>
         </Table>
         </div>
       </Card>

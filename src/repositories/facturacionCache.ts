@@ -1,4 +1,4 @@
-import type { AlmacenesAsignados } from '@/core/facturacionLibros';
+import type { AlmacenesAsignados, PtoFila, VentasPtoRow } from '@/core/facturacionLibros';
 import type { RFIndex } from '@/core/resumenFac';
 import type { ConsumoRow, FacMensualCamRow, ResumenFacRow } from '@/core/types';
 import { db, type FacturacionLibroRow, type FacturacionMetaRow } from './db';
@@ -13,7 +13,7 @@ export async function getLibrosFacturacion(): Promise<FacturacionLibroRow[]> {
 export async function putLibroFacturacion(row: FacturacionLibroRow): Promise<void> {
   await db.transaction('rw', db.facturacionLibros, db.facturacionMeta, async () => {
     await db.facturacionLibros.put(row);
-    await db.facturacionMeta.put({ id: row.id, nombre: row.nombre, orden: row.orden, ultimaModificacion: row.ultimaModificacion, filas: row.rows.length, conPrecios: (row.rows[0]?.length ?? 0) > 12, conFechas: (row.rows[0]?.length ?? 0) > 14 });
+    await db.facturacionMeta.put({ id: row.id, nombre: row.nombre, orden: row.orden, ultimaModificacion: row.ultimaModificacion, filas: row.rows.length, conPrecios: (row.rows[0]?.length ?? 0) > 12, conFechas: (row.rows[0]?.length ?? 0) > 14, conDims: (row.rows[0]?.length ?? 0) > 15 });
   });
 }
 
@@ -42,7 +42,7 @@ export async function getMetaLibrosFacturacion(): Promise<FacturacionMetaRow[]> 
     if (!m) {
       const fila = await db.facturacionLibros.get(id);
       if (!fila) continue;
-      m = { id: fila.id, nombre: fila.nombre, orden: fila.orden, ultimaModificacion: fila.ultimaModificacion, filas: fila.rows.length, conPrecios: (fila.rows[0]?.length ?? 0) > 12, conFechas: (fila.rows[0]?.length ?? 0) > 14 };
+      m = { id: fila.id, nombre: fila.nombre, orden: fila.orden, ultimaModificacion: fila.ultimaModificacion, filas: fila.rows.length, conPrecios: (fila.rows[0]?.length ?? 0) > 12, conFechas: (fila.rows[0]?.length ?? 0) > 14, conDims: (fila.rows[0]?.length ?? 0) > 15 };
       await db.facturacionMeta.put(m);
     }
     out.push(m);
@@ -72,7 +72,7 @@ export async function getLibrosFacturacionDeAUno(): Promise<FacturacionLibroRow[
 // ---------------------------------------------------------------------------
 
 /** Subir cuando cambie la forma de `RFIndex`, `ConsumoRow` o `ResumenFacRow`: lo guardado con otro esquema se ignora. */
-export const FAC_DERIVADOS_ESQUEMA = 3; // 2: ResumenFacRow trae precioMin / precioMax · 3: y fechaMax
+export const FAC_DERIVADOS_ESQUEMA = 6; // 2: ResumenFacRow trae precioMin / precioMax · 3: y fechaMax · 4: (retirado) · 5: ventas vs presupuesto por región/gerencia/grupos · 6: y presupuesto en detalle
 /** Filas por registro: así leer/escribir cede el paso al navegador entre un registro y otro. */
 const FILAS_POR_REGISTRO = 40_000;
 
@@ -84,6 +84,8 @@ export interface DerivadosFac {
   /** Índices de Resumen_Fac; `rows` se guarda vacío (son `resumenFac`) y al leer se vuelve a poner. */
   rf: RFIndex;
   consumo: ConsumoRow[];
+  ventasPto: VentasPtoRow[];
+  presupuestoDet: PtoFila[];
 }
 
 interface MetaDerivados { firma: string; esquema: number; registros: number; almacenesAsignados: AlmacenesAsignados }
@@ -94,6 +96,8 @@ export async function guardarDerivadosFac(d: DerivadosFac): Promise<void> {
   await db.facDerivados.put({ id: 'rf', datos: { ...d.rf, rows: [] } });
   await db.facDerivados.put({ id: 'consumo', datos: d.consumo });
   await db.facDerivados.put({ id: 'cam', datos: d.facMensualCam });
+  await db.facDerivados.put({ id: 'pto', datos: d.ventasPto });
+  await db.facDerivados.put({ id: 'ptodet', datos: d.presupuestoDet });
   const registros = Math.ceil(d.resumenFac.length / FILAS_POR_REGISTRO);
   for (let i = 0; i < registros; i++) {
     await db.facDerivados.put({ id: `rows:${i}`, datos: d.resumenFac.slice(i * FILAS_POR_REGISTRO, (i + 1) * FILAS_POR_REGISTRO) });
@@ -109,14 +113,16 @@ export async function leerDerivadosFac(firma: string): Promise<DerivadosFac | nu
   const rfGuardado = (await db.facDerivados.get('rf'))?.datos as RFIndex | undefined;
   const consumo = (await db.facDerivados.get('consumo'))?.datos as ConsumoRow[] | undefined;
   const facMensualCam = (await db.facDerivados.get('cam'))?.datos as FacMensualCamRow[] | undefined;
-  if (!rfGuardado || !consumo || !facMensualCam) return null;
+  const ventasPto = (await db.facDerivados.get('pto'))?.datos as VentasPtoRow[] | undefined;
+  const presupuestoDet = (await db.facDerivados.get('ptodet'))?.datos as PtoFila[] | undefined;
+  if (!rfGuardado || !consumo || !facMensualCam || !ventasPto || !presupuestoDet) return null;
   const resumenFac: ResumenFacRow[] = [];
   for (let i = 0; i < meta.registros; i++) {
     const trozo = (await db.facDerivados.get(`rows:${i}`))?.datos as ResumenFacRow[] | undefined;
     if (!trozo) return null;
     for (const r of trozo) resumenFac.push(r);
   }
-  return { firma, resumenFac, facMensualCam, almacenesAsignados: meta.almacenesAsignados, rf: { ...rfGuardado, rows: resumenFac }, consumo };
+  return { firma, resumenFac, facMensualCam, almacenesAsignados: meta.almacenesAsignados, rf: { ...rfGuardado, rows: resumenFac }, consumo, ventasPto, presupuestoDet };
 }
 
 export async function borrarDerivadosFac(): Promise<void> {

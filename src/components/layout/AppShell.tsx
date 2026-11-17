@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { ErrorBoundary } from './ErrorBoundary';
 import { GlobalKeybindings } from '@/components/navigation/GlobalKeybindings';
 import { CalculatorWidget } from '@/components/widgets/CalculatorWidget';
+import { InventarioWidget } from '@/components/widgets/InventarioWidget';
 import { useUiStore } from '@/store/uiStore';
 import { useDataStore } from '@/store/dataStore';
 import { getCachedCatalog, checkForCatalogUpdate } from '@/services/catalogService';
@@ -146,29 +147,28 @@ export function AppShell() {
   }, [setCatalog, setSettings, setActiveAnalysis, setIncremento, setBootstrapped]);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-bg text-text">
+    <div className="flex h-dvh w-full overflow-hidden bg-bg text-text">
       <Sidebar mobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar path={location.pathname} onOpenMobileNav={() => setMobileNavOpen(true)} />
         <main className="min-h-0 flex-1 overflow-auto">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.16, ease: 'easeOut' }}
-              className="h-full"
-            >
-              <ErrorBoundary resetKey={location.pathname}>
-                <Outlet />
-              </ErrorBoundary>
-            </motion.div>
-          </AnimatePresence>
+          {/* Navegar por el menú es lo más frecuente de la app: sin animación de salida ni espera (antes `mode="wait"` retrasaba cada cambio de página); solo una entrada breve. */}
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.12, ease: [0.23, 1, 0.32, 1] }}
+            className="h-full"
+          >
+            <ErrorBoundary resetKey={location.pathname}>
+              <Outlet />
+            </ErrorBoundary>
+          </motion.div>
         </main>
       </div>
       <GlobalKeybindings />
       <CalculatorWidget />
+      <InventarioWidget />
     </div>
   );
 }

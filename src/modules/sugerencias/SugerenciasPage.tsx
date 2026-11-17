@@ -3,7 +3,7 @@ import { useZonaAcceso } from '@/hooks/useZonaAcceso';
 import { Download, ClipboardList, Copy, Layers, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, TableHeader, TableBody, TableRow, TableCell, TableHead, SortableTableHead } from '@/components/ui/table';
+import { Table, TableHeader, TableBody, TableRow, TableCell, TableHead, SortableTableHead, TableFooter, TableTotalCell } from '@/components/ui/table';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { ReportPage, PageHeader, ExportButton, KpiBand, ResumenColapsable, FilterBar, FilterSelect, SegmentedControl, ToggleButton, ALTURA_TABLA, SIN_DATOS } from '@/components/layout/report';
 import { TableSkeleton } from '@/components/ui/skeleton';
@@ -401,6 +401,9 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
   const [sobreCol, setSobreCol] = useState<string | null>(null);
   const vis = colVis.isVisible;
   const [unificarInv, setUnificarInv] = usePersistedState(`${ns}.unificarInv`, false);
+  const [totalDebajo, setTotalDebajo] = usePersistedState(`${ns}.totalDebajo`, false);
+  const verTotal = totalDebajo && !precioOculto;
+  const totalImp = (cant: number, precio: number) => <div className="text-[11px] text-text-faint" title="Cantidad × precio">{formatCurrency(cant * precio)}</div>;
   const invTotal = (b: BORow['bo']) => INV_ALL.reduce((s, c) => s + num(b.invByCenter[c] || 0), 0);
   // #12 Tránsito sub-index: join ResumenSin's RSSCentro.alm by Centro + almacén + material.
   const invTransitoTotal = (b: BORow['bo']) => INV_COLS.reduce((s, c) => s + transitoFor(a.rss, b.centroPedido, c, b.materialBase), 0);
@@ -466,6 +469,24 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
     for (const it of sorted) { if (!seen.has(it.bo.pedido)) { seen.add(it.bo.pedido); out.push(it.bo.pedido); } }
     return out;
   }, [sorted]);
+
+  // Totales de lo que pasa los filtros, para la banda fija al pie de la tabla agrupada (el orden no cambia las sumas).
+  const totalesAgrupado = useMemo(() => {
+    const t: Record<string, number> = { impped: 0, imppend: 0, cantped: 0, pend: 0, inv1030: 0, inv1031: 0, inv1032: 0, inv1060: 0, invtotal: 0, ofertable: 0, fuentes: 0 };
+    for (const it of filtered) {
+      const b = it.bo;
+      t.cantped += num(b.cantidadPedido);
+      t.pend += num(b.cantidadPendiente);
+      t.impped += num(b.cantidadPedido) * num(b.precio);
+      t.imppend += num(b.cantidadPendiente) * num(b.precio);
+      for (const alm of ['1030', '1031', '1032', '1060']) t[`inv${alm}`] += num(b.invByCenter[alm] || 0);
+      t.invtotal += invTotal(b);
+      t.ofertable += ofertableDe(b)?.corta.cantidad ?? 0;
+      t.fuentes += it.fuentes.length;
+    }
+    return t;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, ofertableDe]);
 
   // "Desagrupado": mirrors the raw sheet 1-to-1 — the origin row (no fuente,
   // the actual pending order) PLUS one row per fuente (alternate supply
@@ -641,6 +662,12 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
         <input type="checkbox" checked={unificarInv} onChange={(ev) => setUnificarInv(ev.target.checked)} />
         Unificar inventario
       </label>
+      {!precioOculto && (
+        <label className="flex h-9 items-center gap-1.5 rounded-md border border-border bg-bg-elevated px-2 text-sm" title="Muestra bajo Cant. ped. y Pend. el total (cantidad × precio)">
+          <input type="checkbox" checked={totalDebajo} onChange={(ev) => setTotalDebajo(ev.target.checked)} />
+          Total bajo cantidades
+        </label>
+      )}
       <ColumnVisibilityControl columns={agrupado ? colsMenu : COLS_RAW} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
       {agrupado && (
         <span className="text-[11px] text-text-faint" title="Arrastra un encabezado sobre otro para cambiar el orden de las columnas; se guarda y viaja en las Vistas.">
@@ -840,14 +867,14 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
                   centro: <TableCell key="centro">{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>,
                   material: <TableCell key="material"><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip>{onDetalleLibros && <button type="button" onClick={(ev) => { ev.stopPropagation(); onDetalleLibros(b.materialBase); }} title="Detalle en libros: Disponibilidad (Libre real), Corta caducidad, Sustituto…" aria-label="Detalle del material en los libros" className="ml-1 inline-flex align-middle text-text-faint hover:text-accent"><Layers className="size-3.5" /></button>}<div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[11px] text-text">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>,
                   sector: <TableCell key="sector">{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>,
-                  cantped: <TableCell key="cantped" className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>,
-                  pend: <TableCell key="pend" className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>,
+                  cantped: <TableCell key="cantped" className="text-right">{formatNumber(b.cantidadPedido)}{verTotal && totalImp(num(b.cantidadPedido), num(b.precio))}</TableCell>,
+                  pend: <TableCell key="pend" className="text-right">{formatNumber(b.cantidadPendiente)}{verTotal && totalImp(num(b.cantidadPendiente), num(b.precio))}</TableCell>,
                   precio: <TableCell key="precio" className="text-right">{formatCurrency(b.precio)}</TableCell>,
                   consumo: <TableCell key="consumo" className="text-right">{formatNumber(it.consumoProm)}<div className="text-[11px] text-text-faint">{consumoIdx.get(consumoKey(b.destinatario, b.materialBase))?.ultimoMesFacturacion || '—'}</div></TableCell>,
                   invtotal: (
                     <TableCell key="invtotal" className="text-right" title={INV_ALL.map((c) => `${c}: ${formatNumber(num(b.invByCenter[c] || 0))}`).join(' · ')}>
                       {formatNumber(invTotal(b))}
-                      {invTransitoTotal(b) > 0 && <div className="text-[11px] text-success">↻+{formatNumber(invTransitoTotal(b))}</div>}
+                      {invTransitoTotal(b) > 0 && <div className="text-[11px] text-violet-600 dark:text-violet-400">↻+{formatNumber(invTransitoTotal(b))}</div>}
                     </TableCell>
                   ),
                   inv1030: celdaAlm('1030'),
@@ -885,6 +912,17 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
                 <tr><td style={{ height: paddingBottom }} colSpan={COL_COUNT} /></tr>
               )}
             </TableBody>
+            {/* Totales del filtro activo, siempre visibles al pie aunque haya más filas. Precio y consumo no se suman. */}
+            <TableFooter>
+              <tr>
+                {!fuenteOcultoPerm && <TableTotalCell />}
+                {columnasOrden.map((k, i) => {
+                  const total = totalesAgrupado[k];
+                  if (total !== undefined) return <TableTotalCell key={k} numero>{formatNumber(total)}{verTotal && (k === 'cantped' || k === 'pend') && totalImp(totalesAgrupado[k === 'pend' ? 'imppend' : 'impped'], 1)}</TableTotalCell>;
+                  return <TableTotalCell key={k} className={i === 0 ? 'whitespace-nowrap' : undefined}>{i === 0 ? `Total · ${formatNumber(filtered.length)} renglones` : null}</TableTotalCell>;
+                })}
+              </tr>
+            </TableFooter>
           </Table>
         </div>
       </Card>
@@ -976,15 +1014,15 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
                     {vis('centro') && <TableCell>{b.centroPedido}{b.almacen ? ` / ${b.almacen}` : ''}</TableCell>}
                     {vis('material') && <TableCell><Chip onClick={() => open({ type: 'material', material: b.materialBase })}>{b.materialBase}</Chip>{onDetalleLibros && <button type="button" onClick={(ev) => { ev.stopPropagation(); onDetalleLibros(b.materialBase); }} title="Detalle en libros: Disponibilidad (Libre real), Corta caducidad, Sustituto…" aria-label="Detalle del material en los libros" className="ml-1 inline-flex align-middle text-text-faint hover:text-accent"><Layers className="size-3.5" /></button>}<div className="text-[11px] text-text-faint max-w-64 truncate">{b.descripcionSolicitada}</div>{!precioOculto && e.matPrecioOferta(b.materialBase) > 0 && <div className="text-[11px] text-text">Of. {formatCurrency(e.matPrecioOferta(b.materialBase))}</div>}</TableCell>}
                     {vis('sector') && <TableCell>{e.matSector(b.materialBase) || '—'}<div className="text-[11px] text-text-faint">{e.matGrupo(b.materialBase)}</div></TableCell>}
-                    {vis('cantped') && <TableCell className="text-right">{formatNumber(b.cantidadPedido)}</TableCell>}
-                    {vis('pend') && <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}</TableCell>}
+                    {vis('cantped') && <TableCell className="text-right">{formatNumber(b.cantidadPedido)}{verTotal && totalImp(num(b.cantidadPedido), num(b.precio))}</TableCell>}
+                    {vis('pend') && <TableCell className="text-right">{formatNumber(b.cantidadPendiente)}{verTotal && totalImp(num(b.cantidadPendiente), num(b.precio))}</TableCell>}
                     {!precioOculto && vis('precio') && <TableCell className="text-right">{formatCurrency(b.precio)}</TableCell>}
                     {vis('consumo') && <TableCell className="text-right">{formatNumber(it.consumoProm)}<div className="text-[11px] text-text-faint">{consumoIdx.get(consumoKey(b.destinatario, b.materialBase))?.ultimoMesFacturacion || '—'}</div></TableCell>}
                     {unificarInv ? (
                       vis('invtotal') && (
                         <TableCell className="text-right" title={INV_ALL.map((c) => `${c}: ${formatNumber(num(b.invByCenter[c] || 0))}`).join(' · ')}>
                           {formatNumber(invTotal(b))}
-                          {invTransitoTotal(b) > 0 && <div className="text-[11px] text-success">↻+{formatNumber(invTransitoTotal(b))}</div>}
+                          {invTransitoTotal(b) > 0 && <div className="text-[11px] text-violet-600 dark:text-violet-400">↻+{formatNumber(invTransitoTotal(b))}</div>}
                         </TableCell>
                       )
                     ) : (

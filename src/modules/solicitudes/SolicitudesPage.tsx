@@ -1,5 +1,5 @@
 import { EmptyState } from '@/components/feedback/EmptyState';
-import { ReportPage, PageHeader, FilterSelect } from '@/components/layout/report';
+import { FiltrosFijos, ReportPage, PageHeader, FilterSelect } from '@/components/layout/report';
 import { useMemo, useState } from 'react';
 import { Download, RefreshCw, Trash2, CheckCheck, Undo2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -112,6 +112,7 @@ export function SolicitudesPage() {
     <Button variant="outline" size="sm" onClick={exportar}><Download className="mr-1 size-3.5" />Exportar a Excel</Button>
   } />
 
+      <FiltrosFijos>
       <div className="flex flex-wrap items-center gap-2">
         <FilterSelect value={sync} onChange={setSync} todos="Estado (todos)" options={[{ value: 'pendiente', label: 'Pendiente' }, { value: 'enviada', label: 'Enviada' }, { value: 'error', label: 'Error' }]} />
         <DateRangeFilter desde={rango.desde} hasta={rango.hasta} onChange={setRango} />
@@ -130,10 +131,11 @@ export function SolicitudesPage() {
       </div>
 
       <ColumnFilterBar columns={filterCols} rows={list} active={quick} onChange={setQuick} />
+      </FiltrosFijos>
 
       <Card className="overflow-hidden">
-        <div className="max-h-[70vh] overflow-auto">
-          <Table resizableKey="solicitudes.cols">
+        <div>
+          <Table resizableKey="solicitudes.cols" wrapperClassName="max-h-[70vh]">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8">

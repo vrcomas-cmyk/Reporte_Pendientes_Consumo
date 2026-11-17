@@ -269,6 +269,15 @@ export function filtrarFacturacion(h: Hoja, p: PoliticaDatos, zonaDe: (v: unknow
   return out;
 }
 
+/** Renglones de presupuesto de un `fac_chunk` ([mes, región, gerencia, gpo. cliente, gpo. vendedor, sector, grupo material, monto]):
+ * un usuario restringido a su zona solo ve el presupuesto de sus propios gpo. vendedor (la posición 4). */
+export function filtrarPresupuesto(rows: unknown, p: PoliticaDatos, zonaDe: (v: unknown) => string): unknown[][] {
+  const lista = Array.isArray(rows) ? (rows as unknown[][]) : [];
+  if (p.sinRestriccion || !(p.restringirZona && !p.verPrecioOtrasZonas)) return lista;
+  const propias = new Set(p.zonas);
+  return lista.filter((f) => Array.isArray(f) && propias.has(zonaDe(f[4])));
+}
+
 // ---- Catálogo (pestañas como arreglos de objetos) --------------------------------------------------------------------------------------
 export function filtrarPestanaCatalogo(tab: string, rows: Record<string, unknown>[], p: PoliticaDatos, hoy: Date = new Date()): Record<string, unknown>[] {
   if (p.sinRestriccion) return rows;

@@ -661,8 +661,8 @@ function TopClientes({ rows }: { rows: Resultado['topClientes'] }) {
 function PorEjecutivo({ rows }: { rows: Resultado['porEjecutivo'] }) {
   if (!rows.length) return <p className="text-xs text-text-muted">Sin datos por ejecutivo.</p>;
   return (
-    <div className="max-h-96 overflow-auto">
-      <Table>
+    <div>
+      <Table wrapperClassName="max-h-96">
         <TableHeader>
           <TableRow>
             <TableHead>Ejecutivo</TableHead>

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, Download } from 'lucide-react';
+import { ChevronDown, Download, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
@@ -18,18 +18,19 @@ export const ALTURA_TABLA = 'h-[max(30rem,calc(100dvh-10rem))]';
 
 /** Raíz de un reporte: columna con scroll, mismo padding y separación en todas las vistas. */
 export function ReportPage({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('flex h-full flex-col gap-3 overflow-y-auto p-5', className)}>{children}</div>;
+  return <div className={cn('flex h-full flex-col gap-3 overflow-y-auto p-3 sm:p-5', className)}>{children}</div>;
 }
 
 /** Encabezado estándar: título, subtítulo/contador y acciones (Columnas, Vistas, Exportar…) a la derecha. */
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="flex shrink-0 items-start justify-between gap-2">
+    // En móvil el título y las acciones se apilan (antes competían por el ancho y las acciones se desbordaban).
+    <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <h1 className="font-display text-2xl font-semibold">{title}</h1>
+        <h1 className="font-display text-xl font-semibold sm:text-2xl">{title}</h1>
         {subtitle != null && <p className="text-sm text-text-muted">{subtitle}</p>}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">{actions}</div>}
     </div>
   );
 }
@@ -54,6 +55,11 @@ export function KpiStrip({ hero, children, aside }: { hero?: ReactNode; children
   );
 }
 
+/** Envoltorio que deja los filtros siempre visibles (pegados arriba al hacer scroll de la página), en tamaño compacto. */
+export function FiltrosFijos({ children }: { children: ReactNode }) {
+  return <div className="sticky top-0 z-20 -mx-3 -mt-1 flex shrink-0 flex-col gap-1.5 border-b border-border bg-bg px-3 py-1.5 text-[13px] shadow-sm sm:-mx-5 sm:px-5">{children}</div>;
+}
+
 /** Barra de filtros estándar. Orden fijo: búsqueda → filtros de la vista (children) → Limpiar → Zoom a la derecha;
  * debajo, la fila de chips activos (códigos pegados…) y la barra de filtros por columna. */
 export function FilterBar({ search, children, onClear, zoom, chips, columnFilters }: {
@@ -64,16 +70,25 @@ export function FilterBar({ search, children, onClear, zoom, chips, columnFilter
   chips?: ReactNode;
   columnFilters?: ReactNode;
 }) {
+  // En móvil los filtros ocupaban media pantalla pegados arriba: se pliegan detrás de un botón «Filtros» (la búsqueda queda a la vista).
+  // En escritorio (sm+) el contenedor es `contents`: el orden y el aspecto son exactamente los de antes.
+  const [abierto, setAbierto] = useState(false);
+  const hayFiltros = !!children || !!columnFilters;
   return (
-    <div className="flex shrink-0 flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="sticky top-0 z-20 -mx-3 -mt-1 flex shrink-0 flex-col gap-1.5 border-b border-border bg-bg px-3 py-1.5 text-[13px] shadow-sm sm:-mx-5 sm:px-5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {search}
-        {children}
+        {hayFiltros && (
+          <Button variant="outline" size="sm" className="sm:hidden" aria-expanded={abierto} onClick={() => setAbierto((v) => !v)}>
+            <SlidersHorizontal className="size-3.5" />Filtros
+          </Button>
+        )}
+        <div className={cn('items-center gap-1.5 sm:contents', abierto ? 'flex basis-full flex-wrap' : 'hidden sm:contents')}>{children}</div>
         {onClear && <ClearFiltersButton onClear={onClear} />}
-        {zoom && <div className="ml-auto">{zoom}</div>}
+        {zoom && <div className="ml-auto hidden sm:block">{zoom}</div>}
       </div>
-      {chips && <div className="-mt-1 flex items-center gap-1.5">{chips}</div>}
-      {columnFilters && <div className="flex flex-wrap items-center gap-2">{columnFilters}</div>}
+      {chips && <div className="-mt-1 flex flex-wrap items-center gap-1.5">{chips}</div>}
+      {columnFilters && <div className={cn('flex-wrap items-center gap-1.5', abierto ? 'flex' : 'hidden sm:flex')}>{columnFilters}</div>}
     </div>
   );
 }

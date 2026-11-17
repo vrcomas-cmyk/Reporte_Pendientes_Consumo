@@ -131,6 +131,24 @@ del reporte diario (ya retirado). Solo aplica si hay URL del Apps Script configu
 - Si un libro falla y hay copia anterior se usa esa copia (se registra el aviso); sin copia anterior el sync de
   `Resumen_Fac` falla en vez de entregar totales incompletos.
 
+### 6.1 Carpeta de ventas vs presupuesto (fuente actual de Facturación)
+
+Los libros de la carpeta traen `REGION, GERENCIA_DE_VENTAS, CENTRO, CVE_GPOCLIENTES, GRUPO_CLIENTES, CVE_GPOVENDEDORES, CLIENTE, NOMBRE_CLIENTE, DESTINATARIO,
+FECHA (Mes), SECTOR, ..., GRUPO_MATERIAL, MATERIAL, DESCRIPCION MATERIAL, CANTIDAD_VENTA, VENTAS TOTALES, PRESUPUESTO`.
+
+- **Qué carpeta se lee**: se configura en **Admin → Conectores → «Drive · Carpeta de Facturación»** (ID o URL completa; migración `0029`). La Edge Function `datos` la
+  lee en el servidor y la manda al Apps Script como `carpeta=`; el navegador no puede elegirla (se descarta cualquier `carpeta` de la URL). Vacío = el script usa
+  `FAC_CARPETA_ID`. Cambiarla no requiere volver a desplegar nada; sí Carga → Sincronizar facturación (forzar) para bajar los libros nuevos.
+- El script acepta ambos juegos de encabezados (alias) y el mes con nombre ("Julio 2026" → `07/2026`). El código de material pierde el 0 inicial (`0511010` → `511010`),
+  tanto en el script como en la app (`normalizarMaterial`).
+- No trae almacén (se asigna por grupo de cliente, regla ya existente) ni precios ni día.
+- Las filas de venta ganan `Region` y `Gerencia`. El **presupuesto no es una fila de venta**: se fija por ejecutivo × sector/grupo de material × grupo de cliente, así que
+  `fac_chunk` lo entrega aparte en `presupuesto` (`[mes, región, gerencia, gpoCte, gpoVdor, sector, grupoMaterial, monto]`) y los renglones de solo presupuesto no entran
+  a Resumen_Fac ni a la tabla de Facturación.
+- En la app el presupuesto aparece en **Facturación → «Ventas vs presupuesto»**: general y por Región, Gerencia de ventas, Gpo. cliente y Gpo. vendedor (`core/ventasPto.ts`).
+  Un rol restringido a su zona solo recibe el presupuesto de sus gpo. vendedor (`filtrarPresupuesto`).
+- **Hay que volver a desplegar el Apps Script** (nueva versión) con el `.gs` actualizado y desplegar la función `datos` y la migración `0029`.
+
 ## 7. Qué NO cambia (todavía)
 
 - Las pestañas **Todas las Sugerencias** y **Resumen Sin Sugerencias** del reporte (`1OULG…`): Pedidos e

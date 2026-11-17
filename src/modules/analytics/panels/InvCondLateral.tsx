@@ -70,7 +70,7 @@ export function InvCondLateral({ a, material, centro, condicion, onSelectCentro 
                 <p className="text-[11px] text-text-faint">Inv {etiquetaCentro(c, nombresCentros, mostrarNombres)}</p>
                 <p className="font-mono text-sm">
                   {formatNumber(invRow?.invByCenter[c] || 0)}
-                  {transito > 0 && <span className="text-success"> +{formatNumber(transito)}</span>}
+                  {transito > 0 && <span className="text-violet-600 dark:text-violet-400"> +{formatNumber(transito)}</span>}
                   {lento && <AlertTriangle className="ml-1 inline size-3 text-warning" />}
                 </p>
                 {pend > 0 && <p className="text-[11px] text-danger">Pend {formatNumber(pend)}</p>}

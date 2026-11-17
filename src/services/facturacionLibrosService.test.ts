@@ -25,6 +25,7 @@ vi.mock('@/services/pedidosService', () => ({
   withRetries: async <T,>(_label: string, fn: () => Promise<T>) => fn(),
   explicarFalla: (e: unknown) => (e instanceof Error ? e : new Error(String(e))),
 }));
+vi.mock('@/services/connectorsService', () => ({ getConnector: async () => undefined }));
 vi.mock('@/lib/logError', () => ({ logInfo: async () => undefined, logWarn: async () => undefined }));
 
 const fila = (mes: string, material: string, cant: number, imp: number): FilaFac => [mes, '1', 'CLIENTE', '2', material, 'TEXTO', '1018', '1031', '15', '24', cant, imp];

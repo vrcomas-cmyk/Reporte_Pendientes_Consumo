@@ -1,6 +1,5 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
     "allow": [
       "Bash",
       "PowerShell",
@@ -9,7 +8,8 @@
       "Edit",
       "Glob",
       "Grep"
-    ]
+    ],
+    "defaultMode": "acceptEdits"
   },
   "hooks": {
     "PostToolUse": [
@@ -50,5 +50,8 @@
       }
     ]
   },
-  "description": "Impeccable design detector: immediate-tier checks after Edit/Write on UI files, full-rule deep pass on Stop."
+  "description": "Impeccable design detector: immediate-tier checks after Edit/Write on UI files, full-rule deep pass on Stop.",
+  "disabledMcpjsonServers": [
+    "playwright"
+  ]
 }
