@@ -9,7 +9,7 @@
 // IndexedDB (`facturacionLibros`): un libro solo se vuelve a descargar si su `ultimaModificacion` en Drive
 // cambió — los trimestres viejos no cambian, así que el sync diario solo trae el trimestre en curso.
 // ---------------------------------------------------------------------------
-import { agregarFilas, construirTabsFacturacionGen, datosFacturacionGen, filasDeBloque, firmaLibros, type FilaFac, type TabFac, type TabsFacturacion } from '@/core/facturacionLibros';
+import { agregarFilas, agregarPresupuesto, construirTabsFacturacionGen, datosFacturacionGen, filasDeBloque, firmaLibros, presupuestoDeBloque, type FilaFac, type PtoFila, type TabFac, type TabsFacturacion } from '@/core/facturacionLibros';
 import { mapFacMensualCam, mapResumenFac } from '@/core/mappers';
 import type { FacMensualCamRow, ResumenFacRow } from '@/core/types';
 import type { DatosFacturacion } from '@/core/facturacionLibros';
@@ -21,6 +21,8 @@ import type { RFIndex } from '@/core/resumenFac';
 import type { ConsumoRow } from '@/core/types';
 import type { FacturacionMetaRow } from '@/repositories/db';
 import { correrPorTramos } from '@/lib/tramos';
+import { datosProxyActivo } from '@/services/datosProxy';
+import { getConnector } from '@/services/connectorsService';
 import { explicarFalla, pedidosConfigurado, requireUrl, withRetries } from '@/services/pedidosService';
 import { limitadorAppsScript } from '@/lib/limitador';
 
@@ -40,6 +42,17 @@ interface LibroManifiesto {
   conPrecios?: boolean;
   /** El Apps Script ya entrega el día de la línea más reciente de cada fila. */
   conFechas?: boolean;
+  /** El Apps Script ya entrega región / gerencia y el presupuesto. */
+  conDims?: boolean;
+}
+
+/** Carpeta de Drive de la facturación (conector `fac_carpeta_id`, ID o URL) como parámetro `carpeta=`. Con el proxy activo NO se manda: la función `datos`
+ * la pone desde el servidor (el navegador no elige la carpeta). Vacío = el Apps Script usa la suya por omisión. */
+async function paramCarpeta(): Promise<string> {
+  if (datosProxyActivo()) return '';
+  const v = (await getConnector('fac_carpeta_id', undefined)) ?? '';
+  const m = v.match(/\/folders\/([A-Za-z0-9_-]{15,100})/) ?? v.trim().match(/^([A-Za-z0-9_-]{15,100})$/);
+  return m ? `&carpeta=${m[1]}` : '';
 }
 
 /** True si la facturación se lee de los libros (hay URL del Apps Script configurada); si no, se usan las pestañas del reporte. */
@@ -55,7 +68,7 @@ function errorDeScript(data: unknown): string | null {
 }
 
 async function fetchManifiesto(): Promise<LibroManifiesto[]> {
-  const url = `${await requireUrl()}?action=fac_manifest`;
+  const url = `${await requireUrl()}?action=fac_manifest${await paramCarpeta()}`;
   return withRetries('facturación: libros', async () => {
     try {
       const res = await fetchWithTimeout(url, { cache: 'no-store' }, MANIFEST_TIMEOUT_MS);
@@ -74,10 +87,12 @@ async function fetchManifiesto(): Promise<LibroManifiesto[]> {
   });
 }
 
-async function fetchBloque(libro: LibroManifiesto, offset: number, limit: number): Promise<FilaFac[]> {
+interface BloqueFac { filas: FilaFac[]; pto: PtoFila[] }
+
+async function fetchBloque(libro: LibroManifiesto, offset: number, limit: number): Promise<BloqueFac> {
   // `v` (ms de la última modificación) le permite al script saltarse consultas a Drive en cada bloque.
   const params = new URLSearchParams({ action: 'fac_chunk', fileId: libro.id, offset: String(offset), limit: String(limit), v: String(new Date(libro.ultimaModificacion).getTime() || 0) });
-  const url = `${await requireUrl()}?${params.toString()}`;
+  const url = `${await requireUrl()}?${params.toString()}${await paramCarpeta()}`;
   return withRetries(`facturación ${libro.periodo} offset=${offset}`, () => limitadorAppsScript(async () => {
     try {
       const res = await fetchWithTimeout(url, { cache: 'no-store' }, CHUNK_TIMEOUT_MS);
@@ -85,11 +100,11 @@ async function fetchBloque(libro: LibroManifiesto, offset: number, limit: number
       const data: unknown = await res.json();
       const err = errorDeScript(data);
       if (err) throw new Error(err);
-      const { columnas, rows } = (data ?? {}) as { columnas?: unknown; rows?: unknown };
+      const { columnas, rows, presupuesto } = (data ?? {}) as { columnas?: unknown; rows?: unknown; presupuesto?: unknown };
       if (!Array.isArray(columnas) || !Array.isArray(rows)) {
         throw new Error(`Formato de respuesta inesperado en ${libro.nombre} — ¿el Apps Script tiene desplegada la última versión? (ver docs/apps-script-pedidos.md)`);
       }
-      return filasDeBloque(columnas.map(String), rows as unknown[][]);
+      return { filas: filasDeBloque(columnas.map(String), rows as unknown[][]), pto: presupuestoDeBloque(presupuesto) };
     } catch (e) {
       throw explicarFalla(e);
     }
@@ -99,7 +114,7 @@ async function fetchBloque(libro: LibroManifiesto, offset: number, limit: number
 interface EstadoLibro {
   libro: LibroManifiesto;
   limit: number;
-  bloques: FilaFac[][];
+  bloques: BloqueFac[];
   error: Error | null;
 }
 
@@ -145,10 +160,10 @@ async function descargar(onProgress?: (mensaje: string, fraccion: number) => voi
   if (obsoletos.length > 0) await deleteLibrosFacturacion(obsoletos).catch(() => {});
 
   const porId = new Map<string, FacturacionMetaRow>(metas.filter((g) => vigentes.has(g.id)).map((g) => [g.id, g]));
-  const descargados = new Map<string, FilaFac[]>();
+  const descargados = new Map<string, { rows: FilaFac[]; pto: PtoFila[] }>();
   const pendientes: EstadoLibro[] = manifiesto
     // También se rebaja un libro que se guardó sin precios si el script ya los entrega (si no, el mínimo / máximo seguiría siendo aproximado).
-    .filter((l) => forzar || porId.get(l.id)?.ultimaModificacion !== l.ultimaModificacion || (!!l.conPrecios && !porId.get(l.id)?.conPrecios) || (!!l.conFechas && !porId.get(l.id)?.conFechas))
+    .filter((l) => forzar || porId.get(l.id)?.ultimaModificacion !== l.ultimaModificacion || (!!l.conPrecios && !porId.get(l.id)?.conPrecios) || (!!l.conFechas && !porId.get(l.id)?.conFechas) || (!!l.conDims && !porId.get(l.id)?.conDims))
     // Los libros más grandes primero: los bloques se encolan en este orden y así no queda uno largo al final.
     .sort((a, b) => b.totalRows - a.totalRows)
     .map((libro) => ({ libro, limit: libro.chunkSize || 5_000, bloques: [], error: null }));
@@ -168,7 +183,7 @@ async function descargar(onProgress?: (mensaje: string, fraccion: number) => voi
   await Promise.all(pendientes.map(async (estado) => {
     const { libro } = estado;
     const offsets = offsetsDe(estado);
-    estado.bloques = new Array<FilaFac[]>(offsets.length);
+    estado.bloques = new Array<BloqueFac>(offsets.length);
     await Promise.all(offsets.map(async (offset, indice) => {
       if (estado.error) return;
       try {
@@ -188,17 +203,18 @@ async function descargar(onProgress?: (mensaje: string, fraccion: number) => voi
       fallidos.push(`${libro.nombre}: ${estado.error.message}`);
       return;
     }
-    const rows = agregarFilas(estado.bloques.flat());
-    const fila = { id: libro.id, nombre: libro.nombre, orden: libro.orden, ultimaModificacion: libro.ultimaModificacion, rows };
-    descargados.set(libro.id, rows);
-    porId.set(libro.id, { id: libro.id, nombre: libro.nombre, orden: libro.orden, ultimaModificacion: libro.ultimaModificacion, filas: rows.length, conPrecios: (rows[0]?.length ?? 0) > 12, conFechas: (rows[0]?.length ?? 0) > 14 });
+    const rows = agregarFilas(estado.bloques.flatMap((b) => b.filas));
+    const pto = agregarPresupuesto(estado.bloques.flatMap((b) => b.pto));
+    const fila = { id: libro.id, nombre: libro.nombre, orden: libro.orden, ultimaModificacion: libro.ultimaModificacion, rows, pto };
+    descargados.set(libro.id, { rows, pto });
+    porId.set(libro.id, { id: libro.id, nombre: libro.nombre, orden: libro.orden, ultimaModificacion: libro.ultimaModificacion, filas: rows.length, conPrecios: (rows[0]?.length ?? 0) > 12, conFechas: (rows[0]?.length ?? 0) > 14, conDims: (rows[0]?.length ?? 0) > 15 });
     // La caché es secundaria: si falla (cuota), el libro igual se usa en esta sesión.
     await putLibroFacturacion(fila).catch((e) => logWarn('facturacion-cache-put', e instanceof Error ? e.message : String(e)));
   }));
   if (fallidos.length > 0) void logWarn('facturacion-libros-parcial', `Se usó la copia anterior de: ${fallidos.join(' | ')}`);
   if (pendientes.length > 0) void logInfo('facturacion-libros', `${pendientes.length} libro(s) descargados de ${manifiesto.length}`);
 
-  infoUltima = manifiesto.map((l) => ({ nombre: l.nombre, filas: porId.get(l.id)?.filas ?? 0, modificado: l.ultimaModificacion, conPrecios: !!porId.get(l.id)?.conPrecios, conFechas: !!porId.get(l.id)?.conFechas }));
+  infoUltima = manifiesto.map((l) => ({ nombre: l.nombre, filas: porId.get(l.id)?.filas ?? 0, modificado: l.ultimaModificacion, conPrecios: !!porId.get(l.id)?.conPrecios, conFechas: !!porId.get(l.id)?.conFechas, conDims: !!porId.get(l.id)?.conDims }));
   if (soloSiCambio) {
     // ¿Lo que hay cargado en el store ya es esto mismo? (el sync del reporte también guarda libros en la caché sin pasar por el store)
     const enStore = new Map(useFacturacionStore.getState().libros.map((x) => [x.nombre, x.modificado]));
@@ -209,9 +225,15 @@ async function descargar(onProgress?: (mensaje: string, fraccion: number) => voi
   onProgress?.('Uniendo libros de facturación…', 1);
   // Los libros que no se bajaron ahora se leen de la caché de uno en uno (la pantalla sigue respondiendo entre libro y libro).
   const libros: FilaFac[][] = [];
-  for (const l of manifiesto) libros.push(descargados.get(l.id) ?? (await getLibroFacturacion(l.id))?.rows ?? []);
+  const presupuestos: PtoFila[][] = [];
+  for (const l of manifiesto) {
+    const d = descargados.get(l.id);
+    const guardado = d ? null : await getLibroFacturacion(l.id);
+    libros.push(d?.rows ?? guardado?.rows ?? []);
+    presupuestos.push(d?.pto ?? guardado?.pto ?? []);
+  }
   // Se une por tramos cortos: con todo el historial son cientos de miles de filas y de golpe trabaría la pantalla.
-  const tabs = await correrPorTramos(construirTabsFacturacionGen(libros), { onProgreso: (f) => onProgress?.('Uniendo libros de facturación…', f) });
+  const tabs = await correrPorTramos(construirTabsFacturacionGen(libros, presupuestos), { onProgreso: (f) => onProgress?.('Uniendo libros de facturación…', f) });
   if (!tabs) throw new Error('Se canceló la unión de los libros de facturación.');
   return tabs;
 }
@@ -244,12 +266,12 @@ export async function restaurarFacturacion(): Promise<void> {
     // Camino rápido: si lo YA CALCULADO (índices, consumo, filas) sigue vigente —mismos libros, misma fecha de Drive—, se lee tal cual y
     // no se recalcula nada (leerlo ~2 s; recalcularlo ~10 s). Cualquier cambio de un libro invalida la firma.
     const metas = (await getMetaLibrosFacturacion()).sort((a, b) => a.orden - b.orden);
-    const infos: InfoLibroFac[] = metas.map((m) => ({ nombre: m.nombre, filas: m.filas, modificado: m.ultimaModificacion, conPrecios: !!m.conPrecios, conFechas: !!m.conFechas }));
+    const infos: InfoLibroFac[] = metas.map((m) => ({ nombre: m.nombre, filas: m.filas, modificado: m.ultimaModificacion, conPrecios: !!m.conPrecios, conFechas: !!m.conFechas, conDims: !!m.conDims }));
     if (metas.length > 0) {
       const der = await leerDerivadosFac(firmaLibros(infos, FAC_DERIVADOS_ESQUEMA)).catch(() => null);
       if (der) {
         if (useFacturacionStore.getState().resumenFac?.length) { useFacturacionStore.setState({ hidratado: true }); return; }
-        store.restaurar({ resumenFac: der.resumenFac, facMensualCam: der.facMensualCam, almacenesAsignados: der.almacenesAsignados }, infos, { filas: der.resumenFac, rf: der.rf, consumo: der.consumo });
+        store.restaurar({ resumenFac: der.resumenFac, facMensualCam: der.facMensualCam, almacenesAsignados: der.almacenesAsignados, ventasPto: der.ventasPto, presupuestoDet: der.presupuestoDet }, infos, { filas: der.resumenFac, rf: der.rf, consumo: der.consumo });
         return;
       }
     }
@@ -258,7 +280,7 @@ export async function restaurarFacturacion(): Promise<void> {
       store.restaurar(null, []);
       return;
     }
-    const tabs = await correrPorTramos(construirTabsFacturacionGen(guardados.map((g) => g.rows)));
+    const tabs = await correrPorTramos(construirTabsFacturacionGen(guardados.map((g) => g.rows), guardados.map((g) => g.pto ?? [])));
     if (!tabs) return;
     const datos = await datosFacturacionDeTabs(tabs);
     // Si mientras tanto un sync ya dejó datos más nuevos en el store, la caché (más vieja) no los pisa.
@@ -284,6 +306,8 @@ export async function persistirDerivadosFacturacion(filas: ResumenFacRow[], rf: 
       resumenFac: filas,
       facMensualCam: st.facMensualCam ?? [],
       almacenesAsignados: st.almacenesAsignados,
+      ventasPto: st.ventasPto,
+      presupuestoDet: st.presupuestoDet,
       rf,
       consumo,
     });

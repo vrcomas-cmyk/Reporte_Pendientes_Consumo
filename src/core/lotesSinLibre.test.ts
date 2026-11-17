@@ -27,9 +27,9 @@ describe('clasificarLote con la columna «Meses» de la hoja', () => {
   it('un lote sin fecha con Meses = 0 es corta caducidad (como lo cuenta la hoja)', () => {
     expect(clasificarLote({ ...base, meses: 0 }, hoy)).toBe('VIGENCIA');
   });
-  it('Meses = 12 cuenta aunque la fecha pase unos días del año calendario', () => {
-    expect(clasificarLote({ ...base, fecha: new Date(2027, 10, 8), meses: 12 }, hoy)).toBe('VIGENCIA');
-    expect(clasificarLote({ ...base, fecha: new Date(2027, 10, 8) }, hoy)).toBeNull();
+  it('con fecha manda la regla de días (< 365), no la columna Meses', () => {
+    expect(clasificarLote({ ...base, fecha: new Date(2027, 10, 8), meses: 12 }, hoy)).toBeNull(); // 368 días
+    expect(clasificarLote({ ...base, fecha: new Date(2027, 10, 4), meses: 13 }, hoy)).toBe('VIGENCIA'); // 364 días
   });
   it('Meses > 12 fuera del 1032 no cuenta; en el 1032 sí', () => {
     expect(clasificarLote({ ...base, meses: 13 }, hoy)).toBeNull();

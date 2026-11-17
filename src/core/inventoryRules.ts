@@ -16,6 +16,15 @@
  */
 
 export const MESES_MAX_CORTA_CADUCIDAD = 12;
+/** Corta caducidad por vigencia = MENOS de 365 días desde hoy (un lote que vence en exactamente 365 días ya no lo es). */
+export const DIAS_MAX_CORTA_CADUCIDAD = 365;
+
+/** ¿La fecha de caducidad está a menos de 365 días de hoy (comparando días calendario)? Una fecha ya vencida también cuenta. */
+export function vigenciaCorta(fecha: Date | null | undefined, hoy: Date = new Date()): boolean {
+  if (!fecha) return false;
+  const dia = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return (dia(fecha) - dia(hoy)) / 86_400_000 < DIAS_MAX_CORTA_CADUCIDAD;
+}
 export const ALMACEN_CORTA_CADUCIDAD = '1032';
 
 export type MotivoCortaCaducidad = 'VIGENCIA' | 'ALMACEN_1032' | 'AMBOS';
@@ -46,7 +55,8 @@ export function evaluarCortaCaducidad(
 ): ResultadoCortaCaducidad {
   const dias = diasHasta(fechaCaducidad, hoy);
   const mesesRestantes = dias == null ? null : Math.round((dias / 30.4375) * 10) / 10;
-  const porVigencia = mesesRestantes != null && mesesRestantes <= mesesMaximos;
+  // Con el umbral por omisión (12 m) manda la regla de negocio en días: < 365.
+  const porVigencia = dias != null && (mesesMaximos === MESES_MAX_CORTA_CADUCIDAD ? dias < DIAS_MAX_CORTA_CADUCIDAD : (mesesRestantes ?? Infinity) <= mesesMaximos);
   const porAlmacen = (almacen ?? '').toString().trim() === ALMACEN_CORTA_CADUCIDAD;
 
   if (!porVigencia && !porAlmacen) {

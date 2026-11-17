@@ -28,6 +28,8 @@ import { useNombresStore } from '@/store/nombresStore';
 import { loadGruposExcluidos, saveGruposExcluidos, FILTROS_PREFIX } from '@/services/gruposExcluidosService';
 import { useGruposExcluidosStore } from '@/store/gruposExcluidosStore';
 import { useDataStore } from '@/store/dataStore';
+import { useFacturacionStore } from '@/store/facturacionStore';
+import { listarGruposCliente } from '@/lib/gruposCliente';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { CENTERS } from '@/core/types';
 import type { NombresMap } from '@/lib/nombres';
@@ -226,17 +228,18 @@ function FiltrosTab() {
       .catch((e) => toast.error('No se pudo cargar la configuración', e instanceof Error ? e.message : String(e)));
   }, []);
 
-  // Un grupo por código (Gpo. Cte.) del catálogo de Ejecutivos, más los códigos
-  // ya configurados que el catálogo cargado no traiga.
-  const grupos = (() => {
-    const m = new Map<string, string>();
-    for (const e of catalog?.ejecutivos ?? []) {
-      const code = String(e.gpoCte ?? '').trim();
-      if (code && !m.has(code)) m.set(code, String(e.grupoCliente ?? '').trim());
-    }
-    for (const code of excluidos) if (!m.has(code)) m.set(code, '');
-    return [...m.entries()].sort(([a], [b]) => (Number(a) - Number(b)) || a.localeCompare(b));
-  })();
+  // Un grupo por código (Gpo. Cte.): los del catálogo de Ejecutivos (con su nombre) MÁS todos los que aparezcan en la facturación y el presupuesto cargados, aunque no
+  // tengan nombre en el catálogo (p. ej. del 28 al 32), y los ya configurados que ninguna fuente traiga.
+  const ventasPto = useFacturacionStore((s) => s.ventasPto);
+  const presupuestoDet = useFacturacionStore((s) => s.presupuestoDet);
+  const { grupos, sinCatalogo } = useMemo(() => {
+    const delCatalogo: [string, string][] = (catalog?.ejecutivos ?? []).map((e) => [String(e.gpoCte ?? ''), String(e.grupoCliente ?? '')]);
+    const otros = new Set<string>();
+    for (const v of ventasPto) otros.add(v.gpoCte);
+    for (const f of presupuestoDet) otros.add(f[3]);
+    const lista = listarGruposCliente(delCatalogo, otros, excluidos);
+    return { grupos: lista, sinCatalogo: lista.filter(([, n]) => !n).length };
+  }, [catalog, ventasPto, presupuestoDet, excluidos]);
 
   const toggle = (code: string) => setExcluidos((cur) => (cur.includes(code) ? cur.filter((c) => c !== code) : [...cur, code]));
 
@@ -264,7 +267,8 @@ function FiltrosTab() {
       </CardHeader>
       <CardContent className="flex flex-col gap-1">
         {!cargado && <p className="text-sm text-text-muted">Cargando…</p>}
-        {cargado && grupos.length === 0 && <p className="text-sm text-text-muted">No hay grupos de cliente: carga el catálogo para listarlos.</p>}
+        {cargado && grupos.length === 0 && <p className="text-sm text-text-muted">No hay grupos de cliente: carga el catálogo y sincroniza facturación para listarlos.</p>}
+        {cargado && sinCatalogo > 0 && <p className="mb-1 text-xs text-text-faint">{sinCatalogo} grupo(s) aparecen en la facturación o el presupuesto pero no tienen nombre en el catálogo: igual se pueden marcar (el filtro los muestra con su código).</p>}
         {grupos.map(([code, nombre]) => (
           <label key={code} className="flex cursor-pointer items-center gap-3 rounded px-1.5 py-1 text-sm hover:bg-bg-inset">
             <input type="checkbox" checked={excluidos.includes(code)} onChange={() => toggle(code)} />

@@ -196,7 +196,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(({ clas
   React.useImperativeHandle(ref, () => localRef.current as HTMLTableCellElement, []);
   const resize = React.useContext(TableResizeContext);
   return (
-    <th ref={localRef} className={cn('relative h-9 px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-text-faint whitespace-nowrap', className)} {...props}>
+    <th ref={localRef} className={cn('sticky top-0 z-10 h-9 bg-bg-elevated px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-text-faint whitespace-nowrap', className)} {...props}>
       {filter ? <span className="inline-flex items-center gap-1">{children}{filter}</span> : children}
       {resize && <ResizeHandle col={() => localRef.current?.cellIndex ?? 0} />}
     </th>
@@ -242,7 +242,7 @@ const SortableTableHead = React.forwardRef<HTMLTableCellElement, SortableTableHe
         onClick={() => onSort(sortKey)}
         onKeyDown={onKeyDown}
         className={cn(
-          'relative h-9 select-none px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-text-faint whitespace-nowrap cursor-pointer hover:text-text-muted focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent',
+          'sticky top-0 z-10 h-9 bg-bg-elevated select-none px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-text-faint whitespace-nowrap cursor-pointer hover:text-text-muted focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent',
           className,
         )}
         {...props}
@@ -259,4 +259,20 @@ const SortableTableHead = React.forwardRef<HTMLTableCellElement, SortableTableHe
 );
 SortableTableHead.displayName = 'SortableTableHead';
 
-export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead };
+/** Banda de totales fija abajo del contenedor con scroll (como el `thead` fija arriba): se ve aunque haya más filas debajo.
+ * Va después de `</TableBody>`; las celdas usan `TableTotalCell`. El scroll lo da el contenedor `overflow-auto` de la tabla. */
+const TableFooter = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(({ className, ...props }, ref) => (
+  <tfoot
+    ref={ref}
+    className={cn('sticky bottom-0 z-10 border-t-2 border-border bg-bg-elevated text-sm font-semibold shadow-[0_-1px_0_var(--border)]', className)}
+    {...props}
+  />
+));
+TableFooter.displayName = 'TableFooter';
+
+/** Celda de la banda de totales: `numero` la alinea a la derecha con cifras tabulares. */
+const TableTotalCell = ({ className, numero, ...props }: React.TdHTMLAttributes<HTMLTableCellElement> & { numero?: boolean }) => (
+  <td className={cn('bg-bg-elevated px-3 py-2', numero && 'text-right tabular-nums', className)} {...props} />
+);
+
+export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead, TableFooter, TableTotalCell };

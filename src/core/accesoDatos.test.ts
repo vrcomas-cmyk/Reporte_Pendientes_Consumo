@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  POLITICA_ABIERTA, condicionVisible, filtrarFacturacion, filtrarHoja, filtrarPestanaCatalogo, filtrarRelacion, mapaZonas, normCode, politicaDe,
+  POLITICA_ABIERTA, condicionVisible, filtrarFacturacion, filtrarPresupuesto, filtrarHoja, filtrarPestanaCatalogo, filtrarRelacion, mapaZonas, normCode, politicaDe,
   type PoliticaDatos,
 } from '../../supabase/functions/datos/accesoDatos';
 
@@ -132,6 +132,17 @@ describe('filtrarFacturacion', () => {
     const out = filtrarFacturacion({ columnas, rows: [propio, ajeno] }, ejecutivo({ verCosto: true }), mapa.zonaDe);
     expect(out.rows[0]).toEqual(propio);
     expect(out.rows[1]).toEqual(['10/2026', '', '', '', '100', '1001', 'B01', 7, '', '', '']);
+  });
+});
+
+describe('filtrarPresupuesto', () => {
+  const pto = [['10/2026', 'R', 'G', '15', 'A01', 'S', 'GM', 100], ['10/2026', 'R', 'G', '15', 'B01', 'S', 'GM', 200]];
+  it('un usuario restringido solo ve el presupuesto de su zona', () => {
+    expect(filtrarPresupuesto(pto, ejecutivo({ verCosto: true }), mapa.zonaDe)).toEqual([pto[0]]);
+  });
+  it('sin restricción ve todo, y un valor que no es arreglo da lista vacía', () => {
+    expect(filtrarPresupuesto(pto, ejecutivo({ restringirZona: false }), mapa.zonaDe)).toEqual(pto);
+    expect(filtrarPresupuesto(undefined, ejecutivo(), mapa.zonaDe)).toEqual([]);
   });
 });
 

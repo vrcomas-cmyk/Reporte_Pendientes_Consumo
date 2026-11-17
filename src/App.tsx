@@ -71,7 +71,9 @@ function RouteFallback() {
   );
 }
 
-function App() {
+/** Hidrata los stores solo DESPUÉS de pasar AuthGate: antes del login competían
+ * con la verificación de acceso (6+ consultas) justo cuando Supabase está saturado. */
+function HidratarStores() {
   const hydrateSolicitudes = useSolicitudStore((s) => s.hydrate);
   const hydrateConocimiento = useConocimientoStore((s) => s.hydrate);
   const hydrateScoringWeights = useScoringWeightsStore((s) => s.hydrate);
@@ -79,18 +81,23 @@ function App() {
   const hydrateGruposExcluidos = useGruposExcluidosStore((s) => s.hydrate);
   const hydrateTraslados = useTrasladosStore((s) => s.hydrate);
   useEffect(() => {
-    void hydrateSolicitudes();
-    void hydrateConocimiento();
-    void hydrateScoringWeights();
-    void hydrateNombres();
-    void hydrateGruposExcluidos();
-    void hydrateTraslados().then(iniciarSeguimientoTraslados);
+    const seguro = (p: Promise<unknown> | void) => { void Promise.resolve(p).catch((e) => console.error('[hydrate]', e)); };
+    seguro(hydrateSolicitudes());
+    seguro(hydrateConocimiento());
+    seguro(hydrateScoringWeights());
+    seguro(hydrateNombres());
+    seguro(hydrateGruposExcluidos());
+    seguro(hydrateTraslados().then(iniciarSeguimientoTraslados));
   }, [hydrateSolicitudes, hydrateConocimiento, hydrateScoringWeights, hydrateNombres, hydrateGruposExcluidos, hydrateTraslados]);
+  return null;
+}
 
+function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
         <AuthGate>
+          <HidratarStores />
           <BrowserRouter>
             <TooltipProvider delayDuration={300}>
             <AnalyticsProvider>

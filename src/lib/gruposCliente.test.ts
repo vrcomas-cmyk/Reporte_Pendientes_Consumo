@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nombresExcluidos, gruposPorDefecto, esSeleccionPorDefecto, etiquetaGrupos, parseGruposExcluidos, GRUPOS_EXCLUIDOS_DEFAULT } from './gruposCliente';
+import { listarGruposCliente, nombresExcluidos, gruposPorDefecto, esSeleccionPorDefecto, etiquetaGrupos, parseGruposExcluidos, GRUPOS_EXCLUIDOS_DEFAULT } from './gruposCliente';
 
 const OPC = ['CONCENTRADORAS', 'DISTRIBUIDORES', 'GOBIERNO', 'GOBIERNO A', 'GOBIERNO DESCENTRALIZADO', '(sin grupo)'];
 
@@ -54,5 +54,21 @@ describe('parseGruposExcluidos', () => {
     expect(parseGruposExcluidos('')).toBeNull();
     expect(parseGruposExcluidos('no json')).toBeNull();
     expect(parseGruposExcluidos('{"a":1}')).toBeNull();
+  });
+});
+
+describe('listarGruposCliente (Administración → Filtros)', () => {
+  it('incluye los códigos que solo aparecen en otras fuentes (sin nombre) junto a los del catálogo', () => {
+    const r = listarGruposCliente([['15', 'DISTRIBUIDOR'], ['18', 'GOBIERNO']], ['15', '28', '29', '30', '31', '32'], []);
+    expect(r).toEqual([['15', 'DISTRIBUIDOR'], ['18', 'GOBIERNO'], ['28', ''], ['29', ''], ['30', ''], ['31', ''], ['32', '']]);
+  });
+  it('un código con nombre en el catálogo conserva ese nombre aunque otra fuente lo repita', () => {
+    expect(listarGruposCliente([['15', 'DISTRIBUIDOR']], ['15'], [])).toEqual([['15', 'DISTRIBUIDOR']]);
+  });
+  it('si el catálogo lo trae primero sin nombre y luego con nombre, gana el nombre', () => {
+    expect(listarGruposCliente([['7', ''], ['7', 'FARMACIAS']], [], [])).toEqual([['7', 'FARMACIAS']]);
+  });
+  it('conserva los excluidos que ninguna fuente trae, ignora vacíos y ordena numéricamente (2 antes que 10)', () => {
+    expect(listarGruposCliente([['10', 'A'], ['2', 'B'], ['', 'X']], [' ', '5'], ['99'])).toEqual([['2', 'B'], ['5', ''], ['10', 'A'], ['99', '']]);
   });
 });

@@ -23,11 +23,12 @@
   --bg-elevated: #ffffff;
   --bg-inset: #f4f4f3;
   --border: #e4e3e0;
-  --border-strong: #100e0b;
+  --border-strong: #b4b1aa;
 
+  /* Jerarquía de texto: los tres niveles superan WCAG AA (≥ 7:1 los dos primeros) pero ya no son el mismo negro. */
   --text: #1c1b19;
-  --text-muted: #000000;
-  --text-faint: #000000;
+  --text-muted: #3d3b37;
+  --text-faint: #5c5a55;
 
   --accent: #0284c7;
   --accent-soft: #e0f2fe;
@@ -88,8 +89,8 @@
   --border-strong: #3e3e3b;
 
   --text: #edece9;
-  --text-muted: #f0ede5cf;
-  --text-faint: #f0ede5cf;
+  --text-muted: #cfccc4;
+  --text-faint: #a8a59d;
 
   --accent: #38bdf8;
   --accent-soft: #0c4a6e;
@@ -125,11 +126,11 @@
   --bg-elevated: #ffffff;
   --bg-inset: #eeeef0;
   --border: #e1e1e6;
-  --border-strong: #007aff;
+  --border-strong: #bdbdc4;
 
   --text: #1d1d1f;
-  --text-muted: #040405;
-  --text-faint: #0b0b0b;
+  --text-muted: #3a3a3c;
+  --text-faint: #5a5a60;
 
   --accent: #007aff;
   --accent-soft: #e6f0ff;
@@ -178,11 +179,11 @@
   --bg-elevated: #1d1d1f;
   --bg-inset: #0c0c0e;
   --border: #adadb644;
-  --border-strong: #38bdf8;
+  --border-strong: #4a4a52;
 
   --text: #f5f5f7;
-  --text-muted: #f1f1fb;
-  --text-faint: #ffffff;
+  --text-muted: #d1d1d6;
+  --text-faint: #a1a1a8;
 
   --accent: #38bdf8;
   --accent-soft: #184878;
@@ -258,6 +259,16 @@
 * {
   border-color: var(--border);
 }
+
+/* Foco visible en la skin clásica (la Apple define el suyo): sin esto el teclado no mostraba dónde está. */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+html[data-skin="apple"] :focus-visible { outline: none; }
+
+/* Cifras alineadas en columnas: los números de tablas y tarjetas no «bailan» al cambiar. */
+td, th, .tabular { font-variant-numeric: tabular-nums; }
 
 html, body, #root {
   height: 100%;
@@ -417,3 +428,75 @@ body {
 .apple-pill-success { background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success); }
 .apple-pill-warning { background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning); }
 .apple-pill-danger  { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+
+/* =========================================================
+   MÓVIL
+   ========================================================= */
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+button, [role="button"], a, select { touch-action: manipulation; }
+
+@media (max-width: 767px) {
+  /* iOS hace zoom al enfocar un campo con fuente < 16px: se evita sin deshabilitar el zoom del usuario. */
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px; }
+  /* Sin rebote de la página entera dentro de la app: el scroll vive en <main> y en las tablas. */
+  body { overscroll-behavior-y: none; }
+}
+
+/* Dedo en lugar de mouse: objetivos táctiles más grandes en los controles chicos (h-8) sin tocar el escritorio. */
+@media (pointer: coarse) {
+  button[class*="h-8"], [role="tab"] { min-height: 2.5rem; }
+}
+
+/* =========================================================
+   MOVIMIENTO — curvas y animaciones de superficies flotantes
+   Las clases `animate-in / fade-in-0 / zoom-in-95` que se usaban antes NO existían en este proyecto (son de un plugin que no está
+   instalado): popovers, tooltips, diálogos y menús aparecían de golpe. Estas las reemplazan, guiadas por los atributos data-state de Radix.
+   · Entrada con ease-out fuerte (responde al instante) y salida más corta que la entrada.
+   · Nunca desde scale(0): desde 0.96 + opacidad.
+   · Popovers / tooltips / menús salen desde su disparador (transform-origin de Radix); diálogos y hojas, no.
+   · Solo transform y opacity (compositor).
+   ========================================================= */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes ui-pop-in { from { opacity: 0; transform: scale(0.96); } }
+@keyframes ui-pop-out { to { opacity: 0; transform: scale(0.97); } }
+@keyframes ui-fade-in { from { opacity: 0; } }
+@keyframes ui-fade-out { to { opacity: 0; } }
+@keyframes ui-sheet-in-right { from { transform: translateX(100%); } }
+@keyframes ui-sheet-out-right { to { transform: translateX(100%); } }
+@keyframes ui-sheet-in-left { from { transform: translateX(-100%); } }
+@keyframes ui-sheet-out-left { to { transform: translateX(-100%); } }
+
+.ui-pop { transform-origin: var(--radix-popover-content-transform-origin, center); }
+.ui-menu { transform-origin: var(--radix-context-menu-content-transform-origin, center); }
+.ui-tip { transform-origin: var(--radix-tooltip-content-transform-origin, center); }
+.ui-pop[data-state="open"], .ui-menu[data-state="open"] { animation: ui-pop-in 160ms var(--ease-out); }
+.ui-pop[data-state="closed"], .ui-menu[data-state="closed"] { animation: ui-pop-out 110ms var(--ease-out) forwards; }
+
+/* Tooltip: con retardo, entra suave; si ya hay otro abierto (`instant-open`) aparece sin animación, así la barra se siente más rápida. */
+.ui-tip[data-state="delayed-open"] { animation: ui-pop-in 125ms var(--ease-out); }
+.ui-tip[data-state="closed"] { animation: ui-fade-out 90ms var(--ease-out) forwards; }
+
+.ui-overlay[data-state="open"] { animation: ui-fade-in 180ms var(--ease-out); }
+.ui-overlay[data-state="closed"] { animation: ui-fade-out 140ms var(--ease-out) forwards; }
+
+/* Diálogo modal: centrado, no sale de ningún disparador. (-translate-* de Tailwind usa la propiedad `translate`, no choca con `transform`.) */
+.ui-dialog[data-state="open"] { animation: ui-pop-in 200ms var(--ease-out); }
+.ui-dialog[data-state="closed"] { animation: ui-pop-out 140ms var(--ease-out) forwards; }
+
+.ui-sheet-right[data-state="open"] { animation: ui-sheet-in-right 300ms var(--ease-drawer); }
+.ui-sheet-right[data-state="closed"] { animation: ui-sheet-out-right 220ms var(--ease-drawer) forwards; }
+.ui-sheet-left[data-state="open"] { animation: ui-sheet-in-left 300ms var(--ease-drawer); }
+.ui-sheet-left[data-state="closed"] { animation: ui-sheet-out-left 220ms var(--ease-drawer) forwards; }
+
+/* Movimiento reducido: sin desplazamientos ni escalas; se conserva el fundido, que ayuda a entender el cambio. */
+@media (prefers-reduced-motion: reduce) {
+  .ui-pop[data-state="open"], .ui-menu[data-state="open"], .ui-tip[data-state="delayed-open"], .ui-dialog[data-state="open"],
+  .ui-sheet-right[data-state="open"], .ui-sheet-left[data-state="open"] { animation: ui-fade-in 120ms linear; }
+  .ui-pop[data-state="closed"], .ui-menu[data-state="closed"], .ui-dialog[data-state="closed"],
+  .ui-sheet-right[data-state="closed"], .ui-sheet-left[data-state="closed"] { animation: ui-fade-out 90ms linear forwards; }
+}

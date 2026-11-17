@@ -17,6 +17,7 @@ export function panelTitulo(p: Panel, a: Analytics): string {
     case 'mesClientesFiltro': return `Clientes ${mesLabel(p.mes)}`;
     case 'sector': return `Sector ${p.sector}`;
     case 'grupo': return `Grupo ${p.grupo}`;
+    case 'colaboradorPto': return `Presupuesto · ${a.enrich.ejecutivoNombre(p.gpoVdor) || p.gpoVdor}`;
     case 'celda': return `${p.material} · Centro ${p.centro}`;
     case 'invCondCelda': return `${p.material} · Centro ${p.centro}`;
     case 'materialTotales': return `Totales ${p.material}`;

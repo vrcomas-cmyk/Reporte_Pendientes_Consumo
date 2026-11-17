@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AlmacenesAsignados, DatosFacturacion } from '@/core/facturacionLibros';
+import type { AlmacenesAsignados, DatosFacturacion, PtoFila, VentasPtoRow } from '@/core/facturacionLibros';
 import type { ConsumoRow, FacMensualCamRow, ResumenFacRow } from '@/core/types';
 import type { RFIndex } from '@/core/resumenFac';
 
@@ -16,6 +16,8 @@ export interface InfoLibroFac {
   conPrecios?: boolean;
   /** Se bajó con el día de la línea más reciente. */
   conFechas?: boolean;
+  /** Se bajó con región / gerencia y presupuesto. */
+  conDims?: boolean;
 }
 
 /** Índices YA calculados (leídos de la caché local) que corresponden EXACTAMENTE a `filas`: si `resumenFac` sigue siendo ese mismo arreglo
@@ -34,6 +36,10 @@ interface FacturacionState {
   resumenFac: ResumenFacRow[] | null;
   facMensualCam: FacMensualCamRow[] | null;
   almacenesAsignados: AlmacenesAsignados;
+  /** Ventas y presupuesto por mes × región × gerencia × gpo. cliente × gpo. vendedor (vacío si los libros no traen presupuesto). */
+  ventasPto: VentasPtoRow[];
+  /** Presupuesto en detalle (sector / grupo de material incluidos) para filtrarlo con los filtros de la página. */
+  presupuestoDet: PtoFila[];
   libros: InfoLibroFac[];
   /** Ver `PrecalculadosFac`. */
   derivados: PrecalculadosFac | null;
@@ -59,6 +65,8 @@ export const useFacturacionStore = create<FacturacionState>((set) => ({
   resumenFac: null,
   facMensualCam: null,
   almacenesAsignados: { renglones: 0, importe: 0 },
+  ventasPto: [],
+  presupuestoDet: [],
   libros: [],
   derivados: null,
   leidoEn: null,
@@ -67,10 +75,10 @@ export const useFacturacionStore = create<FacturacionState>((set) => ({
   progress: null,
   error: null,
   ultimaRevision: null,
-  restaurar: (datos, libros, derivados = null) => set({ derivados, resumenFac: datos?.resumenFac ?? null, facMensualCam: datos?.facMensualCam ?? null, almacenesAsignados: datos?.almacenesAsignados ?? { renglones: 0, importe: 0 }, libros, hidratado: true }),
+  restaurar: (datos, libros, derivados = null) => set({ derivados, resumenFac: datos?.resumenFac ?? null, facMensualCam: datos?.facMensualCam ?? null, almacenesAsignados: datos?.almacenesAsignados ?? { renglones: 0, importe: 0 }, ventasPto: datos?.ventasPto ?? [], presupuestoDet: datos?.presupuestoDet ?? [], libros, hidratado: true }),
   start: () => set({ syncing: true, error: null, progress: { mensaje: 'Consultando libros de facturación…', porcentaje: 2 } }),
   setProgress: (mensaje, porcentaje) => set({ progress: { mensaje, porcentaje } }),
-  completar: (datos, libros) => set({ derivados: null, resumenFac: datos.resumenFac, facMensualCam: datos.facMensualCam, almacenesAsignados: datos.almacenesAsignados, libros, leidoEn: new Date().toISOString(), syncing: false, progress: null, error: null, ultimaRevision: Date.now() }),
+  completar: (datos, libros) => set({ derivados: null, resumenFac: datos.resumenFac, facMensualCam: datos.facMensualCam, almacenesAsignados: datos.almacenesAsignados, ventasPto: datos.ventasPto, presupuestoDet: datos.presupuestoDet, libros, leidoEn: new Date().toISOString(), syncing: false, progress: null, error: null, ultimaRevision: Date.now() }),
   revisado: (libros) => set({ libros, syncing: false, progress: null, error: null, ultimaRevision: Date.now() }),
   fallar: (mensaje) => set({ syncing: false, progress: null, error: mensaje }),
 }));

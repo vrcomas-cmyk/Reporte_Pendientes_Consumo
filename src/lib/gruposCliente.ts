@@ -46,6 +46,29 @@ export function etiquetaGrupos(seleccion: string[], opciones: string[], excluido
   return seleccion.length > 2 ? `${seleccion.slice(0, 2).join(', ')} +${seleccion.length - 2}` : seleccion.join(', ');
 }
 
+/** Lista de grupos de cliente para Administración → Filtros: los del catálogo (código → nombre), MÁS todo código que aparezca en otras fuentes (facturación, presupuesto…)
+ * aunque no tenga nombre, y los ya excluidos que no estén en ninguna fuente. Antes solo salían los del catálogo y un grupo sin nombre (p. ej. del 28 al 32) no se podía
+ * marcar. Un código con nombre en el catálogo conserva ese nombre; ordenados por código (numérico primero). */
+export function listarGruposCliente(
+  catalogo: Iterable<readonly [string, string]>,
+  otrosCodigos: Iterable<string>,
+  excluidos: readonly string[] = [],
+): [string, string][] {
+  const m = new Map<string, string>();
+  for (const [code, nombre] of catalogo) {
+    const c = String(code ?? '').trim();
+    if (!c) continue;
+    const n = String(nombre ?? '').trim();
+    if (!m.has(c) || (!m.get(c) && n)) m.set(c, n);
+  }
+  for (const code of otrosCodigos) {
+    const c = String(code ?? '').trim();
+    if (c && !m.has(c)) m.set(c, '');
+  }
+  for (const code of excluidos) if (!m.has(code)) m.set(code, '');
+  return [...m.entries()].sort(([a], [b]) => (Number(a) - Number(b)) || a.localeCompare(b));
+}
+
 /** Lo guardado en Administración → arreglo de códigos. `null` si no hay nada
  * válido (se usa el default). */
 export function parseGruposExcluidos(raw: string | null | undefined): string[] | null {

@@ -44,6 +44,8 @@ export type Panel =
   | { type: 'mesClientesFiltro'; mes: string; rows: { razon: string; solic: string; dest: string; material: string; cant: number; imp: number; gpoVdor?: string }[]; meses?: string[]; rowsDe?: (mes: string) => { razon: string; solic: string; dest: string; material: string; cant: number; imp: number; gpoVdor?: string }[] }
   | { type: 'sector'; sector: string; filtro?: FiltroConsumo }
   | { type: 'grupo'; grupo: string }
+  // Presupuesto y venta mes a mes de un colaborador (gpo. vendedor) en Facturación; `lo`/`hi`/`meses` son la ventana de meses de la gráfica y `filtros` los filtros activos de la página.
+  | { type: 'colaboradorPto'; gpoVdor: string; lo: number; hi: number; meses?: number[]; filtros: { col: string; values: string[] }[] }
   // `origen: 'resumenSin'` (desde el módulo Inventario): el inventario de otros
   // centros + "Solicitar" se muestra en un panel lateral izquierdo, acotado a
   // `centrosVisibles` (los centros que el usuario dejó visibles en la tabla;

@@ -12,7 +12,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  CONECTORES_SIN_FILTRO, filtrarFacturacion, filtrarHoja, filtrarPestanaCatalogo, filtrarRelacion, mapaZonas, normCode, politicaDe,
+  CONECTORES_SIN_FILTRO, filtrarFacturacion, filtrarPresupuesto, filtrarHoja, filtrarPestanaCatalogo, filtrarRelacion, mapaZonas, normCode, politicaDe,
   type FilaRol, type MapaZonas, type OverrideUsuario,
 } from "./accesoDatos.ts";
 
@@ -22,7 +22,7 @@ const CORS = {
   "Access-Control-Allow-Methods": "GET, OPTIONS",
 };
 const CONECTORES = new Set(["appscript_catalog_url", "pedidos_sheets_url", "incremento_costos_url"]);
-const TIMEOUT_MS = 55_000;
+const TIMEOUT_MS = 110_000; // antes 55 s: un bloque de facturación lento del Apps Script terminaba en 502 aunque el script sí respondía
 const CACHE_ZONAS_MS = 10 * 60_000;
 
 const json = (data: unknown, status = 200): Response =>
@@ -41,6 +41,13 @@ async function usuarioDe(req: Request): Promise<{ email: string } | null> {
   } catch {
     return null;
   }
+}
+
+/** ID de carpeta de Drive a partir de un ID suelto o de una URL (`.../folders/<id>?usp=...`); "" si no parece uno. */
+function idCarpeta(valor: string): string {
+  const v = valor.trim();
+  const m = v.match(/\/folders\/([A-Za-z0-9_-]{15,100})/) ?? v.match(/^([A-Za-z0-9_-]{15,100})$/);
+  return m ? m[1] : "";
 }
 
 async function llamarAppsScript(base: string, params: URLSearchParams): Promise<string> {
@@ -83,7 +90,7 @@ Deno.serve(async (req: Request) => {
   if (errUsuario) return json({ error: "No se pudo validar el acceso" }, 500);
   if (!fila) return json({ error: "Usuario no invitado" }, 403);
 
-  const { data: filas } = await db.from("degasa_connectors").select("key, value").in("key", ["appscript_catalog_url", conector]);
+  const { data: filas } = await db.from("degasa_connectors").select("key, value").in("key", ["appscript_catalog_url", "fac_carpeta_id", conector]);
   const urlDe = (k: string) => (filas ?? []).find((f: { key: string; value: string | null }) => f.key === k)?.value ?? "";
   const base = urlDe(conector);
   if (!base) return json({ error: "Conector sin configurar" }, 404);
@@ -102,7 +109,15 @@ Deno.serve(async (req: Request) => {
 
     if (!politica.sinRestriccion && CONECTORES_SIN_FILTRO.has(conector)) return json({ error: "Sin acceso a esta fuente" }, 403);
 
-    texto = await llamarAppsScript(base, url.searchParams);
+    // La carpeta de facturación la decide el conector (admin), nunca el cliente: se descarta cualquier `carpeta` que llegue en la URL.
+    const paramsScript = new URLSearchParams(url.searchParams);
+    paramsScript.delete("carpeta");
+    const accionScript = paramsScript.get("action") ?? "";
+    if (conector === "pedidos_sheets_url" && (accionScript === "fac_manifest" || accionScript === "fac_chunk")) {
+      const carpeta = idCarpeta(urlDe("fac_carpeta_id"));
+      if (carpeta) paramsScript.set("carpeta", carpeta);
+    }
+    texto = await llamarAppsScript(base, paramsScript);
     if (politica.sinRestriccion) return new Response(texto, { headers: { ...CORS, "Content-Type": "application/json" } });
 
     const zonaDe = mapa?.zonaDe ?? (() => "");
@@ -117,7 +132,7 @@ Deno.serve(async (req: Request) => {
         data = { ...d, rows: h.rows };
       } else if (accion === "fac_chunk" && Array.isArray(d.columnas) && Array.isArray(d.rows)) {
         const h = filtrarFacturacion({ columnas: d.columnas.map(String), rows: d.rows as unknown[][] }, politica, zonaDe);
-        data = { ...d, rows: h.rows };
+        data = { ...d, rows: h.rows, presupuesto: filtrarPresupuesto(d.presupuesto, politica, zonaDe) };
       } else if (accion === "relacion" && Array.isArray(d.relacion)) {
         data = { ...d, relacion: filtrarRelacion(d.relacion, politica) };
       } else if (accion !== "relacion" && accion !== "fac_manifest") {

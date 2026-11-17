@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type { SolicitudDRP, Oportunidad, Interaccion, ClienteConocimiento, Observacion, Oferta, Traslado, ReglaAceptacion, IncrementoSnapshot } from '@/core/types';
 import type { HojaCruda } from '@/core/pedidos';
-import type { FilaFac } from '@/core/facturacionLibros';
+import type { FilaFac, PtoFila } from '@/core/facturacionLibros';
 
 /** Row shape for catalog/analysis snapshots: array-valued fields (the bulk
  * of the data — resumenFac, sugerencias, invDetalle, ...) are stored
@@ -60,6 +60,8 @@ export interface FacturacionLibroRow {
   orden: number;
   ultimaModificacion: string;
   rows: FilaFac[];
+  /** Presupuesto del libro (renglones aparte de las ventas); ausente en libros bajados con un Apps Script sin presupuesto. */
+  pto?: PtoFila[];
 }
 
 /** Metadatos de un libro de facturación guardado (sin sus filas): permite saber qué libros cambiaron en Drive sin deserializar
@@ -74,6 +76,8 @@ export interface FacturacionMetaRow {
   conPrecios?: boolean;
   /** El libro se bajó con el Apps Script que entrega el día de la línea más reciente (`Fecha Max`). */
   conFechas?: boolean;
+  /** El libro se bajó con el Apps Script que entrega región / gerencia y el presupuesto (sin esto un libro viejo en caché nunca traería presupuesto). */
+  conDims?: boolean;
 }
 
 /** Un pedazo de lo ya calculado de la facturación (índices, consumo, filas): se guardan tal cual para no recalcular ~500 mil filas

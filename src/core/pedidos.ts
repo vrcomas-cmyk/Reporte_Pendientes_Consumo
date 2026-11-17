@@ -11,7 +11,7 @@
 //   · Revision/Revision2 → el Material de la fila de arriba se hereda (celdas combinadas)
 //   · Bloqueo → Crédito / Detenido (motor_optimizado.py)
 // ---------------------------------------------------------------------------
-import { libreReal, ALMACEN_CORTA_CADUCIDAD, MESES_MAX_CORTA_CADUCIDAD } from './inventoryRules';
+import { libreReal, ALMACEN_CORTA_CADUCIDAD, vigenciaCorta } from './inventoryRules';
 import type { Sugerencia } from './types';
 
 export type LibroClave = 'disponibilidad' | 'pedidos' | 'condicion' | 'comodato';
@@ -299,14 +299,13 @@ export function vistaCortaCaducidad(h: HojaIndexada, filas: string[][], hoy: Dat
   const iFecha = indiceColumna(h.nombres, ALIAS_FECHA_CADUCIDAD);
   const iLibre = indiceColumna(h.nombres, ['libre utilizacion']);
   const iBloqueado = indiceColumna(h.nombres, ['bloqueado']);
-  const limite = sumarMeses(inicioDeDia(hoy), MESES_MAX_CORTA_CADUCIDAD);
   const orden = detectarOrdenFechas(h.rows.map((f) => f[iFecha]));
   const aceptadas: { fecha: Date | null; celdas: Celda[] }[] = [];
   let descartadas = 0;
 
   for (const f of filas) {
     const fecha = parsearFechaSheet(f[iFecha], orden);
-    const porVigencia = fecha !== null && fecha.getTime() <= limite.getTime();
+    const porVigencia = vigenciaCorta(fecha, hoy);
     const porAlmacen = claveMaterial(f[iAlmacen]) === ALMACEN_CORTA_CADUCIDAD;
     if (!porVigencia && !porAlmacen) {
       descartadas++;
@@ -323,7 +322,7 @@ export function vistaCortaCaducidad(h: HojaIndexada, filas: string[][], hoy: Dat
   return {
     columnas: ['Centro', 'Almacén', 'Lote', 'Fecha de caducidad', 'Meses vigencia lote', 'Libre utilización', 'Bloqueado', 'Motivo'],
     filas: aceptadas.map((a) => a.celdas),
-    nota: descartadas > 0 ? `${descartadas} fila(s) no se muestran: vigencia mayor a ${MESES_MAX_CORTA_CADUCIDAD} meses y fuera del almacén ${ALMACEN_CORTA_CADUCIDAD}.` : undefined,
+    nota: descartadas > 0 ? `${descartadas} fila(s) no se muestran: vigencia de 365 días o más y fuera del almacén ${ALMACEN_CORTA_CADUCIDAD}.` : undefined,
   };
 }
 

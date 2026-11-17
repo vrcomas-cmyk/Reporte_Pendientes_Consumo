@@ -42,7 +42,7 @@ function BloqueCondicion({ r, mo, curMes, material, push }: {
               <p className="text-[11px] text-text-faint">Inv {c}</p>
               <p className="font-mono text-sm">
                 {formatNumber(r.invByCenter[c] || 0)}
-                {transito > 0 && <span className="text-success"> +{formatNumber(transito)}</span>}
+                {transito > 0 && <span className="text-violet-600 dark:text-violet-400"> +{formatNumber(transito)}</span>}
                 {lento && <AlertTriangle className="ml-1 inline size-3 text-warning" />}
               </p>
               {pend > 0 && <p className="text-[11px] text-danger">Pend {formatNumber(pend)}</p>}
@@ -89,7 +89,7 @@ function BloqueGeneral({ mo, curMes, material, push }: {
               <p className="text-[11px] text-text-faint">Inv {c}</p>
               <p className="font-mono text-sm">
                 {formatNumber(ig)}
-                {!!co?.transito && co.transito > 0 && <span className="text-success"> +{formatNumber(co.transito)}</span>}
+                {!!co?.transito && co.transito > 0 && <span className="text-violet-600 dark:text-violet-400"> +{formatNumber(co.transito)}</span>}
                 {lento && <AlertTriangle className="ml-1 inline size-3 text-warning" />}
               </p>
               {!!co?.pend && co.pend > 0 && <p className="text-[11px] text-danger">Pend {formatNumber(co.pend)}</p>}

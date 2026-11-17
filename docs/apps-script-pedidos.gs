@@ -86,7 +86,7 @@ function doGet(e) {
     } else if (action === "hoja") {
       result = obtenerHojaCruda(params);
     } else if (action === "fac_manifest") {
-      result = obtenerManifiestoFacturacion();
+      result = obtenerManifiestoFacturacion(_carpetaFac(params));
     } else if (action === "fac_chunk") {
       result = obtenerChunkFacturacion(params);
     } else {
@@ -539,39 +539,60 @@ function _json(payload) {
 
 // Bloques GRANDES: cada llamada paga un costo fijo (abrir el libro, validar la carpeta, leer encabezados) de ~3-5 s; con
 // 20,000 filas por bloque son ~45 llamadas para todo el historial en vez de ~180. El tope lo marca MAX_CHUNK_SIZE.
-const FAC_CHUNK_SIZE = 20000;
+const FAC_CHUNK_SIZE = 10000; // antes 20000: con el libro de ventas vs presupuesto un bloque grande pasaba de los 55 s de la funcion `datos` (502)
 // El manifiesto de facturacion se reutiliza unos minutos (costaba ~25 s abrir cada libro para contar sus filas).
 const FAC_CACHE_MANIFIESTO_SEG = 300;
 // "Fecha Max": dia (aaaa-mm-dd) de la linea MAS RECIENTE de cada fila (cliente + centro + mes). Sin ella la fecha de una fila agregada seria solo
 // el mes y "dias sin compra" quedaria desfasado hasta ~30 dias (lo usa el modulo Comodato).
 // "Precio Min" / "Precio Max": el menor y el mayor precio unitario (importe / cantidad) de las LINEAS que se sumaron en cada fila. Sin ellas, al
 // sumar las lineas de un cliente en el mes se perdia el precio de cada linea (y el minimo/maximo de un material salia mas alto/bajo que el real).
-const FAC_COLUMNAS = ["Mes", "Solicitante", "Razon Social", "Destinatario", "Material", "Texto Material", "Centro", "Almacen", "Gpo. Cte.", "Gpo. Vdor.", "Cantidad", "Importe", "Precio Min", "Precio Max", "Fecha Max"];
+// "Region" y "Gerencia" (de ventas): dimensiones del libro de ventas vs presupuesto ("" si el libro no las trae).
+// El PRESUPUESTO no va en las filas de venta: se fija por ejecutivo x sector/grupo de material x grupo de cliente, asi que `fac_chunk` lo
+// entrega aparte en `presupuesto`: [mes, region, gerencia, gpoCte, gpoVdor, sector, grupoMaterial, monto] (agregado por bloque).
+const FAC_COLUMNAS = ["Mes", "Solicitante", "Razon Social", "Destinatario", "Material", "Texto Material", "Centro", "Almacen", "Gpo. Cte.", "Gpo. Vdor.", "Cantidad", "Importe", "Precio Min", "Precio Max", "Fecha Max", "Region", "Gerencia"];
+
+// Carpeta de Drive de la facturacion (ventas + presupuesto). Es independiente de CARPETA_ID (libros de Seg. de pedidos).
+const FAC_CARPETA_ID = "1OU-WUd7NQI4HCdlj7RXtcUUTfAN8muMb";
+// Campos que pueden faltar en el libro (se entregan vacios / 0): el libro de ventas vs presupuesto no trae almacen.
+const FAC_OPCIONALES = { almacen: true, presupuesto: true, gpoVdor: true, texto: true, razon: true, region: true, gerencia: true, sector: true, grupoMat: true };
 
 // Encabezados (ya normalizados) de cada campo del libro. Coincidencia exacta.
 const FAC_ALIAS = {
-  fecha:        ["fecha"],
-  solicitante:  ["solicitante"],
-  razon:        ["razon social"],
+  fecha:        ["fecha", "fecha (mes)"],
+  solicitante:  ["solicitante", "cliente"],
+  razon:        ["razon social", "nombre_cliente"],
   destinatario: ["destinatario"],
   material:     ["material"],
-  texto:        ["texto material"],
+  texto:        ["texto material", "descripcion material"],
   centro:       ["centro"],
   almacen:      ["almacen"],
-  gpoCte:       ["grp. cliente", "gpo. cte.", "grupo cliente"],
-  gpoVdor:      ["gpo. vdor.", "gpo.vdor."],
-  cantidad:     ["cantidad"],
-  importe:      ["importe"]
+  gpoCte:       ["grp. cliente", "gpo. cte.", "grupo cliente", "cve_gpoclientes"],
+  gpoVdor:      ["gpo. vdor.", "gpo.vdor.", "cve_gpovendedores"],
+  cantidad:     ["cantidad", "cantidad_venta"],
+  importe:      ["importe", "ventas totales"],
+  presupuesto:  ["presupuesto"],
+  region:       ["region"],
+  gerencia:     ["gerencia_de_ventas", "gerencia de ventas", "gerencia"],
+  sector:       ["sector"],
+  grupoMat:     ["grupo_material", "grupo material"]
 };
 
-function obtenerManifiestoFacturacion() {
+// Carpeta de facturacion: la app la manda en `carpeta` (conector "fac_carpeta_id", via la funcion `datos`, que la pone desde el servidor);
+// sin parametro o con un valor que no parezca un ID de Drive se usa FAC_CARPETA_ID.
+function _carpetaFac(params) {
+  var c = String((params && params.carpeta) || "").trim();
+  return /^[A-Za-z0-9_-]{15,100}$/.test(c) ? c : FAC_CARPETA_ID;
+}
+
+function obtenerManifiestoFacturacion(carpetaId) {
+  carpetaId = carpetaId || FAC_CARPETA_ID;
   var cache = CacheService.getScriptCache();
-  var guardado = cache.get("fac_manifest_" + CARPETA_ID + "_v5");
+  var guardado = cache.get("fac_manifest_" + carpetaId + "_v6");
   if (guardado) return JSON.parse(guardado);
 
   // Todos los Sheets de la carpeta Y de sus subcarpetas (Q1, Q2...). Un libro sin "1Q 2024" en el nombre
   // (informacion anexada de meses/anios anteriores) tambien cuenta: orden 0 = va antes de los trimestrales.
-  var archivos = _listarSheetsRecursivo(CARPETA_ID);
+  var archivos = _listarSheetsRecursivo(carpetaId);
   var libros = [];
 
   for (var k = 0; k < archivos.length; k++) {
@@ -589,14 +610,15 @@ function obtenerManifiestoFacturacion() {
       totalRows: info.totalRows,
       chunkSize: FAC_CHUNK_SIZE,
       conPrecios: true,
-      conFechas: true
+      conFechas: true,
+      conDims: true // region/gerencia + presupuesto: la app vuelve a bajar los libros que se guardaron sin ellos
     });
   }
   libros.sort(function(a, b) { return a.orden - b.orden; });
 
   var resultado = { ok: true, libros: libros };
   try {
-    cache.put("fac_manifest_" + CARPETA_ID + "_v5", JSON.stringify(resultado), FAC_CACHE_MANIFIESTO_SEG);
+    cache.put("fac_manifest_" + carpetaId + "_v6", JSON.stringify(resultado), FAC_CACHE_MANIFIESTO_SEG);
   } catch (error) {
     // Cache lleno: solo se pierde la optimizacion.
   }
@@ -614,7 +636,7 @@ function obtenerChunkFacturacion(params) {
   var nombreLibro = "";
   if (!cacheFac.get("fac_ok_" + fileId) || !version) {
     archivo = DriveApp.getFileById(fileId);
-    if (!_perteneceACarpeta(archivo, CARPETA_ID)) {
+    if (!_perteneceACarpeta(archivo, _carpetaFac(params))) {
       throw new Error("El archivo no pertenece a la carpeta configurada.");
     }
     version = archivo.getLastUpdated().getTime();
@@ -627,18 +649,22 @@ function obtenerChunkFacturacion(params) {
   var hoja = SpreadsheetApp.openById(fileId).getSheets()[0];
   var info = _infoLibroFacturacion(fileId, version, hoja);
   var totalRows = info.totalRows;
-  var base = { ok: true, fileId: fileId, nombre: nombreLibro, columnas: FAC_COLUMNAS, offset: offset, limit: limit, totalRows: totalRows, nextOffset: null, rows: [] };
+  var base = { ok: true, fileId: fileId, nombre: nombreLibro, columnas: FAC_COLUMNAS, offset: offset, limit: limit, totalRows: totalRows, nextOffset: null, rows: [], presupuesto: [] };
 
   if (totalRows === 0 || offset >= totalRows) return base;
 
   var idx = _indicesFacturacion(hoja);
   var formato = info.formato;
   var maxCol = Math.max.apply(null, Object.keys(idx).map(function(k) { return idx[k]; })) + 1;
+  // Campo opcional ausente (idx -1): se apunta a una posicion fuera de lo leido, asi f[idx] es undefined -> "" / 0.
+  Object.keys(idx).forEach(function(k) { if (idx[k] < 0) idx[k] = maxCol; });
   var numRows = Math.min(limit, totalRows - offset);
   var datos = hoja.getRange(offset + 2, 1, numRows, maxCol).getValues();
   var zona = Session.getScriptTimeZone();
   var grupos = {};
   var rows = [];
+  var ptoMapa = {};
+  var ptoRows = [];
 
   for (var i = 0; i < datos.length; i++) {
     var f = datos[i];
@@ -647,10 +673,23 @@ function obtenerChunkFacturacion(params) {
     var mes = _mesDeFecha(f[idx.fecha], formato, zona);
     if (!mes) continue;
 
-    var campos = [mes, _texto(f[idx.solicitante]), _texto(f[idx.razon]), _texto(f[idx.destinatario]), _texto(f[idx.material]),
+    // Material sin el 0 inicial (0511010 -> 511010): asi coincide con el resto de los reportes.
+    var campos = [mes, _texto(f[idx.solicitante]), _texto(f[idx.razon]), _texto(f[idx.destinatario]), _texto(f[idx.material]).replace(/^0(\d+)$/, "$1"),
       _texto(f[idx.texto]), _texto(f[idx.centro]), _texto(f[idx.almacen]), _texto(f[idx.gpoCte]), _texto(f[idx.gpoVdor])];
+    var pres = _numero(f[idx.presupuesto]);
+    var region = _texto(f[idx.region]);
+    var gerencia = _texto(f[idx.gerencia]);
+    if (pres !== 0) {
+      // Presupuesto agregado por mes + region + gerencia + gpo. cliente + gpo. vendedor + sector + grupo de material.
+      var campoPto = [mes, region, gerencia, campos[8], campos[9], _texto(f[idx.sector]), _texto(f[idx.grupoMat])];
+      var kp = campoPto.join("¦");
+      if (ptoMapa[kp]) ptoMapa[kp][7] += pres;
+      else { ptoMapa[kp] = campoPto.concat([pres]); ptoRows.push(ptoMapa[kp]); }
+    }
+    // Renglon de solo presupuesto (sin venta): no es una factura, no entra a las filas de venta.
+    if (_numero(f[idx.cantidad]) === 0 && _numero(f[idx.importe]) === 0) continue;
     // La clave incluye el texto y la razon social: una misma clave con nombres distintos se conserva aparte.
-    var clave = campos.join("¦");
+    var clave = campos.join("¦") + "¦" + region + "¦" + gerencia;
     var existente = grupos[clave];
     var cant = _numero(f[idx.cantidad]);
     var imp = _numero(f[idx.importe]);
@@ -667,13 +706,14 @@ function obtenerChunkFacturacion(params) {
       }
       if (dia > existente[14]) existente[14] = dia; // aaaa-mm-dd compara bien como texto
     } else {
-      existente = campos.concat([cant, imp, unitario, unitario, dia]);
+      existente = campos.concat([cant, imp, unitario, unitario, dia, region, gerencia]);
       grupos[clave] = existente;
       rows.push(existente);
     }
   }
 
   base.rows = rows;
+  base.presupuesto = ptoRows;
   base.nextOffset = offset + numRows < totalRows ? offset + numRows : null;
   return base;
 }
@@ -683,7 +723,7 @@ function obtenerChunkFacturacion(params) {
 // `hoja` null y sin dato guardado, abre el libro una sola vez.
 function _infoLibroFacturacion(fileId, version, hoja) {
   var props = PropertiesService.getScriptProperties();
-  var clave = "fac_info_" + fileId + "_" + version;
+  var clave = "fac_info2_" + fileId + "_" + version;
   var guardado = props.getProperty(clave);
   if (guardado) return JSON.parse(guardado);
 
@@ -712,7 +752,7 @@ function _indicesFacturacion(hoja) {
     FAC_ALIAS[campo].forEach(function(alias) {
       if (pos === -1) pos = encabezados.indexOf(alias);
     });
-    if (pos === -1) throw new Error("Falta la columna '" + FAC_ALIAS[campo][0] + "' en " + hoja.getParent().getName());
+    if (pos === -1 && !FAC_OPCIONALES[campo]) throw new Error("Falta la columna '" + FAC_ALIAS[campo][0] + "' en " + hoja.getParent().getName());
     idx[campo] = pos;
   });
   return idx;
@@ -749,12 +789,34 @@ function _formatoFechaLibro(hoja, iFecha, totalRows, fileId, version) {
   return formato;
 }
 
+// "Julio 2026" / "julio de 2026" / "Jul-26" -> { mes, anio } (null si no es un mes con nombre). Los libros de ventas vs presupuesto traen el mes asi.
+var _MESES_NOMBRE = { enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
+  ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6, jul: 7, ago: 8, sep: 9, set: 9, oct: 10, nov: 11, dic: 12 };
+// Memoizada por texto: un libro repite el mismo mes en miles de filas y normalizar/regex por fila (dos veces: mes y dia) era el grueso del tiempo.
+var _cacheMesNombre = {};
+function _mesConNombre(texto) {
+  if (Object.prototype.hasOwnProperty.call(_cacheMesNombre, texto)) return _cacheMesNombre[texto];
+  var res = null;
+  if (/[A-Za-z]/.test(texto)) {
+    var t = _normalizarEncabezado(texto);
+    var m = t.match(/^([a-z]+)\.?[\s\-\/]*(?:de\s+)?(\d{2,4})$/);
+    if (m && _MESES_NOMBRE[m[1]]) {
+      var anio = Number(m[2]) < 100 ? Number(m[2]) + 2000 : Number(m[2]);
+      res = { mes: _MESES_NOMBRE[m[1]], anio: anio };
+    }
+  }
+  _cacheMesNombre[texto] = res;
+  return res;
+}
+
 // "MM/AAAA" de la celda de fecha, o "" si no se puede interpretar.
 function _mesDeFecha(valor, formato, zona) {
   if (valor instanceof Date) {
     return isNaN(valor.getTime()) ? "" : Utilities.formatDate(valor, zona, "MM/yyyy");
   }
   var texto = String(valor == null ? "" : valor).trim();
+  var nombre = _mesConNombre(texto);
+  if (nombre) return ("0" + nombre.mes).slice(-2) + "/" + nombre.anio;
   var iso = texto.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (iso) return ("0" + Number(iso[2])).slice(-2) + "/" + iso[1];
 
@@ -772,6 +834,7 @@ function _fechaDeFecha(valor, formato, zona) {
     return isNaN(valor.getTime()) ? "" : Utilities.formatDate(valor, zona, "yyyy-MM-dd");
   }
   var texto = String(valor == null ? "" : valor).trim();
+  if (_mesConNombre(texto)) return ""; // solo hay mes, no dia
   var iso = texto.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (iso) return iso[1] + "-" + ("0" + Number(iso[2])).slice(-2) + "-" + ("0" + Number(iso[3])).slice(-2);
 

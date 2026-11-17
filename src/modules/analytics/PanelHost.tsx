@@ -20,6 +20,7 @@ import { ConsumoMaterialPanel } from './panels/ConsumoMaterialPanel';
 import { ClientesMesPanel, MesClientesFiltroPanel } from './panels/ClientesMesPanel';
 import { SectorPanel } from './panels/SectorPanel';
 import { GrupoPanel } from './panels/GrupoPanel';
+import { ColaboradorPtoPanel } from './panels/ColaboradorPtoPanel';
 import { CeldaPanel } from './panels/CeldaPanel';
 import { InvCondCeldaPanel } from './panels/InvCondCeldaPanel';
 import { MaterialTotalesPanel } from './panels/MaterialTotalesPanel';
@@ -51,6 +52,7 @@ const PANELS: Partial<Record<Panel['type'], FC<any>>> = {
   mesClientesFiltro: MesClientesFiltroPanel,
   sector: SectorPanel,
   grupo: GrupoPanel,
+  colaboradorPto: ColaboradorPtoPanel,
   celda: CeldaPanel,
   invCondCelda: InvCondCeldaPanel,
   materialTotales: MaterialTotalesPanel,

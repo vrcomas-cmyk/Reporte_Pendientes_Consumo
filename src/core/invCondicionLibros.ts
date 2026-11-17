@@ -14,8 +14,8 @@
 // Los lotes con Libre = 0 pero Bloqueado ≥ 1 no se descartan (`lotesBloqueados`) para mostrarlos después como
 // opción en el detalle de Inventario · Disponibilidad.
 // ---------------------------------------------------------------------------
-import { ALMACEN_CORTA_CADUCIDAD, libreReal, MESES_MAX_CORTA_CADUCIDAD } from './inventoryRules';
-import { claveMaterial, formatearFecha, indiceColumna, inicioDeDia, normalizarEncabezado, detectarOrdenFechas, numero, parsearFechaSheet, sumarMeses, type HojaIndexada } from './pedidos';
+import { ALMACEN_CORTA_CADUCIDAD, libreReal, MESES_MAX_CORTA_CADUCIDAD, vigenciaCorta } from './inventoryRules';
+import { claveMaterial, formatearFecha, indiceColumna, normalizarEncabezado, detectarOrdenFechas, numero, parsearFechaSheet, type HojaIndexada } from './pedidos';
 import { CENTERS, type InvConsolidadoRow, type InvDetalleRow } from './types';
 
 export type MotivoLote = 'VIGENCIA' | 'ALMACEN_1032' | 'AMBOS';
@@ -66,9 +66,8 @@ const isoDe = (f: Date | null): string | null => (f ? `${f.getFullYear()}-${pad(
  * igual que `_filtrar_corta_caducidad` del sugeridor). Un lote en 1030 con <12 m lo es; uno en 1032 con 30 m también. */
 export function clasificarLote(l: { libre: number; almacen: string; fecha: Date | null; meses?: number | null }, hoy: Date = new Date()): MotivoLote | null {
   if (l.libre < 1) return null;
-  const limite = sumarMeses(inicioDeDia(hoy), MESES_MAX_CORTA_CADUCIDAD);
-  // Si la hoja trae su columna «Meses», ella manda (cuenta meses completos y pone 0 a los lotes sin fecha): así el conteo cuadra con la hoja.
-  const porVigencia = l.meses != null ? l.meses <= MESES_MAX_CORTA_CADUCIDAD : l.fecha !== null && l.fecha.getTime() <= limite.getTime();
+  // Vigencia < 365 días desde hoy. Solo si el lote no trae fecha se recurre a la columna «Meses» de la hoja (0 = sin fecha).
+  const porVigencia = l.fecha !== null ? vigenciaCorta(l.fecha, hoy) : l.meses != null && l.meses < MESES_MAX_CORTA_CADUCIDAD;
   const porAlmacen = l.almacen === ALMACEN_CORTA_CADUCIDAD;
   if (porVigencia && porAlmacen) return 'AMBOS';
   if (porVigencia) return 'VIGENCIA';

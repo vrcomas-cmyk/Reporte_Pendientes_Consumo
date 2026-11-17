@@ -13,6 +13,8 @@ export type Fila = {
   imp: number | null; imp_proy?: number; imp_acum?: number;
   cant: number | null; cant_proy?: number; cant_acum?: number;
   margen?: number | null; margen_proy?: number; margen_acum?: number;
+  /** Presupuesto del mes (solo Facturación con presupuesto). */
+  pto?: number | null;
 };
 
 /** Pasa a fila: si el mes es el corriente (parcial) y se puede proyectar, la
@@ -21,7 +23,26 @@ export type Fila = {
  * fecha. Sin meses cerrados (o si todo vale 0) se deja como dato real.
  * Aplica igual a importe, cantidad y (si existe) margen. `range` acota los
  * meses mostrados (escala `mesKey`). */
-export function armarFilas(serie: Serie, proyectar: boolean, hoy: Date, range?: [number, number]): { filas: Fila[]; proyectado: boolean; conMargen: boolean; conCantidad: boolean } {
+export function armarFilas(serie: Serie, proyectar: boolean, hoy: Date, range?: [number, number], pto?: ReadonlyMap<number, number>): { filas: Fila[]; proyectado: boolean; conMargen: boolean; conCantidad: boolean; conPresupuesto?: boolean } {
+  const base = armarFilasBase(serie, proyectar, hoy, range);
+  if (!pto || pto.size === 0) return base;
+  // El presupuesto cubre meses que aún no tienen ventas (el resto del año): se agregan como puntos solo de presupuesto.
+  const filas = base.filas;
+  const porK = new Map(filas.map((f) => [mesKey(f.mes), f]));
+  for (const [k, monto] of pto) {
+    if (range && (k < range[0] || k > range[1])) continue;
+    const f = porK.get(k);
+    if (f) f.pto = monto;
+    else {
+      const mes = String(((k - 1) % 12) + 1).padStart(2, '0') + '/' + Math.floor((k - 1) / 12);
+      filas.push({ mes, label: mesLabel(mes), imp: null, cant: null, pto: monto });
+    }
+  }
+  filas.sort((a, b) => mesKey(a.mes) - mesKey(b.mes));
+  return { ...base, filas, conPresupuesto: true };
+}
+
+function armarFilasBase(serie: Serie, proyectar: boolean, hoy: Date, range?: [number, number]): { filas: Fila[]; proyectado: boolean; conMargen: boolean; conCantidad: boolean } {
   const completa = completarSerie(serie, range);
   const conMargen = completa.some((p) => p.margen !== undefined);
   const conCantidad = completa.some((p) => p.cant > 0);
@@ -75,11 +96,12 @@ const tickCantidad = (v: number) => compacto.format(v);
 const anchoEje = (valores: number[], fmt: (v: number) => string) =>
   Math.max(40, Math.max(...valores.map((v) => fmt(v).length), 1) * 6.5 + 12);
 
-function TooltipEvol({ active, payload, conMargen, conCantidad, colores }: {
+function TooltipEvol({ active, payload, conMargen, conCantidad, conPto, colores }: {
   active?: boolean;
   payload?: { payload?: Fila }[];
   conMargen: boolean;
   conCantidad: boolean;
+  conPto: boolean;
   colores: string[];
 }) {
   const row = payload?.[0]?.payload;
@@ -103,6 +125,15 @@ function TooltipEvol({ active, payload, conMargen, conCantidad, colores }: {
         {fila('Importe', colores[0], row.imp, row.imp_proy, row.imp_acum, formatCurrency, proy)}
         {conCantidad && fila('Cantidad', colores[1], row.cant, row.cant_proy, row.cant_acum, (n) => formatNumber(n), proy && row.cant_proy !== undefined && row.cant === null)}
         {conMargen && fila('Rendimiento aprox.', colores[2], row.margen, row.margen_proy, row.margen_acum, formatCurrency, proy)}
+        {conPto && row.pto != null && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1.5"><span className="inline-block size-2.5 rounded-full" style={{ background: colores[3] }} />Presupuesto</span>
+            <span className="tabular-nums">
+              {formatCurrency(row.pto)}
+              {row.pto > 0 && <span className="ml-1.5 text-[11px] text-text-faint">· cumpl. {Math.round((((row.imp ?? row.imp_acum) ?? 0) / row.pto) * 100)}%{proy ? ' a la fecha' : ''}</span>}
+            </span>
+          </div>
+        )}
       </div>
       {proy && <p className="mt-1.5 border-t border-border/60 pt-1 text-[11px] text-text-faint">Mes en curso: cierre estimado con el ritmo del mes y el promedio de los últimos 3 meses.</p>}
     </div>
@@ -122,8 +153,10 @@ function TooltipEvol({ active, payload, conMargen, conCantidad, colores }: {
  * tramo punteado llega a donde se espera cerrar el mes (ver
  * `core/proyeccion.ts`); lo facturado a la fecha se marca con un punto hueco.
  * Si los puntos de `serie` traen `margen`, se dibuja también esa línea. */
-export const EvolChart = memo(function EvolChart({ serie, onMonth, height = 220, proyectar = true, cantidad = true, filtroPeriodo = true }: {
+export const EvolChart = memo(function EvolChart({ serie, onMonth, height = 220, proyectar = true, cantidad = true, filtroPeriodo = true, presupuesto }: {
   serie: Serie;
+  /** Presupuesto por mes (clave `mesKey` → monto): se dibuja como línea punteada junto al importe. Debe venir YA filtrado igual que `serie`. */
+  presupuesto?: ReadonlyMap<number, number>;
   onMonth?: (mes: string) => void;
   height?: number;
   proyectar?: boolean;
@@ -139,7 +172,8 @@ export const EvolChart = memo(function EvolChart({ serie, onMonth, height = 220,
     const hi = periodo.hasta ? mesKey(periodo.hasta) : Math.max(mesKey(serie[serie.length - 1].mes), mesKey(hoyMes()));
     return [lo, hi];
   }, [filtroPeriodo, periodo, serie]);
-  const { filas: data, proyectado, conMargen, conCantidad: hayCant } = useMemo(() => armarFilas(serie, proyectar, new Date(), range), [serie, proyectar, range]);
+  const { filas: data, proyectado, conMargen, conCantidad: hayCant, conPresupuesto } = useMemo(() => armarFilas(serie, proyectar, new Date(), range, presupuesto), [serie, proyectar, range, presupuesto]);
+  const conPto = !!conPresupuesto;
   const conCantidad = cantidad && hayCant;
   const filtro = filtroPeriodo && (
     <div className="mb-2"><MonthRangeFilter desde={periodo.desde} hasta={periodo.hasta} onChange={setPeriodo} label="Periodo" /></div>
@@ -147,9 +181,9 @@ export const EvolChart = memo(function EvolChart({ serie, onMonth, height = 220,
   if (!data.length) return <div>{filtro}<p className="text-sm text-text-muted">Sin datos para graficar.</p></div>;
   const palette = categorical();
   const gridColor = CHART_UI.grid;
-  const colores = [palette[0], palette[1] ?? palette[0], palette[2] ?? palette[1] ?? palette[0]];
+  const colores = [palette[0], palette[1] ?? palette[0], palette[2] ?? palette[1] ?? palette[0], palette[7] ?? palette[3] ?? palette[0]];
   const hueco = (color: string) => ({ r: 4, strokeWidth: 2, stroke: color, fill: CHART_UI.surface });
-  const maxImp = Math.max(0, ...data.flatMap((d) => [d.imp ?? 0, d.imp_proy ?? 0, d.margen ?? 0, d.margen_proy ?? 0]));
+  const maxImp = Math.max(0, ...data.flatMap((d) => [d.imp ?? 0, d.imp_proy ?? 0, d.margen ?? 0, d.margen_proy ?? 0, d.pto ?? 0]));
   const maxCant = Math.max(0, ...data.flatMap((d) => [d.cant ?? 0, d.cant_proy ?? 0]));
   return (
     <div>
@@ -169,10 +203,11 @@ export const EvolChart = memo(function EvolChart({ serie, onMonth, height = 220,
               <YAxis yAxisId="cant" orientation="right" tick={{ fontSize: 10, fill: colores[1] }} stroke={colores[1]} width={anchoEje([maxCant, maxCant / 2], tickCantidad)} tickFormatter={(v) => tickCantidad(Number(v))} />
             )}
             <Tooltip
-              content={<TooltipEvol conMargen={conMargen} conCantidad={conCantidad} colores={colores} />}
+              content={<TooltipEvol conMargen={conMargen} conCantidad={conCantidad} conPto={conPto} colores={colores} />}
               cursor={{ stroke: gridColor }}
             />
-            {(conMargen || conCantidad) && <Legend wrapperStyle={{ fontSize: 11 }} />}
+            {(conMargen || conCantidad || conPto) && <Legend wrapperStyle={{ fontSize: 11 }} />}
+            {conPto && <Line yAxisId="imp" type="monotone" dataKey="pto" name="Presupuesto" stroke={colores[3]} strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} connectNulls isAnimationActive={false} />}
             <Line yAxisId="imp" type="monotone" dataKey="imp" name="Importe" stroke={colores[0]} strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
             {proyectado && (
               <Line yAxisId="imp" type="monotone" dataKey="imp_proy" name="Importe proyectado" stroke={colores[0]} strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 5 }} connectNulls legendType="none" isAnimationActive={false} />

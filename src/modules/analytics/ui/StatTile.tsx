@@ -45,6 +45,7 @@ export function StatTile({
   title,
   emphasis = 'default',
   hideKey,
+  fluid = false,
 }: {
   label: string;
   value: string;
@@ -55,6 +56,9 @@ export function StatTile({
   emphasis?: 'hero' | 'default' | 'muted';
   /** Clave con la que se oculta (clic derecho). Por defecto el label; pásala si el label cambia por material/centro. */
   hideKey?: string;
+  /** Llena su celda de la cuadrícula (todas las cards de una fila quedan del mismo ancho y alto) y deja que la etiqueta y el valor se ajusten en pantallas angostas.
+   * Sin esto la card mide lo que mida su contenido (`w-fit`, etiqueta en una sola línea), que en una cuadrícula de 2 columnas se desborda. */
+  fluid?: boolean;
 }) {
   const { copy } = useClipboard();
   const key = hideKey ?? label;
@@ -67,14 +71,16 @@ export function StatTile({
   const tile = (
     <div
       className={cn(
-        'w-fit rounded-xl border border-border bg-bg-elevated',
-        hero ? 'min-w-[200px] border-t-2 px-4 py-3 shadow-sm' : cn('min-w-[132px]', compact ? 'px-2.5 py-2' : 'p-3'),
+        'rounded-xl border border-border bg-bg-elevated',
+        fluid ? 'h-full w-full min-w-0' : 'w-fit',
+        hero ? cn(!fluid && 'min-w-[200px]', 'border-t-2 px-4 py-3 shadow-sm') : cn(!fluid && 'min-w-[132px]', compact ? 'px-2.5 py-2' : 'p-3'),
         hero && (name ? TOP_BORDER[name] : 'border-t-accent'),
       )}
     >
       <p
         className={cn(
-          'flex items-center gap-1 uppercase tracking-wide whitespace-nowrap',
+          'flex items-center gap-1 uppercase tracking-wide',
+          fluid ? 'leading-tight' : 'whitespace-nowrap',
           hero ? 'text-[11px] font-medium text-text-muted' : 'text-[11px] text-text-faint',
         )}
       >
@@ -88,7 +94,8 @@ export function StatTile({
       <p
         className={cn(
           'mt-0.5 font-mono',
-          hero ? 'font-display text-3xl font-semibold tracking-tight' : cn('font-medium', compact ? 'text-base' : 'text-lg'),
+          fluid && 'break-words',
+          hero ? cn('font-display font-semibold tracking-tight', fluid ? 'text-2xl sm:text-3xl' : 'text-3xl') : cn('font-medium', compact ? 'text-base' : fluid ? 'text-base sm:text-lg' : 'text-lg'),
           valueColor ?? (hero ? 'text-text' : undefined),
         )}
       >

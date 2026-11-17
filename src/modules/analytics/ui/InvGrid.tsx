@@ -28,7 +28,7 @@ export function InvGrid({ items, cols = 4, onSelect, activeIndex, ocultables = f
           <>
             <p className="text-[11px] text-text-faint">{k}</p>
             <p className="font-mono text-sm">{formatNumber(v)}</p>
-            {!!transito && transito > 0 && <p className="text-[11px] text-success">↻+{formatNumber(transito)}</p>}
+            {!!transito && transito > 0 && <p className="text-[11px] text-violet-600 dark:text-violet-400">↻+{formatNumber(transito)}</p>}
             {sub && <p className="text-[11px] text-text-muted">{sub}</p>}
           </>
         );

@@ -1,8 +1,10 @@
-import { useCallback, useRef, useState, useEffect } from 'react';
-import { Calculator, X, GripHorizontal } from 'lucide-react';
+import { useCallback, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { Calculator } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { isEditableTarget } from '@/hooks/useKeybindings';
+import { FloatingWindow, Z_WIDGET } from './FloatingWindow';
 
 function useClipboard() {
     const copy = useCallback(async (text: string) => {
@@ -57,31 +59,17 @@ function formatDisplay(n: number): string {
  * componente vive fuera del <Outlet> que se remonta por ruta. */
 export function CalculatorWidget() {
   const [open, setOpen] = usePersistedState('calculator.open', false);
-  const [pos, setPos] = usePersistedState('calculator.pos', { x: 24, y: 24 });
   const [calc, setCalc] = useState<CalcState>(INITIAL_STATE);
-  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const { copy, paste } = useClipboard();
 
-  const onDragStart = useCallback((e: React.PointerEvent) => {
-    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }, [pos]);
-
-  const onDragMove = useCallback((e: React.PointerEvent) => {
-    if (!dragRef.current) return;
-    const { startX, startY, origX, origY } = dragRef.current;
-    // Position is stored as distance from the bottom-right corner, so it
-    // stays anchored there as the window resizes — dragging still feels
-    // natural in screen coordinates (drag left/up = increase x/y).
-    const nextX = Math.max(0, origX - (e.clientX - startX));
-    const nextY = Math.max(0, origY - (e.clientY - startY));
-    setPos({ x: nextX, y: nextY });
-  }, [setPos]);
-
-  const onDragEnd = useCallback((e: React.PointerEvent) => {
-    dragRef.current = null;
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-  }, []);
+  // Alt+C abre/cierra la calculadora desde cualquier lado (incluso con un campo o diálogo enfocado).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyC') { e.preventDefault(); setOpen((o) => !o); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [setOpen]);
 
   const inputDigit = (d: string) => {
     setCalc((s) => {
@@ -134,9 +122,13 @@ export function CalculatorWidget() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!open) return;
       if (isEditableTarget(e)) return;
-      e.preventDefault();
-
+      // Solo con el foco en la calculadora o en el fondo de la página: con un diálogo (o cualquier otro control) enfocado no se roban sus teclas.
+      const target = e.target as HTMLElement | null;
+      if (target && target !== document.body && !target.closest('[data-calc-root]')) return;
       const key = e.key;
+      const esCtrl = (e.metaKey || e.ctrlKey) && (key === 'c' || key === 'v');
+      if (!esCtrl && !/^[0-9+\-*xX/:=.]$|^(Enter|Escape|Backspace)$/.test(key)) return;
+      e.preventDefault();
 
       if (key >= '0' && key <= '9') {
         inputDigit(key);
@@ -178,35 +170,22 @@ export function CalculatorWidget() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        title={open ? 'Ocultar calculadora' : 'Abrir calculadora'}
-        className="fixed bottom-6 right-6 z-50 flex size-12 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lg transition-transform hover:scale-105 active:scale-95"
-      >
-        <Calculator className="size-5" />
-      </button>
+      {createPortal(
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          title={open ? 'Ocultar calculadora (Alt+C)' : 'Abrir calculadora (Alt+C)'}
+          data-floating-widget
+          className={cn('pointer-events-auto fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 flex size-11 items-center sm:bottom-6 sm:right-6 sm:size-12 justify-center rounded-full bg-accent text-accent-fg shadow-lg transition-transform hover:scale-105 active:scale-95', Z_WIDGET)}
+        >
+          <Calculator className="size-5" />
+        </button>,
+        document.body,
+      )}
 
       {open && (
-        <div
-          className="fixed z-50 w-64 select-none rounded-lg border border-border bg-bg-elevated shadow-2xl"
-          style={{ right: pos.x, bottom: pos.y }}
-        >
-          <div
-            className="flex cursor-grab items-center justify-between rounded-t-lg border-b border-border bg-bg-inset px-3 py-2 active:cursor-grabbing"
-            onPointerDown={onDragStart}
-            onPointerMove={onDragMove}
-            onPointerUp={onDragEnd}
-          >
-            <div className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
-              <GripHorizontal className="size-3.5" /> Calculadora
-            </div>
-            <button type="button" onClick={() => setOpen(false)} className="text-text-faint hover:text-text">
-              <X className="size-4" />
-            </button>
-          </div>
-
-          <div className="p-3">
+        <FloatingWindow titulo="Calculadora" posKey="calculator.pos" posInicial={{ x: 24, y: 24 }} onClose={() => setOpen(false)} className="w-64">
+          <div className="p-3" data-calc-root>
             <div className="mb-2 flex items-center justify-between text-[11px] text-text-faint">
               <span>{calc.memory !== 0 ? 'M' : ''}</span>
               <span>{calc.operator ?? ''}</span>
@@ -251,7 +230,7 @@ export function CalculatorWidget() {
               <button type="button" onClick={equals} className={cn(KEY, 'bg-accent text-accent-fg hover:opacity-90')}>=</button>
             </div>
           </div>
-        </div>
+        </FloatingWindow>
       )}
     </>
   );

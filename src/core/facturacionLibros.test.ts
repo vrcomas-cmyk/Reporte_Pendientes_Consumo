@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { agregarFilas, almacenPorGrupoCliente, firmaLibros, construirTabsFacturacion, construirTabsFacturacionGen, datosFacturacionGen, COLUMNAS_FAC, filasDeBloque, type FilaFac } from './facturacionLibros';
+import { agregarFilas, almacenPorGrupoCliente, firmaLibros, construirTabsFacturacion, construirTabsFacturacionGen, datosFacturacionGen, COLUMNAS_FAC, COLUMNAS_FAC_DIMS, filasDeBloque, agregarPresupuesto, presupuestoDeBloque, normalizarMaterial, type FilaFac } from './facturacionLibros';
 import { mapFacMensualCam, mapResumenFac } from './mappers';
 import { roleOf } from './roleDetection';
 
@@ -189,5 +189,64 @@ describe('día de la línea más reciente (Fecha Max)', () => {
     const tabs = construirTabsFacturacion([[f('09/2026', '1', '2', '100950', '1018', '1031', 10, 100)]]);
     const row = mapResumenFac(Object.fromEntries(tabs.resumenFac.headers.map((h, i) => [h, tabs.resumenFac.rows[0]?.[i]])));
     expect(row.fechaMax ?? '').toBe('');
+  });
+});
+
+describe('ventas vs presupuesto (libro de ventas vs presupuesto)', () => {
+  const COLS = [...COLUMNAS_FAC_DIMS];
+  // [mes, solic, razón, dest, material, texto, centro, almacén, gpoCte, gpoVdor, cant, imp, pmin, pmax, fecha, región, gerencia]
+  const venta = (mes: string, imp: number, region: string, gerencia: string, gpoVdor = '24', material = '0213090') =>
+    [mes, '100633', 'FARMACOS FR', '100633', material, 'ALGODON', '1018', '', '15', gpoVdor, 1, imp, 0, 0, '', region, gerencia];
+
+  it('filasDeBloque conserva región y gerencia, y agregarFilas no mezcla regiones', () => {
+    const filas = filasDeBloque(COLS, [venta('07/2026', 100, 'CENTRO SUR', 'G1'), venta('07/2026', 50, 'CENTRO SUR', 'G1'), venta('07/2026', 70, 'NORTE', 'G2')]);
+    expect(filas[0][15]).toBe('CENTRO SUR');
+    const agg = agregarFilas(filas);
+    expect(agg).toHaveLength(2);
+    expect(agg.find((f) => f[15] === 'CENTRO SUR')?.[11]).toBe(150);
+  });
+
+  it('normalizarMaterial quita el primer 0 (0511010 -> 511010) y no toca el resto', () => {
+    expect(normalizarMaterial('0511010')).toBe('511010');
+    expect(normalizarMaterial('511010')).toBe('511010');
+    expect(normalizarMaterial('0')).toBe('0');
+    expect(normalizarMaterial('0A123')).toBe('0A123');
+    const [f] = filasDeBloque(COLS, [venta('07/2026', 10, 'R', 'G', '24', '0511010')]);
+    expect(f[4]).toBe('511010');
+  });
+
+  it('el presupuesto NO genera filas de Resumen_Fac: va aparte y se une a las ventas por región/gerencia/grupos', () => {
+    const ventas = filasDeBloque(COLS, [venta('07/2026', 1000, 'CENTRO SUR', 'GERENCIA CENTRO SUR')]);
+    const pto = presupuestoDeBloque([['07/2026', 'CENTRO SUR', 'GERENCIA CENTRO SUR', '15', '24', 'ALGODON', 'PADS', 400], ['07/2026', 'CENTRO SUR', 'GERENCIA CENTRO SUR', '15', '24', 'ALGODON', 'GASAS', 600]]);
+    const tabs = construirTabsFacturacion([ventas], [agregarPresupuesto(pto)]);
+    expect(tabs.resumenFac.rows).toHaveLength(1);
+    expect(tabs.ventasPto).toEqual([{ mes: '07/2026', region: 'CENTRO SUR', gerencia: 'GERENCIA CENTRO SUR', gpoCte: '15', gpoVdor: '24', ventas: 1000, presupuesto: 1000 }]);
+  });
+
+  it('un presupuesto sin ventas ese mes también aparece (ventas 0)', () => {
+    const tabs = construirTabsFacturacion([[]], [[['08/2026', 'NORTE', 'G2', '15', '30', 'S', 'G', 500]]]);
+    expect(tabs.ventasPto).toHaveLength(1);
+    expect(tabs.ventasPto[0]).toMatchObject({ ventas: 0, presupuesto: 500 });
+  });
+
+  it('las ventas de ventasPto suman EXACTO lo mismo por mes que Resumen_Fac (misma data que la gráfica mensual)', () => {
+    const ventas = filasDeBloque(COLS, [
+      venta('06/2026', 100, 'NORTE', 'G2'), venta('06/2026', 40, 'SUR', 'G3', '30', '0511010'), venta('07/2026', 70, 'NORTE', 'G2', '24', '0999'), venta('07/2026', -20, 'SUR', 'G3', '30'),
+    ]);
+    const tabs = construirTabsFacturacion([ventas], [[['07/2026', 'NORTE', 'G2', '15', '24', 'S', 'GM', 999]]]);
+    const porMes = (pares: [string, number][]) => pares.reduce<Record<string, number>>((m, [k, v]) => ({ ...m, [k]: (m[k] ?? 0) + v }), {});
+    const rf = porMes(tabs.resumenFac.rows.map((r) => [String(r[6]), Number(r[8])]));
+    const vp = porMes(tabs.ventasPto.map((r) => [r.mes, r.ventas]));
+    expect(vp).toEqual(rf);
+  });
+
+  it('presupuestoDet conserva sector y grupo de material (para filtrar el presupuesto) y une los libros', () => {
+    const l1 = agregarPresupuesto(presupuestoDeBloque([['07/2026', 'N', 'G', '15', '24', 'ALGODON', 'PADS', 100]]));
+    const l2 = agregarPresupuesto(presupuestoDeBloque([['07/2026', 'N', 'G', '15', '24', 'ALGODON', 'PADS', 50], ['07/2026', 'N', 'G', '15', '24', 'GASAS', 'GASA', 70]]));
+    const tabs = construirTabsFacturacion([[], []], [l1, l2]);
+    expect(tabs.presupuestoDet).toEqual([
+      ['07/2026', 'N', 'G', '15', '24', 'ALGODON', 'PADS', 150],
+      ['07/2026', 'N', 'G', '15', '24', 'GASAS', 'GASA', 70],
+    ]);
   });
 });

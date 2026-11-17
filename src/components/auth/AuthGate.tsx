@@ -12,7 +12,7 @@ const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
 
 /** Blocks the whole app behind Google login + invite list until signed in. */
 export function AuthGate({ children }: { children: ReactNode }) {
-  const { status, signInWithGoogle } = useAuth();
+  const { status, signInWithGoogle, retry } = useAuth();
 
   if (AUTH_DISABLED) return <>{children}</>;
 
@@ -41,7 +41,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
             Tu cuenta de Google no está autorizada para este portal. Pide acceso a un administrador.
           </p>
         )}
-        <Button onClick={signInWithGoogle} className="w-full">Entrar con Google</Button>
+        {status === 'unavailable' ? (
+          <>
+            <p className="text-sm text-warning">
+              El servicio no responde (puede estar saturado). Tu sesión sigue activa; no te hemos sacado.
+            </p>
+            <Button onClick={retry} className="w-full">Reintentar</Button>
+          </>
+        ) : (
+          <Button onClick={signInWithGoogle} className="w-full">Entrar con Google</Button>
+        )}
       </Card>
     </div>
   );

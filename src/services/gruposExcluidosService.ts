@@ -16,5 +16,5 @@ export async function loadGruposExcluidos(): Promise<string[]> {
 
 export async function saveGruposExcluidos(codigos: string[], updatedBy: string): Promise<void> {
   const limpio = [...new Set(codigos.map((c) => c.trim()).filter(Boolean))];
-  await setConnectorValue(KEY, JSON.stringify(limpio), updatedBy);
+  await setConnectorValue(KEY, JSON.stringify(limpio), updatedBy, 'Filtros · Grupos de cliente excluidos por defecto');
 }

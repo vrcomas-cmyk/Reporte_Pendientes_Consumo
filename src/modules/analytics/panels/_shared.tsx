@@ -252,7 +252,7 @@ export function SugTable({ list, a, push, selection }: { list: BOItem[]; a: Anal
                   {(['1030', '1031', '1032', '1060'] as const).map((alm) => vis(`inv${alm}`) && (
                     <TableCell key={alm} className="text-right">
                       {formatNumber(num(b.invByCenter[alm] || 0))}
-                      {transitoFor(a.rss, b.centroPedido, alm, b.materialBase) > 0 && <div className="text-[11px] text-success">↻+{formatNumber(transitoFor(a.rss, b.centroPedido, alm, b.materialBase))}</div>}
+                      {transitoFor(a.rss, b.centroPedido, alm, b.materialBase) > 0 && <div className="text-[11px] text-violet-600 dark:text-violet-400">↻+{formatNumber(transitoFor(a.rss, b.centroPedido, alm, b.materialBase))}</div>}
                     </TableCell>
                   ))}
                   {vis('bloq') && <TableCell>{b.bloqueado ? <StatePill label={b.bloqueado} cls="amb" /> : '—'}</TableCell>}

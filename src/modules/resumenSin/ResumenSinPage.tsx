@@ -3,7 +3,7 @@ import { useRssFuenteStore } from '@/store/rssFuenteStore';
 import { Search, AlertTriangle } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead } from '@/components/ui/table';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead, TableFooter, TableTotalCell } from '@/components/ui/table';
 import { formatNumber, formatCurrency } from '@/lib/utils';
 import { exportXlsxMultiSheet, stamp } from '@/lib/exportXlsx';
 import { buildLotesSheet, loteKey } from '@/lib/lotesSheet';
@@ -174,6 +174,20 @@ export function ResumenSinPage({ modo = 'sin' }: ResumenSinPageProps = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [list, a.enrich]);
   const { sorted, sortKey, dir, toggleSort } = useSort(list, sortAcc);
+  // Totales de lo que pasa los filtros (banda fija al pie): por centro y generales, igual que las celdas de cada fila.
+  const totales = useMemo(() => {
+    const porCentro: Record<string, { inv: number; transito: number; pend: number }> = {};
+    let inv = 0, pend = 0;
+    for (const mo of list) {
+      for (const [c, co] of mo.centros) {
+        const ig = invGen(co);
+        const t = porCentro[c] ?? (porCentro[c] = { inv: 0, transito: 0, pend: 0 });
+        t.inv += ig; t.transito += co.transito; t.pend += co.pend;
+        inv += ig; pend += co.pend;
+      }
+    }
+    return { porCentro, inv, pend };
+  }, [list]);
   const { scrollRef, virtualizer, items, paddingTop, paddingBottom, measureElement } = useRowVirtualizer(sorted.length);
   // Sustitutos (solo con libros): ⇄ junto al código; "ir a fila" salta a la fila y la resalta unos segundos.
   const sustitutos = useMemo(() => (disp ? indiceSustitutos(a.sustitucionesLibros) : null), [disp, a.sustitucionesLibros]);
@@ -422,9 +436,9 @@ export function ResumenSinPage({ modo = 'sin' }: ResumenSinPageProps = {}) {
                           onVerDetalle={() => open({ type: 'celda', material: mo.material, centro: c, origen: 'resumenSin', centrosVisibles, lista: listaMateriales })}
                           copyItems={copyItems}
                         >
-                        <TableCell className="text-right">
+                        <TableCell className="cursor-pointer text-right" onClick={() => open({ type: 'celda', material: mo.material, centro: c, origen: 'resumenSin', centrosVisibles, lista: listaMateriales })}>
                           <Chip onClick={() => open({ type: 'celda', material: mo.material, centro: c, origen: 'resumenSin', centrosVisibles, lista: listaMateriales })}>{formatNumber(ig)}</Chip>
-                          {co.transito > 0 && <span className="text-success"> +{formatNumber(co.transito)}</span>}
+                          {co.transito > 0 && <span className="text-violet-600 dark:text-violet-400"> +{formatNumber(co.transito)}</span>}
                           {esLento(co, rss.curMes) && <span title="Lento: sin movimiento hace ≥6 meses y sin pendiente en este centro."><AlertTriangle className="ml-1 inline size-3 text-warning" /></span>}
                           {co.pend > 0 && <div className="text-[11px] text-danger">Pend {formatNumber(co.pend)}</div>}
                           {mostrarEstados && showCoberturaBadge && (
@@ -448,6 +462,23 @@ export function ResumenSinPage({ modo = 'sin' }: ResumenSinPageProps = {}) {
                 <tr><td style={{ height: paddingBottom }} colSpan={colCount} /></tr>
               )}
             </TableBody>
+            {/* Totales del filtro activo, siempre visibles al pie aunque haya más filas. */}
+            <TableFooter>
+              <tr>
+                <TableTotalCell colSpan={5} className="sticky left-0 z-20">Total · {formatNumber(list.length)} materiales</TableTotalCell>
+                {centros.map((c) => {
+                  const t = totales.porCentro[c];
+                  return (
+                    <TableTotalCell key={c} numero>
+                      {formatNumber(t?.inv ?? 0)}{(t?.transito ?? 0) > 0 && <span className="text-violet-600 dark:text-violet-400"> +{formatNumber(t?.transito ?? 0)}</span>}
+                      {(t?.pend ?? 0) > 0 && <div className="text-[11px] font-normal text-danger">Pend {formatNumber(t?.pend ?? 0)}</div>}
+                    </TableTotalCell>
+                  );
+                })}
+                <TableTotalCell numero>{formatNumber(totales.inv)}</TableTotalCell>
+                <TableTotalCell numero className={totales.pend > 0 ? 'text-danger' : 'text-text-faint'}>{totales.pend ? formatNumber(totales.pend) : '—'}</TableTotalCell>
+              </tr>
+            </TableFooter>
           </Table>
         </div>
       </Card>

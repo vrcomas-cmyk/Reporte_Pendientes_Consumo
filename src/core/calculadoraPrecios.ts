@@ -8,8 +8,8 @@
 import { norm, num } from '@/lib/text';
 import { esMesValido, mesCanon } from './resumenFac';
 import type { ResumenFacRow } from './types';
-import { claveMaterial, inicioDeDia, numero, sumarMeses } from './pedidos';
-import { MESES_MAX_CORTA_CADUCIDAD } from './inventoryRules';
+import { claveMaterial, numero } from './pedidos';
+import { vigenciaCorta } from './inventoryRules';
 import type { DetalleLotesCondicion } from './invCondicionLibros';
 import {
   calcularPrecioBase, calcularPrecioOferta, combinacionDe, paramsDeSector, percentilPonderado, resolverMargenMin, BANDERA_CC, BANDERA_PNC, MIN_PUNTOS_MATERIAL,
@@ -104,7 +104,6 @@ export function segmentosDeMaterial(e: EntradaSegmentos, hoy: Date = new Date())
   const lm: Bandera[] = [...e.estados];
   if (lm.length && e.libreGeneral > 0) out.push({ banderas: lm, inventario: e.libreGeneral, mesesCc: null, lotes: [] });
 
-  const limite = sumarMeses(inicioDeDia(hoy), MESES_MAX_CORTA_CADUCIDAD);
   const acumula = (lotes: readonly LoteSeg[], banderas: Bandera[]) => {
     let inv = 0;
     let meses: number | null = null;
@@ -119,8 +118,8 @@ export function segmentosDeMaterial(e: EntradaSegmentos, hoy: Date = new Date())
 
   acumula(e.lotesCc.filter((l) => l.cantidad > 0), [BANDERA_CC, ...lm]);
   const pnc = e.lotesPnc.filter((l) => l.cantidad > 0);
-  acumula(pnc.filter((l) => l.vence !== null && l.vence.getTime() <= limite.getTime()), [BANDERA_CC, ...lm, BANDERA_PNC]);
-  acumula(pnc.filter((l) => l.vence === null || l.vence.getTime() > limite.getTime()), [...lm, BANDERA_PNC]);
+  acumula(pnc.filter((l) => vigenciaCorta(l.vence, hoy)), [BANDERA_CC, ...lm, BANDERA_PNC]);
+  acumula(pnc.filter((l) => !vigenciaCorta(l.vence, hoy)), [...lm, BANDERA_PNC]);
   return out;
 }
 

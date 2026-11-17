@@ -1,6 +1,6 @@
 import { Select } from '@/components/ui/select';
 import { EmptyState } from '@/components/feedback/EmptyState';
-import { ReportPage, PageHeader } from '@/components/layout/report';
+import { FiltrosFijos, ReportPage, PageHeader } from '@/components/layout/report';
 import { useMemo, useRef, useState } from 'react';
 import {
   useReactTable,
@@ -141,6 +141,7 @@ export function ResultsPage() {
     </Button>
   } />
 
+      <FiltrosFijos>
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-64">
           <Search className="absolute left-2.5 top-2.5 size-3.5 text-text-faint" />
@@ -170,6 +171,7 @@ export function ResultsPage() {
       </div>
 
       <ColumnFilterBar columns={filterCols} rows={rows} active={quick} onChange={setQuick} />
+      </FiltrosFijos>
 
       <Card className="min-h-0 flex-1 overflow-hidden">
         <div ref={scrollRef} className="h-full overflow-auto">
