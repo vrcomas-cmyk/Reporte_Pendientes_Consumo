@@ -30,6 +30,8 @@ import {
 
   FileText,
 
+  Truck,
+
 } from 'lucide-react';
 
 import { StatePill, Chip } from '../ui';
@@ -50,6 +52,10 @@ import { MensajePedido } from './MensajePedido';
 
 import { norm, num } from '../helpers';
 import { claveMaterial } from '@/core/pedidos';
+import { canViewModule } from '@/core/permissions';
+import { usePermissionsStore } from '@/store/permissionsStore';
+import { useTransmisionStore } from '@/store/transmisionStore';
+import { materialesEnTransmision, normalizarClaveTx, textoTransmision, transmisionDePedido } from '@/core/transmision';
 
 import { usePanelStore, type Panel } from '@/store/panelStore';
 
@@ -351,6 +357,18 @@ export function PedidoPanel({
 
   );
 
+  // ---- Transmisión (solo Seg. de pedidos y solo roles con el módulo `transmision`) ----
+  const perms = usePermissionsStore((s) => s.perms);
+  const indiceTx = useTransmisionStore((s) => s.indice);
+  const historialTx = useTransmisionStore((s) => s.historial);
+  const estadoTx = useTransmisionStore((s) => s.estado);
+  const puedeTx = panel.fuente === 'seg' && canViewModule(perms, 'transmision') && estadoTx !== 'sinPermiso';
+  const entregasTx = useMemo(() => (puedeTx ? transmisionDePedido(indiceTx, panel.pedido) : []), [puedeTx, indiceTx, panel.pedido]);
+  useEffect(() => { if (puedeTx) void useTransmisionStore.getState().cargar(); }, [puedeTx]);
+  // El material de una entrega solo lo da el histórico de envíos: se pide únicamente cuando el pedido sí está en transmisión.
+  useEffect(() => { if (puedeTx && entregasTx.length) void useTransmisionStore.getState().cargarHistorial(entregasTx.map((e) => e.d)); }, [puedeTx, entregasTx]);
+  const materialesTx = useMemo(() => (puedeTx ? materialesEnTransmision(indiceTx, historialTx, panel.pedido) : new Map()), [puedeTx, indiceTx, historialTx, panel.pedido]);
+
   if (!items.length) return <p className="p-4 text-text-faint">Pedido sin materiales.</p>;
 
 
@@ -479,6 +497,15 @@ export function PedidoPanel({
                   {panel.pedido}
 
                 </span>
+
+                {entregasTx.length > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-info/15 px-2 py-0.5 text-xs font-medium text-info"
+                    title={entregasTx.map((e) => `Entrega ${e.d}${e.n ? ` · transmisión ${e.n}` : ''}${e.f ? ` · ${e.f}` : ''}${e.p ? ` (${e.p})` : ''}`).join(' | ')}
+                  >
+                    <Truck className="size-3" aria-hidden />En transmisión · {textoTransmision(entregasTx)}
+                  </span>
+                )}
 
                 {lista && lista.length > 1 && (
 
@@ -852,6 +879,14 @@ export function PedidoPanel({
                     <span className="font-semibold">{it.bo.materialBase}</span>
                     <span className="ml-2 text-text-muted">{it.bo.descripcionSolicitada}</span>
                     {enSeg && conOfertaFlag && <span className="mt-0.5 block text-[11px] font-medium text-warning">{oferta.texto}</span>}
+                    {(() => {
+                      const tx = materialesTx.get(normalizarClaveTx(it.bo.materialBase));
+                      return tx ? (
+                        <span className="mt-0.5 block text-[11px] font-medium text-info">
+                          <Truck className="mr-1 inline size-3" aria-hidden />En transmisión · entrega {tx.entregas.join(', ')}{tx.lotes.length ? ` · lote ${tx.lotes.join(', ')}` : ''}
+                        </span>
+                      ) : null;
+                    })()}
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     {nSel > 0 && (

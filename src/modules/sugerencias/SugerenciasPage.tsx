@@ -38,7 +38,10 @@ import { useQuickFilters } from '@/hooks/useQuickFilters';
 import { PrefiltroBanner } from '@/components/feedback/PrefiltroBanner';
 import { GerenteSelect } from '@/components/ui/gerente-select';
 import { usePermissionsStore } from '@/store/permissionsStore';
-import { isColumnHidden, isDetailHidden } from '@/core/permissions';
+import { canViewModule, isColumnHidden, isDetailHidden } from '@/core/permissions';
+import { useTransmisionStore } from '@/store/transmisionStore';
+import { normalizarClaveTx, textoTransmision, transmisionDePedido, type EntregaTx } from '@/core/transmision';
+import { TransmisionCell } from './TransmisionCell';
 import { toast } from '@/store/toastStore';
 import { useClipboard } from '@/hooks/useClipboard';
 import { calcularSeleccion, aTsv } from '@/lib/seleccion';
@@ -57,19 +60,19 @@ const COL_FILTRO: Record<string, readonly string[]> = {
   centro: ['centro', 'almacen'], material: ['material'], sector: ['sector', 'grupoart', 'gerente'],
   cantped: ['cantped'], pend: ['pend'], precio: ['precio'], consumo: ['consumo'],
   inv1030: ['inv1030'], inv1031: ['inv1031'], inv1032: ['inv1032'], inv1060: ['inv1060'], invtotal: ['invtotal'],
-  bloq: ['bloq'], estado: ['estado', 'revision'], tendencia: ['tendencia'], ofertable: ['ofertable'],
+  bloq: ['bloq'], estado: ['estado', 'revision'], tendencia: ['tendencia'], ofertable: ['ofertable'], transmision: ['transmision'],
   fuente: ['fuente'], matsug: ['matsug'], centrosug: ['centrosug'],
 };
 
 /** Orden base de las columnas de la tabla agrupada y cómo se rotula cada una. */
-const ORDEN_BASE = ['ejecutivo', 'pedido', 'fecha', 'cliente', 'centro', 'material', 'sector', 'cantped', 'pend', 'precio', 'consumo', 'invtotal', 'inv1030', 'inv1031', 'inv1032', 'inv1060', 'bloq', 'estado', 'tendencia', 'ofertable', 'fuentes'] as const;
+const ORDEN_BASE = ['ejecutivo', 'pedido', 'fecha', 'cliente', 'centro', 'material', 'sector', 'cantped', 'pend', 'precio', 'consumo', 'invtotal', 'inv1030', 'inv1031', 'inv1032', 'inv1060', 'bloq', 'estado', 'tendencia', 'ofertable', 'transmision', 'fuentes'] as const;
 const ENCABEZADOS: Record<string, { l: string; cls?: string; hint?: string }> = {
   ejecutivo: { l: 'Ejecutivo / Grupo cli.' }, pedido: { l: 'Pedido/OC' }, fecha: { l: 'Fecha' }, cliente: { l: 'Cliente' }, centro: { l: 'Centro/Alm' },
   material: { l: 'Material' }, sector: { l: 'Sector/Grupo' },
   cantped: { l: 'Cant.ped.', cls: 'text-right justify-end' }, pend: { l: 'Pend.', cls: 'text-right justify-end' }, precio: { l: 'Precio', cls: 'text-right justify-end' },
   consumo: { l: 'Consumo', cls: 'text-right justify-end' }, invtotal: { l: 'Inv. total', cls: 'text-right justify-end' },
   inv1030: { l: '1030', cls: 'text-right justify-end' }, inv1031: { l: '1031', cls: 'text-right justify-end' }, inv1032: { l: '1032', cls: 'text-right justify-end' }, inv1060: { l: '1060', cls: 'text-right justify-end' },
-  bloq: { l: 'Bloq.' }, estado: { l: 'Estado' }, tendencia: { l: 'Tendencia' }, ofertable: { l: 'Ofertable' },
+  bloq: { l: 'Bloq.' }, estado: { l: 'Estado' }, tendencia: { l: 'Tendencia' }, ofertable: { l: 'Ofertable' }, transmision: { l: 'Transmisión' },
   fuentes: { l: 'Fuentes', cls: 'text-right', hint: 'Cuántas fuentes alternas de abasto tiene este pedido (otros centros/lotes que podrían surtirlo).' },
 };
 
@@ -84,6 +87,7 @@ const HEADER_HINTS: Record<string, string> = {
   '1032': 'Inventario disponible en el almacén 1032.',
   '1060': 'Inventario disponible en el almacén 1060.',
   ofertable: 'Lo que el material tiene para ofrecer en cambio: lotes de corta caducidad con existencia (CC n · cantidad), lotes en PNC, su condición de Revisión o un sustituto con inventario. Respeta "Considerar centros" del detalle del pedido.',
+  transmision: 'Si alguna entrega de este pedido está en transmisión (pestañas mensuales de Transmisión): la entrega y su fecha. Es por pedido/entrega: esas pestañas no traen el material.',
   estado: 'Estatus general calculado del pedido (a tiempo, en riesgo, etc.). A la derecha, en ámbar: la condición de la pestaña Revision del material (p. ej. Liz/Lento mov), si la tiene.',
   tendencia: 'Compara la facturación de los últimos 3 meses completos vs. los 3 anteriores: En aumento (+10%), En decremento (-10%) o Estable.',
   sector: 'Sector y grupo de artículo del catálogo.',
@@ -159,6 +163,23 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
   const fuenteOcultoPerm = isDetailHidden(perms, 'sugerencias', 'fuente');
   // En 'seg' no hay fuentes alternas: se oculta todo lo relativo a fuentes (columna, filtros, Desagrupar).
   const fuenteOculto = seg || fuenteOcultoPerm;
+  // Transmisión: solo en Seg. de pedidos y solo para los roles a los que un admin concedió el módulo `transmision` (la función `envios` lo vuelve a exigir en el servidor).
+  const indiceTx = useTransmisionStore((s) => s.indice);
+  const estadoTx = useTransmisionStore((s) => s.estado);
+  const errorTx = useTransmisionStore((s) => s.error);
+  // Si el servidor responde «sin acceso» (permiso quitado en otra sesión), la columna deja de pintarse en vez de mostrar «—» en todo.
+  const puedeTransmision = seg && canViewModule(perms, 'transmision') && estadoTx !== 'sinPermiso';
+  useEffect(() => { if (puedeTransmision) void useTransmisionStore.getState().cargar(); }, [puedeTransmision]);
+  const transmisionDe = useMemo(() => {
+    const cache = new Map<string, EntregaTx[]>();
+    return (b: { pedido: string }): EntregaTx[] => {
+      if (!puedeTransmision) return [];
+      const k = normalizarClaveTx(b.pedido);
+      let r = cache.get(k);
+      if (!r) { r = transmisionDePedido(indiceTx, b.pedido); cache.set(k, r); }
+      return r;
+    };
+  }, [indiceTx, puedeTransmision]);
   // Sugerencias picks its lote inside the dialog (BOItem.fuentes may hold
   // several), so the sourceKey isn't known ahead of time — match by BO key
   // prefix instead of the full `sug|${boKey}|${lote}` string.
@@ -284,6 +305,7 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
         return v;
       },
     }] : []),
+    ...(puedeTransmision ? [{ key: 'transmision', label: 'Transmisión', get: (it: BORow) => (transmisionDe(it.bo).length ? 'En transmisión' : 'No está en transmisión') }] : []),
     { key: 'tendencia', label: 'Tendencia', get: (it) => it.tend.txt },
     ...(fuenteOculto ? [] : [
       { key: 'fuente', label: 'Fuente', getMany: (it: BORow) => it.fuentes.map((f) => f.fuente).filter(Boolean) },
@@ -292,7 +314,7 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
       { key: 'almacensug', label: 'Almacén sugerido', getMany: (it: BORow) => it.fuentes.map((f) => f.almacenSugerido).filter(Boolean) },
       { key: 'lote', label: 'Lote', getMany: (it: BORow) => it.fuentes.map((f) => f.lote).filter(Boolean) },
     ]),
-  ], [e, fuenteOculto, gerenteDe, revisionDe, ofertableDe, seg, precioOculto]);
+  ], [e, fuenteOculto, gerenteDe, revisionDe, ofertableDe, seg, precioOculto, puedeTransmision, transmisionDe]);
 
   // Embudo de cada encabezado: reúne las columnas de filtro que le corresponden (p. ej. "Pedido/OC" → pedido y OC).
   const filtroDe = (k: string) => {
@@ -420,9 +442,9 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
   };
   const saveCurrentView = (name: string) => savedViews.save(name, { hidden: [...colVis.hidden], unificarInv, pasteCodes, quick, order: colOrden, ejec: ejecZonas });
 
-  const COLS_AGRUPADO: ColDef[] = [...buildSugerenciasColsAgrupado({ precioOculto, unificarInv, fuenteOculto }), ...(seg ? [{ key: 'ofertable', label: 'Ofertable' }] : [])];
+  const COLS_AGRUPADO: ColDef[] = [...buildSugerenciasColsAgrupado({ precioOculto, unificarInv, fuenteOculto }), ...(seg ? [{ key: 'ofertable', label: 'Ofertable' }] : []), ...(puedeTransmision ? [{ key: 'transmision', label: 'Transmisión' }] : [])];
   // Columnas de la tabla agrupada: todas las disponibles en el orden elegido (el menú "Columnas" usa el mismo) y las visibles.
-  const disponibleCol = (k: string) => (k === 'precio' ? !precioOculto : k === 'invtotal' ? unificarInv : k.startsWith('inv') ? !unificarInv : k === 'ofertable' ? seg : k === 'fuentes' ? !fuenteOculto : true);
+  const disponibleCol = (k: string) => (k === 'precio' ? !precioOculto : k === 'invtotal' ? unificarInv : k.startsWith('inv') ? !unificarInv : k === 'ofertable' ? seg : k === 'transmision' ? puedeTransmision : k === 'fuentes' ? !fuenteOculto : true);
   const columnasTodas = ordenarColumnas(ORDEN_BASE.filter(disponibleCol), colOrden);
   const columnasOrden = columnasTodas.filter(vis);
   const colsMenu: ColDef[] = columnasTodas.map((k) => COLS_AGRUPADO.find((c) => c.key === k)).filter((c): c is ColDef => !!c);
@@ -458,7 +480,8 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
     tendencia: (it: (typeof filtered)[number]) => it.tend.txt,
     fuentes: (it: (typeof filtered)[number]) => it.fuentes.length,
     ofertable: (it: (typeof filtered)[number]) => ofertableDe(it.bo)?.corta.cantidad ?? 0,
-  }), [e, grupoCli, ejec, ofertableDe]);
+    transmision: (it: (typeof filtered)[number]) => transmisionDe(it.bo).length,
+  }), [e, grupoCli, ejec, ofertableDe, transmisionDe]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
   const { scrollRef, items, paddingTop, paddingBottom, measureElement } = useRowVirtualizer(sorted.length);
   // Pedidos distintos en el orden/filtro visible de esta tabla — viaja en el
@@ -558,7 +581,7 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
       'Material base': b.materialBase, Descripción: b.descripcionSolicitada, Sector: e.matSector(b.materialBase), 'Grupo art.': e.matGrupo(b.materialBase), 'Gerente (marca)': gerenteDe(b.materialBase),
       'Cant. pedida': num(b.cantidadPedido), Pendiente: num(b.cantidadPendiente), Precio: num(b.precio), 'Consumo prom.': num(it.consumoProm),
       'Inv 1030': num(b.invByCenter['1030'] || 0), 'Inv 1031': num(b.invByCenter['1031'] || 0), 'Inv 1032': num(b.invByCenter['1032'] || 0), 'Inv 1060': num(b.invByCenter['1060'] || 0),
-      Bloqueado: b.bloqueado, Estado: it.status.label, ...(seg ? { Revisión: revisionDe(b.materialBase), 'Lotes CC': ofertableDe(b)?.corta.n ?? 0, 'Cant. CC': ofertableDe(b)?.corta.cantidad ?? 0, 'Lotes PNC': ofertableDe(b)?.pnc.n ?? 0, 'Cant. PNC': ofertableDe(b)?.pnc.cantidad ?? 0, Sustitutos: ofertableDe(b)?.sustitutos ?? 0 } : {}), Tendencia: it.tend.txt, Fuentes: it.fuentes.length,
+      Bloqueado: b.bloqueado, Estado: it.status.label, ...(puedeTransmision ? { Transmisión: textoTransmision(transmisionDe(b)) } : {}), ...(seg ? { Revisión: revisionDe(b.materialBase), 'Lotes CC': ofertableDe(b)?.corta.n ?? 0, 'Cant. CC': ofertableDe(b)?.corta.cantidad ?? 0, 'Lotes PNC': ofertableDe(b)?.pnc.n ?? 0, 'Cant. PNC': ofertableDe(b)?.pnc.cantidad ?? 0, Sustitutos: ofertableDe(b)?.sustitutos ?? 0 } : {}), Tendencia: it.tend.txt, Fuentes: it.fuentes.length,
     };
   };
   const filaRaw = ({ it, f }: RawRow) => {
@@ -764,6 +787,12 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
         </ResumenColapsable>
       )}
 
+      {puedeTransmision && estadoTx === 'error' && (
+        <p role="status" className="shrink-0 rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
+          No se pudo consultar Transmisión{errorTx ? `: ${errorTx}` : ''}.{' '}
+          <button type="button" className="font-medium underline" onClick={() => void useTransmisionStore.getState().cargar(true)}>Reintentar</button>
+        </p>
+      )}
       <FilterBar
         search={<DebouncedSearch key={clearTick} initialValue={q} onChange={setQ} placeholder="Buscar material, pedido, cliente…" />}
         onClear={clearFilters}
@@ -885,6 +914,7 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
                   estado: <TableCell key="estado"><div className="flex flex-wrap items-center gap-1"><StatePill label={it.status.label} cls={it.status.cls} />{revisionDe(b.materialBase) && <StatePill label={revisionDe(b.materialBase)} cls="amb" />}</div></TableCell>,
                   tendencia: <TableCell key="tendencia"><TrendBadge t={it.tend} /></TableCell>,
                   ofertable: <TableCell key="ofertable"><OfertableCell o={ofertableDe(b)} /></TableCell>,
+                  transmision: <TableCell key="transmision"><TransmisionCell entregas={transmisionDe(b)} estado={estadoTx} hayIndice={indiceTx != null} /></TableCell>,
                   fuentes: <TableCell key="fuentes" className="text-right">{it.fuentes.length || '—'}</TableCell>,
                 };
                 return (
