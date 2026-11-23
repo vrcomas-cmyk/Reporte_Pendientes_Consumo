@@ -626,8 +626,9 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
     // Una condición puede venir concatenada («Liz/Lento mov»): se evalúa y se muestra por partes, solo las elegidas.
     const partesCond = (c: string) => c.split('/').map((x) => x.trim()).filter(Boolean);
     const centrosX = expCentros.filter((c) => (CENTERS as readonly string[]).includes(c));
-    const centrosCols = centrosX.length ? CENTERS.filter((c) => centrosX.includes(c)) : CENTERS;
-    const invSumaX = (r: (typeof rows)[number]) => (centrosX.length ? centrosCols.reduce((s, c) => s + invCond(r, c), 0) : invSumaCond(r));
+    // Tipado como lista de texto: la unión «arreglo filtrado | tupla CENTERS» hace que `reduce` pierda el tipo numérico.
+    const centrosCols: readonly string[] = centrosX.length ? CENTERS.filter((c) => centrosX.includes(c)) : CENTERS;
+    const invSumaX = (r: (typeof rows)[number]): number => (centrosX.length ? centrosCols.reduce((s: number, c) => s + invCond(r, c), 0) : invSumaCond(r));
     const filteredX = filtered.filter((r) => (!condsX.length || partesCond(r.condicion).some((x) => condsX.includes(x))) && (!centrosX.length || invSumaX(r) > 0));
     const rowsX = filteredX.map((r) => {
       const o: Record<string, unknown> = {
