@@ -1,10 +1,11 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, type ReactNode } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { cn, formatCurrency, formatNumber } from '@/lib/utils';
 import { completarSerie, mesLabel, mesKey, hoyMes, type Serie } from '@/core/resumenFac';
-import { proyectarMesCorriente } from '@/core/proyeccion';
+import { proyectarMesCorriente, tendenciaVsPromedio } from '@/core/proyeccion';
+import { IndicadorTendencia, OPACIDAD_PROYECCION } from './ProyeccionTooltip';
 import { categorical, CHART_UI } from '@/lib/chartColors';
 import { MonthRangeFilter } from './MonthRangeFilter';
 
@@ -13,6 +14,8 @@ export type Fila = {
   imp: number | null; imp_proy?: number; imp_acum?: number;
   cant: number | null; cant_proy?: number; cant_acum?: number;
   margen?: number | null; margen_proy?: number; margen_acum?: number;
+  /** Promedio de los últimos meses cerrados (la «tendencia» con la que se proyecta): base del indicador de tendencia del tooltip. Solo en el mes en curso. */
+  imp_tend?: number; cant_tend?: number; margen_tend?: number;
   /** Presupuesto del mes (solo Facturación con presupuesto). */
   pto?: number | null;
 };
@@ -67,6 +70,7 @@ function armarFilasBase(serie: Serie, proyectar: boolean, hoy: Date, range?: [nu
   ult.imp_proy = ult.imp ?? 0;
   cur.imp_proy = pI.proyectado;
   cur.imp_acum = pI.acumulado;
+  cur.imp_tend = pI.tendencia;
   cur.imp = null;
   if (conCantidad) {
     const pC = proyectarMesCorriente(cerrados.map((f) => f.cant ?? 0), cur.cant ?? 0, hoy);
@@ -74,6 +78,7 @@ function armarFilasBase(serie: Serie, proyectar: boolean, hoy: Date, range?: [nu
       ult.cant_proy = ult.cant ?? 0;
       cur.cant_proy = pC.proyectado;
       cur.cant_acum = pC.acumulado;
+      cur.cant_tend = pC.tendencia;
       cur.cant = null;
     }
   }
@@ -83,6 +88,7 @@ function armarFilasBase(serie: Serie, proyectar: boolean, hoy: Date, range?: [nu
       ult.margen_proy = ult.margen ?? 0;
       cur.margen_proy = pM.proyectado;
       cur.margen_acum = pM.acumulado;
+      cur.margen_tend = pM.tendencia;
       cur.margen = null;
     }
   }
@@ -96,6 +102,28 @@ const tickCantidad = (v: number) => compacto.format(v);
 const anchoEje = (valores: number[], fmt: (v: number) => string) =>
   Math.max(40, Math.max(...valores.map((v) => fmt(v).length), 1) * 6.5 + 12);
 
+/** Un concepto del tooltip (Importe, Cantidad, Rendimiento, Presupuesto): título con su color y debajo líneas «etiqueta … valor», una por dato, para que cada cifra diga qué es. */
+function BloqueTooltip({ color, titulo, children }: { color: string; titulo: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <p className="flex items-center gap-1.5 font-semibold"><span className="inline-block size-2.5 rounded-full" style={{ background: color }} />{titulo}</p>
+      <dl className="grid grid-cols-[1fr_auto] items-baseline gap-x-5 gap-y-0.5 pl-4">{children}</dl>
+    </div>
+  );
+}
+
+/** Una línea del bloque. `tenue` = dato estimado (proyección): más pequeño y en color atenuado; sin `tenue` es el dato que se debe leer primero. */
+function LineaTooltip({ etiqueta, valor, tenue, extra }: { etiqueta: string; valor: string; tenue?: boolean; extra?: ReactNode }) {
+  return (
+    <>
+      <dt className="text-text-faint">{etiqueta}</dt>
+      <dd className={cn('flex items-center justify-end gap-1.5 text-right tabular-nums', tenue ? 'text-text-faint' : 'font-semibold')}>
+        {valor}{extra}
+      </dd>
+    </>
+  );
+}
+
 function TooltipEvol({ active, payload, conMargen, conCantidad, conPto, colores }: {
   active?: boolean;
   payload?: { payload?: Fila }[];
@@ -107,35 +135,53 @@ function TooltipEvol({ active, payload, conMargen, conCantidad, conPto, colores 
   const row = payload?.[0]?.payload;
   if (!active || !row) return null;
   const proy = row.imp_proy !== undefined && row.imp === null;
-  const fila = (nombre: string, color: string, real: number | null | undefined, proyectado: number | undefined, acum: number | undefined, fmt: (n: number) => string, hayProy: boolean) => (
-    <div className="flex items-center justify-between gap-3">
-      <span className="flex items-center gap-1.5"><span className="inline-block size-2.5 rounded-full" style={{ background: color }} />{nombre}</span>
-      <span className="tabular-nums">
-        {hayProy && proyectado !== undefined
-          ? <>{fmt(proyectado)} <span className="text-[11px] text-text-faint">proyectado</span></>
-          : fmt(real ?? 0)}
-        {hayProy && acum !== undefined && <span className="ml-1.5 text-[11px] text-text-faint">· a la fecha {fmt(acum)}</span>}
-      </span>
-    </div>
-  );
+
+  /** Bloque de un dato (importe, cantidad, rendimiento). Mes en curso: «A la fecha» (con su tendencia) y «Cierre proyectado» (tenue); mes cerrado: «Real». */
+  const bloque = (titulo: string, color: string, real: number | null | undefined, proyectado: number | undefined, acum: number | undefined, tend: number | undefined, fmt: (n: number) => string, hayProy: boolean) => {
+    if (hayProy && proyectado !== undefined) {
+      return (
+        <BloqueTooltip color={color} titulo={titulo}>
+          {acum !== undefined && (
+            <LineaTooltip
+              etiqueta="A la fecha"
+              valor={fmt(acum)}
+              extra={tend !== undefined ? (() => { const t = tendenciaVsPromedio(proyectado, tend); return t ? <IndicadorTendencia t={t} /> : null; })() : null}
+            />
+          )}
+          <LineaTooltip etiqueta="Cierre proyectado" valor={fmt(proyectado)} tenue />
+        </BloqueTooltip>
+      );
+    }
+    return (
+      <BloqueTooltip color={color} titulo={titulo}>
+        <LineaTooltip etiqueta="Real" valor={real == null ? '—' : fmt(real)} tenue={real == null} />
+      </BloqueTooltip>
+    );
+  };
+
+  const pctDe = (v: number | null | undefined, pto: number) => (v == null ? null : `${Math.round((v / pto) * 100)} %`);
   return (
-    <div className="min-w-44 rounded-lg border px-3 py-2 text-xs shadow-lg" style={{ background: CHART_UI.surface, borderColor: CHART_UI.border, color: CHART_UI.label }}>
-      <p className="mb-1 font-display text-sm font-semibold">{row.label}</p>
-      <div className="flex flex-col gap-1">
-        {fila('Importe', colores[0], row.imp, row.imp_proy, row.imp_acum, formatCurrency, proy)}
-        {conCantidad && fila('Cantidad', colores[1], row.cant, row.cant_proy, row.cant_acum, (n) => formatNumber(n), proy && row.cant_proy !== undefined && row.cant === null)}
-        {conMargen && fila('Rendimiento aprox.', colores[2], row.margen, row.margen_proy, row.margen_acum, formatCurrency, proy)}
+    <div className="min-w-56 rounded-lg border px-3 py-2 text-xs shadow-lg" style={{ background: CHART_UI.surface, borderColor: CHART_UI.border, color: CHART_UI.label }}>
+      <p className="mb-1.5 font-display text-sm font-semibold">{row.label}</p>
+      <div className="flex flex-col gap-2">
+        {bloque('Importe', colores[0], row.imp, row.imp_proy, row.imp_acum, row.imp_tend, formatCurrency, proy)}
+        {conCantidad && bloque('Cantidad', colores[1], row.cant, row.cant_proy, row.cant_acum, row.cant_tend, (n) => formatNumber(n), proy && row.cant_proy !== undefined && row.cant === null)}
+        {conMargen && bloque('Rendimiento aprox.', colores[2], row.margen, row.margen_proy, row.margen_acum, row.margen_tend, formatCurrency, proy)}
         {conPto && row.pto != null && (
-          <div className="flex items-center justify-between gap-3">
-            <span className="flex items-center gap-1.5"><span className="inline-block size-2.5 rounded-full" style={{ background: colores[3] }} />Presupuesto</span>
-            <span className="tabular-nums">
-              {formatCurrency(row.pto)}
-              {row.pto > 0 && <span className="ml-1.5 text-[11px] text-text-faint">· cumpl. {Math.round((((row.imp ?? row.imp_acum) ?? 0) / row.pto) * 100)}%{proy ? ' a la fecha' : ''}</span>}
-            </span>
-          </div>
+          <BloqueTooltip color={colores[3]} titulo="Presupuesto">
+            <LineaTooltip etiqueta="Meta del mes" valor={formatCurrency(row.pto)} />
+            {row.pto > 0 && (proy
+              ? (
+                <>
+                  <LineaTooltip etiqueta="Cumplido a la fecha" valor={pctDe(row.imp_acum, row.pto) ?? '—'} />
+                  <LineaTooltip etiqueta="Cumplimiento proyectado" valor={pctDe(row.imp_proy, row.pto) ?? '—'} tenue />
+                </>
+              )
+              : row.imp != null && <LineaTooltip etiqueta="Cumplido" valor={pctDe(row.imp, row.pto) ?? '—'} />)}
+          </BloqueTooltip>
         )}
       </div>
-      {proy && <p className="mt-1.5 border-t border-border/60 pt-1 text-[11px] text-text-faint">Mes en curso: cierre estimado con el ritmo del mes y el promedio de los últimos 3 meses.</p>}
+      {proy && <p className="mt-2 border-t border-border/60 pt-1 text-[11px] text-text-faint">Mes en curso: el cierre se estima con el ritmo del mes y el promedio de los últimos 3 meses.</p>}
     </div>
   );
 }
@@ -205,12 +251,15 @@ export const EvolChart = memo(function EvolChart({ serie, onMonth, height = 220,
             <Tooltip
               content={<TooltipEvol conMargen={conMargen} conCantidad={conCantidad} conPto={conPto} colores={colores} />}
               cursor={{ stroke: gridColor }}
+              // El cuadro es más alto que la gráfica: puede salir por abajo/arriba (sin recortarse) y va por encima de la leyenda de colores, que se dibuja después.
+              allowEscapeViewBox={{ x: false, y: true }}
+              wrapperStyle={{ zIndex: 40, pointerEvents: 'none' }}
             />
             {(conMargen || conCantidad || conPto) && <Legend wrapperStyle={{ fontSize: 11 }} />}
             {conPto && <Line yAxisId="imp" type="monotone" dataKey="pto" name="Presupuesto" stroke={colores[3]} strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} connectNulls isAnimationActive={false} />}
             <Line yAxisId="imp" type="monotone" dataKey="imp" name="Importe" stroke={colores[0]} strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
             {proyectado && (
-              <Line yAxisId="imp" type="monotone" dataKey="imp_proy" name="Importe proyectado" stroke={colores[0]} strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 5 }} connectNulls legendType="none" isAnimationActive={false} />
+              <Line yAxisId="imp" type="monotone" dataKey="imp_proy" name="Importe proyectado" stroke={colores[0]} strokeWidth={2} strokeOpacity={OPACIDAD_PROYECCION} strokeDasharray="5 4" dot={false} activeDot={{ r: 5 }} connectNulls legendType="none" isAnimationActive={false} />
             )}
             {proyectado && (
               <Line yAxisId="imp" type="monotone" dataKey="imp_acum" name="Importe a la fecha" stroke="none" dot={hueco(colores[0])} activeDot={false} legendType="none" isAnimationActive={false} />
@@ -219,7 +268,7 @@ export const EvolChart = memo(function EvolChart({ serie, onMonth, height = 220,
               <Line yAxisId="cant" type="monotone" dataKey="cant" name="Cantidad" stroke={colores[1]} strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
             )}
             {conCantidad && proyectado && (
-              <Line yAxisId="cant" type="monotone" dataKey="cant_proy" name="Cantidad proyectada" stroke={colores[1]} strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 5 }} connectNulls legendType="none" isAnimationActive={false} />
+              <Line yAxisId="cant" type="monotone" dataKey="cant_proy" name="Cantidad proyectada" stroke={colores[1]} strokeWidth={2} strokeOpacity={OPACIDAD_PROYECCION} strokeDasharray="5 4" dot={false} activeDot={{ r: 5 }} connectNulls legendType="none" isAnimationActive={false} />
             )}
             {conCantidad && proyectado && (
               <Line yAxisId="cant" type="monotone" dataKey="cant_acum" name="Cantidad a la fecha" stroke="none" dot={hueco(colores[1])} activeDot={false} legendType="none" isAnimationActive={false} />
@@ -228,7 +277,7 @@ export const EvolChart = memo(function EvolChart({ serie, onMonth, height = 220,
               <Line yAxisId="imp" type="monotone" dataKey="margen" name="Rendimiento aprox." stroke={colores[2]} strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
             )}
             {conMargen && proyectado && (
-              <Line yAxisId="imp" type="monotone" dataKey="margen_proy" name="Rendimiento proyectado" stroke={colores[2]} strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 5 }} connectNulls legendType="none" isAnimationActive={false} />
+              <Line yAxisId="imp" type="monotone" dataKey="margen_proy" name="Rendimiento proyectado" stroke={colores[2]} strokeWidth={2} strokeOpacity={OPACIDAD_PROYECCION} strokeDasharray="5 4" dot={false} activeDot={{ r: 5 }} connectNulls legendType="none" isAnimationActive={false} />
             )}
             {conMargen && proyectado && (
               <Line yAxisId="imp" type="monotone" dataKey="margen_acum" name="Rendimiento a la fecha" stroke="none" dot={hueco(colores[2])} activeDot={false} legendType="none" isAnimationActive={false} />

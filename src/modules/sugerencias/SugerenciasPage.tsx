@@ -10,7 +10,7 @@ import { TableSkeleton } from '@/components/ui/skeleton';
 import { useDataStore } from '@/store/dataStore';
 import { useSort } from '@/hooks/useSort';
 import { cn, formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
-import { firmaOrden, moverColumna, ordenarColumnas } from '@/lib/ordenColumnas';
+import { colocarColumna, firmaOrden, moverColumna, ordenarColumnas } from '@/lib/ordenColumnas';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { usePanelStore } from '@/store/panelStore';
@@ -691,10 +691,10 @@ export function SugerenciasPage({ modo = 'sugerencias', onDetalleLibros }: Suger
           Total bajo cantidades
         </label>
       )}
-      <ColumnVisibilityControl columns={agrupado ? colsMenu : COLS_RAW} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
+      <ColumnVisibilityControl columns={agrupado ? colsMenu : COLS_RAW} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} onMove={agrupado ? (k, pos) => setColOrden(colocarColumna(columnasTodas, k, pos)) : undefined} />
       {agrupado && (
-        <span className="text-[11px] text-text-faint" title="Arrastra un encabezado sobre otro para cambiar el orden de las columnas; se guarda y viaja en las Vistas.">
-          Arrastra los encabezados para ordenar
+        <span className="text-[11px] text-text-faint" title="Arrastra un encabezado sobre otro, o escribe la posición de cada columna en el menú «Columnas», para cambiar su orden; se guarda y viaja en las Vistas.">
+          Arrastra los encabezados (o escribe la posición en «Columnas») para ordenar
           {colOrden.length > 0 && <button type="button" onClick={() => setColOrden([])} className="ml-2 text-accent hover:underline">Restablecer orden</button>}
         </span>
       )}

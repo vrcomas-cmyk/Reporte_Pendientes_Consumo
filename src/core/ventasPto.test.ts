@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mesesDisponibles, mesElegidoPorOmision, rangoCumplimiento, rankingSectorGrupo, desgloseColaborador, filtrarVentasColab, indexarVentasPorVdor, mesesDeColaborador, mesPorOmision, type ResolverDetalle, combinarVentasConPresupuesto, filtrarPresupuestoDet, filtrarVentasPto, nombreCoincide, ptoPorMes, rankingCumplimiento, rankingPto, serieMensualPto, totalPto, ultimoMesPto } from './ventasPto';
+import { dimensionesPorVendedor, ventasPtoDesdeRF, mesesDisponibles, mesElegidoPorOmision, rangoCumplimiento, rankingSectorGrupo, desgloseColaborador, filtrarVentasColab, indexarVentasPorVdor, mesesDeColaborador, mesPorOmision, type ResolverDetalle, combinarVentasConPresupuesto, filtrarPresupuestoDet, filtrarVentasPto, nombreCoincide, ptoPorMes, rankingCumplimiento, rankingPto, serieMensualPto, totalPto, ultimoMesPto } from './ventasPto';
 import { mesKey } from './resumenFac';
 import type { PtoFila, VentasPtoRow } from './facturacionLibros';
 
@@ -254,5 +254,37 @@ describe('cumplimiento por sector / grupo de artículo', () => {
   it('el filtro Gerente de marca (sectorPasa) acota la venta', () => {
     const r = rankingSectorGrupo(indice, [], 'sector', [], resolver, lo, hi, null, (s) => s === 'GASAS');
     expect(r.map((x) => x.clave)).toEqual(['GASAS']);
+  });
+});
+
+describe('«Cumplimiento por»: ventas desde las filas filtradas de Resumen_Fac', () => {
+  const rf = (mesAno: string, gpoVdor: string, gpoCte: string, importeFacturado: number, material = 'M1') => ({ mesAno, gpoVdor, gpoCte, importeFacturado, material });
+  const pto: PtoFila[] = [['07/2026', 'SUR', 'G-SUR', '15', '40', 'SECTOR', 'GRUPO', 250]];
+  const dims = dimensionesPorVendedor(rows, pto);
+
+  it('las dimensiones de cada vendedor salen de las ventas y, si faltan, del presupuesto (gana la primera)', () => {
+    expect(dims.get('24')).toEqual({ region: 'NORTE', gerencia: 'G-NORTE' });
+    expect(dims.get('40')).toEqual({ region: 'SUR', gerencia: 'G-SUR' });
+    expect(dimensionesPorVendedor([], pto).get('40')).toEqual({ region: 'SUR', gerencia: 'G-SUR' });
+  });
+
+  it('suma por mes × vendedor × grupo de cliente y pone región y gerencia del vendedor', () => {
+    const out = ventasPtoDesdeRF([rf('07/2026', '24', '15', 100), rf('07/2026', '24', '15', 40, 'M2'), rf('07/2026', '24', '16', 5), rf('06/2026', '24', '15', 7)], dims);
+    expect(out).toHaveLength(3);
+    expect(out.find((x) => x.mes === '07/2026' && x.gpoCte === '15')).toMatchObject({ gpoVdor: '24', region: 'NORTE', gerencia: 'G-NORTE', ventas: 140, presupuesto: 0 });
+  });
+
+  it('un vendedor sin región conocida queda con región vacía (el ranking lo pone en «Sin dato»)', () => {
+    const [x] = ventasPtoDesdeRF([rf('07/2026', '99', '15', 10)], dims);
+    expect(x).toMatchObject({ region: '', gerencia: '' });
+  });
+
+  it('con menos filas (un filtro) el ranking baja; con todas coincide con el agregado de siempre', () => {
+    const todas = [rf('07/2026', '24', '15', 150), rf('07/2026', '30', '15', 50), rf('07/2026', '40', '15', 300)];
+    const rk = (filas: ReturnType<typeof rf>[]) => rankingCumplimiento(ventasPtoDesdeRF(filas, dims), rows.filter((x) => x.mes === '07/2026').map((x): PtoFila => [x.mes, x.region, x.gerencia, x.gpoCte, x.gpoVdor, '', '', x.presupuesto]), 'region', lo, hi);
+    const norte = (l: ReturnType<typeof rk>) => l.find((x) => x.clave === 'NORTE')!;
+    expect(norte(rk(todas)).ventas).toBe(200);
+    expect(norte(rk(todas.filter((x) => x.gpoVdor !== '30'))).ventas).toBe(150); // p. ej. un filtro de material que deja fuera lo del vendedor 30
+    expect(rk(todas).find((x) => x.clave === 'SUR')!.ventas).toBe(300);
   });
 });

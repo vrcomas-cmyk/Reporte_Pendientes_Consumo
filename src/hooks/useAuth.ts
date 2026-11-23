@@ -80,10 +80,21 @@ export function useAuth(): { status: AuthStatus; session: Session | null; signIn
       // Deduplica: getSession + INITIAL_SESSION disparan dos checks a la vez.
       if (enVuelo === email) return;
       enVuelo = email;
+      // Verificación reciente en caché: se entra de inmediato y la lista se
+      // revalida en segundo plano. Así una base lenta no bloquea el login.
+      const conCache = leerCache(email);
+      const entrar = () => {
+        yaVerificado = email;
+        setSession(s);
+        setStatus('signed-in');
+        void usePermissionsStore.getState().load(email);
+      };
+      if (conCache) entrar();
       try {
         const res = await consultarAllowed(email);
         if (cancelled) return;
         if (res === 'denied') {
+          yaVerificado = null;
           borrarCache();
           void supabase.auth.signOut();
           usePermissionsStore.getState().reset();
@@ -91,19 +102,16 @@ export function useAuth(): { status: AuthStatus; session: Session | null; signIn
           setStatus('not-allowed');
           return;
         }
-        if (res === 'error' && !leerCache(email)) {
+        if (res === 'error' && !conCache) {
           // Sin caché: no podemos confirmar acceso, pero tampoco expulsamos.
           setSession(null);
           setStatus('unavailable');
           return;
         }
         if (res === 'allowed') guardarCache(email);
-        yaVerificado = email;
-        setSession(s);
-        setStatus('signed-in');
-        void usePermissionsStore.getState().load(email);
+        if (!conCache) entrar();
       } catch {
-        if (!cancelled) { setSession(null); setStatus('unavailable'); }
+        if (!cancelled && !conCache) { setSession(null); setStatus('unavailable'); }
       } finally {
         if (enVuelo === email) enVuelo = null;
       }

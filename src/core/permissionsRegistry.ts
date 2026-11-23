@@ -26,6 +26,7 @@ export const MODULE_COLUMNS: Record<string, RegistryItem[]> = {
 export const MODULE_DETAILS: Record<string, RegistryItem[]> = {
   inventario: [
     { key: 'costo', label: 'Costo del material (en todos los paneles de detalle)' },
+    { key: 'editarCaducidad', label: 'Ajustar la caducidad de un lote (se respalda en Google Sheets)' },
   ],
   sugerencias: [
     { key: 'fuente', label: 'Detalle de fuente (lote/centro sugerido/disponible)' },

@@ -41,7 +41,10 @@ function portalDespachar(p) {
       case 'portal_tx_indice':    return _portalTxIndice(p.libros);
       case 'portal_tx_historial': return _portalTxHistorial(p.deliverys, p.histUrl);
       case 'portal_tx_pestanas':  return _portalTxPestanas(p.url);
-      default:                    return { exito: false, mensaje: 'Acción no válida: ' + accion };
+      case 'portal_cad_listar':   return _portalCadListar();
+      case 'portal_cad_guardar':  return _portalCadGuardar(p);
+      case 'portal_cad_borrar':   return _portalCadBorrar(p);
+      default:                   return { exito: false, mensaje: 'Acción no válida: ' + accion };
     }
   } catch (err) {
     // Mensaje genérico hacia afuera; el detalle queda en el registro de ejecuciones del script.
@@ -215,4 +218,77 @@ function _portalTxHistorial(deliverys, histUrl) {
     if (!lista.some(function (x) { return x.m === m && x.l === l; })) lista.push({ m: m, l: l });
   }
   return { exito: true, historial: out };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------
+// AJUSTES DE CADUCIDAD (respaldo de las correcciones manuales de la fecha de un lote)
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------
+// Propiedad del script (opcional): CAD_LIBRO_URL = URL del libro de Google Sheets donde vive la hoja «Ajustes_Caducidad».
+// Si no existe se usa el libro al que está ligado este script; la hoja se crea sola con sus encabezados.
+//   portal_cad_listar                                                    → { exito, ajustes: [{ material, lote, fecha, sistema, usuario, actualizado, nota }] }
+//   portal_cad_guardar (material, lote, fecha 'aaaa-mm-dd', sistema, nota) → { exito, ajuste }   (upsert por material + lote; usuario y hora los pone el servidor)
+//   portal_cad_borrar  (material, lote)                                   → { exito, borradas }
+var PORTAL_HOJA_CAD = 'Ajustes_Caducidad';
+var PORTAL_ENC_CAD = ['Material', 'Lote', 'Caducidad correcta', 'Caducidad sistema', 'Usuario', 'Actualizado', 'Nota'];
+
+function _pCadHoja() {
+  var url = _pProp('CAD_LIBRO_URL');
+  var libro = url ? _pAbrir(url) : SpreadsheetApp.getActiveSpreadsheet();
+  if (!libro) throw _portalPub('No se pudo abrir el libro de ajustes de caducidad (propiedad CAD_LIBRO_URL).');
+  var hoja = libro.getSheetByName(PORTAL_HOJA_CAD);
+  if (!hoja) {
+    hoja = libro.insertSheet(PORTAL_HOJA_CAD);
+    hoja.getRange(1, 1, 1, PORTAL_ENC_CAD.length).setValues([PORTAL_ENC_CAD]).setFontWeight('bold');
+    hoja.setFrozenRows(1);
+    // Material, lote, fechas y nota como TEXTO: Sheets no debe convertir «00123» ni «2026-11-23» a número/fecha.
+    hoja.getRange(2, 1, hoja.getMaxRows() - 1, PORTAL_ENC_CAD.length).setNumberFormat('@');
+  }
+  return hoja;
+}
+function _pCadClave(material, lote) { return _pTxt(material).replace(/\.0+$/, '') + '|' + _pTxt(lote).toUpperCase(); }
+function _pCadFila(v) {
+  return { material: _pTxt(v[0]), lote: _pTxt(v[1]), fecha: _pTxt(v[2]), sistema: _pTxt(v[3]), usuario: _pTxt(v[4]), actualizado: _pTxt(v[5]), nota: _pTxt(v[6]) };
+}
+function _pCadLeer(hoja) {
+  var n = hoja.getLastRow() - 1;
+  return n > 0 ? hoja.getRange(2, 1, n, PORTAL_ENC_CAD.length).getDisplayValues() : [];
+}
+
+function _portalCadListar() {
+  var hoja = _pCadHoja();
+  var ajustes = _pCadLeer(hoja).map(_pCadFila).filter(function (a) { return a.material && a.lote && /^\d{4}-\d{2}-\d{2}/.test(a.fecha); });
+  return { exito: true, ajustes: ajustes };
+}
+
+function _portalCadGuardar(p) {
+  var material = _pTxt(p.material), lote = _pTxt(p.lote), fecha = _pTxt(p.fecha);
+  if (!material || !lote || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) throw _portalPub('Material, lote y fecha (aaaa-mm-dd) son obligatorios.');
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var hoja = _pCadHoja();
+    var filas = _pCadLeer(hoja), clave = _pCadClave(material, lote), fila = -1;
+    for (var i = 0; i < filas.length; i++) if (_pCadClave(filas[i][0], filas[i][1]) === clave) { fila = i + 2; break; }
+    var ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+    // Si ya había un ajuste se conserva la caducidad ORIGINAL del sistema (la primera que se corrigió), no la corregida anterior.
+    var sistema = fila > 0 && _pTxt(filas[fila - 2][3]) ? _pTxt(filas[fila - 2][3]) : _pTxt(p.sistema);
+    var valores = [[material, lote, fecha, sistema, _pTxt(p.usuario), ahora, _pTxt(p.nota)]];
+    if (fila < 0) fila = hoja.getLastRow() + 1;
+    hoja.getRange(fila, 1, 1, PORTAL_ENC_CAD.length).setNumberFormat('@').setValues(valores);
+    return { exito: true, ajuste: _pCadFila(valores[0]) };
+  } finally { lock.releaseLock(); }
+}
+
+function _portalCadBorrar(p) {
+  var material = _pTxt(p.material), lote = _pTxt(p.lote);
+  if (!material || !lote) throw _portalPub('Material y lote son obligatorios.');
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var hoja = _pCadHoja();
+    var filas = _pCadLeer(hoja), clave = _pCadClave(material, lote), borradas = 0;
+    // De abajo hacia arriba para que borrar una fila no corra los índices de las demás.
+    for (var i = filas.length - 1; i >= 0; i--) if (_pCadClave(filas[i][0], filas[i][1]) === clave) { hoja.deleteRow(i + 2); borradas++; }
+    return { exito: true, borradas: borradas };
+  } finally { lock.releaseLock(); }
 }

@@ -4,6 +4,7 @@ import { Search, Lock, LockOpen, AlertTriangle, ArrowLeftRight, ChevronDown, Che
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, SortableTableHead, TableFooter, TableTotalCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn, formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
@@ -15,6 +16,7 @@ import { CENTERS } from '@/core/types';
 import type { InvDetalleRow } from '@/core/types';
 import { StatePill, Chip, Ranking, ZoomControl, useZoom, ColumnFilterBar, ColumnFilterMenu, ColumnFilterMenuMulti,passesFilters, useSavedViews, SavedViewsControl, RowContextMenu, useColumnVisibility, ColumnVisibilityControl, PasteCodesFilter, PasteCodesChip, matchesCodes, type ActiveFilter, type FilterColumn, type ColDef } from '@/modules/analytics/ui';
 import { norm, matchesQuery } from '@/modules/analytics/helpers';
+import { EditarCaducidad } from '@/modules/analytics/ui/EditarCaducidad';
 import { esCondicionCortaCaducidad } from '@/core/inventoryRules';
 import { pendSegunAmbito, transitoPorCondicion, esLentoPorCondicion, type AmbitoPend } from '@/core/resumenSin';
 import { EmptyState } from '@/components/feedback/EmptyState';
@@ -222,7 +224,7 @@ function LotesPorVencerTable({ lotes, open, wrapperClassName }: {
               <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
               <TableCell className="whitespace-nowrap text-xs">
                 <StatePill label={`${l.dias} d`} cls={l.dias <= 31 ? 'rojo' : l.dias <= 60 ? 'amb' : 'gris'} />
-                <div className="text-[11px] text-text-faint">{formatFechaCaducidad(l.fechaCaducidad)}</div>
+                <div className="text-[11px] text-text-faint">{formatFechaCaducidad(l.fechaCaducidad)}{l.lote && <EditarCaducidad material={l.material} lote={l.lote} fecha={l.fechaCaducidad} />}</div>
               </TableCell>
               <TableCell className="text-right">{l.demanda > 0 ? formatNumber(l.demanda) : <span className="text-text-faint">sin demanda</span>}</TableCell>
               <TableCell className="max-w-48 truncate text-xs">
@@ -361,7 +363,10 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   const [soloCand, setSoloCand] = usePersistedState(`${ns}.soloCand`, false);
   // Filtros propios de la vista Por lote (independientes de «Lotes por vencer»): por omisión, TODOS los lotes, también los sin disponible.
   const [loteOp, setLoteOp] = usePersistedState<'' | 'gt' | 'lt' | 'between'>(`${ns}.loteOp`, '');
-  const [loteMeses, setLoteMeses] = usePersistedState(`${ns}.loteMeses`, 3);
+  const [expCond, setExpCond] = usePersistedState<string[]>(`${ns}.expCond`, []);
+  const [expCentros, setExpCentros] = usePersistedState<string[]>(`${ns}.expCentros`, []);
+  const [mesesMaxCC, setMesesMaxCC] =usePersistedState(`${ns}.mesesMaxCC`, 0);
+  const [loteMeses, setLoteMeses] =usePersistedState(`${ns}.loteMeses`, 3);
   const [loteMesesHasta, setLoteMesesHasta] = usePersistedState(`${ns}.loteMesesHasta`, 12);
   const [ocultarSinDisp, setOcultarSinDisp] = usePersistedState(`${ns}.loteOcultarSinDisp`, false);
 
@@ -429,6 +434,9 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [a.enrich]);
 
+  /** Condiciones individuales para elegir al descargar: las concatenadas («Liz/Lento mov») se separan. */
+  const condsSueltas = useMemo(() => [...new Set(conds.flatMap((c) => c.split('/').map((x) => x.trim()).filter(Boolean)))].sort(), [conds]);
+
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (cond && norm(r.condicion) !== cond) return false;
@@ -495,7 +503,7 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [a.enrich, ambitoPend, rss]);
   const { sorted, sortKey, dir, toggleSort } = useSort(filtered, sortAcc);
-  const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length);
+  const { scrollRef, items, paddingTop, paddingBottom } = useRowVirtualizer(sorted.length, 36, 5);
   // Materiales (únicos) en el orden/filtro de la tabla, para recorrerlos con ◀/▶ en el detalle de celda.
   const listaMateriales = useMemo(() => [...new Set(sorted.map((r) => r.material))], [sorted]);
   const visibleCenters = useMemo(() => CENTERS.filter((c) => colVis.isVisible(`centro_${c}`)), [colVis]);
@@ -508,6 +516,8 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   // y el consumo del material al lado para detectar candidatos a ofertar.
   const idxSust = useMemo(() => (libros ? indiceSustitutos(a.sustitucionesLibros) : new Map<string, RelSustituto[]>()), [libros, a.sustitucionesLibros]);
   const { filas: filasLote, sinRenglon: lotesSinRenglon } = useMemo(() => {
+    // Solo se arma en la vista «Por lote»: es el cálculo más pesado de la página y no hace falta para la tabla por material.
+    if (vista !== 'lote') return { filas: [] as LoteFila[], sinRenglon: 0 };
     const condPorMat = new Map<string, Set<string>>();
     for (const r of filtered) {
       const k = norm(r.material);
@@ -554,7 +564,7 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
       out.push({ ...l, condicion: [...(condPorMat.get(k) ?? [])].join(', ') || (l.cantidadDisp > 0 ? '' : 'Corta caducidad (sin libre)'), dias, pendGeneral, pendCentro, consumo, consumoCentro, sustitutos: idxSust.get(l.material) ?? [], propio: v.propio, sust: v.sust, candidato });
     }
     return { filas: out, sinRenglon };
-  }, [filtered, lotes, a.lotesSinLibreLibros, libros, centro, rss, consumoPorMaterial, idxSust, loteOp, loteMeses, loteMesesHasta, soloCand, ocultarSinDisp, cond, sector, gerente, quick, pendFiltro, invFiltro, pasteCodes, qd]);
+  }, [vista, filtered, lotes, a.lotesSinLibreLibros, libros, centro, rss, consumoPorMaterial, idxSust, loteOp, loteMeses, loteMesesHasta, soloCand, ocultarSinDisp, cond, sector, gerente, quick, pendFiltro, invFiltro, pasteCodes, qd]);
   const accLote = useMemo(() => ({
     material: (l: LoteFila) => l.material,
     condicion: (l: LoteFila) => l.condicion,
@@ -611,23 +621,45 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
   }
 
   const exportar = () => {
-    const rowsX = filtered.map((r) => {
+    // Selección propia de la descarga (vacía = todas las del filtro actual).
+    const condsX = expCond.filter((c) => condsSueltas.includes(c));
+    // Una condición puede venir concatenada («Liz/Lento mov»): se evalúa y se muestra por partes, solo las elegidas.
+    const partesCond = (c: string) => c.split('/').map((x) => x.trim()).filter(Boolean);
+    const centrosX = expCentros.filter((c) => (CENTERS as readonly string[]).includes(c));
+    const centrosCols = centrosX.length ? CENTERS.filter((c) => centrosX.includes(c)) : CENTERS;
+    const invSumaX = (r: (typeof rows)[number]) => (centrosX.length ? centrosCols.reduce((s, c) => s + invCond(r, c), 0) : invSumaCond(r));
+    const filteredX = filtered.filter((r) => (!condsX.length || partesCond(r.condicion).some((x) => condsX.includes(x))) && (!centrosX.length || invSumaX(r) > 0));
+    const rowsX = filteredX.map((r) => {
       const o: Record<string, unknown> = {
-        Material: r.material, Descripción: r.textoBreve, Condición: r.condicion, ...(libros ? { 'Detalle condición': r.detalle ?? '' } : {}),
+        Material: r.material, Descripción: r.textoBreve, Condición: condsX.length ? partesCond(r.condicion).filter((x) => condsX.includes(x)).join('/') : r.condicion, ...(libros ? { 'Detalle condición': r.detalle ?? '' } : {}),
         Sector: a.enrich.matSector(r.material) || r.sector, 'Grupo art.': a.enrich.matGrupo(r.material) || r.grupo,
         UM: a.enrich.matUm(r.material), Precio: r.precioOferta, 'Disp 1031-1030': r.disponible31_30, 'Disp 1031-1032': r.disponible31_32,
       };
-      CENTERS.forEach((c) => { o['Inv ' + c] = invCond(r, c); });
-      o['Inv Suma'] = invSumaCond(r); o['Pend. suma'] = pendSumaCond(r); o['Importe $'] = invSumaCond(r) * r.precioOferta;
+      centrosCols.forEach((c) => { o['Inv ' + c] = invCond(r, c); });
+      o['Inv Suma'] = invSumaX(r); o['Pend. suma'] = pendSumaCond(r); o['Importe $'] = invSumaX(r) * r.precioOferta;
       return o;
     });
+    // Con condición los lotes son de Corta caducidad: solo van si esa condición está entre las elegidas.
+    const lotesPorCondicion = !libros || !condsX.length || condsX.some((c) => esCondicionCortaCaducidad(c));
     // Los renglones son material × condición (el inventario se reparte entre
     // centros), así que los lotes se anexan a nivel material — salvo que
     // haya un filtro de Centro activo, en cuyo caso se acotan también a ese
     // centro (si el material tiene 5 lotes en 3 centros y filtras por 1001,
     // solo se exportan los de 1001).
-    const mats = new Set(filtered.map((r) => norm(r.material)));
-    const lotesX = buildLotesSheet(lotes, (l) => mats.has(norm(l.material)) && (!centro || norm(l.centro) === centro));
+    const mats = new Set(filteredX.map((r) => norm(r.material)));
+    // Con condición: los lotes son de Corta caducidad. `mesesMaxCC` (0 = sin límite) deja fuera los de más meses a caducidad
+    // para no ofertar «Corta caducidad» con lotes muy lejanos; los sin fecha se conservan.
+    const hoyX = new Date(); hoyX.setHours(0, 0, 0, 0);
+    const mesesLote = (l: { fechaCaducidad: string | null }) => {
+      if (!l.fechaCaducidad) return null;
+      const d = new Date(l.fechaCaducidad);
+      return Number.isNaN(d.getTime()) ? null : (d.getTime() - hoyX.getTime()) / 86400000 / DIAS_MES;
+    };
+    const lotesX = buildLotesSheet(
+      lotes,
+      (l) => lotesPorCondicion && mats.has(norm(l.material)) && (!centro || norm(l.centro) === centro) && (!centrosX.length || centrosX.includes(l.centro)) && (!libros || !(mesesMaxCC > 0) || !((mesesLote(l) ?? 0) > mesesMaxCC)),
+      libros ? (l) => a.preciosAutorizados.precio(l.material, 'Corta caducidad') ?? 0 : undefined,
+    );
     const lotesCand = lotesSort.sorted.map((l) => ({
       Material: l.material, Descripción: l.textoBreve, Condición: l.condicion, Centro: l.centro, Almacén: l.almacen, Lote: l.lote,
       Disponible: l.cantidadDisp, Caducidad: formatFechaCaducidad(l.fechaCaducidad), 'Meses a caducidad': l.dias === null ? '' : Math.round((l.dias / DIAS_MES) * 10) / 10,
@@ -670,6 +702,36 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
             />
             <ColumnVisibilityControl columns={columnDefs} hidden={colVis.hidden} toggle={colVis.toggle} reset={colVis.reset} />
             <SavedViewsControl views={savedViews.views} onApply={applyView} onSave={saveCurrentView} onRemove={savedViews.remove} />
+            {([
+              { k: 'cond', titulo: 'Condiciones', sel: expCond, set: setExpCond, opts: condsSueltas },
+              { k: 'centros', titulo: 'Centros', sel: expCentros, set: setExpCentros, opts: [...CENTERS] as string[] },
+            ]).map((g) => (
+              <Popover key={g.k}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" title={`Elige qué ${g.titulo.toLowerCase()} se descargan (ninguna marcada = todas)`}>
+                    {g.titulo}: {g.sel.length ? g.sel.length : 'todas'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="max-h-72 w-60 overflow-auto p-2">
+                  <div className="mb-1 flex items-center justify-between text-xs text-text-muted">
+                    <span>Descargar solo…</span>
+                    <button type="button" className="underline" onClick={() => g.set([])}>Todas</button>
+                  </div>
+                  {g.opts.map((o) => (
+                    <label key={o} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-bg-hover">
+                      <input type="checkbox" checked={g.sel.includes(o)} onChange={(e) => g.set(e.target.checked ? [...g.sel, o] : g.sel.filter((x) => x !== o))} />
+                      {o}
+                    </label>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            ))}
+            {libros && (
+              <label className="flex items-center gap-1 text-xs text-text-muted" title="Al descargar, la hoja «Detalle Lotes» solo incluye lotes de Corta caducidad con hasta estos meses a caducidad. Vacío o 0 = todos.">
+                Máx. meses CC
+                <Input type="number" min={0} step={1} className="h-8 w-16" value={mesesMaxCC || ''} placeholder="todos" onChange={(e) => setMesesMaxCC(Math.max(0, Number(e.target.value) || 0))} />
+              </label>
+            )}
             <ExportButton onClick={exportar} />
           </>
         )}
@@ -857,7 +919,7 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
                         <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
                         <TableCell className="whitespace-nowrap text-xs">
                           {l.dias === null ? <span className="text-text-faint">—</span> : <StatePill label={l.dias < 0 ? 'vencido' : `${(l.dias / DIAS_MES).toFixed(1)} meses`} cls={bucketCaducidad(l.dias).cls} />}
-                          <div className="text-[11px] text-text-faint">{formatFechaCaducidad(l.fechaCaducidad)}</div>
+                          <div className="text-[11px] text-text-faint">{formatFechaCaducidad(l.fechaCaducidad)}{l.lote && <EditarCaducidad material={l.material} lote={l.lote} fecha={l.fechaCaducidad} />}</div>
                         </TableCell>
                         <TableCell className={`text-right font-medium ${l.pendGeneral > 0 ? 'text-danger' : 'text-text-faint'}`}>{formatNumber(l.pendGeneral)}<MasSustituto n={l.sust.pendGeneral} sust={l.sust.detalle} campo="pendGeneral" /></TableCell>
                         <TableCell className={`text-right ${l.pendCentro > 0 ? 'text-danger' : 'text-text-faint'}`}>{formatNumber(l.pendCentro)}<MasSustituto n={l.sust.pendCentro} sust={l.sust.detalle} campo="pendCentro" /></TableCell>
@@ -911,6 +973,8 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
                 const corta = esCondicionCortaCaducidad(r.condicion);
                 const key = rowKey(r.material, r.condicion);
                 const isHidden = hidden.has(key);
+                const pendSuma = pendSumaCond(r);
+                const invSuma = invSumaCond(r);
                 const onSolicitar = () => {
                   const lotesMaterial = lotes.filter((l) => norm(l.material) === norm(r.material));
                   const condicionesMat = a.enrich.matCondiciones(r.material).join(', ');
@@ -974,9 +1038,9 @@ export function InventarioPage({ modo = 'rep' }: InventarioPageProps = {}) {
                         </TableCell>
                       );
                     })}
-                    {colVis.isVisible('invsuma') && <TableCell className="text-right font-medium">{formatNumber(invSumaCond(r))}</TableCell>}
-                    {colVis.isVisible('pendsuma') && <TableCell className={`text-right font-medium ${pendSumaCond(r) > 0 ? 'text-danger' : 'text-text-faint'}`}>{formatNumber(pendSumaCond(r))}</TableCell>}
-                    {colVis.isVisible('importe') && <TableCell className="text-right">{formatCurrency(invSumaCond(r) * r.precioOferta)}</TableCell>}
+                    {colVis.isVisible('invsuma') && <TableCell className="text-right font-medium">{formatNumber(invSuma)}</TableCell>}
+                    {colVis.isVisible('pendsuma') && <TableCell className={`text-right font-medium ${pendSuma > 0 ? 'text-danger' : 'text-text-faint'}`}>{formatNumber(pendSuma)}</TableCell>}
+                    {colVis.isVisible('importe') && <TableCell className="text-right">{formatCurrency(invSuma * r.precioOferta)}</TableCell>}
                   </TableRow>
                   </SolicitarContextMenu>
                 );

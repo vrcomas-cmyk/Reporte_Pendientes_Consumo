@@ -15,6 +15,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { configTransmision, listaDeOrigenes, moduloDeAccion, moduloPermitido, ordenarPermisos, origenPermitido, parametrosDeAccion, type FilaPermiso } from "./acceso.ts";
+import { CacheUsuarios, validarSesion, type ResultadoAuth } from "./usuarioCache.ts";
 
 const ORIGENES = listaDeOrigenes(Deno.env.get("ALLOWED_ORIGINS"));
 const TIMEOUT_MS = 110_000;
@@ -31,17 +32,16 @@ function corsDe(req: Request): Record<string, string> {
 
 const admin = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-async function usuarioDe(req: Request): Promise<{ email: string } | null> {
+const sesiones = new CacheUsuarios();
+
+/** Valida la sesión del navegador. Un token ya validado en los últimos 60 s no vuelve a consultar Auth; si Auth no responde se distingue de un token inválido. */
+function usuarioDe(req: Request): Promise<ResultadoAuth> {
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  if (!token) return null;
-  try {
+  return validarSesion(token, sesiones, async (t) => {
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data.user?.email) return null;
-    return { email: data.user.email.toLowerCase() };
-  } catch {
-    return null;
-  }
+    const { data, error } = await supabase.auth.getUser(t);
+    return { email: data?.user?.email ?? null, error: error ? { status: (error as { status?: number }).status } : null };
+  });
 }
 
 /** Escapa los comodines de LIKE (`%`, `_`, `\`) para comparar un correo con `ilike` sin que `_` coincida con otro carácter. */
@@ -55,8 +55,13 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const usuario = await usuarioDe(req);
-  if (!usuario) return json({ error: "No autorizado" }, 401);
+  const sesion = await usuarioDe(req);
+  if (!sesion.ok) {
+    // Auth caído/saturado ≠ token inválido: 503 le dice al navegador que reintente en vez de darse por no autorizado.
+    if (sesion.motivo === "no-disponible") return new Response(JSON.stringify({ error: "Servicio de autenticación no disponible; reintenta en unos segundos." }), { status: 503, headers: { ...cors, "Content-Type": "application/json", "Retry-After": "5" } });
+    return json({ error: "No autorizado" }, 401);
+  }
+  const usuario = { email: sesion.email };
 
   let body: Record<string, unknown>;
   try {

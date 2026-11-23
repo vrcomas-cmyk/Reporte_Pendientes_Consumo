@@ -8,7 +8,7 @@
 
 /** Módulos del portal (degasa_modules.key) que protegen las acciones de esta función. */
 /** `admin` no es un módulo del menú: marca las acciones de configuración, que solo puede usar un ADMINISTRADOR de verdad (no basta ser «usuario sin rol»). */
-export type ModuloEnvios = 'transmision' | 'solicitudes' | 'sin-cargo' | 'admin';
+export type ModuloEnvios = 'transmision' | 'solicitudes' | 'sin-cargo' | 'inventario' | 'admin';
 
 /** Un libro de Google Sheets es válido si es una URL https de docs.google.com/spreadsheets/d/<id>: así la función nunca le pasa al Apps Script una URL arbitraria. */
 export function urlLibroValida(url: unknown): boolean {
@@ -61,6 +61,25 @@ const MAX_LARGO_ENTREGA = 24;
 
 const sinParametros = (): Record<string, unknown> => ({});
 
+const MAX_LARGO_CLAVE = 40;
+const MAX_LARGO_NOTA = 200;
+const texto = (v: unknown, max: number): string => String(v ?? '').trim().slice(0, max);
+/** `aaaa-mm-dd` que sea una fecha real, o null. */
+function fechaIso(v: unknown): string | null {
+  const m = String(v ?? '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const f = new Date(Date.UTC(y, mo - 1, d));
+  return f.getUTCFullYear() === y && f.getUTCMonth() === mo - 1 && f.getUTCDate() === d ? m[0] : null;
+}
+/** Material y lote: obligatorios, texto corto, sin saltos de línea ni caracteres que Sheets interprete como fórmula al inicio. */
+function materialLote(b: Record<string, unknown>): { material: string; lote: string } | null {
+  const material = texto(b.material, MAX_LARGO_CLAVE);
+  const lote = texto(b.lote, MAX_LARGO_CLAVE);
+  if (!material || !lote || /[\r\n]/.test(material + lote) || /^[=+\-@]/.test(material) || /^[=+\-@]/.test(lote)) return null;
+  return { material, lote };
+}
+
 /** Lista blanca de acciones. Las fases 2 y 3 agregan aquí `drp_*` y `sc_*` con su módulo. */
 export const ACCIONES: Readonly<Record<string, DefAccion>> = {
   // Índice de pedidos en transmisión (pedido → entregas). Sin parámetros.
@@ -70,6 +89,21 @@ export const ACCIONES: Readonly<Record<string, DefAccion>> = {
     modulo: 'admin',
     parametros: (b) => (urlLibroValida(b.url) ? { url: String(b.url).trim() } : null),
   },
+  // Ajustes manuales de caducidad por material + lote (hoja «Ajustes_Caducidad» del libro de respaldo). Leer, guardar (upsert) y borrar.
+  cad_listar: { modulo: 'inventario', parametros: sinParametros },
+  cad_guardar: {
+    modulo: 'inventario',
+    parametros: (b) => {
+      const ml = materialLote(b);
+      const fecha = fechaIso(b.fecha);
+      if (!ml || !fecha) return null;
+      const sistema = b.sistema == null || b.sistema === '' ? '' : fechaIso(b.sistema);
+      if (sistema === null) return null;
+      const nota = texto(b.nota, MAX_LARGO_NOTA).replace(/[\r\n]+/g, ' ');
+      return { ...ml, fecha, sistema, nota: /^[=+\-@]/.test(nota) ? `'${nota}` : nota };
+    },
+  },
+  cad_borrar: { modulo: 'inventario', parametros: materialLote },
   // Materiales / lotes que el histórico asocia a unas entregas. `deliverys`: hasta 3000, texto corto.
   tx_historial: {
     modulo: 'transmision',

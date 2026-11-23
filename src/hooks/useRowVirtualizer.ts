@@ -18,7 +18,9 @@ import { useVirtualizer } from '@tanstack/react-virtual';
  *     </table>
  *   </div>
  */
-export function useRowVirtualizer(count: number, estimateSize = 36, overscan = 12) {
+const CHUNK = 8;
+
+export function useRowVirtualizer(count: number, estimateSize = 36, overscan = 6) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
@@ -26,6 +28,17 @@ export function useRowVirtualizer(count: number, estimateSize = 36, overscan = 1
     getScrollElement: () => scrollRef.current,
     estimateSize: () => estimateSize,
     overscan,
+    // Rango por bloques: la página completa se vuelve a renderizar cada vez que cambia el rango visible.
+    // Alineando inicio/fin a múltiplos de CHUNK, eso pasa cada ~CHUNK filas en vez de en cada fila.
+    rangeExtractor: (range) => {
+      const start = Math.max(0, Math.floor((range.startIndex - range.overscan) / CHUNK) * CHUNK);
+      const end = Math.min(range.count - 1, Math.ceil((range.endIndex + range.overscan + 1) / CHUNK) * CHUNK - 1);
+      const out: number[] = [];
+      for (let i = start; i <= end; i++) out.push(i);
+      return out;
+    },
+    // Sin flushSync: con él, cada evento de scroll fuerza un render síncrono de toda la tabla (tirones al desplazarse).
+    useFlushSync: false,
   });
 
   const items = virtualizer.getVirtualItems();

@@ -169,6 +169,29 @@ export function filtrarVentasPto(rows: readonly VentasPtoRow[], activos: readonl
   return rows.filter((v) => pasaFiltros({ gpoVdor: v.gpoVdor, gpoCte: v.gpoCte }, activos, r));
 }
 
+/** Región y gerencia de ventas de cada gpo. vendedor: salen de las ventas y del presupuesto (las filas de Resumen_Fac no las traen). Gana la primera que aparece. */
+export function dimensionesPorVendedor(ventas: readonly VentasPtoRow[], pto: readonly PtoFila[]): Map<string, { region: string; gerencia: string }> {
+  const m = new Map<string, { region: string; gerencia: string }>();
+  for (const v of ventas) if (!m.has(v.gpoVdor)) m.set(v.gpoVdor, { region: v.region, gerencia: v.gerencia });
+  for (const f of pto) if (!m.has(f[4])) m.set(f[4], { region: f[1], gerencia: f[2] });
+  return m;
+}
+
+/** Ventas por mes × gpo. vendedor × gpo. cliente a partir de filas de Resumen_Fac YA filtradas con TODOS los filtros de la página (material, estado, ABC, búsqueda, sector, grupo,
+ * gerente…), con la forma que usa `rankingCumplimiento`. Sirve para que las ventas de «Cumplimiento por» sigan los mismos filtros que la gráfica y el resumen: `ventasPto`
+ * (el agregado por región / gerencia) no tiene material y solo entiende los filtros de ejecutivo y grupo de cliente. */
+export function ventasPtoDesdeRF(rows: readonly FilaVentaRF[], dimensiones: ReadonlyMap<string, { region: string; gerencia: string }>): VentasPtoRow[] {
+  const acum = new Map<string, VentasPtoRow>();
+  for (const r of rows) {
+    const k = `${r.mesAno}¦${r.gpoVdor}¦${r.gpoCte}`;
+    const e = acum.get(k);
+    if (e) { e.ventas += r.importeFacturado || 0; continue; }
+    const d = dimensiones.get(r.gpoVdor);
+    acum.set(k, { mes: r.mesAno, region: d?.region ?? '', gerencia: d?.gerencia ?? '', gpoCte: r.gpoCte, gpoVdor: r.gpoVdor, ventas: r.importeFacturado || 0, presupuesto: 0 });
+  }
+  return [...acum.values()];
+}
+
 /** Presupuesto por mes (clave `mesKey`) dentro de `lo..hi` (y de `meses` si hay selección concreta). */
 export function ptoPorMes(filas: readonly PtoFila[], lo: number, hi: number, meses: ReadonlySet<number> | null = null): Map<number, number> {
   const out = new Map<number, number>();

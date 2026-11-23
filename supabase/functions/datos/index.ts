@@ -15,6 +15,7 @@ import {
   CONECTORES_SIN_FILTRO, filtrarFacturacion, filtrarPresupuesto, filtrarHoja, filtrarPestanaCatalogo, filtrarRelacion, mapaZonas, normCode, politicaDe,
   type FilaRol, type MapaZonas, type OverrideUsuario,
 } from "./accesoDatos.ts";
+import { CacheUsuarios, validarSesion, type ResultadoAuth } from "./usuarioCache.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -30,18 +31,22 @@ const json = (data: unknown, status = 200): Response =>
 
 const admin = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-async function usuarioDe(req: Request): Promise<{ email: string } | null> {
+const sesiones = new CacheUsuarios();
+
+/** Valida la sesión del navegador. Un token ya validado en los últimos 60 s no vuelve a consultar Auth; si Auth no responde se distingue de un token inválido. */
+function usuarioDe(req: Request): Promise<ResultadoAuth> {
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  if (!token) return null;
-  try {
+  return validarSesion(token, sesiones, async (t) => {
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data.user?.email) return null;
-    return { email: data.user.email.toLowerCase() };
-  } catch {
-    return null;
-  }
+    const { data, error } = await supabase.auth.getUser(t);
+    return { email: data?.user?.email ?? null, error: error ? { status: (error as { status?: number }).status } : null };
+  });
 }
+
+/** Fila de `degasa_allowed_users` (+ rol) por correo, recordada 60 s: una carga son decenas de peticiones del mismo usuario. Quitar a alguien de la lista o cambiar
+ * su rol tarda como máximo 60 s en notarse aquí. Solo se guardan lecturas buenas. */
+const CACHE_FILA_USUARIO_MS = 60_000;
+const cacheFilaUsuario = new Map<string, { en: number; fila: unknown }>();
 
 /** ID de carpeta de Drive a partir de un ID suelto o de una URL (`.../folders/<id>?usp=...`); "" si no parece uno. */
 function idCarpeta(valor: string): string {
@@ -73,8 +78,13 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
 
-  const usuario = await usuarioDe(req);
-  if (!usuario) return json({ error: "No autorizado" }, 401);
+  const sesion = await usuarioDe(req);
+  if (!sesion.ok) {
+    // Auth caído/saturado ≠ token inválido: 503 le dice al navegador que reintente en vez de darse por no autorizado.
+    if (sesion.motivo === "no-disponible") return new Response(JSON.stringify({ error: "Servicio de autenticación no disponible; reintenta en unos segundos." }), { status: 503, headers: { ...CORS, "Content-Type": "application/json", "Retry-After": "5" } });
+    return json({ error: "No autorizado" }, 401);
+  }
+  const usuario = { email: sesion.email };
 
   const url = new URL(req.url);
   const conector = url.pathname.split("/").filter(Boolean).pop() ?? "";
@@ -82,12 +92,20 @@ Deno.serve(async (req: Request) => {
 
   const db = admin();
   // Solo usuarios invitados; el rol decide qué datos ven.
-  const { data: fila, error: errUsuario } = await db
-    .from("degasa_allowed_users")
-    .select("email, zonas_manual, datos_override, degasa_roles(is_admin, restringir_zona, ver_costo, ver_precio_otras_zonas, condiciones_permitidas, caducidad_max_meses, ver_regla_cc_1032)")
-    .ilike("email", usuario.email)
-    .maybeSingle();
-  if (errUsuario) return json({ error: "No se pudo validar el acceso" }, 500);
+  let fila = (() => { const c = cacheFilaUsuario.get(usuario.email); return c && Date.now() - c.en < CACHE_FILA_USUARIO_MS ? c.fila : null; })() as
+    { email: string; zonas_manual: unknown; datos_override: unknown; degasa_roles: unknown } | null;
+  if (!fila) {
+    const { data, error: errUsuario } = await db
+      .from("degasa_allowed_users")
+      .select("email, zonas_manual, datos_override, degasa_roles(is_admin, restringir_zona, ver_costo, ver_precio_otras_zonas, condiciones_permitidas, caducidad_max_meses, ver_regla_cc_1032)")
+      .ilike("email", usuario.email)
+      .maybeSingle();
+    // La base no respondió: es indisponibilidad (503, el navegador reintenta), no un fallo definitivo (500).
+    if (errUsuario) return new Response(JSON.stringify({ error: "No se pudo validar el acceso" }), { status: 503, headers: { ...CORS, "Content-Type": "application/json", "Retry-After": "5" } });
+    if (!data) return json({ error: "Usuario no invitado" }, 403);
+    fila = data as typeof fila;
+    cacheFilaUsuario.set(usuario.email, { en: Date.now(), fila });
+  }
   if (!fila) return json({ error: "Usuario no invitado" }, 403);
 
   const { data: filas } = await db.from("degasa_connectors").select("key, value").in("key", ["appscript_catalog_url", "fac_carpeta_id", conector]);

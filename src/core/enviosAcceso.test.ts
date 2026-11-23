@@ -50,7 +50,26 @@ describe('lista blanca de acciones', () => {
     expect(moduloDeAccion('borrarTodo')).toBeNull();
     expect(moduloDeAccion('toString')).toBeNull(); // no se cuela por el prototipo
     expect(moduloDeAccion(undefined)).toBeNull();
-    expect(Object.keys(ACCIONES).sort()).toEqual(['tx_historial', 'tx_indice', 'tx_pestanas']);
+    expect(Object.keys(ACCIONES).sort()).toEqual(['cad_borrar', 'cad_guardar', 'cad_listar', 'tx_historial', 'tx_indice', 'tx_pestanas']);
+    expect(moduloDeAccion('cad_guardar')).toBe('inventario');
+  });
+
+  it('cad_guardar: valida material, lote y fecha real; neutraliza fórmulas en la nota', () => {
+    const ok = { material: '123', lote: 'L1', fecha: '2028-01-31', sistema: '2026-12-01', nota: 'corregido' };
+    expect(parametrosDeAccion('cad_guardar', { ...ok, extra: 'x' })).toEqual(ok);
+    expect(parametrosDeAccion('cad_guardar', { ...ok, fecha: '2028-02-30' })).toBeNull();
+    expect(parametrosDeAccion('cad_guardar', { ...ok, fecha: '31/01/2028' })).toBeNull();
+    expect(parametrosDeAccion('cad_guardar', { ...ok, lote: '' })).toBeNull();
+    expect(parametrosDeAccion('cad_guardar', { ...ok, lote: '=HYPERLINK("x")' })).toBeNull();
+    expect(parametrosDeAccion('cad_guardar', { ...ok, sistema: 'basura' })).toBeNull();
+    expect(parametrosDeAccion('cad_guardar', { ...ok, sistema: '' })).toMatchObject({ sistema: '' });
+    expect(parametrosDeAccion('cad_guardar', { ...ok, nota: '=1+1' })).toMatchObject({ nota: "'=1+1" });
+  });
+
+  it('cad_borrar y cad_listar: solo material/lote o nada', () => {
+    expect(parametrosDeAccion('cad_borrar', { material: '123', lote: 'L1', otro: 1 })).toEqual({ material: '123', lote: 'L1' });
+    expect(parametrosDeAccion('cad_borrar', { material: '123' })).toBeNull();
+    expect(parametrosDeAccion('cad_listar', { material: '123' })).toEqual({});
   });
 
   it('tx_indice no reenvía parámetros aunque el cliente mande otros', () => {
