@@ -54,7 +54,7 @@ export const usePermissionsStore = create<PermissionsState>((set, get) => ({
       const { perms, origen } = res;
       // Si mientras tanto cerró sesión (reset) o entró otro usuario, este resultado ya no aplica.
       if (correo !== email) return;
-      const estado: EstadoPermisos = origen === 'servidor' ? 'ok' : origen === 'cache' ? 'degradado' : 'error';
+      const estado: EstadoPermisos = origen === 'servidor' || origen === 'reciente' ? 'ok' : origen === 'cache' ? 'degradado' : 'error';
       set({ perms, loaded: true, estado });
       if (estado === 'ok') { avisoDegradadoMostrado = false; return; }
       if (estado === 'degradado' && !avisoDegradadoMostrado) {

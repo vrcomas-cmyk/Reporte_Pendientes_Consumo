@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { trasladoRepository } from '@/repositories';
+import { trasladoRepository, createTrasladoRepository } from '@/repositories';
+import { leerLocalSiReciente } from '@/lib/sincronizacionLocal';
 import { toast } from '@/store/toastStore';
-import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 import { usePedidosStore, hojasDeLibro } from '@/store/pedidosStore';
 import { inventarioDesdeDisponibilidad } from '@/core/pedidos';
 import { baseDeSeguimiento, evaluarTraslado, snapshotDeInventario, type SnapDisponibilidad } from '@/core/seguimientoTraslado';
@@ -16,7 +17,10 @@ export function snapshotDisponibilidadActual(): SnapDisponibilidad | null {
   return inv && leidoEn ? snapshotDeInventario(inv, leidoEn) : null;
 }
 
-const hayUsuario = async (): Promise<string> => (await supabase.auth.getUser()).data.user?.email ?? 'desconocido';
+const hayUsuario = (): Promise<string> => emailLocal('desconocido');
+
+// Espejo local (Dexie) de los traslados: cada mutación exitosa del repositorio de Supabase ya lo mantiene al día.
+const trasladosLocal = createTrasladoRepository('local');
 
 interface TrasladosState {
   traslados: Traslado[];
@@ -50,7 +54,14 @@ export const useTrasladosStore = create<TrasladosState>((set, get) => {
     hydrated: false,
     hydrate: async () => {
       try {
-        set({ traslados: await trasladoRepository.listTraslados(), hydrated: true });
+        // Primero el espejo local si se sincronizó hace poco (sin red); si no, al servidor, que renueva el espejo.
+        const traslados = await leerLocalSiReciente('traslados', {
+          ttlMs: 5 * 60_000,
+          contar: (l) => l.length,
+          local: () => trasladosLocal.listTraslados(),
+          red: () => trasladoRepository.listTraslados(),
+        });
+        set({ traslados, hydrated: true });
       } catch (err) {
         set({ hydrated: true });
         toast.fromError(err, 'No se pudieron cargar los traslados');

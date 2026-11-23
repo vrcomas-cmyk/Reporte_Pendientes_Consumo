@@ -1,11 +1,11 @@
 import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 import { db } from './db';
 import type { ClienteConocimientoRepository } from './ClienteConocimientoRepository';
 import type { ClienteConocimiento, Observacion } from '@/core/types';
 
 async function currentEmail(): Promise<string> {
-  const { data } = await supabase.auth.getUser();
-  return data.user?.email ?? 'desconocido';
+  return emailLocal('desconocido');
 }
 
 function rowToCliente(r: Record<string, unknown>): ClienteConocimiento {

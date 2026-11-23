@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
+import { REVISION_LIBROS_MIN_MS } from '@/lib/frenosSync';
 import { SugerenciasPage } from '@/modules/sugerencias/SugerenciasPage';
 import { pedidosConfigurado, syncPedidos } from '@/services/pedidosService';
 import { usePedidosStore } from '@/store/pedidosStore';
 import { DetalleMaterialDialog } from './DetalleMaterialDialog';
 import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
 
-/** Cada cuánto, como mínimo, se vuelve a consultar el manifiesto al abrir el módulo. */
-const REVISION_MIN_MS = 10 * 60_000;
+const REVISION_MIN_MS = REVISION_LIBROS_MIN_MS;
 
 /** Módulo "Seg. de pedidos": es la MISMA página de Pedidos (columnas, filtros, paneles y acciones), pero
  * alimentada por los libros crudos de Google Sheets Seg pedidos, Disponibilidad e Inv_Condicion y sin fuentes

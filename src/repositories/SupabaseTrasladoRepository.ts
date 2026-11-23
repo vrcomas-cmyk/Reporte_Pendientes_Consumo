@@ -1,11 +1,11 @@
 import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 import { db } from './db';
 import type { TrasladoRepository } from './TrasladoRepository';
 import type { Traslado } from '@/core/types';
 
 async function currentEmail(): Promise<string> {
-  const { data } = await supabase.auth.getUser();
-  return data.user?.email ?? 'desconocido';
+  return emailLocal('desconocido');
 }
 
 const texto = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);

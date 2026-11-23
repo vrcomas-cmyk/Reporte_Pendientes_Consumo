@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 import { esErrorDeSesion } from '@/lib/sesion';
+import { invalidarCache, leerConCache } from '@/lib/cacheSWR';
 import { computeEffectivePermissions, DATOS_ABIERTOS, deserializarPermisos, serializarPermisos, type DatosUsuario, type EffectivePermissions, type PermissionRow, type RoleRow } from '@/core/permissions';
 
 export interface ModuleRow { key: string; label: string; sortOrder: number }
@@ -7,8 +8,9 @@ export interface AllowedUserRow { email: string; displayName: string | null; rol
 
 /** De dónde salieron los permisos: `servidor` (lectura buena), `cache` (el servidor no respondió y se usaron los últimos permisos buenos de este
  * mismo usuario → modo degradado), `error` (no respondió y no hay copia: no se concede nada) o `sesion` (el servidor rechazó el token: la sesión guardada ya no vale y
- * hay que repararla o pedir entrar de nuevo; no se usa la copia porque el problema no es la disponibilidad del servidor). */
-export type OrigenPermisos = 'servidor' | 'cache' | 'error' | 'sesion';
+ * hay que repararla o pedir entrar de nuevo; no se usa la copia porque el problema no es la disponibilidad del servidor). `reciente` = no se consultó: la copia local se leyó
+ * del servidor hace menos de `FRESCO_PERMISOS_MS` y se usa tal cual. */
+export type OrigenPermisos = 'servidor' | 'reciente' | 'cache' | 'error' | 'sesion';
 export interface ResultadoPermisos { perms: EffectivePermissions; origen: OrigenPermisos }
 
 const CACHE_PERMISOS_KEY = 'degasa_perms_cache_v1';
@@ -19,14 +21,22 @@ const BACKOFF_PERMISOS_MS: readonly number[] = [1000, 3000, 7000];
 const PLAZO_CON_CACHE_MS = 12_000;
 const PLAZO_SIN_CACHE_MS = 30_000;
 
-export function leerCachePermisos(email: string): EffectivePermissions | null {
+/** Mientras la copia tenga menos de esto se usa sin consultar al servidor (evita 4 consultas en cada F5). Un cambio de rol o permisos tarda como máximo esto en verse en un
+ *  navegador que ya estaba abierto; el acceso real a los datos lo sigue imponiendo el servidor en cada petición. */
+export const FRESCO_PERMISOS_MS = 5 * 60_000;
+
+export function leerCachePermisosConEdad(email: string): { perms: EffectivePermissions; edadMs: number } | null {
   try {
     const raw = localStorage.getItem(CACHE_PERMISOS_KEY);
     if (!raw) return null;
     const c = JSON.parse(raw) as { email?: string; ts?: number; perms?: unknown };
     if (c.email !== email.toLowerCase() || typeof c.ts !== 'number' || Date.now() - c.ts > CACHE_PERMISOS_TTL_MS) return null;
-    return deserializarPermisos(c.perms);
+    const perms = deserializarPermisos(c.perms);
+    return perms ? { perms, edadMs: Date.now() - c.ts } : null;
   } catch { return null; }
+}
+export function leerCachePermisos(email: string): EffectivePermissions | null {
+  return leerCachePermisosConEdad(email)?.perms ?? null;
 }
 export function guardarCachePermisos(email: string, perms: EffectivePermissions): void {
   try { localStorage.setItem(CACHE_PERMISOS_KEY, JSON.stringify({ email: email.toLowerCase(), ts: Date.now(), perms: serializarPermisos(perms) })); } catch { /* storage no disponible */ }
@@ -44,8 +54,10 @@ const rechazarEn = (ms: number) => new Promise<never>((_, rej) => setTimeout(() 
  * Si Supabase no responde (saturado/caído) NO se interpreta como «sin acceso»: se reintenta con backoff y, si hay una copia vigente de los últimos permisos
  * buenos de este mismo usuario, se usa (`origen: 'cache'`). Sin copia queda fail-closed (`origen: 'error'`: ningún módulo), pero la pantalla lo dice tal cual
  * y ofrece reintentar. El acceso real a los datos lo impone el servidor, no esta copia. */
-export async function loadEffectivePermissions(email: string, opts: { esperas?: readonly number[]; plazoMs?: number } = {}): Promise<ResultadoPermisos> {
-  const copia = leerCachePermisos(email);
+export async function loadEffectivePermissions(email: string, opts: { esperas?: readonly number[]; plazoMs?: number; frescoMs?: number } = {}): Promise<ResultadoPermisos> {
+  const guardada = leerCachePermisosConEdad(email);
+  const copia = guardada?.perms ?? null;
+  if (guardada && guardada.edadMs < (opts.frescoMs ?? FRESCO_PERMISOS_MS)) return { perms: guardada.perms, origen: 'reciente' };
   const esperas = opts.esperas ?? (copia ? [] : BACKOFF_PERMISOS_MS);
   const limite = Date.now() + (opts.plazoMs ?? (copia ? PLAZO_CON_CACHE_MS : PLAZO_SIN_CACHE_MS));
   const sinAcceso = () => computeEffectivePermissions({ id: '__sin_acceso__', name: 'Sin acceso (error al cargar)', isAdmin: false }, []);
@@ -214,10 +226,17 @@ export async function clearPermission(
 
 export interface ConnectorRow { key: string; label: string; value: string | null; updatedAt: string | null }
 
-export async function listConnectors(): Promise<ConnectorRow[]> {
-  const { data, error } = await supabase.from('degasa_connectors').select('key, label, value, updated_at').order('label');
-  if (error) throw error;
-  return (data ?? []).map((c) => ({ key: c.key, label: c.label, value: c.value, updatedAt: c.updated_at }));
+/** Vigencia de la copia local de los conectores y ajustes que viven en `degasa_connectors` (pesos, nombres, grupos excluidos, destinatarios…): casi nunca cambian. */
+const TTL_CONECTORES_MS = 15 * 60_000;
+
+/** Todas las filas de `degasa_connectors`. Se lee de la copia local mientras esté vigente y las lecturas simultáneas (al arrancar eran 3 consultas iguales) comparten una sola
+ * petición. Las pantallas de administración piden `forzar` para ver siempre lo último; guardar un valor descarta la copia. */
+export async function listConnectors(opts: { forzar?: boolean } = {}): Promise<ConnectorRow[]> {
+  return leerConCache('connectors', async () => {
+    const { data, error } = await supabase.from('degasa_connectors').select('key, label, value, updated_at').order('label');
+    if (error) throw error;
+    return (data ?? []).map((c) => ({ key: c.key, label: c.label, value: c.value, updatedAt: c.updated_at }));
+  }, { ttlMs: TTL_CONECTORES_MS, forzar: opts.forzar });
 }
 
 /** Guarda el valor de un conector / ajuste. Antes solo hacía `update`: si la fila no existía (migración sin aplicar) o la política de seguridad la ocultaba,
@@ -231,11 +250,12 @@ export async function setConnectorValue(key: string, value: string, updatedBy: s
     .eq('key', key)
     .select('key');
   if (error) throw error;
-  if (data && data.length > 0) return;
+  if (data && data.length > 0) { await invalidarCache('connectors'); return; }
   const { error: errInsert } = await supabase
     .from('degasa_connectors')
     .insert({ key, label: label ?? key, value, updated_at: ahora, updated_by: updatedBy });
   if (errInsert) throw new Error(`No se pudo guardar «${key}»: ${errInsert.message}`);
+  await invalidarCache('connectors');
 }
 
 /** Registra en la base los módulos del menú que aún no existen (solo admin por RLS). No pisa etiqueta ni orden de los que ya están. */

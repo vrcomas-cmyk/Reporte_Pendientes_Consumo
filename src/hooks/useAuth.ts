@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { usePermissionsStore } from '@/store/permissionsStore';
+import { limpiarCachesSwr } from '@/lib/cacheSWR';
 
 /** `unavailable`: Supabase no respondió (saturado/caído). NO es "no autorizado":
  * no se cierra la sesión y se ofrece reintentar. */
@@ -11,13 +12,19 @@ const CACHE_KEY = 'degasa_allowed_cache_v1';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const BACKOFF_MS = [1000, 3000, 7000];
 
-function leerCache(email: string): boolean {
+/** Mientras la verificación tenga menos de esto no se vuelve a consultar la lista de invitados al abrir (1 consulta menos por F5). Quitar a alguien de la lista tarda como máximo esto en notarse en un navegador ya abierto. */
+const FRESCO_ALLOWED_MS = 5 * 60_000;
+
+/** Edad (ms) de la última verificación buena de este correo, o `null` si no hay una vigente. */
+function edadCache(email: string): number | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return false;
+    if (!raw) return null;
     const c = JSON.parse(raw) as { email?: string; ts?: number };
-    return c.email === email.toLowerCase() && typeof c.ts === 'number' && Date.now() - c.ts < CACHE_TTL_MS;
-  } catch { return false; }
+    if (c.email !== email.toLowerCase() || typeof c.ts !== 'number') return null;
+    const edad = Date.now() - c.ts;
+    return edad < CACHE_TTL_MS ? edad : null;
+  } catch { return null; }
 }
 function guardarCache(email: string) {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify({ email: email.toLowerCase(), ts: Date.now() })); } catch { /* storage no disponible */ }
@@ -82,7 +89,8 @@ export function useAuth(): { status: AuthStatus; session: Session | null; signIn
       enVuelo = email;
       // Verificación reciente en caché: se entra de inmediato y la lista se
       // revalida en segundo plano. Así una base lenta no bloquea el login.
-      const conCache = leerCache(email);
+      const edad = edadCache(email);
+      const conCache = edad !== null;
       const entrar = () => {
         yaVerificado = email;
         setSession(s);
@@ -91,6 +99,7 @@ export function useAuth(): { status: AuthStatus; session: Session | null; signIn
       };
       if (conCache) entrar();
       try {
+        if (edad !== null && edad < FRESCO_ALLOWED_MS) return; // verificado hace poco: no se vuelve a consultar
         const res = await consultarAllowed(email);
         if (cancelled) return;
         if (res === 'denied') {
@@ -152,6 +161,6 @@ export function useAuth(): { status: AuthStatus; session: Session | null; signIn
     // apps (app-seg-pendientes, etc.) y su "Site URL" apunta a una de ellas —
     // sin esto, Supabase cae de vuelta a esa app en vez de regresar aquí.
     signInWithGoogle: () => { supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin, queryParams: { prompt: 'select_account' } } }); },
-    signOut: () => { borrarCache(); supabase.auth.signOut(); },
+    signOut: () => { borrarCache(); limpiarCachesSwr(); supabase.auth.signOut(); },
   };
 }

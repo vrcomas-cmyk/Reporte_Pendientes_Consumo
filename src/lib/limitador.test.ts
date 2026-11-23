@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { crearLimitador } from './limitador';
+import { crearLimitador, crearLimitadorAdaptativo } from './limitador';
 
 const esperar = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -35,5 +35,58 @@ describe('crearLimitador', () => {
     })();
     await Promise.all([corre('A', 3), corre('B', 3)]);
     expect(orden).toEqual(['A0', 'B0', 'A1', 'B1', 'A2', 'B2']);
+  });
+});
+
+
+describe('crearLimitadorAdaptativo', () => {
+  const tarea = (ok: boolean) => () => (ok ? Promise.resolve('ok') : Promise.reject(new Error('503')));
+  const intentar = (p: Promise<unknown>) => p.catch(() => undefined);
+
+  it('arranca en `inicial` y respeta ese tope de tareas simultáneas', async () => {
+    const lim = crearLimitadorAdaptativo({ inicial: 2, max: 4, min: 1 });
+    let activas = 0, pico = 0;
+    const t = () => new Promise<void>((r) => { activas++; pico = Math.max(pico, activas); setTimeout(() => { activas--; r(); }, 5); });
+    await Promise.all(Array.from({ length: 8 }, () => lim(t)));
+    expect(pico).toBeLessThanOrEqual(2);
+  });
+
+  it('un fallo baja el tope a la mitad (con piso en `min`)', async () => {
+    const lim = crearLimitadorAdaptativo({ inicial: 6, max: 6, min: 2 });
+    await intentar(lim(tarea(false)));
+    expect(lim.tope).toBe(3);
+    await intentar(lim(tarea(false)));
+    expect(lim.tope).toBe(2);
+    await intentar(lim(tarea(false)));
+    expect(lim.tope).toBe(2);
+  });
+
+  it('tras varios éxitos seguidos sube de uno en uno, sin pasar de `max`', async () => {
+    const lim = crearLimitadorAdaptativo({ inicial: 2, max: 4, min: 1, exitosParaSubir: 3 });
+    for (let i = 0; i < 3; i++) await lim(tarea(true));
+    expect(lim.tope).toBe(3);
+    for (let i = 0; i < 30; i++) await lim(tarea(true));
+    expect(lim.tope).toBe(4);
+  });
+
+  it('un fallo reinicia la racha de éxitos', async () => {
+    const lim = crearLimitadorAdaptativo({ inicial: 4, max: 6, min: 1, exitosParaSubir: 3 });
+    await lim(tarea(true)); await lim(tarea(true));
+    await intentar(lim(tarea(false)));
+    expect(lim.tope).toBe(2);
+    await lim(tarea(true)); await lim(tarea(true));
+    expect(lim.tope).toBe(2); // dos éxitos tras el fallo no bastan (hacen falta 3 seguidos)
+  });
+
+  it('el resultado y el error de cada tarea llegan a quien la pidió', async () => {
+    const lim = crearLimitadorAdaptativo({ inicial: 2, max: 2, min: 1 });
+    await expect(lim(async () => 42)).resolves.toBe(42);
+    await expect(lim(tarea(false))).rejects.toThrow('503');
+  });
+
+  it('un tope mayor al llegar éxitos deja avanzar la cola (no se queda detenida)', async () => {
+    const lim = crearLimitadorAdaptativo({ inicial: 1, max: 3, min: 1, exitosParaSubir: 1 });
+    const r = await Promise.all(Array.from({ length: 6 }, (_, i) => lim(async () => i)));
+    expect(r).toEqual([0, 1, 2, 3, 4, 5]);
   });
 });

@@ -1,11 +1,11 @@
 import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 import { db } from './db';
 import type { ReglaAceptacionRepository } from './ReglaAceptacionRepository';
 import type { ReglaAceptacion } from '@/core/types';
 
 async function currentEmail(): Promise<string> {
-  const { data } = await supabase.auth.getUser();
-  return data.user?.email ?? 'desconocido';
+  return emailLocal('desconocido');
 }
 
 function rowToRegla(r: Record<string, unknown>): ReglaAceptacion {

@@ -26,7 +26,7 @@ import { condicionesElegibles, hojaEnvios, type CaducidadMaxMeses, hojasReporteE
 import { serieMatDest } from '@/core/resumenFac';
 import { etiquetaCentro } from '@/lib/nombres';
 import { useNombresStore } from '@/store/nombresStore';
-import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 
 const VISTA_PREVIA = 80;
 /** Gpo. Vdor. de un renglón de Consumo (con el mismo respaldo que el módulo Consumo cuando viene vacío). */
@@ -164,7 +164,7 @@ export function GenerarOfertas({ onRegistradas }: { onRegistradas: () => void })
   const registrar = async (ls: LineaOferta[]) => {
     setRegistrando(true);
     try {
-      const por = (await supabase.auth.getUser()).data.user?.email ?? 'desconocido';
+      const por = await emailLocal('desconocido');
       const ahora = new Date().toISOString();
       const hechas = await registrarOfertasLote(ls.map((l) => ofertaDeLinea(l, por, ahora)));
       if (hechas) {

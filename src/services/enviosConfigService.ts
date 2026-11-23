@@ -8,7 +8,7 @@ import {
 
 /** Configuración de Transmisión guardada (solo la puede leer un administrador: es una fila de `degasa_connectors`). */
 export async function cargarConfigTransmision(): Promise<ConfigTransmisionCfg> {
-  const filas = await listConnectors();
+  const filas = await listConnectors({ forzar: true });
   return parseConfigTransmision(filas.find((f) => f.key === CLAVE_CFG_TRANSMISION)?.value);
 }
 

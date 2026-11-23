@@ -21,7 +21,7 @@ import { consumoStatus } from '@/modules/analytics/helpers';
 import { norm } from '@/lib/text';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { useQuickFilters } from '@/hooks/useQuickFilters';
-import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 import { MaterialSearch } from './components/MaterialSearch';
 import { OportunidadTray } from './components/OportunidadTray';
 import { OportunidadListView } from './components/OportunidadListView';
@@ -139,7 +139,7 @@ export function OportunidadesPage() {
   const [quick, setQuick] = useQuickFilters('oportunidades.quick');
   const [quickFiltro, setQuickFiltro] = useState<QuickFiltro>('todas');
   const [miEmail, setMiEmail] = useState('');
-  useEffect(() => { void supabase.auth.getUser().then(({ data }) => setMiEmail(data.user?.email ?? '')); }, []);
+  useEffect(() => { void emailLocal('').then(setMiEmail); }, []);
   // Filtro de "Materiales por colocar" con valores REALES de negocio
   // (Cosmopark, PNC, Corta caducidad...) — separado de `condicion`, que sigue
   // filtrando el tablero de Oportunidades por sus 4 categorías fijas.

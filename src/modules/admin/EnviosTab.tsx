@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/layout/report';
 import { toast } from '@/store/toastStore';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 import { useTransmisionStore } from '@/store/transmisionStore';
 import { cargarConfigTransmision, guardarConfigTransmision, leerPestanasLibro } from '@/services/enviosConfigService';
 import { pestanasQueSeLeen, urlLibroValida, validarConfigTransmision, type ConfigTransmisionCfg, type LibroTxCfg, type PestanaLibro } from '@/core/enviosConfig';
@@ -62,8 +62,7 @@ export function EnviosTab() {
   const guardar = async () => {
     setGuardando(true);
     try {
-      const { data } = await supabase.auth.getUser();
-      await guardarConfigTransmision(cfg, data.user?.email ?? 'admin');
+      await guardarConfigTransmision(cfg, await emailLocal('admin'));
       setSucio(false);
       toast.success('Guardado', 'Transmisión usará estos libros y pestañas.');
       void useTransmisionStore.getState().cargar(true); // refresca el índice con la nueva configuración

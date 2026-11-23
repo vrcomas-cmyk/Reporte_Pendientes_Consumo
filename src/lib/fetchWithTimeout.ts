@@ -5,6 +5,9 @@ class ErrorRedProxy extends Error {}
 const ESPERAS_PROXY_MS: readonly number[] = [500, 1500];
 const ESTADOS_REINTENTABLES = new Set([502, 503, 504]);
 
+/** Para quien YA reintenta por su cuenta (`withRetries` en la carga de libros): sin reintentos internos, para que no se multipliquen (3 × 3 = hasta 9 llamadas por bloque). */
+export const SIN_REINTENTOS_PROXY: readonly number[] = [];
+
 const esperar = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const esAbort = (e: unknown) => e instanceof DOMException && e.name === 'AbortError';
 

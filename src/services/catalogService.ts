@@ -1,4 +1,5 @@
 import { catalogRepository } from '@/repositories';
+import { REVISION_CATALOGO_MIN_MS } from '@/lib/frenosSync';
 import { parseCatalog } from './analysisService';
 import { mapGerenciaMarca, mapEjecutivo, mapMaterial, mapInvConsolidado, mapInvDetalle } from '@/core/mappers';
 import { logInfo, logWarn } from '@/lib/logError';
@@ -95,7 +96,7 @@ export async function syncCatalogFromAppScript(): Promise<CatalogSnapshot> {
 // ---------------------------------------------------------------------------
 const CATALOG_META_KEY = 'catalog-sync-meta';
 /** No volver a preguntar al Sheet antes de este tiempo (salvo `force`). */
-const MIN_RECHECK_MS = 5 * 60_000;
+const MIN_RECHECK_MS = REVISION_CATALOGO_MIN_MS;
 /** Si el Apps Script no sabe responder `?meta=1`, se refresca por antigüedad. */
 const FALLBACK_MAX_AGE_MS = 30 * 60_000;
 

@@ -3,6 +3,7 @@
 // renovar), la app la repara sola o cierra la sesión local y pide entrar de nuevo, en lugar de quedarse «verificando» hasta que el usuario borre el caché.
 // ---------------------------------------------------------------------------
 import { supabase } from '@/lib/supabaseClient';
+import { limpiarCachesSwr } from '@/lib/cacheSWR';
 
 /** Claves de localStorage que dependen de la sesión y se limpian al cerrarla localmente. */
 const CLAVES_DE_SESION = ['degasa_allowed_cache_v1', 'degasa_perms_cache_v1'];
@@ -28,6 +29,7 @@ export function esErrorDeSesion(e: unknown): boolean {
 export async function cerrarSesionLocal(): Promise<void> {
   try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* ya sin sesión o storage no disponible */ }
   try { for (const k of CLAVES_DE_SESION) localStorage.removeItem(k); } catch { /* storage no disponible */ }
+  limpiarCachesSwr();
 }
 
 export type ResultadoReparacion = 'ok' | 'cerrada' | 'incierto';

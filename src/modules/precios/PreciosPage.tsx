@@ -11,7 +11,7 @@ import { EmptyState } from '@/components/feedback/EmptyState';
 import { formatCurrency, formatNumber, formatFraccion } from '@/lib/utils';
 import { exportXlsx, stamp } from '@/lib/exportXlsx';
 import { toast } from '@/store/toastStore';
-import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 import { useAnalytics } from '@/modules/analytics/AnalyticsContext';
 import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
 import { useDataStore } from '@/store/dataStore';
@@ -122,7 +122,7 @@ export function PreciosPage() {
   useEffect(() => {
     void recargar();
     void cargarPolitica().then(setPol);
-    void supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? ''));
+    void emailLocal('').then(setEmail);
   }, [recargar]);
 
   // Catálogo → materiales con sector y grupo de artículos.

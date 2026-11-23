@@ -1,11 +1,11 @@
 import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 import { db } from './db';
 import type { OfertaRepository } from './OfertaRepository';
 import type { Oferta } from '@/core/types';
 
 async function currentEmail(): Promise<string> {
-  const { data } = await supabase.auth.getUser();
-  return data.user?.email ?? 'desconocido';
+  return emailLocal('desconocido');
 }
 
 /** Columnas del módulo «Ofertas y traslados» (solo las presentes: sirve para insert y update parcial). */

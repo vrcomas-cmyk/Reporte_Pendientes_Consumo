@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
+import { REVISION_LIBROS_MIN_MS } from '@/lib/frenosSync';
 import { pedidosConfigurado } from '@/services/pedidosService';
 import { syncFacturacion } from '@/services/facturacionLibrosService';
 import { useFacturacionStore } from '@/store/facturacionStore';
 import { useFacFuenteStore } from '@/store/facFuenteStore';
 
-/** Cada cuánto, como mínimo, se vuelve a consultar Drive al abrir un módulo que usa la facturación (igual que Facturación). */
-const REVISION_MIN_MS = 10 * 60_000;
+const REVISION_MIN_MS = REVISION_LIBROS_MIN_MS;
 
 /** Para los módulos que alimentan sus detalles/tendencias con la facturación de los libros trimestrales de Drive sin ser la tabla de
  * Facturación (Inventario · Disponibilidad, Inv con Condición, Seg. de pedidos): mientras están abiertos

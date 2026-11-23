@@ -1,8 +1,9 @@
 import { supabase } from '@/lib/supabaseClient';
 import { db } from '@/repositories/db';
+import { PREFIJO_CACHE } from '@/lib/cacheSWR';
 
 /** Marcas de sincronización guardadas en localStorage ("catalog-sync-meta", etc.): si quedaran, el usuario siguiente creería que sus datos ya están al día. */
-const ES_MARCA_DE_SYNC = (k: string) => /sync|meta/i.test(k);
+const ES_MARCA_DE_SYNC = (k: string) => /sync|meta/i.test(k) || k.startsWith(PREFIJO_CACHE);
 
 /** Cierra la sesión Y borra lo que el navegador guardó de datos (IndexedDB y marcas de sincronización), para que el siguiente usuario de este equipo no vea
  * lo que cargó el anterior ni herede su caché. Las preferencias de pantalla (tema, filtros, columnas) se conservan. Termina recargando la página. */

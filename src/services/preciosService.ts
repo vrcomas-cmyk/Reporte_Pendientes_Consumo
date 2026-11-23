@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 import { logWarn } from '@/lib/logError';
+import { invalidarCache, leerConCache } from '@/lib/cacheSWR';
 import { prepararEnvio } from '@/core/estatusPrecios';
 import { POLITICA_DEFECTO, SECTOR_GLOBAL, precioValido, type AmbitoMargen, type Politica, type ReglaMarkdown, type TramoCc } from '@/core/politicaPrecios';
 
@@ -65,39 +66,49 @@ const deDb = (r: PropuestaDb): Propuesta => ({
   vigenteDesde: r.vigente_desde ?? null, vigenteHasta: r.vigente_hasta ?? null,
 });
 
-/** Política guardada (global + por sector + matriz + condiciones + márgenes mínimos). Sin tablas / sin filas → `POLITICA_DEFECTO`; nunca lanza. */
-export async function cargarPolitica(): Promise<Politica> {
+/** Vigencia de la copia local de la política (casi nunca cambia): evita 4 consultas en cada F5 y otras 4 al entrar a Precios. */
+const TTL_POLITICA_MS = 15 * 60_000;
+
+/** Política guardada (global + por sector + matriz + condiciones + márgenes mínimos). Se lee de la copia local mientras esté vigente (`forzar` la salta; guardar la descarta).
+ *  Sin tablas / sin filas → `POLITICA_DEFECTO`; nunca lanza. */
+export async function cargarPolitica(opts: { forzar?: boolean } = {}): Promise<Politica> {
   try {
-    const [pol, md, cond, mm] = await Promise.all([
-      supabase.from('degasa_precio_politica').select('sector, margen_min, margen_objetivo'),
-      supabase.from('degasa_precio_markdown').select('sector, combinacion, tramo_cc, pct_cede, margen_min'),
-      supabase.from('degasa_precio_condicion').select('status, incluida, pct_cede, margen_min'),
-      supabase.from('degasa_precio_margen_min').select('ambito, clave, condicion, margen_min'),
-    ]);
-    if (pol.error || md.error) throw pol.error ?? md.error;
-    const out: Politica = { global: POLITICA_DEFECTO.global, porSector: {}, markdown: POLITICA_DEFECTO.markdown, condiciones: {}, margenesMin: [] };
-    // Sin las migraciones 0018 / 0019 esas tablas no existen: quedan vacías (ningún Status incluido, sin márgenes por ámbito) sin romper el resto.
-    for (const r of cond.data ?? []) out.condiciones[r.status] = { incluida: !!r.incluida, pctCede: Number(r.pct_cede), margenMin: Number(r.margen_min) };
-    for (const r of mm.data ?? []) out.margenesMin.push({ ambito: r.ambito as AmbitoMargen, clave: r.clave, condicion: r.condicion ?? '', margenMin: Number(r.margen_min) });
-    for (const r of pol.data ?? []) {
-      const p = { margenMin: Number(r.margen_min), margenObjetivo: Number(r.margen_objetivo) };
-      if (r.sector === SECTOR_GLOBAL) out.global = p;
-      else out.porSector[r.sector] = p;
-    }
-    if (md.data?.length) {
-      out.markdown = md.data.map((r): ReglaMarkdown => ({
-        sector: r.sector, combinacion: r.combinacion, tramoCc: (r.tramo_cc ?? '') as TramoCc,
-        pctCede: Number(r.pct_cede), margenMin: Number(r.margen_min),
-      }));
-    }
-    return out;
+    return await leerConCache('precios.politica', leerPoliticaDelServidor, { ttlMs: TTL_POLITICA_MS, forzar: opts.forzar });
   } catch {
     return POLITICA_DEFECTO;
   }
 }
 
+/** Una lectura de la política desde Supabase; LANZA ante un error (el que decide qué hacer es `cargarPolitica`). */
+async function leerPoliticaDelServidor(): Promise<Politica> {
+  const [pol, md, cond, mm] = await Promise.all([
+    supabase.from('degasa_precio_politica').select('sector, margen_min, margen_objetivo'),
+    supabase.from('degasa_precio_markdown').select('sector, combinacion, tramo_cc, pct_cede, margen_min'),
+    supabase.from('degasa_precio_condicion').select('status, incluida, pct_cede, margen_min'),
+    supabase.from('degasa_precio_margen_min').select('ambito, clave, condicion, margen_min'),
+  ]);
+  if (pol.error || md.error) throw pol.error ?? md.error;
+  const out: Politica = { global: POLITICA_DEFECTO.global, porSector: {}, markdown: POLITICA_DEFECTO.markdown, condiciones: {}, margenesMin: [] };
+  // Sin las migraciones 0018 / 0019 esas tablas no existen: quedan vacías (ningún Status incluido, sin márgenes por ámbito) sin romper el resto.
+  for (const r of cond.data ?? []) out.condiciones[r.status] = { incluida: !!r.incluida, pctCede: Number(r.pct_cede), margenMin: Number(r.margen_min) };
+  for (const r of mm.data ?? []) out.margenesMin.push({ ambito: r.ambito as AmbitoMargen, clave: r.clave, condicion: r.condicion ?? '', margenMin: Number(r.margen_min) });
+  for (const r of pol.data ?? []) {
+    const p = { margenMin: Number(r.margen_min), margenObjetivo: Number(r.margen_objetivo) };
+    if (r.sector === SECTOR_GLOBAL) out.global = p;
+    else out.porSector[r.sector] = p;
+  }
+  if (md.data?.length) {
+    out.markdown = md.data.map((r): ReglaMarkdown => ({
+      sector: r.sector, combinacion: r.combinacion, tramoCc: (r.tramo_cc ?? '') as TramoCc,
+      pctCede: Number(r.pct_cede), margenMin: Number(r.margen_min),
+    }));
+  }
+  return out;
+}
+
 /** Guarda la política (solo admin por RLS). Valida: márgenes mínimos > 0 y % que se cede < 100 %. */
 export async function guardarPolitica(pol: Politica, email: string): Promise<void> {
+  await invalidarCache('precios.politica'); // la copia local ya no vale (también si el guardado falla a medias)
   for (const r of pol.markdown) {
     if (!(r.margenMin > 0 && r.margenMin < 1)) throw new Error(`La regla ${r.combinacion} necesita un margen mínimo mayor a 0%.`);
     if (!(r.pctCede >= 0 && r.pctCede < 1)) throw new Error(`El % del margen que cede ${r.combinacion} debe ser menor a 100%.`);

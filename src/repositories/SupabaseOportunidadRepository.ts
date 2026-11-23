@@ -1,11 +1,11 @@
 import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 import { db } from './db';
 import type { OportunidadRepository } from './OportunidadRepository';
 import type { Oportunidad, Interaccion } from '@/core/types';
 
 async function currentEmail(): Promise<string> {
-  const { data } = await supabase.auth.getUser();
-  return data.user?.email ?? 'desconocido';
+  return emailLocal('desconocido');
 }
 
 function rowToOportunidad(r: Record<string, unknown>): Oportunidad {

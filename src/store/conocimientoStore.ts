@@ -1,7 +1,11 @@
 import { create } from 'zustand';
-import { oportunidadRepository, clienteConocimientoRepository, ofertaRepository, reglaAceptacionRepository } from '@/repositories';
+import {
+  oportunidadRepository, clienteConocimientoRepository, ofertaRepository, reglaAceptacionRepository,
+  createOportunidadRepository, createClienteConocimientoRepository, createOfertaRepository, createReglaAceptacionRepository,
+} from '@/repositories';
+import { leerLocalSiReciente } from '@/lib/sincronizacionLocal';
 import { toast } from '@/store/toastStore';
-import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 import { norm } from '@/lib/text';
 import { cambioDeEstatus, llaveOferta } from '@/core/ofertasEjecutivo';
 import { ESTADOS_OPORTUNIDAD, PROXIMO_PASO, type EstatusOferta, type Oportunidad, type Interaccion, type EstadoOportunidad, type ClienteConocimiento, type Observacion, type Oferta, type ReglaAceptacion } from '@/core/types';
@@ -58,6 +62,14 @@ function byDest(clientes: ClienteConocimiento[], ofertas: Oferta[]): Map<string,
   return new Map(clientes.map((c) => [norm(c.dest), { ...c, ...deriveMetrics(c.dest, ofertas) }]));
 }
 
+/** Si la última sincronización buena fue hace menos de esto, el arranque lee del espejo local (Dexie) en vez de pedir 6 tablas a Supabase en cada F5. */
+const TTL_SYNC_CONOCIMIENTO_MS = 5 * 60_000;
+// Espejo local (Dexie) de las mismas tablas: cada mutación exitosa de los repositorios de Supabase ya lo mantiene al día.
+const locales = {
+  oportunidad: createOportunidadRepository('local'), cliente: createClienteConocimientoRepository('local'),
+  oferta: createOfertaRepository('local'), regla: createReglaAceptacionRepository('local'),
+};
+
 /** Espejo en memoria del conocimiento del módulo Oportunidades — mismo patrón
  * optimista que solicitudStore: muta local primero, persiste en background,
  * revierte con un toast si falla. Regla clave (req. 10 del plan): todo cambio
@@ -76,14 +88,19 @@ export const useConocimientoStore = create<ConocimientoState>()((set, get) => ({
 
   hydrate: async () => {
     if (get().hydrated) return;
-    const [oportunidades, interacciones, clientes, observaciones, ofertas, reglas] = await Promise.all([
-      oportunidadRepository.listOportunidades(),
-      oportunidadRepository.listInteracciones(),
-      clienteConocimientoRepository.listClientes(),
-      clienteConocimientoRepository.listObservaciones(),
-      ofertaRepository.listOfertas(),
-      reglaAceptacionRepository.listReglas(),
-    ]);
+    // Primero lo local si se sincronizó hace poco (sin red); si no, al servidor, que renueva el espejo.
+    const [oportunidades, interacciones, clientes, observaciones, ofertas, reglas] = await leerLocalSiReciente('conocimiento', {
+      ttlMs: TTL_SYNC_CONOCIMIENTO_MS,
+      contar: (t) => t.reduce((n, lista) => n + lista.length, 0),
+      local: () => Promise.all([
+        locales.oportunidad.listOportunidades(), locales.oportunidad.listInteracciones(), locales.cliente.listClientes(),
+        locales.cliente.listObservaciones(), locales.oferta.listOfertas(), locales.regla.listReglas(),
+      ] as const),
+      red: () => Promise.all([
+        oportunidadRepository.listOportunidades(), oportunidadRepository.listInteracciones(), clienteConocimientoRepository.listClientes(),
+        clienteConocimientoRepository.listObservaciones(), ofertaRepository.listOfertas(), reglaAceptacionRepository.listReglas(),
+      ] as const),
+    });
 
     // Migración única (fusión "ficha = regla global"): las reglas globales que
     // vivían en `reglasAceptacion` (material === null) se fusionan en la ficha
@@ -271,8 +288,7 @@ export const useConocimientoStore = create<ConocimientoState>()((set, get) => ({
     const prevOfertas = get().ofertas;
     const target = prevOfertas.find((o) => o.id === id);
     if (!target) return;
-    const { data } = await supabase.auth.getUser();
-    const por = data.user?.email ?? 'desconocido';
+    const por = await emailLocal('desconocido');
     const patch = cambioDeEstatus(target, estatus, por, new Date().toISOString(), datos);
     const nextOfertas = prevOfertas.map((o) => (o.id === id ? { ...o, ...patch } : o));
     set({ ofertas: nextOfertas, clientesByDest: byDest(get().clientes, nextOfertas) });

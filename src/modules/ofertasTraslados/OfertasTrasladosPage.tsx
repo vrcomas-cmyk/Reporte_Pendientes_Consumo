@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { REVISION_LIBROS_MIN_MS } from '@/lib/frenosSync';
 import { ReportPage, PageHeader } from '@/components/layout/report';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useFacturacionLibros } from '@/modules/analytics/useFacturacionLibros';
@@ -12,7 +13,7 @@ import { SeguimientoOfertas } from './SeguimientoOfertas';
 import { Traslados } from './Traslados';
 import { PrepararTrasladoDialog } from './PrepararTrasladoDialog';
 
-const REVISION_MIN_MS = 10 * 60_000;
+const REVISION_MIN_MS = REVISION_LIBROS_MIN_MS;
 
 /** Ofertas por ejecutivo (Excel por ejecutivo/zona), seguimiento comercial de lo ofertado y solicitudes de traslado con envío de correo MANUAL. */
 export function OfertasTrasladosPage() {

@@ -12,7 +12,7 @@
 // lanza error — nunca se trata como "0 filas" (así un despliegue viejo del script no pisa datos buenos).
 // ---------------------------------------------------------------------------
 import { FUENTES_PEDIDOS, LIBROS_BASE_PEDIDOS, indexarHoja, libroSinHojas, quitarDuplicadosPorColumnas, validarHojaCruda, type HojaCruda, type LibroClave } from '@/core/pedidos';
-import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
+import { fetchWithTimeout, SIN_REINTENTOS_PROXY } from '@/lib/fetchWithTimeout';
 import { logInfo, logWarn } from '@/lib/logError';
 import type { FuentePedidosRow } from '@/repositories/db';
 import { getAllCachedPedidos, getFuentesPedidos, idHoja, putFuentePedidos, reemplazarHojasDeLibro } from '@/repositories/pedidosCache';
@@ -126,7 +126,7 @@ async function fetchManifiesto(): Promise<LibroManifiesto[]> {
   const url = `${await requireUrl()}?action=relacion`;
   return withRetries('manifiesto', async () => {
     try {
-      const res = await fetchWithTimeout(url, { cache: 'no-store' }, MANIFEST_TIMEOUT_MS);
+      const res = await fetchWithTimeout(url, { cache: 'no-store' }, MANIFEST_TIMEOUT_MS, SIN_REINTENTOS_PROXY);
       if (!res.ok) throw new Error(`HTTP ${res.status} al consultar los libros de Seg. de pedidos.`);
       return assertManifiesto(await res.json());
     } catch (e) {
@@ -140,7 +140,7 @@ async function fetchPagina(libro: LibroClave, hoja: string, offset: number, limi
   const url = `${await requireUrl()}?${params.toString()}`;
   return withRetries(`"${libro} / ${hoja}" offset=${offset}`, () => limitadorAppsScript(async () => {
     try {
-      const res = await fetchWithTimeout(url, { cache: 'no-store' }, PAGE_TIMEOUT_MS);
+      const res = await fetchWithTimeout(url, { cache: 'no-store' }, PAGE_TIMEOUT_MS, SIN_REINTENTOS_PROXY);
       if (!res.ok) throw new Error(`HTTP ${res.status} al leer "${libro} / ${hoja}".`);
       return assertPagina(libro, hoja, await res.json());
     } catch (e) {

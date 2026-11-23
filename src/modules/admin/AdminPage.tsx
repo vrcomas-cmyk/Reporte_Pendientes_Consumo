@@ -21,7 +21,7 @@ import {
   type ModuleRow, type AllowedUserRow, type ConnectorRow,
 } from '@/services/permissionsService';
 import { invalidateConnectorsCache } from '@/services/connectorsService';
-import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 import { PESOS_DEFAULT, CRITERIO_LABELS, type CriterioKey } from '@/core/scoring';
 import { loadScoringWeights, saveScoringWeight, SCORING_WEIGHT_PREFIX } from '@/services/scoringWeightsService';
 import { useScoringWeightsStore } from '@/store/scoringWeightsStore';
@@ -84,8 +84,7 @@ function PesosTab() {
   const handleSave = async (key: CriterioKey) => {
     setBusyKey(key);
     try {
-      const { data } = await supabase.auth.getUser();
-      await saveScoringWeight(key, drafts[key] ?? PESOS_DEFAULT[key], data.user?.email ?? 'admin');
+      await saveScoringWeight(key, drafts[key] ?? PESOS_DEFAULT[key], await emailLocal('admin'));
       invalidate();
       toast.success('Guardado', 'El peso se actualizó — ya afecta el próximo ranking.');
     } catch (e) {
@@ -153,8 +152,7 @@ function NombresTab() {
   const handleSave = async (kind: NombresKind) => {
     setBusy(kind);
     try {
-      const { data } = await supabase.auth.getUser();
-      await saveNombres(kind, drafts[kind], data.user?.email ?? 'admin');
+      await saveNombres(kind, drafts[kind], await emailLocal('admin'));
       invalidate();
       toast.success('Guardado', kind === 'centros' ? 'Los nombres de centros ya están activos.' : 'Los nombres de almacenes ya están activos.');
     } catch (e) {
@@ -250,8 +248,7 @@ function FiltrosTab() {
   const handleSave = async () => {
     setBusy(true);
     try {
-      const { data } = await supabase.auth.getUser();
-      await saveGruposExcluidos(excluidos, data.user?.email ?? 'admin');
+      await saveGruposExcluidos(excluidos, await emailLocal('admin'));
       invalidate();
       toast.success('Guardado', 'Los reportes ya excluyen esos grupos por defecto.');
     } catch (e) {
@@ -604,7 +601,7 @@ function ConectoresTab() {
     // Los pesos del score (fase 5) viven en la misma tabla pero tienen su
     // propia pestaña "Compatibilidad" con mejor UX (números, no URLs) — se
     // excluyen aquí para no duplicar la edición en dos lugares.
-    const rows = (await listConnectors()).filter((r) => !r.key.startsWith(SCORING_WEIGHT_PREFIX) && !r.key.startsWith(NOMBRES_PREFIX) && !r.key.startsWith(FILTROS_PREFIX) && !r.key.startsWith(PREFIJO_CFG_ENVIOS));
+    const rows = (await listConnectors({ forzar: true })).filter((r) => !r.key.startsWith(SCORING_WEIGHT_PREFIX) && !r.key.startsWith(NOMBRES_PREFIX) && !r.key.startsWith(FILTROS_PREFIX) && !r.key.startsWith(PREFIJO_CFG_ENVIOS));
     setConnectors(rows);
     setDrafts(Object.fromEntries(rows.map((r) => [r.key, r.value ?? ''])));
   }, []);
@@ -613,8 +610,7 @@ function ConectoresTab() {
   const handleSave = async (key: string) => {
     setBusyKey(key);
     try {
-      const { data } = await supabase.auth.getUser();
-      await setConnectorValue(key, drafts[key] ?? '', data.user?.email ?? 'admin');
+      await setConnectorValue(key, drafts[key] ?? '', await emailLocal('admin'));
       invalidateConnectorsCache();
       await reload();
       toast.success('Guardado', 'El conector se actualizó — ya está activo.');

@@ -10,6 +10,7 @@ import { hojasDeLibro, usePedidosStore } from '@/store/pedidosStore';
 import { useFacturacionStore } from '@/store/facturacionStore';
 import { useDataStore } from '@/store/dataStore';
 import { formatDateTime, formatNumber } from '@/lib/utils';
+import { REVISION_LIBROS_MIN_MS } from '@/lib/frenosSync';
 import { TableroComodato } from './tablero/TableroComodato';
 
 /** Módulo "Comodato (libros)": el MISMO análisis de Comodato vs. Facturación, pero con los libros nuevos —YBFD/ZBRE de Google Sheets y la facturación
@@ -37,12 +38,19 @@ export function ComodatoLibrosPage() {
   const intentado = useRef(false);
 
   // Al abrir (ya restaurada la caché local): revisa en Drive el libro de comodato y la facturación; solo baja lo que cambió o falta.
+  // Con el mismo freno que los demás módulos: antes sincronizaba en CADA apertura (2 consultas de manifiesto cada vez).
   useEffect(() => {
     if (!pedidosListos) return;
+    const st = usePedidosStore.getState();
+    // `syncPedidos()` por omisión NO incluye Comodato: una revisión reciente de otros libros no dice nada de este; el freno solo aplica si ya hay datos de Comodato.
+    const yaTiene = hojasDeLibro(st.hojas, 'comodato').length > 0;
+    if (st.syncing || (yaTiene && st.ultimaRevision !== null && Date.now() - st.ultimaRevision < REVISION_LIBROS_MIN_MS)) return;
     void pedidosConfigurado().then((ok) => { if (ok) void syncPedidos({ libros: ['comodato'] }).catch(() => undefined); });
   }, [pedidosListos]);
   useEffect(() => {
     if (!facListos) return;
+    const st = useFacturacionStore.getState();
+    if (st.syncing || (st.ultimaRevision !== null && Date.now() - st.ultimaRevision < REVISION_LIBROS_MIN_MS)) return;
     void pedidosConfigurado().then((ok) => { if (ok) void syncFacturacion().catch(() => undefined); });
   }, [facListos]);
 

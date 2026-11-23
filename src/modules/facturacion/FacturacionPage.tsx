@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
+import { REVISION_LIBROS_MIN_MS } from '@/lib/frenosSync';
 import { ConsumoPage } from '@/modules/consumo/ConsumoPage';
 import { pedidosConfigurado } from '@/services/pedidosService';
 import { syncFacturacion } from '@/services/facturacionLibrosService';
 import { useFacturacionStore } from '@/store/facturacionStore';
 
 /** Cada cuánto, como mínimo, se vuelve a consultar Drive al abrir el módulo. */
-const REVISION_MIN_MS = 10 * 60_000;
+const REVISION_MIN_MS = REVISION_LIBROS_MIN_MS;
 
 /** Módulo "Facturación": es la MISMA página de Consumo (columnas, filtros, paneles y acciones), pero alimentada solo
  * por los libros trimestrales de la carpeta de Drive y con su propia carga (Carga → Sincronizar facturación). Al abrirlo:

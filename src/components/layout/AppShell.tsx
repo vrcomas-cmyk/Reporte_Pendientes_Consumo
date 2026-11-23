@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { INTERVALO_CATALOGO_MS } from '@/lib/frenosSync';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sidebar } from './Sidebar';
@@ -125,7 +126,7 @@ export function AppShell() {
       const first = window.setTimeout(check, 0);
       const interval = window.setInterval(() => {
         if (document.visibilityState === 'visible') check();
-      }, 10 * 60_000);
+      }, INTERVALO_CATALOGO_MS);
       const onVisible = () => {
         if (document.visibilityState === 'visible') check();
       };

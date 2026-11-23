@@ -1,13 +1,26 @@
 import { supabase } from '@/lib/supabaseClient';
+import { idLocal, sesionLocal } from '@/lib/sesionLocal';
+import { ColaLogs } from '@/lib/colaLogs';
+import { invalidarCache, leerConCache } from '@/lib/cacheSWR';
 import { LocalReportRepository } from './LocalReportRepository';
 import type { ReportRepository } from './ReportRepository';
 import type { AnalysisResult, HistoryEntry, LogEntry, AppSettings } from '@/core/types';
 import { DEFAULT_SETTINGS } from '@/core/types';
 
-async function requireUserId(): Promise<string> {
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) throw new Error('No hay sesión activa');
-  return data.user.id;
+/** Id del usuario de la sesión LOCAL (sin petición a Auth): el servidor valida el token y RLS comprueba que `user_id` sea el suyo. */
+const requireUserId = idLocal;
+
+/** Cola de logs: se envían juntos (ver `colaLogs.ts`). Sin sesión no hay a dónde escribir (RLS): se descartan. */
+const colaLogs = new ColaLogs(async (lote) => {
+  const usuario = await sesionLocal();
+  if (!usuario) return;
+  const { error } = await supabase.from('degasa_logs').insert(lote.map((e) => ({ user_id: usuario.id, at: e.at, level: e.level, event: e.event, detail: e.detail })));
+  if (error) throw error;
+});
+// Al ocultar o cerrar la pestaña se intenta enviar lo pendiente (mejor esfuerzo: el navegador puede cancelar la petición).
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') void colaLogs.vaciar(); });
+  window.addEventListener('pagehide', () => { void colaLogs.vaciar(); });
 }
 
 /** history/settings/logs live in Supabase (per-user, RLS-scoped); analyses
@@ -72,25 +85,23 @@ export class SupabaseReportRepository implements ReportRepository {
     return (data ?? []).map((r) => ({ id: r.id, at: r.at, level: r.level, event: r.event, detail: r.detail ?? undefined }));
   }
 
-  async addLog(entry: LogEntry): Promise<number> {
-    const userId = await requireUserId();
-    const { data, error } = await supabase
-      .from('degasa_logs')
-      .insert({ user_id: userId, at: entry.at, level: entry.level, event: entry.event, detail: entry.detail })
-      .select('id')
-      .single();
-    if (error) throw error;
-    return data.id as number;
+  /** Encola el log; se envía en bloque más tarde. Devuelve 0: el id real ya no se conoce (nadie lo usa). */
+  addLog(entry: LogEntry): Promise<number> {
+    colaLogs.agregar({ at: entry.at, level: entry.level, event: entry.event, detail: entry.detail });
+    return Promise.resolve(0);
   }
 
+  /** Los ajustes casi nunca cambian: se leen de la copia local (30 min) en vez de consultar en cada F5; guardarlos descarta la copia. */
   async getSettings(): Promise<AppSettings> {
-    const { data, error } = await supabase
-      .from('degasa_settings')
-      .select('short_expiry_days, low_stock_threshold')
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return DEFAULT_SETTINGS;
-    return { id: 'current', shortExpiryDays: data.short_expiry_days, lowStockThreshold: data.low_stock_threshold };
+    return leerConCache('settings', async () => {
+      const { data, error } = await supabase
+        .from('degasa_settings')
+        .select('short_expiry_days, low_stock_threshold')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return DEFAULT_SETTINGS;
+      return { id: 'current' as const, shortExpiryDays: data.short_expiry_days, lowStockThreshold: data.low_stock_threshold };
+    }, { ttlMs: 30 * 60_000 });
   }
 
   async saveSettings(settings: AppSettings): Promise<void> {
@@ -99,5 +110,6 @@ export class SupabaseReportRepository implements ReportRepository {
       .from('degasa_settings')
       .upsert({ user_id: userId, short_expiry_days: settings.shortExpiryDays, low_stock_threshold: settings.lowStockThreshold, updated_at: new Date().toISOString() });
     if (error) throw error;
+    await invalidarCache('settings');
   }
 }

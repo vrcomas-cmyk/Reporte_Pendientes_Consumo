@@ -47,6 +47,8 @@ function usuarioDe(req: Request): Promise<ResultadoAuth> {
  * su rol tarda como máximo 60 s en notarse aquí. Solo se guardan lecturas buenas. */
 const CACHE_FILA_USUARIO_MS = 60_000;
 const cacheFilaUsuario = new Map<string, { en: number; fila: unknown }>();
+const CACHE_CONECTORES_MS = 60_000;
+const cacheConectores = new Map<string, { en: number; filas: { key: string; value: string | null }[] }>();
 
 /** ID de carpeta de Drive a partir de un ID suelto o de una URL (`.../folders/<id>?usp=...`); "" si no parece uno. */
 function idCarpeta(valor: string): string {
@@ -108,8 +110,16 @@ Deno.serve(async (req: Request) => {
   }
   if (!fila) return json({ error: "Usuario no invitado" }, 403);
 
-  const { data: filas } = await db.from("degasa_connectors").select("key, value").in("key", ["appscript_catalog_url", "fac_carpeta_id", conector]);
-  const urlDe = (k: string) => (filas ?? []).find((f: { key: string; value: string | null }) => f.key === k)?.value ?? "";
+  // Conectores (URLs de los Apps Script y carpeta de facturación): casi nunca cambian y cada petición los consultaba. Se recuerdan 60 s por conector; solo se guarda una lectura buena
+  // y con filas, así un fallo o una tabla vacía no se queda «pegado». Un cambio hecho por un admin tarda como máximo 60 s en notarse aquí.
+  type FilaConector = { key: string; value: string | null };
+  let filas: FilaConector[] | null = (() => { const c = cacheConectores.get(conector); return c && Date.now() - c.en < CACHE_CONECTORES_MS ? c.filas : null; })();
+  if (!filas) {
+    const { data, error: errConectores } = await db.from("degasa_connectors").select("key, value").in("key", ["appscript_catalog_url", "fac_carpeta_id", conector]);
+    filas = (data ?? []) as FilaConector[];
+    if (!errConectores && filas.length) cacheConectores.set(conector, { en: Date.now(), filas });
+  }
+  const urlDe = (k: string) => filas!.find((f) => f.key === k)?.value ?? "";
   const base = urlDe(conector);
   if (!base) return json({ error: "Conector sin configurar" }, 404);
 

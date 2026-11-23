@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useClipboard } from '@/hooks/useClipboard';
 import { toast } from '@/store/toastStore';
-import { supabase } from '@/lib/supabaseClient';
+import { emailLocal } from '@/lib/sesionLocal';
 import { formatNumber } from '@/lib/utils';
 import { usePedidosStore } from '@/store/pedidosStore';
 import { useTrasladosStore } from '@/store/trasladosStore';
@@ -129,7 +129,7 @@ function CorreoDialog({ traslado, onClose }: { traslado: Traslado | null; onClos
   const yaSolicitado = !!traslado && traslado.estatus !== 'preparado';
   const guardarPredeterminados = async () => {
     try {
-      const email = (await supabase.auth.getUser()).data.user?.email ?? 'admin';
+      const email = await emailLocal('admin');
       await saveDestinatariosTraslado(para, email);
       toast.success('Destinatarios guardados como predeterminados');
     } catch (e) {

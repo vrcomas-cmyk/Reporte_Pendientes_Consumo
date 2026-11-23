@@ -14,7 +14,7 @@ import { mapFacMensualCam, mapResumenFac } from '@/core/mappers';
 import type { FacMensualCamRow, ResumenFacRow } from '@/core/types';
 import type { DatosFacturacion } from '@/core/facturacionLibros';
 import { useFacturacionStore, type InfoLibroFac } from '@/store/facturacionStore';
-import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
+import { fetchWithTimeout, SIN_REINTENTOS_PROXY } from '@/lib/fetchWithTimeout';
 import { logInfo, logWarn } from '@/lib/logError';
 import { FAC_DERIVADOS_ESQUEMA, deleteLibrosFacturacion, getLibroFacturacion, getLibrosFacturacionDeAUno, getMetaLibrosFacturacion, guardarDerivadosFac, leerDerivadosFac, putLibroFacturacion } from '@/repositories/facturacionCache';
 import type { RFIndex } from '@/core/resumenFac';
@@ -71,7 +71,7 @@ async function fetchManifiesto(): Promise<LibroManifiesto[]> {
   const url = `${await requireUrl()}?action=fac_manifest${await paramCarpeta()}`;
   return withRetries('facturación: libros', async () => {
     try {
-      const res = await fetchWithTimeout(url, { cache: 'no-store' }, MANIFEST_TIMEOUT_MS);
+      const res = await fetchWithTimeout(url, { cache: 'no-store' }, MANIFEST_TIMEOUT_MS, SIN_REINTENTOS_PROXY);
       if (!res.ok) throw new Error(`HTTP ${res.status} al consultar los libros de facturación.`);
       const data: unknown = await res.json();
       const err = errorDeScript(data);
@@ -95,7 +95,7 @@ async function fetchBloque(libro: LibroManifiesto, offset: number, limit: number
   const url = `${await requireUrl()}?${params.toString()}${await paramCarpeta()}`;
   return withRetries(`facturación ${libro.periodo} offset=${offset}`, () => limitadorAppsScript(async () => {
     try {
-      const res = await fetchWithTimeout(url, { cache: 'no-store' }, CHUNK_TIMEOUT_MS);
+      const res = await fetchWithTimeout(url, { cache: 'no-store' }, CHUNK_TIMEOUT_MS, SIN_REINTENTOS_PROXY);
       if (!res.ok) throw new Error(`HTTP ${res.status} al leer el libro ${libro.nombre}.`);
       const data: unknown = await res.json();
       const err = errorDeScript(data);
