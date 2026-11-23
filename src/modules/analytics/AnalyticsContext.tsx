@@ -21,6 +21,9 @@ import { SOLO_LIBROS } from '@/lib/modoLibros';
 import { persistirDerivadosFacturacion } from '@/services/facturacionLibrosService';
 import { useFacFuenteStore } from '@/store/facFuenteStore';
 import { buildPrecioDispersion, type PrecioDispersionEntry } from '@/core/precios';
+import { aplicarAjusteCaducidad, indexarAjustes } from '@/core/ajusteCaducidad';
+import { useAjustesCaducidadStore } from '@/store/ajustesCaducidadStore';
+import { usePermissionsStore } from '@/store/permissionsStore';
 import type { AnalysisResult, ConsumoRow, FacMensualCamRow, InvConsolidadoRow, InvDetalleRow, IncrementoCostoRow, ResumenFacRow } from '@/core/types';
 
 export interface Analytics {
@@ -237,6 +240,14 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const boByKey = useMemo(() => new Map(boPedidos.map((it) => [it.k, it])), [boPedidos]);
   const rss = useMemo(() => (resumenSin?.length ? buildRSS(resumenSin) : null), [resumenSin]);
   const facMensual = useMemo(() => (facMensualCam?.length ? buildFacMensual(facMensualCam) : null), [facMensualCam]);
+  // Ajustes manuales de caducidad (hoja de respaldo en Google Sheets): se leen al abrir y se aplican por material + lote.
+  const ajustesCad = useAjustesCaducidadStore((s) => s.ajustes);
+  // Solo cuando ya se verificó el acceso: durante una caída de Supabase no se suma otra llamada (a `envios`, que a su vez consulta Auth).
+  const estadoPermisos = usePermissionsStore((s) => s.estado);
+  useEffect(() => {
+    if (estadoPermisos === 'ok' || estadoPermisos === 'degradado') void useAjustesCaducidadStore.getState().cargar();
+  }, [estadoPermisos]);
+  const buscarAjusteCad = useMemo(() => indexarAjustes(Object.values(ajustesCad)), [ajustesCad]);
   const condLibros = useMemo(() => {
     const hojas = Object.values(hojasSeg).filter((h) => h.libro === 'condicion' || h.libro === 'disponibilidad');
     if (!hojas.some((h) => h.libro === 'condicion')) return { filas: [] as InvConsolidadoRow[], lotes: [] as InvDetalleRow[], sinLibre: [] as InvDetalleRow[], totalHoja: 0, detalle: {} as Record<string, DetalleLotesCondicion>, sustituciones: [] as Sustitucion[], invRevision: {} as Record<string, InvAlmacenCentro[]>, estadosRevision: new Map<string, EstadosRevision>() };
@@ -244,9 +255,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       sectorDe: (m) => enrich.matSector(m),
       grupoDe: (m) => enrich.matGrupo(m),
       precioDe: (m) => enrich.matPrecioOferta(m),
+      ajusteCaducidad: buscarAjusteCad,
     });
     return { filas, lotes: lotesDeCondicion(lotes), sinLibre: lotesSinLibre(lotes), totalHoja: lotes.length, detalle, sustituciones, invRevision, estadosRevision };
-  }, [hojasSeg, enrich]);
+  }, [hojasSeg, enrich, buscarAjusteCad]);
   const revisionLibros = useMemo(() => indiceRevision(condLibros.filas), [condLibros.filas]);
   const lotesLibros = condLibros.lotes;
   const lotesSinLibreLibros = condLibros.sinLibre;
@@ -287,7 +299,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     () => applyCatalogPriceFallback(inventarioCondicion?.length ? inventarioCondicion : invConsolidadoCatalog, catalog),
     [inventarioCondicion, invConsolidadoCatalog, catalog],
   );
-  const lotes = useMemo(() => [...(catalog?.invDetalle ?? []), ...(lotesCortaCaducidad ?? [])], [catalog, lotesCortaCaducidad]);
+  const lotes = useMemo(
+    () => [...(catalog?.invDetalle ?? []), ...(lotesCortaCaducidad ?? [])].map((l) => aplicarAjusteCaducidad(l, buscarAjusteCad)),
+    [catalog, lotesCortaCaducidad, buscarAjusteCad],
+  );
   const incrementoRows = useMemo(() => incremento?.rows ?? [], [incremento]);
 
   // ---- PUENTE a los libros ---------------------------------------------------------------------------------------------------------

@@ -695,13 +695,13 @@
     "semantic_hash": ""
   },
   "src/lib/gruposCliente.test.ts": {
-    "mtime": 1792128354.1588845,
-    "ast_hash": "b4c2ab9288e44f259876eed043442abb",
+    "mtime": 1794928009.8255422,
+    "ast_hash": "6fad88928d428e699cc3869cb2c32367",
     "semantic_hash": ""
   },
   "src/lib/gruposCliente.ts": {
-    "mtime": 1792128354.1608806,
-    "ast_hash": "334bbf4f70a780216896bbacf1d0dc38",
+    "mtime": 1794928009.8110967,
+    "ast_hash": "7fd0bae6d31e2360b0747d59fef6747d",
     "semantic_hash": ""
   },
   "src/lib/limitador.test.ts": {
@@ -800,8 +800,8 @@
     "semantic_hash": ""
   },
   "src/modules/admin/AdminPage.tsx": {
-    "mtime": 1793205174.053568,
-    "ast_hash": "cf7b88667ea86dc1e451360980f5f83e",
+    "mtime": 1794928009.8168604,
+    "ast_hash": "350b4b7c20921aeef19d1a89d3a4d58e",
     "semantic_hash": ""
   },
   "src/modules/analisisDirectivo/AnalisisDirectivoPage.tsx": {
@@ -1005,8 +1005,8 @@
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/PedidoPanel.tsx": {
-    "mtime": 1792790699.2658489,
-    "ast_hash": "ecbbdc38da0c6525f484738befe28936",
+    "mtime": 1794931944.772206,
+    "ast_hash": "c7b6efd97fb6c72fe8927442c99890bb",
     "semantic_hash": ""
   },
   "src/modules/analytics/panels/PromedioPeriodoSection.tsx": {
@@ -1490,8 +1490,8 @@
     "semantic_hash": ""
   },
   "src/modules/sugerencias/SugerenciasPage.tsx": {
-    "mtime": 1794408157.1006358,
-    "ast_hash": "d8a9f180a55a80e68f89a7eb2e787472",
+    "mtime": 1794931854.4680848,
+    "ast_hash": "8a2757188c4a4cfd85767a3bff7b0ee2",
     "semantic_hash": ""
   },
   "src/modules/sugerencias/columns.ts": {
@@ -3617,6 +3617,61 @@
   "supabase/rollback/0031_rollback.sql": {
     "mtime": 1794892412.5918987,
     "ast_hash": "05d47dbdead53e1d5e0a1423d0b10ffa",
+    "semantic_hash": ""
+  },
+  "src/core/enviosAcceso.test.ts": {
+    "mtime": 1794931611.2533903,
+    "ast_hash": "21d389bc62dea049c010b16e67650b36",
+    "semantic_hash": ""
+  },
+  "src/core/transmision.test.ts": {
+    "mtime": 1794931560.1839063,
+    "ast_hash": "c797d1fdb41938e2916a625168e4319f",
+    "semantic_hash": ""
+  },
+  "src/core/transmision.ts": {
+    "mtime": 1794931560.0711105,
+    "ast_hash": "30612d5dcaaf6943a3b32b2fc03247cc",
+    "semantic_hash": ""
+  },
+  "src/modules/sugerencias/TransmisionCell.tsx": {
+    "mtime": 1794931830.5297506,
+    "ast_hash": "b1ac642882b563e26d05cb4e666c43cb",
+    "semantic_hash": ""
+  },
+  "src/services/enviosService.ts": {
+    "mtime": 1794931787.6159267,
+    "ast_hash": "9cd88a85c7967a8c4e4622b6c38d0d87",
+    "semantic_hash": ""
+  },
+  "src/services/transmisionService.ts": {
+    "mtime": 1794931787.726072,
+    "ast_hash": "18756c8c2fda0392004e51cce296a5e2",
+    "semantic_hash": ""
+  },
+  "src/store/transmisionStore.ts": {
+    "mtime": 1794931787.8328178,
+    "ast_hash": "3f5f3f83a16fa8f362c3c5b4233213f3",
+    "semantic_hash": ""
+  },
+  "supabase/functions/envios/acceso.ts": {
+    "mtime": 1794931611.1059172,
+    "ast_hash": "ac949565ea0cf2abf0817268db0597f8",
+    "semantic_hash": ""
+  },
+  "supabase/functions/envios/index.ts": {
+    "mtime": 1794932346.718423,
+    "ast_hash": "4786b80d8f7283160956f2fe9df20f53",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/0032_modulos_envios.sql": {
+    "mtime": 1794931663.2629263,
+    "ast_hash": "fb7b2167000bf9d5e11a8e06cb09e38a",
+    "semantic_hash": ""
+  },
+  "docs/apps-script-envios.md": {
+    "mtime": 1794932366.0086553,
+    "ast_hash": "6038993a7414295143f1830d522a39b9",
     "semantic_hash": ""
   }
 }

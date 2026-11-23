@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { KpiBand } from '@/components/layout/report';
 import { Chip, StatePill, DetailChevron } from '../ui';
+import { EditarCaducidad } from '../ui/EditarCaducidad';
 import { Section, SugTable, ConsumoTable, vigenciaTxt } from './_shared';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { formatCurrency, formatNumber, formatFechaCaducidad } from '@/lib/utils';
@@ -57,7 +58,7 @@ export function LotePanel({ panel, a, push }: { panel: Extract<Panel, { type: 'l
                     <TableCell>{l.centro}</TableCell>
                     <TableCell>{l.almacen}</TableCell>
                     <TableCell className="text-right">{formatNumber(l.cantidadDisp)}</TableCell>
-                    <TableCell>{formatFechaCaducidad(l.fechaCaducidad)}{vg && <div className="text-[11px]"><StatePill label={vg.txt} cls={vg.cls} /></div>}</TableCell>
+                    <TableCell>{formatFechaCaducidad(l.fechaCaducidad)}<EditarCaducidad material={mat} lote={panel.lote} fecha={l.fechaCaducidad} fechaSistema={l.caducidadSistema} />{vg &&<div className="text-[11px]"><StatePill label={vg.txt} cls={vg.cls} /></div>}</TableCell>
                     <TableCell><DetailChevron onOpen={ir} /></TableCell>
                   </TableRow>
                 );

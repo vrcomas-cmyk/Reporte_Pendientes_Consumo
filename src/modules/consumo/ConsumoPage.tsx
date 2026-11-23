@@ -40,7 +40,7 @@ import type { NivelFac, RenglonFac } from '@/core/facPorNivel';
 import { useFacturacionStore } from '@/store/facturacionStore';
 import { FacPorNivel } from './FacPorNivel';
 import { CumplimientoPresupuesto } from './CumplimientoPresupuesto';
-import { filtrarPresupuestoDet, filtrarVentasPto, nombreCoincide, ptoPorMes, type DimCumplimiento, type ResolverPto } from '@/core/ventasPto';
+import { dimensionesPorVendedor, filtrarPresupuestoDet, filtrarVentasPto, nombreCoincide, ptoPorMes, ventasPtoDesdeRF, type DimCumplimiento, type ResolverPto } from '@/core/ventasPto';
 import { toast } from '@/store/toastStore';
 import { ReportPage, PageHeader, ExportButton, FilterBar, FilterSelect, SegmentedControl, ComparisonCard, KpiBand, ResumenColapsable, CollapsibleCard, CalculandoIndices, ALTURA_TABLA, SIN_DATOS } from '@/components/layout/report';
 import { etiquetaMes, resumirMeses } from '@/core/mesesSeleccion';
@@ -399,6 +399,20 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
   }, [fac, presupuestoDet, quick, resolverPto, gerente, a.enrich, estado, clase, q, pasteCodes, prefiltro, ultKey, filterCols]);
   const ptoMapa = useMemo(() => ptoPorMes(ptoFiltrado.filas, ventanaPto.lo, ventanaPto.hi, mesesSel ?? null), [ptoFiltrado, ventanaPto, mesesSel]);
   const ventasPtoFiltradas = useMemo(() => (fac ? filtrarVentasPto(ventasPto, quick, resolverPto) : []), [fac, ventasPto, quick, resolverPto]);
+  // «Cumplimiento por»: sus VENTAS siguen los mismos filtros que la gráfica y el resumen. `ventasPto` (agregado por región / gerencia) no tiene material, así que solo entiende
+  // Ejecutivo y Grupo cliente; cuando hay un filtro que acota filas (material, estado, ABC, búsqueda, sector, grupo, gerente, periodo…) las ventas se recalculan desde las filas de
+  // Resumen_Fac de los mismos cliente × material que pasan (y de las zonas filtradas), con el vendedor y grupo de cliente de cada una.
+  const hayFiltroDeFilas = filteredAgg.length !== rows.length || !!zonasFiltradas;
+  const rfFiltrado = useMemo(() => {
+    if (!fac || !a.rf || !hayFiltroDeFilas) return null;
+    const claves = new Set<string>();
+    for (const r of filteredAgg) claves.add(norm(r.destinatario) + '||' + norm(r.material));
+    return a.rf.rows.filter((r) => claves.has(norm(r.destinatario) + '||' + norm(r.material)) && (!zonasFiltradas || zonasFiltradas.has(a.enrich.zonaDeEjecutivo(r.gpoVdor))));
+  }, [fac, a.rf, a.enrich, hayFiltroDeFilas, filteredAgg, zonasFiltradas]);
+  const ventasCumpl = useMemo(
+    () => (rfFiltrado ? ventasPtoDesdeRF(rfFiltrado, dimensionesPorVendedor(ventasPto, presupuestoDet)) : ventasPtoFiltradas),
+    [rfFiltrado, ventasPto, presupuestoDet, ventasPtoFiltradas],
+  );
   /** Clic en el desglose: aplica ese valor como filtro de la página (Ejecutivo / Grupo cliente; Región y Gerencia → los ejecutivos que pertenecen a ella). */
   const filtrarDesdePto = (dim: DimCumplimiento, clave: string) => {
     let col: string;
@@ -813,7 +827,8 @@ export function ConsumoPage({ modo = 'rep' }: { modo?: 'rep' | 'fac' } = {}) {
         {fac && ventasPto.length > 0 && (
           <CumplimientoPresupuesto
             ventasSerie={aggSerie}
-            ventas={ventasPtoFiltradas}
+            ventas={ventasCumpl}
+            ventasRF={rfFiltrado ?? undefined}
             pto={ptoFiltrado.filas}
             lo={ventanaPto.lo}
             hi={ventanaPto.hi}

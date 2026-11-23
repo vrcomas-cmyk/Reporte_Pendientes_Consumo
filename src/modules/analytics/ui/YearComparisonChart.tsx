@@ -4,6 +4,8 @@ import { TrendingUp, TrendingDown } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import { categorical, CHART_UI } from '@/lib/chartColors';
 import type { AnioComparado } from '@/core/analisisDirectivo';
+import { promedioCerrados, tendenciaVsPromedio } from '@/core/proyeccion';
+import { AFechaConTendencia, ProyectadoTenue, OPACIDAD_PROYECCION } from './ProyeccionTooltip';
 
 type Fila = Record<string, unknown> & { label: string; mesNum: number };
 
@@ -11,11 +13,12 @@ type Fila = Record<string, unknown> & { label: string; mesNum: number };
  * de CADA año en ese mes (marcando "proyectado" en el punteado) y, debajo, el
  * Δ% de cada año contra el año inmediato anterior — para leer de un vistazo
  * "marzo 2026 vs marzo 2025" sin ir a buscar el punto en la línea. */
-function TooltipAnual({ active, payload, anios, colores }: {
+function TooltipAnual({ active, payload, anios, colores, metric }: {
   active?: boolean;
   payload?: { payload?: Fila }[];
   anios: AnioComparado[];
   colores: string[];
+  metric: 'imp' | 'margen';
 }) {
   const row = payload?.[0]?.payload;
   if (!active || !row) return null;
@@ -24,7 +27,12 @@ function TooltipAnual({ active, payload, anios, colores }: {
     const proy = row[`y${a.anio}_proy`] as number | null | undefined;
     const esProy = real == null && proy != null;
     const acum = row[`y${a.anio}_acum`] as number | null | undefined;
-    return { anio: a.anio, valor: real ?? proy ?? null, esProy, acum: esProy ? acum ?? null : null };
+    const valor = real ?? proy ?? null;
+    // Tendencia del mes en curso: su cierre proyectado contra el promedio de los últimos 3 meses cerrados de ese mismo año.
+    const cerrados = a.meses.slice(0, row.mesNum - 1).filter((m) => !m.esProyeccion).map((m) => (metric === 'imp' ? m.imp : m.margen));
+    const promedio = esProy && acum != null ? promedioCerrados(cerrados) : null;
+    const tendencia = valor != null && promedio !== null ? tendenciaVsPromedio(valor, promedio) : null;
+    return { anio: a.anio, valor, esProy, acum: esProy ? acum ?? null : null, tendencia };
   });
   return (
     <div
@@ -36,18 +44,26 @@ function TooltipAnual({ active, payload, anios, colores }: {
         {valores.map((v, i) => {
           const prev = i > 0 ? valores[i - 1].valor : null;
           const delta = v.valor != null && prev != null && prev !== 0 ? ((v.valor - prev) / Math.abs(prev)) * 100 : null;
+          const conAFecha = v.esProy && v.acum != null;
           return (
-            <div key={v.anio} className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block size-2.5 rounded-full" style={{ background: colores[i % colores.length] }} />
-                <span className="font-medium tabular-nums">{v.anio}</span>
-                {v.esProy && <span className="text-[11px] text-text-faint">proyectado</span>}
-                {v.acum != null && <span className="text-[11px] text-text-faint">· a la fecha {formatCurrency(v.acum)}</span>}
-              </span>
+            <div key={v.anio} className="flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-0.5">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block size-2.5 rounded-full" style={{ background: colores[i % colores.length] }} />
+                  <span className="font-medium tabular-nums">{v.anio}</span>
+                  {v.esProy && !conAFecha && <span className="text-[11px] text-text-faint">proyectado</span>}
+                </span>
+                {/* Mes en curso: lo facturado «a la fecha» se lee primero, con su tendencia; el cierre proyectado va del otro lado, en tenue. */}
+                {conAFecha && <div className="pl-4"><AFechaConTendencia valor={formatCurrency(v.acum!)} tendencia={v.tendencia} /></div>}
+              </div>
               <span className="flex items-center gap-2">
-                <span className="tabular-nums">{v.valor == null ? '—' : formatCurrency(v.valor)}</span>
+                {v.valor == null
+                  ? <span className="tabular-nums">—</span>
+                  : conAFecha
+                    ? <ProyectadoTenue valor={formatCurrency(v.valor)} />
+                    : <span className={cn('tabular-nums', v.esProy && 'text-text-faint')}>{formatCurrency(v.valor)}</span>}
                 {delta != null && (
-                  <span className={cn('flex w-14 items-center justify-end gap-0.5 font-medium tabular-nums', delta >= 0 ? 'text-success' : 'text-danger')}>
+                  <span className={cn('flex w-14 items-center justify-end gap-0.5 font-medium tabular-nums', delta >= 0 ? 'text-success' : 'text-danger', v.esProy && 'opacity-70')}>
                     {delta >= 0 ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
                     {`${delta > 0 ? '+' : ''}${delta.toFixed(1)}%`}
                   </span>
@@ -114,8 +130,11 @@ export const YearComparisonChart = memo(function YearComparisonChart({ anios, me
           <XAxis dataKey="label" tick={{ fontSize: 10 }} />
           <YAxis tick={{ fontSize: 10 }} width={54} tickFormatter={(v) => formatCurrency(Number(v))} />
           <Tooltip
-            content={<TooltipAnual anios={anios} colores={colores} />}
+            content={<TooltipAnual anios={anios} colores={colores} metric={metric} />}
             cursor={{ stroke: 'var(--text)', strokeOpacity: 0.08, strokeWidth: 30 }}
+            // Con varios años y el mes en curso el cuadro es alto: que no se recorte ni quede bajo la leyenda.
+            allowEscapeViewBox={{ x: false, y: true }}
+            wrapperStyle={{ zIndex: 40, pointerEvents: 'none' }}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {anios.map((anio, i) => (
@@ -140,6 +159,7 @@ export const YearComparisonChart = memo(function YearComparisonChart({ anios, me
               name={`${anio.anio} · promedio proyectado`}
               stroke={colores[anios.indexOf(anio) % colores.length]}
               strokeWidth={2}
+              strokeOpacity={OPACIDAD_PROYECCION}
               strokeDasharray="5 4"
               dot={false}
               activeDot={{ r: 5 }}

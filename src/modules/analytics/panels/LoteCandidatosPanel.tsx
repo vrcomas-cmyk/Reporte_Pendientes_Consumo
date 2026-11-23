@@ -9,7 +9,7 @@ import { Section } from './_shared';
 import { CentrosFiltroBar } from './CentrosFiltroBar';
 import { ResumenOfertaLotes } from './ResumenOfertaLotes';
 import { consumoEnrich, ejecutivoDeCliente, matchesQuery, norm } from '../helpers';
-import { bucketCaducidad } from '../caducidadBucket';
+import { BUCKETS_CADUCIDAD, bucketCaducidad } from '../caducidadBucket';
 import { usePanelStore, type LoteRef, type Panel } from '@/store/panelStore';
 import { centroPasaFiltro, useCentrosFiltroStore } from '@/store/centrosFiltroStore';
 import { useCentrosOfertaStore } from '@/store/centrosOfertaStore';
@@ -118,6 +118,8 @@ export function LoteCandidatosPanel({ panel, a, push }: { panel: Extract<Panel, 
   const [q, setQ] = useState('');
   const [ejec, setEjec] = useState('');
   const [selDest, setSelDest] = useState('');
+  const [fCentro, setFCentro] = useState('');
+  const [fCad, setFCad] = useState<Set<string>>(new Set());
   const [incluirSust, setIncluirSust] = usePersistedState('loteCandidatos.incluirSust', true);
 
   const ref: LoteRef = useMemo(() => ({ material: panel.material, lote: panel.lote, centro: panel.centro, almacen: panel.almacen }), [panel.material, panel.lote, panel.centro, panel.almacen]);
@@ -223,6 +225,22 @@ export function LoteCandidatosPanel({ panel, a, push }: { panel: Extract<Panel, 
       .sort((x, y) => (x.l.fechaCaducidad || '9999').localeCompare(y.l.fechaCaducidad || '9999') || x.l.material.localeCompare(y.l.material));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activo, consumo, a.bo, a.lotes, ref, ctx, elegidos, panel.material, modos, incluirOtros]);
+
+  const centrosOtros = useMemo(() => [...new Set(otros.map((x) => x.l.centro).filter(Boolean))].sort(), [otros]);
+  const bucketDe = (fecha: string | null | undefined) => { const d = diasA(fecha); return d === null ? null : bucketCaducidad(d).key; };
+  const otrosPorCentro = useMemo(() => otros.filter((x) => !fCentro || x.l.centro === fCentro), [otros, fCentro]);
+  const conteoBucket = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const x of otrosPorCentro) { const k = bucketDe(x.l.fechaCaducidad); if (k) m.set(k, (m.get(k) ?? 0) + 1); }
+    return m;
+  }, [otrosPorCentro]);
+  const otrosVis = useMemo(() => otrosPorCentro.filter((x) => {
+    if (!fCad.size) return true;
+    const k = bucketDe(x.l.fechaCaducidad);
+    return k !== null && fCad.has(k);
+  }), [otrosPorCentro, fCad]);
+  const hayFiltroOtros = !!fCentro || fCad.size > 0;
+  const toggleCad = (k: string) => setFCad((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   const mkItem = (l: InvDetalleRow, c: Candidato): ItemOfertaLote => ({
     clave: claveItemOferta(l.material, l.lote, l.centro, l.almacen, c.destinatario),
@@ -418,10 +436,33 @@ export function LoteCandidatosPanel({ panel, a, push }: { panel: Extract<Panel, 
       </div>
 
       {activo && (
-        <Section title={`Otros lotes para ${activo.razon} · ${otros.length}`} ancho>
+        <Section title={`Otros lotes para ${activo.razon} · ${otrosVis.length}${hayFiltroOtros ? ` de ${otros.length}` : ''}`} ancho>
           <p className="mb-2 text-xs text-text-faint">Lotes con disponible de los materiales que compra o tiene pendientes, que se le pueden ofrecer según la regla de centros de cada lote.</p>
-          {otros.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border px-4 py-4 text-sm text-text-muted">No hay otros lotes disponibles para este cliente con la regla de centros actual.</p>
+          {otros.length > 0 && (
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Select value={fCentro} onChange={(e) => setFCentro(e.target.value)} className="h-8 w-auto text-xs" aria-label="Filtrar por centro">
+                <option value="">Centro (todos)</option>
+                {centrosOtros.map((c) => <option key={c} value={c}>{c}</option>)}
+              </Select>
+              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Rango de caducidad">
+                {BUCKETS_CADUCIDAD.map((b) => {
+                  const n = conteoBucket.get(b.key) ?? 0;
+                  const on = fCad.has(b.key);
+                  return (
+                    <button
+                      key={b.key} type="button" aria-pressed={on} disabled={n === 0 && !on} onClick={() => toggleCad(b.key)}
+                      className={cn('rounded-md border px-2 py-1 text-[11px] font-medium tabular-nums transition-colors disabled:opacity-40', on ? 'border-accent bg-accent-soft text-text' : 'border-border text-text-muted hover:bg-bg-elevated')}
+                    >
+                      {b.rango} · {n}
+                    </button>
+                  );
+                })}
+              </div>
+              {hayFiltroOtros && <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setFCentro(''); setFCad(new Set()); }}>Limpiar</Button>}
+            </div>
+          )}
+          {otrosVis.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border px-4 py-4 text-sm text-text-muted">{otros.length === 0 ? 'No hay otros lotes disponibles para este cliente con la regla de centros actual.' : 'Ningún lote coincide con los filtros de centro y caducidad.'}</p>
           ) : (
             <Table className="tabular-nums" wrapperClassName="max-h-80 rounded-lg border border-border">
               <TableHeader>
@@ -432,7 +473,7 @@ export function LoteCandidatosPanel({ panel, a, push }: { panel: Extract<Panel, 
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {otros.map(({ l, c, alcance }, i) => {
+                {otrosVis.map(({ l, c, alcance }, i) => {
                   const it = mkItem(l, c);
                   return (
                     <TableRow key={`${it.clave}|${i}`} tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') irALote({ material: l.material, lote: l.lote, centro: l.centro, almacen: l.almacen }); }} className={cn('cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent', alcance === 'excepcion' && 'opacity-60')} onClick={() => irALote({ material: l.material, lote: l.lote, centro: l.centro, almacen: l.almacen })} title="Clic = ver los candidatos de este lote">

@@ -79,6 +79,51 @@ export function isDetailHidden(perms: EffectivePermissions, moduleKey: string, d
   return perms.hiddenDetails.get(moduleKey)?.has(detailKey) ?? false;
 }
 
+// ---------------------------------------------------------------------------
+// Copia local de los últimos permisos buenos (modo degradado cuando Supabase no responde). Solo acomoda la interfaz: el acceso real lo sigue
+// imponiendo el servidor (RLS, funciones `datos` y `envios`), así que una copia manipulada en el navegador no da acceso a datos.
+// ---------------------------------------------------------------------------
+export interface PermisosSerializados {
+  isAdmin: boolean;
+  roleId: string | null;
+  roleName: string | null;
+  allowedModules: string[] | null;
+  hiddenColumns: [string, string[]][];
+  hiddenDetails: [string, string[]][];
+  datos: DatosUsuario;
+}
+
+const aPares = (m: Map<string, Set<string>>): [string, string[]][] => [...m].map(([k, v]) => [k, [...v]]);
+const dePares = (p: unknown): Map<string, Set<string>> =>
+  new Map((Array.isArray(p) ? p : []).filter((x): x is [string, unknown] => Array.isArray(x) && typeof x[0] === 'string')
+    .map(([k, v]) => [k, new Set(Array.isArray(v) ? v.map(String) : [])]));
+
+export function serializarPermisos(p: EffectivePermissions): PermisosSerializados {
+  return {
+    isAdmin: p.isAdmin, roleId: p.roleId, roleName: p.roleName,
+    allowedModules: p.allowedModules ? [...p.allowedModules] : null,
+    hiddenColumns: aPares(p.hiddenColumns), hiddenDetails: aPares(p.hiddenDetails), datos: p.datos,
+  };
+}
+
+/** Reconstruye los permisos; devuelve null si lo guardado no tiene la forma esperada (nunca lanza). */
+export function deserializarPermisos(raw: unknown): EffectivePermissions | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Partial<PermisosSerializados>;
+  if (typeof o.isAdmin !== 'boolean') return null;
+  if (o.allowedModules !== null && !Array.isArray(o.allowedModules)) return null;
+  const datos = o.datos && typeof o.datos === 'object' ? { ...DATOS_ABIERTOS, ...(o.datos as Partial<DatosUsuario>) } : DATOS_ABIERTOS;
+  return {
+    isAdmin: o.isAdmin,
+    roleId: typeof o.roleId === 'string' ? o.roleId : null,
+    roleName: typeof o.roleName === 'string' ? o.roleName : null,
+    allowedModules: o.allowedModules ? new Set(o.allowedModules.map(String)) : null,
+    hiddenColumns: dePares(o.hiddenColumns),
+    hiddenDetails: dePares(o.hiddenDetails),
+    datos,
+  };
+}
+
 /** Builds an `EffectivePermissions` from the raw role + grant rows. Shared by
  * permissionsService (real Supabase data) and its tests. Override rows
  * (subjectType 'user') always win over the role's rows for the same

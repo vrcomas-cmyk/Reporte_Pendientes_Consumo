@@ -1,5 +1,7 @@
 import { StatePill } from '@/modules/analytics/ui';
 import { AccesoDatosTab } from './AccesoDatosTab';
+import { EnviosTab } from './EnviosTab';
+import { PREFIJO_CFG_ENVIOS } from '@/core/enviosConfig';
 import { ReportPage, PageHeader } from '@/components/layout/report';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -45,6 +47,7 @@ export function AdminPage() {
           <TabsTrigger value="overrides">Overrides por usuario</TabsTrigger>
           <TabsTrigger value="datos">Acceso a datos</TabsTrigger>
           <TabsTrigger value="conectores">Conectores</TabsTrigger>
+          <TabsTrigger value="envios">Envíos</TabsTrigger>
           <TabsTrigger value="compatibilidad">Compatibilidad</TabsTrigger>
           <TabsTrigger value="nombres">Nombres</TabsTrigger>
           <TabsTrigger value="filtros">Filtros</TabsTrigger>
@@ -54,6 +57,7 @@ export function AdminPage() {
         <TabsContent value="overrides"><PermissionsTab subjectType="user" /></TabsContent>
         <TabsContent value="datos"><AccesoDatosTab /></TabsContent>
         <TabsContent value="conectores"><ConectoresTab /></TabsContent>
+        <TabsContent value="envios"><EnviosTab /></TabsContent>
         <TabsContent value="compatibilidad"><PesosTab /></TabsContent>
         <TabsContent value="nombres"><NombresTab /></TabsContent>
         <TabsContent value="filtros"><FiltrosTab /></TabsContent>
@@ -600,7 +604,7 @@ function ConectoresTab() {
     // Los pesos del score (fase 5) viven en la misma tabla pero tienen su
     // propia pestaña "Compatibilidad" con mejor UX (números, no URLs) — se
     // excluyen aquí para no duplicar la edición en dos lugares.
-    const rows = (await listConnectors()).filter((r) => !r.key.startsWith(SCORING_WEIGHT_PREFIX) && !r.key.startsWith(NOMBRES_PREFIX) && !r.key.startsWith(FILTROS_PREFIX));
+    const rows = (await listConnectors()).filter((r) => !r.key.startsWith(SCORING_WEIGHT_PREFIX) && !r.key.startsWith(NOMBRES_PREFIX) && !r.key.startsWith(FILTROS_PREFIX) && !r.key.startsWith(PREFIJO_CFG_ENVIOS));
     setConnectors(rows);
     setDrafts(Object.fromEntries(rows.map((r) => [r.key, r.value ?? ''])));
   }, []);

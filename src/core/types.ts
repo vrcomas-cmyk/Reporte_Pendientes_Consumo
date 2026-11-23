@@ -74,6 +74,9 @@ export interface InvDetalleRow {
   fechaCaducidad: string | null;
   cantidadDisp: number;
   precioOferta?: number;
+  /** La caducidad fue corregida a mano (hoja Ajustes_Caducidad); `caducidadSistema` guarda la que traía el sistema. */
+  caducidadAjustada?: boolean;
+  caducidadSistema?: string | null;
 }
 
 /** A row from "Todas las Sugerencias" — the core pending-order suggestion feed. */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { proyectarMesCorriente, fraccionMes, diasDelMes } from './proyeccion';
+import { proyectarMesCorriente, fraccionMes, diasDelMes, tendenciaVsPromedio, promedioCerrados } from './proyeccion';
 
 const dia = (d: number) => new Date(2026, 9, d); // octubre 2026 (31 días)
 
@@ -51,5 +51,35 @@ describe('fraccionMes / diasDelMes', () => {
   it('febrero bisiesto y no bisiesto', () => {
     expect(diasDelMes(new Date(2024, 1, 10))).toBe(29);
     expect(diasDelMes(new Date(2026, 1, 10))).toBe(28);
+  });
+});
+
+describe('tendenciaVsPromedio', () => {
+  it('por encima / por debajo del promedio marca sube / baja con su porcentaje', () => {
+    expect(tendenciaVsPromedio(220, 200)).toEqual({ dir: 'up', pct: 10 });
+    expect(tendenciaVsPromedio(150, 200)).toEqual({ dir: 'down', pct: -25 });
+  });
+
+  it('dentro del umbral (±2 %) es estable', () => {
+    expect(tendenciaVsPromedio(203, 200)?.dir).toBe('flat');
+    expect(tendenciaVsPromedio(197, 200)?.dir).toBe('flat');
+    expect(tendenciaVsPromedio(204, 200)?.dir).toBe('up');
+  });
+
+  it('sin promedio positivo o con valores no finitos no hay tendencia', () => {
+    expect(tendenciaVsPromedio(100, 0)).toBeNull();
+    expect(tendenciaVsPromedio(100, -5)).toBeNull();
+    expect(tendenciaVsPromedio(NaN, 100)).toBeNull();
+  });
+});
+
+describe('promedioCerrados', () => {
+  it('promedia solo los últimos 3 valores válidos', () => {
+    expect(promedioCerrados([10, 100, 200, 300])).toBe(200);
+    expect(promedioCerrados([null, 100, undefined, 300])).toBe(200);
+  });
+  it('sin valores válidos devuelve null', () => {
+    expect(promedioCerrados([])).toBeNull();
+    expect(promedioCerrados([null, undefined])).toBeNull();
   });
 });

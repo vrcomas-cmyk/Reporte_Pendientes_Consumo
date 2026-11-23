@@ -1,56 +1,96 @@
 import { supabase } from '@/lib/supabaseClient';
-import { computeEffectivePermissions, DATOS_ABIERTOS, type DatosUsuario, type EffectivePermissions, type PermissionRow, type RoleRow } from '@/core/permissions';
+import { computeEffectivePermissions, DATOS_ABIERTOS, deserializarPermisos, serializarPermisos, type DatosUsuario, type EffectivePermissions, type PermissionRow, type RoleRow } from '@/core/permissions';
 
 export interface ModuleRow { key: string; label: string; sortOrder: number }
 export interface AllowedUserRow { email: string; displayName: string | null; roleId: string | null; roleName: string | null }
 
-/** Fetches the signed-in user's role + every permission row that applies to
- * them (their role's rows, plus any user-level override for their email —
- * overrides are appended last so `computeEffectivePermissions`'s last-write-
- * wins per (module,scope,item) naturally lets them win). Never throws — a
- * missing migration (tables not created yet) or any other fetch error falls
- * back to unrestricted, same as before this feature existed, so it can never
- * newly lock someone out just because /admin hasn't been set up yet. */
-export async function loadEffectivePermissions(email: string): Promise<EffectivePermissions> {
+/** De dónde salieron los permisos: `servidor` (lectura buena), `cache` (el servidor no respondió y se usaron los últimos permisos buenos de este
+ * mismo usuario → modo degradado) o `error` (no respondió y no hay copia: no se concede nada). */
+export type OrigenPermisos = 'servidor' | 'cache' | 'error';
+export interface ResultadoPermisos { perms: EffectivePermissions; origen: OrigenPermisos }
+
+const CACHE_PERMISOS_KEY = 'degasa_perms_cache_v1';
+const CACHE_PERMISOS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const BACKOFF_PERMISOS_MS: readonly number[] = [1000, 3000, 7000];
+/** Con copia local no se hace esperar al usuario: si el servidor no contesta en este plazo se entra con la copia y se reintenta en segundo plano. */
+const PLAZO_CON_CACHE_MS = 8000;
+
+export function leerCachePermisos(email: string): EffectivePermissions | null {
   try {
-    const { data: userRow, error: userErr } = await supabase
-      .from('degasa_allowed_users')
-      .select('role_id, degasa_roles(id, name, is_admin)')
-      .eq('email', email)
-      .maybeSingle();
-    if (userErr) throw userErr;
+    const raw = localStorage.getItem(CACHE_PERMISOS_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw) as { email?: string; ts?: number; perms?: unknown };
+    if (c.email !== email.toLowerCase() || typeof c.ts !== 'number' || Date.now() - c.ts > CACHE_PERMISOS_TTL_MS) return null;
+    return deserializarPermisos(c.perms);
+  } catch { return null; }
+}
+export function guardarCachePermisos(email: string, perms: EffectivePermissions): void {
+  try { localStorage.setItem(CACHE_PERMISOS_KEY, JSON.stringify({ email: email.toLowerCase(), ts: Date.now(), perms: serializarPermisos(perms) })); } catch { /* storage no disponible */ }
+}
+export function borrarCachePermisos(): void {
+  try { localStorage.removeItem(CACHE_PERMISOS_KEY); } catch { /* noop */ }
+}
 
-    const roleData = userRow?.degasa_roles as unknown as { id: string; name: string; is_admin: boolean } | null | undefined;
-    const role: RoleRow | null = roleData ? { id: roleData.id, name: roleData.name, isAdmin: roleData.is_admin } : null;
+const esperar = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const rechazarEn = (ms: number) => new Promise<never>((_, rej) => setTimeout(() => rej(new Error('plazo agotado')), ms));
 
-    if (!role || role.isAdmin) {
-      return computeEffectivePermissions(role, [], { ...DATOS_ABIERTOS, email });
-    }
-    const datos = await loadDatosUsuario(email, role.id);
-
-    const { data: permRows, error: permErr } = await supabase
-      .from('degasa_permissions')
-      .select('subject_type, subject_id, module_key, scope, item_key, allowed')
-      .or(`and(subject_type.eq.role,subject_id.eq.${role.id}),and(subject_type.eq.user,subject_id.eq."${email.replace(/["\\]/g, '')}")`);
-    if (permErr) throw permErr;
-
-    const rows: PermissionRow[] = (permRows ?? []).map((r) => ({
-      subjectType: r.subject_type as 'role' | 'user',
-      subjectId: r.subject_id,
-      moduleKey: r.module_key,
-      scope: r.scope as 'module' | 'column' | 'detail',
-      itemKey: r.item_key ?? '',
-      allowed: r.allowed,
-    }));
-    // Role rows first, user-override rows last, so overrides win.
-    rows.sort((a, b) => (a.subjectType === b.subjectType ? 0 : a.subjectType === 'user' ? 1 : -1));
-
-    return computeEffectivePermissions(role, rows, datos);
-  } catch {
-    // Fail-closed: si no se pudieron leer los permisos (Supabase saturado), NO
-    // se concede admin. Rol sin permisos → ModuleGuard no muestra módulos.
-    return computeEffectivePermissions({ id: '__sin_acceso__', name: 'Sin acceso (error al cargar)', isAdmin: false }, []);
+/** Carga los permisos del usuario con sesión: su rol + cada fila de permiso que le aplica (las del rol, más las excepciones propias — van al final para que
+ * `computeEffectivePermissions` deje ganar al usuario). Nunca lanza.
+ *
+ * Si Supabase no responde (saturado/caído) NO se interpreta como «sin acceso»: se reintenta con backoff y, si hay una copia vigente de los últimos permisos
+ * buenos de este mismo usuario, se usa (`origen: 'cache'`). Sin copia queda fail-closed (`origen: 'error'`: ningún módulo), pero la pantalla lo dice tal cual
+ * y ofrece reintentar. El acceso real a los datos lo impone el servidor, no esta copia. */
+export async function loadEffectivePermissions(email: string, opts: { esperas?: readonly number[]; plazoMs?: number } = {}): Promise<ResultadoPermisos> {
+  const copia = leerCachePermisos(email);
+  const esperas = opts.esperas ?? (copia ? [] : BACKOFF_PERMISOS_MS);
+  const plazoMs = opts.plazoMs ?? (copia ? PLAZO_CON_CACHE_MS : 0);
+  for (let i = 0; i <= esperas.length; i++) {
+    try {
+      const perms = await (plazoMs > 0 ? Promise.race([leerPermisosDelServidor(email), rechazarEn(plazoMs)]) : leerPermisosDelServidor(email));
+      guardarCachePermisos(email, perms);
+      return { perms, origen: 'servidor' };
+    } catch { /* timeout / red / error del servidor: se reintenta */ }
+    if (i < esperas.length) await esperar(esperas[i]);
   }
+  if (copia) return { perms: copia, origen: 'cache' };
+  return { perms: computeEffectivePermissions({ id: '__sin_acceso__', name: 'Sin acceso (error al cargar)', isAdmin: false }, []), origen: 'error' };
+}
+
+/** Una lectura de los permisos desde Supabase; LANZA ante cualquier error (el que decide qué hacer es `loadEffectivePermissions`). */
+async function leerPermisosDelServidor(email: string): Promise<EffectivePermissions> {
+  const { data: userRow, error: userErr } = await supabase
+    .from('degasa_allowed_users')
+    .select('role_id, degasa_roles(id, name, is_admin)')
+    .eq('email', email)
+    .maybeSingle();
+  if (userErr) throw userErr;
+
+  const roleData = userRow?.degasa_roles as unknown as { id: string; name: string; is_admin: boolean } | null | undefined;
+  const role: RoleRow | null = roleData ? { id: roleData.id, name: roleData.name, isAdmin: roleData.is_admin } : null;
+
+  if (!role || role.isAdmin) {
+    return computeEffectivePermissions(role, [], { ...DATOS_ABIERTOS, email });
+  }
+  const datos = await loadDatosUsuario(email, role.id);
+
+  const { data: permRows, error: permErr } = await supabase
+    .from('degasa_permissions')
+    .select('subject_type, subject_id, module_key, scope, item_key, allowed')
+    .or(`and(subject_type.eq.role,subject_id.eq.${role.id}),and(subject_type.eq.user,subject_id.eq."${email.replace(/["\\]/g, '')}")`);
+  if (permErr) throw permErr;
+
+  const rows: PermissionRow[] = (permRows ?? []).map((r) => ({
+    subjectType: r.subject_type as 'role' | 'user',
+    subjectId: r.subject_id,
+    moduleKey: r.module_key,
+    scope: r.scope as 'module' | 'column' | 'detail',
+    itemKey: r.item_key ?? '',
+    allowed: r.allowed,
+  }));
+  // Role rows first, user-override rows last, so overrides win.
+  rows.sort((a, b) => (a.subjectType === b.subjectType ? 0 : a.subjectType === 'user' ? 1 : -1));
+
+  return computeEffectivePermissions(role, rows, datos);
 }
 
 export async function listRoles(): Promise<RoleRow[]> {

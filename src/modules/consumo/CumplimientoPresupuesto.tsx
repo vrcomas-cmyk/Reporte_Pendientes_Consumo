@@ -9,7 +9,7 @@ import type { PtoFila, VentasPtoRow } from '@/core/facturacionLibros';
 import { esMesValido, mesCanon, mesKey, mesLabel } from '@/core/resumenFac';
 import {
   ETIQUETA_DIM_CUMPL, ORDEN_DIM_CUMPL, mesElegidoPorOmision, mesesDisponibles, ptoPorMes, rangoCumplimiento, rankingCumplimiento, rankingSectorGrupo,
-  type DimCumplimiento, type FiltroActivo, type ModoCumplimiento, type ResolverDetalle,
+  type DimCumplimiento, type FilaVentaRF, type FiltroActivo, type ModoCumplimiento, type ResolverDetalle,
 } from '@/core/ventasPto';
 import type { Analytics } from '@/modules/analytics/AnalyticsContext';
 import { claseCumpl } from './cumplimiento';
@@ -31,12 +31,14 @@ const MODOS: { value: ModoCumplimiento; label: string; title: string }[] = [
  *    su fila abre debajo su presupuesto y venta mes a mes, y dos botones: filtrar la página por él, o abrir ese detalle en el panel lateral. En las demás dimensiones un clic
  *    APLICA ese valor como filtro de la página, así gráfica, tabla y paneles siguen coincidiendo. */
 export function CumplimientoPresupuesto({
-  ventasSerie, ventas, pto, lo, hi, mesesSel, ignorados, hayDetalle, storageKey, onFiltrar, nombreDe, a, filtros, sectorPasa, onAbrirColaborador,
+  ventasSerie, ventas, ventasRF, pto, lo, hi, mesesSel, ignorados, hayDetalle, storageKey, onFiltrar, nombreDe, a, filtros, sectorPasa, onAbrirColaborador,
 }: {
   /** Serie de importe de la gráfica «Facturación mensual» (con todos los filtros): de aquí salen las ventas del resumen, para que coincidan con ella. */
   ventasSerie: readonly { mes: string; imp: number }[];
   /** Ventas por región/gerencia/gpo. (solo con los filtros que tienen esas dimensiones) y presupuesto filtrado. */
   ventas: readonly VentasPtoRow[];
+  /** Filas de Resumen_Fac que pasan TODOS los filtros de la página (para el desglose por Sector / Grupo de artículo); sin esto se usan todas las del libro. */
+  ventasRF?: readonly FilaVentaRF[];
   pto: readonly PtoFila[];
   /** Ventana de meses de la página (escala `mesKey`) y selección concreta de meses. */
   lo: number;
@@ -103,10 +105,11 @@ export function CumplimientoPresupuesto({
   const ranking = useMemo(() => {
     if (!abierto) return [];
     if (dim === 'sector' || dim === 'grupo') {
-      return rankingSectorGrupo(a.rf ? indiceVentasPorVdor(a.rf.rows) : new Map(), pto, dim, filtros, resolver, ef.lo, ef.hi, ef.meses, sectorPasa);
+      const filasRF = ventasRF ?? a.rf?.rows;
+      return rankingSectorGrupo(filasRF ? indiceVentasPorVdor(filasRF) : new Map(), pto, dim, filtros, resolver, ef.lo, ef.hi, ef.meses, sectorPasa);
     }
     return rankingCumplimiento(ventas, pto, dim, ef.lo, ef.hi, ef.meses);
-  }, [abierto, dim, a.rf, ventas, pto, filtros, resolver, ef, sectorPasa]);
+  }, [abierto, dim, a.rf, ventas, ventasRF, pto, filtros, resolver, ef, sectorPasa]);
 
   if (!hayDetalle) {
     return (

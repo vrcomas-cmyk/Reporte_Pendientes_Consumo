@@ -17,6 +17,7 @@
 import { ALMACEN_CORTA_CADUCIDAD, libreReal, MESES_MAX_CORTA_CADUCIDAD, vigenciaCorta } from './inventoryRules';
 import { claveMaterial, formatearFecha, indiceColumna, normalizarEncabezado, detectarOrdenFechas, numero, parsearFechaSheet, type HojaIndexada } from './pedidos';
 import { CENTERS, type InvConsolidadoRow, type InvDetalleRow } from './types';
+import { fechaLocalDeIso, type BuscarAjuste } from './ajusteCaducidad';
 
 export type MotivoLote = 'VIGENCIA' | 'ALMACEN_1032' | 'AMBOS';
 
@@ -57,6 +58,9 @@ export interface LoteCondicion {
   bloqueado: number;
   /** Por qué es corta caducidad; `null` si no lo es. */
   motivo: MotivoLote | null;
+  /** La caducidad viene de un ajuste manual (hoja Ajustes_Caducidad); `caducidadSistema` es la que traía el libro. */
+  caducidadAjustada?: boolean;
+  caducidadSistema?: string | null;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -75,7 +79,7 @@ export function clasificarLote(l: { libre: number; almacen: string; fecha: Date 
 }
 
 /** Todos los lotes de la hoja "Corta caducidad", cada uno con su clasificación. Nada se descarta. */
-export function parsearLotes(h: HojaIndexada, hoy: Date = new Date()): LoteCondicion[] {
+export function parsearLotes(h: HojaIndexada, hoy: Date = new Date(), ajuste?: BuscarAjuste): LoteCondicion[] {
   const n = h.nombres;
   const iMeses = n.indexOf('meses'); // solo coincidencia exacta: una columna que apenas contenga «meses» no es esta
   const [iCentro, iAlm, iLote, iFecha, iLibre, iTransito, iBloq, iTexto] = [
@@ -87,15 +91,20 @@ export function parsearLotes(h: HojaIndexada, hoy: Date = new Date()): LoteCondi
   return h.rows.flatMap((f) => {
     const material = claveMaterial(f[h.idxMaterial]);
     if (!material) return [];
-    const fecha = parsearFechaSheet(f[iFecha], orden);
+    const loteTxt = String(f[iLote] ?? '').trim();
+    const fechaSistema = parsearFechaSheet(f[iFecha], orden);
+    // Un ajuste manual manda sobre la fecha del libro y se aplica ANTES de clasificar (cambia si es corta caducidad).
+    const aj = ajuste?.(material, loteTxt);
+    const fecha = aj ? fechaLocalDeIso(aj.fecha) ?? fechaSistema : fechaSistema;
     const lote: LoteCondicion = {
       material,
       textoBreve: String(f[iTexto] ?? '').trim(),
       centro: claveMaterial(f[iCentro]),
       almacen: claveMaterial(f[iAlm]),
-      lote: String(f[iLote] ?? '').trim(),
+      lote: loteTxt,
       fechaCaducidad: isoDe(fecha),
       fecha,
+      ...(aj ? { caducidadAjustada: true, caducidadSistema: isoDe(fechaSistema) } : {}),
       meses: iMeses === -1 || String(f[iMeses] ?? '').trim() === '' ? null : numero(f[iMeses]),
       libre: numero(f[iLibre]),
       transito: numero(f[iTransito]),
@@ -115,7 +124,7 @@ export const lotesBloqueados = (lotes: LoteCondicion[]): LoteCondicion[] => lote
 export function lotesDeCondicion(lotes: LoteCondicion[]): InvDetalleRow[] {
   return lotes
     .filter((l) => l.motivo !== null)
-    .map((l) => ({ material: l.material, textoBreve: l.textoBreve, centro: l.centro, almacen: l.almacen, lote: l.lote, fechaCaducidad: l.fechaCaducidad, cantidadDisp: l.libre }));
+    .map((l) => ({ material: l.material, textoBreve: l.textoBreve, centro: l.centro, almacen: l.almacen, lote: l.lote, fechaCaducidad: l.fechaCaducidad, cantidadDisp: l.libre, ...(l.caducidadAjustada ? { caducidadAjustada: true, caducidadSistema: l.caducidadSistema ?? null } : {}) }));
 }
 
 /** Lotes que SÍ cumplen la regla de corta caducidad por almacén 1032 y/o vigencia ≤ 12 meses pero NO tienen Libre utilización ≥ 1 (en cero o bloqueados):
@@ -123,7 +132,7 @@ export function lotesDeCondicion(lotes: LoteCondicion[]): InvDetalleRow[] {
 export function lotesSinLibre(lotes: LoteCondicion[], hoy: Date = new Date()): InvDetalleRow[] {
   return lotes
     .filter((l) => l.motivo === null && l.libre < 1 && clasificarLote({ libre: 1, almacen: l.almacen, fecha: l.fecha, meses: l.meses }, hoy) !== null)
-    .map((l) => ({ material: l.material, textoBreve: l.textoBreve, centro: l.centro, almacen: l.almacen, lote: l.lote, fechaCaducidad: l.fechaCaducidad, cantidadDisp: 0 }));
+    .map((l) => ({ material: l.material, textoBreve: l.textoBreve, centro: l.centro, almacen: l.almacen, lote: l.lote, fechaCaducidad: l.fechaCaducidad, cantidadDisp: 0, ...(l.caducidadAjustada ? { caducidadAjustada: true, caducidadSistema: l.caducidadSistema ?? null } : {}) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +145,8 @@ export interface OpcionesFilas {
   sectorDe?: (material: string) => string;
   grupoDe?: (material: string) => string;
   precioDe?: (material: string) => number;
+  /** Ajustes manuales de caducidad por material + lote (hoja Ajustes_Caducidad); se aplican antes de clasificar la corta caducidad. */
+  ajusteCaducidad?: BuscarAjuste;
 }
 
 /** Libre real y tránsito de Disponibilidad por material|centro|almacén. */
@@ -217,7 +228,7 @@ export function filasInvCondicion(hojas: HojaIndexada[], o: OpcionesFilas = {}):
 
   // --- Corta caducidad: lotes clasificados, inventario = suma de Libre utilización por centro -----------------
   const hojaLotes = hoja('Corta caducidad');
-  const lotes = hojaLotes ? parsearLotes(hojaLotes, hoy) : [];
+  const lotes = hojaLotes ? parsearLotes(hojaLotes, hoy, o.ajusteCaducidad) : [];
   const porMaterial = new Map<string, LoteCondicion[]>();
   for (const l of lotes) if (l.motivo) porMaterial.set(l.material, [...(porMaterial.get(l.material) ?? []), l]);
   for (const [material, ls] of porMaterial) {

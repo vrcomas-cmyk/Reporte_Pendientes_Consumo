@@ -14,6 +14,8 @@ export const loteKey = (material: string, centro: string) => `${norm(material)}|
 export function buildLotesSheet(
   lotes: InvDetalleRow[],
   incluir: (l: InvDetalleRow) => boolean,
+  /** Precio de respaldo cuando el lote no trae `precioOferta` (p. ej. el precio autorizado de su condición). */
+  precioDe?: (l: InvDetalleRow) => number,
 ): Record<string, unknown>[] {
   return lotes
     .filter(incluir)
@@ -21,7 +23,9 @@ export function buildLotesSheet(
       norm(a.material).localeCompare(norm(b.material)) ||
       norm(a.centro).localeCompare(norm(b.centro)) ||
       norm(a.fechaCaducidad).localeCompare(norm(b.fechaCaducidad)))
-    .map((l) => ({
+    .map((l) => {
+      const precio = l.precioOferta && l.precioOferta > 0 ? l.precioOferta : (precioDe?.(l) ?? 0);
+      return {
       Material: l.material,
       Descripción: l.textoBreve,
       Centro: l.centro,
@@ -29,6 +33,7 @@ export function buildLotesSheet(
       Lote: l.lote,
       Caducidad: formatFechaCaducidad(l.fechaCaducidad),
       Cantidad: l.cantidadDisp,
-      'Precio lote': l.precioOferta && l.precioOferta > 0 ? l.precioOferta : '',
-    }));
+      'Precio lote': precio > 0 ? precio : '',
+      };
+    });
 }

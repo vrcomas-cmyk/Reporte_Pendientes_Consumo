@@ -17,6 +17,16 @@ export function moverColumna(actual: readonly string[], de: string, a: string): 
   return lista;
 }
 
+/** Coloca `key` en la posición `pos` (1 = primera; se acota al rango válido) y recorre las demás: la que estaba ahí y las siguientes pasan a la siguiente
+ * posición. Es lo que se escribe en el menú «Columnas» (poner la 10 como 1 → la 10 va primero y la que era 1 pasa a ser la 2). */
+export function colocarColumna(actual: readonly string[], key: string, pos: number): string[] {
+  if (!actual.includes(key) || !Number.isFinite(pos)) return [...actual];
+  const destino = Math.min(Math.max(Math.trunc(pos), 1), actual.length) - 1;
+  const lista = actual.filter((k) => k !== key);
+  lista.splice(destino, 0, key);
+  return lista;
+}
+
 /** Firma corta del orden (cambia el orden → cambia la firma): los anchos de columna guardados van por posición, así que cada orden tiene los suyos. */
 export function firmaOrden(orden: readonly string[]): string {
   if (!orden.length) return 'base';
