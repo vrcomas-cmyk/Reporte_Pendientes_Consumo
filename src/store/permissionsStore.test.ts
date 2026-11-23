@@ -3,6 +3,8 @@ import { computeEffectivePermissions } from '@/core/permissions';
 
 const cargar = vi.fn();
 vi.mock('@/services/permissionsService', () => ({ loadEffectivePermissions: (...a: unknown[]) => cargar(...a) }));
+const reparar = vi.fn();
+vi.mock('@/lib/sesion', () => ({ repararSesion: () => reparar() }));
 const warning = vi.fn();
 vi.mock('@/store/toastStore', () => ({ toast: { warning: (...a: unknown[]) => warning(...a) } }));
 
@@ -11,7 +13,7 @@ import { usePermissionsStore } from './permissionsStore';
 const admin = computeEffectivePermissions({ id: 'a', name: 'Admin', isAdmin: true }, []);
 const ventas = computeEffectivePermissions({ id: 'r', name: 'Ventas', isAdmin: false }, []);
 
-beforeEach(() => { vi.useFakeTimers(); cargar.mockReset(); warning.mockReset(); usePermissionsStore.getState().reset(); });
+beforeEach(() => { vi.useFakeTimers(); cargar.mockReset(); reparar.mockReset(); warning.mockReset(); usePermissionsStore.getState().reset(); });
 afterEach(() => { usePermissionsStore.getState().reset(); vi.useRealTimers(); });
 
 describe('permissionsStore · estados', () => {
@@ -60,5 +62,31 @@ describe('permissionsStore · estados', () => {
     cargar.mockResolvedValue({ perms: admin, origen: 'servidor' });
     await Promise.all([usePermissionsStore.getState().load('a@x.com'), usePermissionsStore.getState().load('a@x.com')]);
     expect(cargar).toHaveBeenCalledTimes(1);
+  });
+
+  it('el token fue rechazado y el servidor confirma que la sesión ya no vale → se reinicia el estado (useAuth mostrará el inicio de sesión)', async () => {
+    cargar.mockResolvedValue({ perms: ventas, origen: 'sesion' });
+    reparar.mockResolvedValue('cerrada');
+    await usePermissionsStore.getState().load('a@x.com');
+    expect(usePermissionsStore.getState()).toMatchObject({ estado: 'cargando', loaded: false });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(cargar).toHaveBeenCalledTimes(1); // no queda reintentando con una sesión muerta
+  });
+
+  it('el token fue rechazado pero la sesión se renovó → vuelve a leer una vez y queda ok', async () => {
+    cargar.mockResolvedValueOnce({ perms: ventas, origen: 'sesion' }).mockResolvedValueOnce({ perms: admin, origen: 'servidor' });
+    reparar.mockResolvedValue('ok');
+    await usePermissionsStore.getState().load('a@x.com');
+    expect(usePermissionsStore.getState()).toMatchObject({ estado: 'ok', loaded: true });
+    expect(cargar).toHaveBeenCalledTimes(2);
+  });
+
+  it('el token fue rechazado y no se pudo saber si la sesión vale (servidor saturado) → estado error con reintento, sin cerrar la sesión', async () => {
+    cargar.mockResolvedValueOnce({ perms: ventas, origen: 'sesion' }).mockResolvedValue({ perms: admin, origen: 'servidor' });
+    reparar.mockResolvedValue('incierto');
+    await usePermissionsStore.getState().load('a@x.com');
+    expect(usePermissionsStore.getState()).toMatchObject({ estado: 'error', loaded: true });
+    await vi.advanceTimersByTimeAsync(20_000); // el reintento automático lo recupera
+    expect(usePermissionsStore.getState().estado).toBe('ok');
   });
 });

@@ -8,13 +8,19 @@ if (!url || !key) {
 }
 
 const SUPABASE_TIMEOUT_MS = 15_000;
+/** Las llamadas de Auth (renovar el token, validar la sesión) esperan más. Si se abortan a los 15 s la renovación nunca llega a una respuesta definitiva: el cliente
+ * toma el aborto por un fallo de red, reintenta para siempre y nunca descubre que la sesión guardada ya no vale (el usuario tenía que borrar el caché del navegador). */
+const AUTH_TIMEOUT_MS = 30_000;
+
+const urlDe = (input: RequestInfo | URL): string => (typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+export const timeoutDe = (input: RequestInfo | URL): number => (urlDe(input).includes('/auth/v1/') ? AUTH_TIMEOUT_MS : SUPABASE_TIMEOUT_MS);
 
 /** fetch con timeout propio (no reusa fetchWithTimeout: ese importa datosProxy,
  * que a su vez importa este módulo → import circular). Evita que un Supabase
  * saturado deje consultas/refresh de token colgados para siempre. */
 function fetchConTimeout(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutDe(input));
   // Respeta una señal externa (p.ej. la del propio cliente) además del timeout.
   const externa = init.signal;
   if (externa) {

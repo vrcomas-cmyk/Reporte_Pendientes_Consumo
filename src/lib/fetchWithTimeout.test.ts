@@ -5,6 +5,9 @@ vi.mock('@/services/datosProxy', () => ({
   cabecerasProxy: async () => ({ Authorization: 'Bearer t' }),
 }));
 
+const repararSesion = vi.fn(async () => 'incierto' as 'ok' | 'cerrada' | 'incierto');
+vi.mock('@/lib/sesion', () => ({ repararSesion: () => repararSesion() }));
+
 import { fetchWithTimeout } from './fetchWithTimeout';
 
 const PROXY = 'https://proxy.test/datos/x?a=1';
@@ -13,7 +16,7 @@ const ESPERAS = [1, 1];
 const resp = (status: number) => new Response('{}', { status });
 
 let fetchMock: ReturnType<typeof vi.fn>;
-beforeEach(() => { fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock); });
+beforeEach(() => { fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock); repararSesion.mockReset(); repararSesion.mockResolvedValue('incierto'); });
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('fetchWithTimeout · reintentos al proxy de datos', () => {
@@ -70,5 +73,37 @@ describe('fetchWithTimeout · reintentos al proxy de datos', () => {
     fetchMock.mockResolvedValue(resp(200));
     await fetchWithTimeout(PROXY, { headers: { 'X-Otro': '1' } }, 1000, ESPERAS);
     expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toEqual({ 'X-Otro': '1', Authorization: 'Bearer t' });
+  });
+
+  it('un 401 renueva la sesión UNA vez y reintenta con el token nuevo', async () => {
+    repararSesion.mockResolvedValue('ok');
+    fetchMock.mockResolvedValueOnce(resp(401)).mockResolvedValueOnce(resp(200));
+    expect((await fetchWithTimeout(PROXY, {}, 1000, ESPERAS)).status).toBe(200);
+    expect(repararSesion).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('si tras renovar el 401 persiste, lo devuelve sin entrar en un ciclo', async () => {
+    repararSesion.mockResolvedValue('ok');
+    fetchMock.mockResolvedValue(resp(401));
+    expect((await fetchWithTimeout(PROXY, {}, 1000, ESPERAS)).status).toBe(401);
+    expect(repararSesion).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('si la sesión ya no vale (cerrada) o no se pudo saber (incierto), devuelve el 401 sin reintentar', async () => {
+    for (const r of ['cerrada', 'incierto'] as const) {
+      repararSesion.mockResolvedValue(r);
+      fetchMock.mockClear().mockResolvedValue(resp(401));
+      expect((await fetchWithTimeout(PROXY, {}, 1000, ESPERAS)).status).toBe(401);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('un 401 fuera del proxy, o en un POST, no toca la sesión', async () => {
+    fetchMock.mockResolvedValue(resp(401));
+    await fetchWithTimeout(OTRA, {}, 1000, ESPERAS);
+    await fetchWithTimeout(PROXY, { method: 'POST' }, 1000, ESPERAS);
+    expect(repararSesion).not.toHaveBeenCalled();
   });
 });

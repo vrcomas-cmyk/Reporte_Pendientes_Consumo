@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { UNRESTRICTED_PERMISSIONS, type EffectivePermissions } from '@/core/permissions';
 import { loadEffectivePermissions } from '@/services/permissionsService';
+import { repararSesion } from '@/lib/sesion';
 import { toast } from '@/store/toastStore';
 
 /** `cargando`: aún no hay respuesta · `ok`: permisos leídos del servidor · `degradado`: el servidor no respondió y se usan los últimos permisos buenos ·
@@ -41,7 +42,16 @@ export const usePermissionsStore = create<PermissionsState>((set, get) => ({
     if (enVuelo) return enVuelo;
     detenerReintento();
     enVuelo = (async () => {
-      const { perms, origen } = await loadEffectivePermissions(email);
+      let res = await loadEffectivePermissions(email);
+      // El servidor rechazó el token: se intenta renovar la sesión; si el servidor confirma que ya no vale se cierra la sesión local (useAuth muestra el inicio de sesión) y si se
+      // renovó se vuelve a leer una vez. Así una sesión mala no deja al usuario «verificando» hasta que borre el caché.
+      if (res.origen === 'sesion') {
+        const rep = await repararSesion();
+        if (correo !== email) return;
+        if (rep === 'cerrada') { get().reset(); return; }
+        if (rep === 'ok') res = await loadEffectivePermissions(email);
+      }
+      const { perms, origen } = res;
       // Si mientras tanto cerró sesión (reset) o entró otro usuario, este resultado ya no aplica.
       if (correo !== email) return;
       const estado: EstadoPermisos = origen === 'servidor' ? 'ok' : origen === 'cache' ? 'degradado' : 'error';

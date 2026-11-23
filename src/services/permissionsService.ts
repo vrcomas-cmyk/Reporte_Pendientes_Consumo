@@ -1,19 +1,23 @@
 import { supabase } from '@/lib/supabaseClient';
+import { esErrorDeSesion } from '@/lib/sesion';
 import { computeEffectivePermissions, DATOS_ABIERTOS, deserializarPermisos, serializarPermisos, type DatosUsuario, type EffectivePermissions, type PermissionRow, type RoleRow } from '@/core/permissions';
 
 export interface ModuleRow { key: string; label: string; sortOrder: number }
 export interface AllowedUserRow { email: string; displayName: string | null; roleId: string | null; roleName: string | null }
 
 /** De dónde salieron los permisos: `servidor` (lectura buena), `cache` (el servidor no respondió y se usaron los últimos permisos buenos de este
- * mismo usuario → modo degradado) o `error` (no respondió y no hay copia: no se concede nada). */
-export type OrigenPermisos = 'servidor' | 'cache' | 'error';
+ * mismo usuario → modo degradado), `error` (no respondió y no hay copia: no se concede nada) o `sesion` (el servidor rechazó el token: la sesión guardada ya no vale y
+ * hay que repararla o pedir entrar de nuevo; no se usa la copia porque el problema no es la disponibilidad del servidor). */
+export type OrigenPermisos = 'servidor' | 'cache' | 'error' | 'sesion';
 export interface ResultadoPermisos { perms: EffectivePermissions; origen: OrigenPermisos }
 
 const CACHE_PERMISOS_KEY = 'degasa_perms_cache_v1';
 const CACHE_PERMISOS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const BACKOFF_PERMISOS_MS: readonly number[] = [1000, 3000, 7000];
-/** Con copia local no se hace esperar al usuario: si el servidor no contesta en este plazo se entra con la copia y se reintenta en segundo plano. */
-const PLAZO_CON_CACHE_MS = 8000;
+/** Tiempo TOTAL máximo de la verificación: con copia local no se hace esperar al usuario (se entra con la copia y se reintenta en segundo plano); sin copia se da un
+ *  margen mayor, pero acotado, para que la pantalla «Verificando tu acceso» nunca dure minutos y el usuario vea el error con sus botones. */
+const PLAZO_CON_CACHE_MS = 12_000;
+const PLAZO_SIN_CACHE_MS = 30_000;
 
 export function leerCachePermisos(email: string): EffectivePermissions | null {
   try {
@@ -43,17 +47,24 @@ const rechazarEn = (ms: number) => new Promise<never>((_, rej) => setTimeout(() 
 export async function loadEffectivePermissions(email: string, opts: { esperas?: readonly number[]; plazoMs?: number } = {}): Promise<ResultadoPermisos> {
   const copia = leerCachePermisos(email);
   const esperas = opts.esperas ?? (copia ? [] : BACKOFF_PERMISOS_MS);
-  const plazoMs = opts.plazoMs ?? (copia ? PLAZO_CON_CACHE_MS : 0);
+  const limite = Date.now() + (opts.plazoMs ?? (copia ? PLAZO_CON_CACHE_MS : PLAZO_SIN_CACHE_MS));
+  const sinAcceso = () => computeEffectivePermissions({ id: '__sin_acceso__', name: 'Sin acceso (error al cargar)', isAdmin: false }, []);
   for (let i = 0; i <= esperas.length; i++) {
+    const restante = limite - Date.now();
+    if (restante <= 0) break;
     try {
-      const perms = await (plazoMs > 0 ? Promise.race([leerPermisosDelServidor(email), rechazarEn(plazoMs)]) : leerPermisosDelServidor(email));
+      const perms = await Promise.race([leerPermisosDelServidor(email), rechazarEn(restante)]);
       guardarCachePermisos(email, perms);
       return { perms, origen: 'servidor' };
-    } catch { /* timeout / red / error del servidor: se reintenta */ }
-    if (i < esperas.length) await esperar(esperas[i]);
+    } catch (e) {
+      // Token rechazado (JWT vencido/inválido, sesión inexistente): reintentar con el mismo token no sirve y la copia local tampoco; lo resuelve quien repara la sesión.
+      if (esErrorDeSesion(e)) return { perms: sinAcceso(), origen: 'sesion' };
+      /* timeout / red / error del servidor: se reintenta */
+    }
+    if (i < esperas.length && limite - Date.now() > esperas[i]) await esperar(esperas[i]);
   }
   if (copia) return { perms: copia, origen: 'cache' };
-  return { perms: computeEffectivePermissions({ id: '__sin_acceso__', name: 'Sin acceso (error al cargar)', isAdmin: false }, []), origen: 'error' };
+  return { perms: sinAcceso(), origen: 'error' };
 }
 
 /** Una lectura de los permisos desde Supabase; LANZA ante cualquier error (el que decide qué hacer es `loadEffectivePermissions`). */

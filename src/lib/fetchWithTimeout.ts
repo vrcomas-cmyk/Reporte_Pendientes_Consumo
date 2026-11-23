@@ -37,15 +37,23 @@ async function intentar(url: string, init: RequestInit, ms: number): Promise<Res
  *
  * Las LECTURAS (GET) al proxy de datos se reintentan hasta 2 veces con espera creciente + algo de azar cuando Supabase responde 502/503/504 (la función
  * `datos` contesta 503 si Auth no está disponible) o la red falla / se agota el tiempo: una caída breve no debe tumbar una carga de decenas de bloques.
- * No se reintenta 401/403/4xx: son un «no» real. `esperasMs` solo cambia en las pruebas. */
+ * Un 401 renueva la sesión una vez y reintenta; no se reintenta 403/4xx: son un «no» real. `esperasMs` solo cambia en las pruebas. */
 export async function fetchWithTimeout(url: string, init: RequestInit = {}, ms = 15_000, esperasMs: readonly number[] = ESPERAS_PROXY_MS): Promise<Response> {
   const { esUrlProxy } = await import('@/services/datosProxy');
   const reintentable = esUrlProxy(url) && (init.method ?? 'GET').toUpperCase() === 'GET';
   const espera = reintentable ? esperasMs : [];
+  let sesionRevisada = false;
   for (let i = 0; ; i++) {
     const quedan = i < espera.length;
     try {
       const res = await intentar(url, init, ms);
+      // 401 del proxy: casi siempre el token de acceso venció (o la sesión se perdió). Se renueva UNA vez (compartida entre todas las peticiones en vuelo) y se reintenta con
+      // el token nuevo; si el servidor confirma que la sesión ya no vale, se cierra la sesión local y la app pide entrar de nuevo, sin que el usuario borre el caché.
+      if (res.status === 401 && reintentable && !sesionRevisada) {
+        sesionRevisada = true;
+        const { repararSesion } = await import('@/lib/sesion'); // import dinámico: sesion → supabaseClient (evita el ciclo con datosProxy)
+        if ((await repararSesion()) === 'ok') { i--; continue; }
+      }
       if (quedan && ESTADOS_REINTENTABLES.has(res.status)) {
         await esperar(espera[i] + Math.random() * 300);
         continue;

@@ -1,14 +1,31 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { usePermissionsStore } from '@/store/permissionsStore';
 import { canViewModule } from '@/core/permissions';
 import { EmptyState } from '@/components/feedback/EmptyState';
+import { cerrarSesionLocal } from '@/lib/sesion';
 
 const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
 
 /** Mientras no se hayan cargado los permisos del usuario no se monta ningún módulo: los permisos arrancan «sin restricción» y, sin esto, un usuario restringido
  * alcanzaría a montar (y pedir los datos de) un módulo que no le toca en los instantes previos a la carga. */
 function CargandoPermisos() {
-  return <p className="p-6 text-sm text-text-muted" role="status">Verificando tu acceso…</p>;
+  const reintentar = usePermissionsStore((s) => s.reintentar);
+  // Si la verificación tarda más de lo normal (servidor lento, sesión guardada en mal estado) el usuario no se queda esperando sin salida: puede reintentar o cerrar sesión.
+  const [lento, setLento] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setLento(true), 12_000); return () => clearTimeout(t); }, []);
+  return (
+    <div className="p-6 text-sm text-text-muted" role="status">
+      <p>Verificando tu acceso…</p>
+      {lento && (
+        <p className="mt-2">
+          Está tardando más de lo normal.{' '}
+          <button type="button" onClick={() => { void reintentar(); }} className="text-accent hover:underline">Reintentar</button>
+          {' · '}
+          <button type="button" onClick={() => { void cerrarSesionLocal(); }} className="text-accent hover:underline">Cerrar sesión e ingresar de nuevo</button>
+        </p>
+      )}
+    </div>
+  );
 }
 
 /** El servidor no respondió y no hay una copia de los permisos de este usuario: NO es «sin acceso», es que no se pudo verificar. No se concede nada (fail-closed),
@@ -20,6 +37,7 @@ function NoSePudoVerificar({ reintentando }: { reintentando: boolean }) {
       title="No pudimos verificar tus permisos"
       description="El servidor no está respondiendo (no es un problema de tu acceso). Se reintenta solo cada pocos segundos; también puedes reintentar ahora."
       action={{ label: reintentando ? 'Reintentando…' : 'Reintentar', onClick: reintentando ? undefined : () => { void reintentar(); } }}
+      secondaryAction={{ label: 'Cerrar sesión e ingresar de nuevo', onClick: () => { void cerrarSesionLocal(); } }}
     />
   );
 }
